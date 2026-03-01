@@ -169,6 +169,7 @@ class WeatherForecastResponse(BaseModel):
 class WeatherMarketResponse(BaseModel):
     slug: str
     market_id: str
+    platform: str = "polymarket"
     title: str
     city_key: str
     city_name: str
@@ -626,6 +627,32 @@ async def get_calibration(db: Session = Depends(get_db)):
     return {"buckets": buckets, "summary": summary}
 
 
+# Kalshi endpoints
+@app.get("/api/kalshi/status")
+async def get_kalshi_status():
+    """Test Kalshi API authentication and return connection status."""
+    from backend.data.kalshi_client import KalshiClient, kalshi_credentials_present
+
+    if not kalshi_credentials_present():
+        return {
+            "connected": False,
+            "error": "Kalshi credentials not configured (KALSHI_API_KEY_ID / KALSHI_PRIVATE_KEY_PATH)",
+        }
+
+    try:
+        client = KalshiClient()
+        balance_data = await client.get_balance()
+        return {
+            "connected": True,
+            "balance": balance_data,
+        }
+    except Exception as e:
+        return {
+            "connected": False,
+            "error": str(e),
+        }
+
+
 # Weather endpoints
 @app.get("/api/weather/forecasts", response_model=List[WeatherForecastResponse])
 async def get_weather_forecasts():
@@ -674,10 +701,22 @@ async def get_weather_markets():
         city_keys = [c.strip() for c in settings.WEATHER_CITIES.split(",") if c.strip()]
         markets = await fetch_polymarket_weather_markets(city_keys)
 
+        # Also fetch Kalshi markets if enabled
+        if settings.KALSHI_ENABLED:
+            try:
+                from backend.data.kalshi_client import kalshi_credentials_present
+                from backend.data.kalshi_markets import fetch_kalshi_weather_markets
+                if kalshi_credentials_present():
+                    kalshi_markets = await fetch_kalshi_weather_markets(city_keys)
+                    markets.extend(kalshi_markets)
+            except Exception:
+                pass
+
         return [
             WeatherMarketResponse(
                 slug=m.slug,
                 market_id=m.market_id,
+                platform=m.platform,
                 title=m.title,
                 city_key=m.city_key,
                 city_name=m.city_name,

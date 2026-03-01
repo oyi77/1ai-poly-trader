@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     # API Keys (optional)
     POLYMARKET_API_KEY: Optional[str] = None
 
+    # Kalshi API
+    KALSHI_API_KEY_ID: Optional[str] = None
+    KALSHI_PRIVATE_KEY_PATH: Optional[str] = None
+    KALSHI_ENABLED: bool = True
+
     # AI API Keys
     GROQ_API_KEY: Optional[str] = None
 

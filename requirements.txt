@@ -10,6 +10,9 @@ pydantic-settings==2.1.0
 httpx==0.26.0
 aiohttp==3.9.1
 
+# Kalshi API auth (RSA-PSS signatures)
+cryptography>=42.0.0
+
 # Weather data (using Open-Meteo API)
 numpy==1.26.3
 pandas==2.1.4

@@ -1,24 +1,25 @@
 # Prediction Market Trading Bot
 
-A multi-strategy trading bot that identifies pricing inefficiencies in prediction markets. Combines **BTC 5-minute microstructure analysis** with **ensemble weather forecasting** to trade Polymarket contracts. Features a professional React dashboard.
+A multi-strategy trading bot that identifies pricing inefficiencies in prediction markets. Combines **BTC 5-minute microstructure analysis** with **ensemble weather forecasting** to trade on **Kalshi** and **Polymarket**. Features a professional React dashboard.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue) ![React](https://img.shields.io/badge/react-18+-61DAFB) ![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
-**100% free to run** - No paid APIs, no subscriptions. All data sources are free.
+**100% free to run** - No paid APIs, no subscriptions. All data sources are free. Kalshi API key optional for Kalshi markets.
 
 ## Overview
 
 ### Strategy 1: BTC 5-Minute Up/Down
 Scans Polymarket BTC 5-minute Up/Down markets every 60 seconds. Uses real-time 1-minute candle data from Coinbase/Kraken/Binance to compute RSI, momentum, VWAP deviation, SMA crossover, and market skew as a weighted composite signal. Trades when edge > 2%.
 
-### Strategy 2: Weather Temperature
-Scans Polymarket weather temperature markets every 5 minutes. Uses 31-member GFS ensemble forecasts from Open-Meteo to estimate the probability of temperature thresholds being exceeded. Trades when edge > 8%. Feature-flagged via `WEATHER_ENABLED`.
+### Strategy 2: Weather Temperature (Kalshi + Polymarket)
+Scans weather temperature markets on **Kalshi** (KXHIGH series) and **Polymarket** every 5 minutes. Uses 31-member GFS ensemble forecasts from Open-Meteo to estimate the probability of temperature thresholds being exceeded. Trades when edge > 8%. Kalshi markets are auto-discovered via the `KXHIGHNY`, `KXHIGHCHI`, `KXHIGHMIA`, `KXHIGHLAX`, `KXHIGHDEN` series tickers.
 
 ### Key Features
 
 - **BTC Microstructure Analysis** - RSI, momentum (1m/5m/15m), VWAP, SMA crossover from real candle data
 - **Ensemble Weather Forecasting** - 31-member GFS ensemble from Open-Meteo for probabilistic temperature predictions
-- **Edge Detection** - Identifies mispriced markets across both strategies
+- **Multi-Platform Trading** - Trades weather markets on both Kalshi (KXHIGH series) and Polymarket simultaneously
+- **Edge Detection** - Identifies mispriced markets across both strategies and platforms
 - **Kelly Criterion Sizing** - Fractional Kelly (15%) position sizing with per-trade caps
 - **Signal Calibration** - Tracks predictions vs outcomes with Brier score
 - **Professional Dashboard** - React 3-column dashboard with real-time updates
@@ -84,11 +85,11 @@ Frontend will be at: http://localhost:5173
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                        DATA SOURCES                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
-│  │Coinbase/ │ │Open-Meteo│ │  NWS     │ │Polymarket│            │
-│  │Kraken/   │ │ Ensemble │ │  API     │ │Gamma API │            │
-│  │Binance   │ │  (GFS)   │ │          │ │          │            │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘            │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
+│  │Coinbase/ │ │Open-Meteo│ │  NWS     │ │Polymarket│ │ Kalshi │ │
+│  │Kraken/   │ │ Ensemble │ │  API     │ │Gamma API │ │  API   │ │
+│  │Binance   │ │  (GFS)   │ │          │ │          │ │(KXHIGH)│ │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -102,11 +103,12 @@ Frontend will be at: http://localhost:5173
 5. Compare to Polymarket prices, trade the side with higher edge
 
 ### Weather Temperature Strategy
-1. Fetch 31-member GFS ensemble forecasts from Open-Meteo
-2. Count fraction of members above/below the market's temperature threshold
-3. That fraction = model probability (e.g., 28/31 members above 70F = 90% probability)
-4. Compare to Polymarket market price, trade when edge > 8%
-5. Confidence = ensemble agreement (how one-sided the 31 members are)
+1. Fetch open weather markets from Kalshi (KXHIGH series, RSA-PSS auth) and Polymarket (Gamma API)
+2. Fetch 31-member GFS ensemble forecasts from Open-Meteo
+3. Count fraction of members above/below the market's temperature threshold
+4. That fraction = model probability (e.g., 28/31 members above 70F = 90% probability)
+5. Compare to market price on either platform, trade when edge > 8%
+6. Confidence = ensemble agreement (how one-sided the 31 members are)
 
 ### Edge Calculation
 ```
@@ -130,9 +132,10 @@ Capped at 5% of bankroll and $75 (BTC) or $100 (Weather) per trade.
 | `/api/btc/windows` | GET | Active BTC 5-min windows |
 | `/api/signals` | GET | Current BTC trading signals |
 | `/api/signals/actionable` | GET | BTC signals above threshold |
+| `/api/kalshi/status` | GET | Kalshi API auth status + balance |
 | `/api/weather/forecasts` | GET | Ensemble forecasts for all cities |
-| `/api/weather/markets` | GET | Active weather temperature markets |
-| `/api/weather/signals` | GET | Weather trading signals |
+| `/api/weather/markets` | GET | Weather markets (Kalshi + Polymarket) |
+| `/api/weather/signals` | GET | Weather trading signals (both platforms) |
 | `/api/trades` | GET | Trade history |
 | `/api/stats` | GET | Bot statistics |
 | `/api/calibration` | GET | Signal calibration data |
@@ -157,6 +160,13 @@ All settings in `backend/config.py`, overridable via environment variables:
 | `MAX_ENTRY_PRICE` | 0.55 | Max entry price (55c) |
 | `MAX_TRADE_SIZE` | 75.0 | Max $ per BTC trade |
 | `KELLY_FRACTION` | 0.15 | Fractional Kelly multiplier |
+
+### Kalshi Settings
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `KALSHI_API_KEY_ID` | None | Kalshi API key ID |
+| `KALSHI_PRIVATE_KEY_PATH` | None | Path to RSA private key PEM file |
+| `KALSHI_ENABLED` | True | Enable/disable Kalshi market fetching |
 
 ### Weather Settings
 | Setting | Default | Description |
@@ -189,16 +199,15 @@ Add more cities by editing `WEATHER_CITIES` in config and adding entries to `CIT
 
 ## Data Sources
 
-All free, no API keys required:
-
-| Source | Data | Used For |
-|--------|------|----------|
-| Coinbase | BTC 1-min candles | BTC microstructure |
-| Kraken | BTC 1-min candles | BTC fallback |
-| Binance | BTC 1-min candles | BTC fallback |
-| Open-Meteo | GFS Ensemble (31 members) | Weather probability |
-| NWS API | Observed temperatures | Weather settlement |
-| Polymarket | Market prices + resolution | Both strategies |
+| Source | Data | Used For | Auth |
+|--------|------|----------|------|
+| Coinbase | BTC 1-min candles | BTC microstructure | None |
+| Kraken | BTC 1-min candles | BTC fallback | None |
+| Binance | BTC 1-min candles | BTC fallback | None |
+| Open-Meteo | GFS Ensemble (31 members) | Weather probability | None |
+| NWS API | Observed temperatures | Weather settlement | None |
+| Polymarket | Market prices + resolution | Both strategies | None |
+| Kalshi | Weather temperature markets (KXHIGH) | Weather strategy | RSA key |
 
 ## Project Structure
 
@@ -215,6 +224,8 @@ kalshi-trading-bot/
 │   ├── data/
 │   │   ├── btc_markets.py          # Polymarket BTC market fetcher
 │   │   ├── crypto.py               # BTC price + microstructure
+│   │   ├── kalshi_client.py        # Kalshi API client (RSA-PSS auth)
+│   │   ├── kalshi_markets.py       # Kalshi weather market fetcher (KXHIGH)
 │   │   ├── weather.py              # Open-Meteo ensemble + NWS observations
 │   │   ├── weather_markets.py      # Polymarket weather market fetcher
 │   │   └── markets.py              # Generic market wrapper
