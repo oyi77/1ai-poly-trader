@@ -1136,8 +1136,11 @@ def _get_grouped_settings() -> dict:
     trading = {}
     weather = {}
     risk = {}
+    indicators = {}
+    ai = {}
     api_keys = {}
     telegram = {}
+    security = {}
     system = {}
 
     field_groups = {
@@ -1150,29 +1153,43 @@ def _get_grouped_settings() -> dict:
         "MAX_ENTRY_PRICE": trading,
         "MAX_TRADES_PER_WINDOW": trading,
         "MAX_TOTAL_PENDING_TRADES": trading,
+        "BTC_PRICE_SOURCE": trading,
         "WEATHER_ENABLED": weather,
         "WEATHER_CITIES": weather,
         "WEATHER_MIN_EDGE_THRESHOLD": weather,
         "WEATHER_MAX_ENTRY_PRICE": weather,
         "WEATHER_MAX_TRADE_SIZE": weather,
         "WEATHER_SCAN_INTERVAL_SECONDS": weather,
+        "WEATHER_SETTLEMENT_INTERVAL_SECONDS": weather,
         "MIN_TIME_REMAINING": risk,
         "MAX_TIME_REMAINING": risk,
         "MIN_MARKET_VOLUME": risk,
+        "WEIGHT_RSI": indicators,
+        "WEIGHT_MOMENTUM": indicators,
+        "WEIGHT_VWAP": indicators,
+        "WEIGHT_SMA": indicators,
+        "WEIGHT_MARKET_SKEW": indicators,
+        "GROQ_MODEL": ai,
+        "AI_LOG_ALL_CALLS": ai,
+        "AI_DAILY_BUDGET_USD": ai,
+        "GROQ_API_KEY": api_keys,
         "POLYMARKET_API_KEY": api_keys,
         "POLYMARKET_PRIVATE_KEY": api_keys,
         "POLYMARKET_API_SECRET": api_keys,
         "POLYMARKET_API_PASSPHRASE": api_keys,
         "KALSHI_API_KEY_ID": api_keys,
         "KALSHI_PRIVATE_KEY_PATH": api_keys,
-        "GROQ_API_KEY": api_keys,
         "TELEGRAM_BOT_TOKEN": telegram,
         "TELEGRAM_ADMIN_CHAT_IDS": telegram,
+        "ADMIN_API_KEY": security,
+        "CORS_ORIGINS": security,
         "DATABASE_URL": system,
         "SCAN_INTERVAL_SECONDS": system,
         "SETTLEMENT_INTERVAL_SECONDS": system,
         "KALSHI_ENABLED": system,
+        "POLYGON_AMOY_RPC": system,
         "POLYGON_AMOY_CHAIN_ID": system,
+        "POLYMARKET_TESTNET_CLOB_HOST": system,
     }
 
     for field_name, group in field_groups.items():
@@ -1184,8 +1201,11 @@ def _get_grouped_settings() -> dict:
         "trading": trading,
         "weather": weather,
         "risk": risk,
+        "indicators": indicators,
+        "ai": ai,
         "api_keys": api_keys,
         "telegram": telegram,
+        "security": security,
         "system": system,
     }
 

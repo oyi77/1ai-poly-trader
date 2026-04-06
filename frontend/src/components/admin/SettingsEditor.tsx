@@ -12,8 +12,11 @@ const SECTION_LABELS: Record<string, string> = {
   trading: 'Trading',
   weather: 'Weather',
   risk: 'Risk Management',
+  indicators: 'Signal Weights',
+  ai: 'AI / LLM',
   api_keys: 'API Keys',
   telegram: 'Telegram',
+  security: 'Security',
   system: 'System',
 }
 
