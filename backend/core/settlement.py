@@ -1,9 +1,11 @@
 """Trade settlement logic for BTC 5-min and weather markets using Polymarket API."""
-import httpx
 import json
 import logging
-from datetime import datetime, date
+import re
+from datetime import datetime
 from typing import Optional, List, Tuple
+
+import httpx
 from sqlalchemy.orm import Session
 
 from backend.models.database import Trade, BotState, Signal
@@ -278,6 +280,10 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                         linked_signal.outcome_correct = (linked_signal.direction == actual_outcome)
                         linked_signal.settlement_value = settlement_value
                         linked_signal.settled_at = datetime.utcnow()
+
+                        # Feed Welford calibration for weather trades
+                        if market_type == "weather" and linked_signal.sources:
+                            _try_calibrate_weather(linked_signal, settlement_value)
         except Exception as e:
             logger.error(f"Failed to settle trade {trade.id}: {e}")
             continue
@@ -319,3 +325,45 @@ async def update_bot_state_with_settlements(db: Session, settled_trades: List[Tr
     except Exception as e:
         logger.error(f"Failed to update bot state: {e}")
         db.rollback()
+
+
+def _try_calibrate_weather(signal, settlement_value: float) -> None:
+    """
+    Feed a settled weather signal back into the Welford sigma calibrator.
+
+    City key is stored as "city:<key>" in Signal.sources by weather_signals.py.
+    Ensemble mean and threshold are parsed from the reasoning string.
+    Proxy actual temp is ±1°F from threshold based on settlement outcome.
+    """
+    try:
+        from backend.core.calibration import update_calibration
+
+        sources = signal.sources or []
+        city_key = next(
+            (s.split(":", 1)[1] for s in sources if s.startswith("city:")),
+            None,
+        )
+        if not city_key:
+            return
+
+        m = re.search(r"Ensemble:\s*([\d.]+)F", signal.reasoning or "")
+        if not m:
+            return
+        forecast_temp_f = float(m.group(1))
+
+        m2 = re.search(r"(?:above|below)\s*([\d.]+)F", signal.reasoning)
+        threshold_f = float(m2.group(1)) if m2 else forecast_temp_f
+
+        direction_above = "above" in (signal.reasoning or "").lower().split("|")[0]
+        if settlement_value == 1.0:
+            actual_temp_f = threshold_f + 1.0 if direction_above else threshold_f - 1.0
+        else:
+            actual_temp_f = threshold_f - 1.0 if direction_above else threshold_f + 1.0
+
+        update_calibration(city_key, source="gefs",
+                           forecast_temp_f=forecast_temp_f,
+                           actual_temp_f=actual_temp_f)
+        logger.debug(f"Calibration updated: {city_key} forecast={forecast_temp_f:.1f} actual≈{actual_temp_f:.1f}")
+
+    except Exception as e:
+        logger.debug(f"Calibration update skipped (best-effort): {e}")

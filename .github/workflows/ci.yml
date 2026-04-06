@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Python tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest-cov
+
+      - name: Run tests with coverage
+        env:
+          SIMULATION_MODE: "true"
+          DATABASE_URL: "sqlite:///./test.db"
+        run: |
+          python -m pytest tests/ \
+            --cov=backend \
+            --cov-report=term-missing \
+            --cov-fail-under=60 \
+            -q
+
+      - name: Lint with ruff
+        run: ruff check backend/ tests/ --select=E,F,W --ignore=E501,E712
+
+  docker:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t polyedge:ci .

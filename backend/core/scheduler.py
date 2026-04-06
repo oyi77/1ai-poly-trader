@@ -1,6 +1,6 @@
 """Background scheduler for BTC 5-min autonomous trading."""
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -429,7 +429,6 @@ def start_scheduler():
     # Weather trading jobs (gated by WEATHER_ENABLED)
     if settings.WEATHER_ENABLED:
         weather_scan_seconds = settings.WEATHER_SCAN_INTERVAL_SECONDS
-        weather_settle_seconds = settings.WEATHER_SETTLEMENT_INTERVAL_SECONDS
 
         scheduler.add_job(
             weather_scan_and_trade_job,

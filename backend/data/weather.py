@@ -9,48 +9,33 @@ import time
 
 logger = logging.getLogger("trading_bot")
 
-# City configurations with lat/lon and NWS station identifiers
+# City configurations — AIRPORT coordinates matching METAR stations used by Polymarket
+# Using airport lat/lon eliminates the systematic 3-8°F error from city-center coords
 CITY_CONFIG: Dict[str, dict] = {
-    "nyc": {
-        "name": "New York City",
-        "lat": 40.7128,
-        "lon": -74.0060,
-        "nws_station": "KNYC",
-        "nws_office": "OKX",
-        "nws_gridpoint": "OKX/33,37",
-    },
-    "chicago": {
-        "name": "Chicago",
-        "lat": 41.8781,
-        "lon": -87.6298,
-        "nws_station": "KORD",
-        "nws_office": "LOT",
-        "nws_gridpoint": "LOT/75,72",
-    },
-    "miami": {
-        "name": "Miami",
-        "lat": 25.7617,
-        "lon": -80.1918,
-        "nws_station": "KMIA",
-        "nws_office": "MFL",
-        "nws_gridpoint": "MFL/75,53",
-    },
-    "los_angeles": {
-        "name": "Los Angeles",
-        "lat": 34.0522,
-        "lon": -118.2437,
-        "nws_station": "KLAX",
-        "nws_office": "LOX",
-        "nws_gridpoint": "LOX/154,44",
-    },
-    "denver": {
-        "name": "Denver",
-        "lat": 39.7392,
-        "lon": -104.9903,
-        "nws_station": "KDEN",
-        "nws_office": "BOU",
-        "nws_gridpoint": "BOU/62,60",
-    },
+    # US cities — airport coordinates (NOT city centers)
+    "nyc":          {"name": "New York City",  "lat": 40.7772,  "lon": -73.8726,  "nws_station": "KLGA",  "unit": "F"},  # LaGuardia
+    "chicago":      {"name": "Chicago",        "lat": 41.9742,  "lon": -87.9073,  "nws_station": "KORD",  "unit": "F"},  # O'Hare
+    "miami":        {"name": "Miami",          "lat": 25.7959,  "lon": -80.2870,  "nws_station": "KMIA",  "unit": "F"},  # Miami Intl
+    "dallas":       {"name": "Dallas",         "lat": 32.8471,  "lon": -96.8518,  "nws_station": "KDAL",  "unit": "F"},  # Love Field (NOT DFW!)
+    "seattle":      {"name": "Seattle",        "lat": 47.4502,  "lon": -122.3088, "nws_station": "KSEA",  "unit": "F"},  # Sea-Tac
+    "atlanta":      {"name": "Atlanta",        "lat": 33.6407,  "lon": -84.4277,  "nws_station": "KATL",  "unit": "F"},  # Hartsfield
+    "los_angeles":  {"name": "Los Angeles",    "lat": 33.9425,  "lon": -118.4081, "nws_station": "KLAX",  "unit": "F"},  # LAX
+    "denver":       {"name": "Denver",         "lat": 39.8561,  "lon": -104.6737, "nws_station": "KDEN",  "unit": "F"},  # Denver Intl
+    # European cities — airport coordinates
+    "london":       {"name": "London",         "lat": 51.5048,  "lon": 0.0495,    "nws_station": "EGLC",  "unit": "C"},  # London City
+    "paris":        {"name": "Paris",          "lat": 48.9962,  "lon": 2.5979,    "nws_station": "LFPG",  "unit": "C"},  # CDG
+    "munich":       {"name": "Munich",         "lat": 48.3537,  "lon": 11.7750,   "nws_station": "EDDM",  "unit": "C"},  # Munich Intl
+    "ankara":       {"name": "Ankara",         "lat": 40.1281,  "lon": 32.9951,   "nws_station": "LTAC",  "unit": "C"},  # Esenboga
+    # Asian cities
+    "seoul":        {"name": "Seoul",          "lat": 37.4691,  "lon": 126.4505,  "nws_station": "RKSI",  "unit": "C"},  # Incheon
+    "tokyo":        {"name": "Tokyo",          "lat": 35.7647,  "lon": 140.3864,  "nws_station": "RJTT",  "unit": "C"},  # Haneda
+    "shanghai":     {"name": "Shanghai",       "lat": 31.1443,  "lon": 121.8083,  "nws_station": "ZSPD",  "unit": "C"},  # Pudong
+    "singapore":    {"name": "Singapore",      "lat": 1.3502,   "lon": 103.9940,  "nws_station": "WSSS",  "unit": "C"},  # Changi
+    # Other regions
+    "toronto":      {"name": "Toronto",        "lat": 43.6772,  "lon": -79.6306,  "nws_station": "CYYZ",  "unit": "C"},  # Pearson
+    "sao_paulo":    {"name": "Sao Paulo",      "lat": -23.4356, "lon": -46.4731,  "nws_station": "SBGR",  "unit": "C"},  # Guarulhos
+    "buenos_aires": {"name": "Buenos Aires",   "lat": -34.8222, "lon": -58.5358,  "nws_station": "SAEZ",  "unit": "C"},  # Ezeiza
+    "wellington":   {"name": "Wellington",     "lat": -41.3272, "lon": 174.8052,  "nws_station": "NZWN",  "unit": "C"},  # Wellington Intl
 }
 
 
@@ -93,7 +78,7 @@ class EnsembleForecast:
         """Fraction of ensemble members with daily low above threshold."""
         if not self.member_lows:
             return 0.5
-        count = sum(1 for l in self.member_lows if l > threshold_f)
+        count = sum(1 for m in self.member_lows if m > threshold_f)
         return count / len(self.member_lows)
 
     def probability_low_below(self, threshold_f: float) -> float:
@@ -144,15 +129,19 @@ async def fetch_ensemble_forecast(city_key: str, target_date: Optional[date] = N
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             # Open-Meteo Ensemble API — GFS ensemble with 31 members
+            # For non-US cities (unit="C"), fetch Celsius and convert to Fahrenheit locally
+            city_unit = city.get("unit", "F")
             params = {
                 "latitude": city["lat"],
                 "longitude": city["lon"],
                 "daily": "temperature_2m_max,temperature_2m_min",
-                "temperature_unit": "fahrenheit",
                 "start_date": target_date.isoformat(),
                 "end_date": target_date.isoformat(),
                 "models": "gfs_seamless",
             }
+            if city_unit == "F":
+                params["temperature_unit"] = "fahrenheit"
+            # If unit is "C", omit temperature_unit — Open-Meteo returns Celsius by default
 
             response = await client.get(
                 "https://ensemble-api.open-meteo.com/v1/ensemble",
@@ -166,6 +155,7 @@ async def fetch_ensemble_forecast(city_key: str, target_date: Optional[date] = N
             # Open-Meteo returns each ensemble member as a separate key:
             #   temperature_2m_max (control), temperature_2m_max_member01, ..., _member30
             # Collect all member values for highs and lows
+            # All member temps stored in Fahrenheit regardless of source unit
             member_highs = []
             member_lows = []
 
@@ -176,9 +166,11 @@ async def fetch_ensemble_forecast(city_key: str, target_date: Optional[date] = N
                 if val is None:
                     continue
                 if "temperature_2m_max" in key:
-                    member_highs.append(float(val))
+                    temp_f = float(val) if city_unit == "F" else _celsius_to_fahrenheit(float(val))
+                    member_highs.append(temp_f)
                 elif "temperature_2m_min" in key:
-                    member_lows.append(float(val))
+                    temp_f = float(val) if city_unit == "F" else _celsius_to_fahrenheit(float(val))
+                    member_lows.append(temp_f)
 
             if not member_highs:
                 logger.warning(f"No ensemble data for {city_key} on {target_date}")

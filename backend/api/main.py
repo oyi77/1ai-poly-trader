@@ -2,19 +2,18 @@
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 import asyncio
-import json
 import os
 
 from backend.config import settings
 from backend.models.database import (
     get_db, init_db, SessionLocal,
-    Signal, Trade, BotState, AILog, ScanLog
+    Signal, Trade, BotState, AILog
 )
 from backend.core.signals import scan_for_signals, TradingSignal
-from backend.data.btc_markets import fetch_active_btc_markets, BtcMarket
+from backend.data.btc_markets import fetch_active_btc_markets
 from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
 
 from pydantic import BaseModel
@@ -662,7 +661,6 @@ async def get_weather_forecasts():
 
     try:
         from backend.data.weather import fetch_ensemble_forecast, CITY_CONFIG
-        from datetime import date
 
         city_keys = [c.strip() for c in settings.WEATHER_CITIES.split(",") if c.strip()]
         forecasts = []
@@ -1003,6 +1001,96 @@ async def get_dashboard(db: Session = Depends(get_db)):
         weather_signals=weather_signals_data,
         weather_forecasts=weather_forecasts_data,
     )
+
+
+# =========================================================================
+# Copy Trader endpoints
+# =========================================================================
+
+class ScoredTraderResponse(BaseModel):
+    wallet: str
+    pseudonym: str
+    profit_30d: float
+    win_rate: float
+    total_trades: int
+    unique_markets: int
+    estimated_bankroll: float
+    score: float
+    market_diversity: float
+
+
+class CopySignalResponse(BaseModel):
+    source_wallet: str
+    our_side: str
+    our_outcome: str
+    our_size: float
+    market_price: float
+    trader_score: float
+    reasoning: str
+    condition_id: str
+    title: str
+    timestamp: str
+
+
+@app.get("/api/copy/leaderboard", response_model=List[ScoredTraderResponse])
+async def get_copy_leaderboard():
+    """Return top-scored traders from the Polymarket leaderboard."""
+    try:
+        import httpx
+        from backend.strategies.copy_trader import LeaderboardScorer
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as http:
+            scorer = LeaderboardScorer(http)
+            traders = await scorer.fetch_and_score(top_n=50)
+
+        return [
+            ScoredTraderResponse(
+                wallet=t.wallet,
+                pseudonym=t.pseudonym,
+                profit_30d=t.profit_30d,
+                win_rate=t.win_rate,
+                total_trades=t.total_trades,
+                unique_markets=t.unique_markets,
+                estimated_bankroll=t.estimated_bankroll,
+                score=t.score,
+                market_diversity=t.market_diversity,
+            )
+            for t in traders
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/copy/signals", response_model=List[CopySignalResponse])
+async def get_copy_signals(limit: int = 20):
+    """Return recent copy trade signals from the DB."""
+    try:
+        db = SessionLocal()
+        signals = (
+            db.query(Signal)
+            .filter(Signal.market_type == "copy")
+            .order_by(Signal.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        db.close()
+        return [
+            CopySignalResponse(
+                source_wallet=s.sources[0] if s.sources else "",
+                our_side=s.direction,
+                our_outcome="YES",
+                our_size=s.suggested_size,
+                market_price=s.market_price,
+                trader_score=s.confidence * 100,
+                reasoning=s.reasoning,
+                condition_id=s.market_ticker,
+                title=s.market_ticker,
+                timestamp=s.timestamp.isoformat(),
+            )
+            for s in signals
+        ]
+    except Exception:
+        return []
 
 
 @app.websocket("/ws/events")

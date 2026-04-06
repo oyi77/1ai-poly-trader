@@ -7,7 +7,7 @@ import asyncio
 
 from backend.config import settings
 from backend.data.btc_markets import BtcMarket, fetch_active_btc_markets
-from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
+from backend.data.crypto import compute_btc_microstructure
 from backend.models.database import SessionLocal, Signal
 
 logger = logging.getLogger("trading_bot")
@@ -320,7 +320,7 @@ async def scan_for_signals() -> List[TradingSignal]:
     signals.sort(key=lambda s: abs(s.edge), reverse=True)
 
     actionable = [s for s in signals if s.passes_threshold]
-    logger.info(f"=" * 50)
+    logger.info("=" * 50)
     logger.info(f"SCAN COMPLETE: {len(signals)} signals, {len(actionable)} actionable")
 
     for signal in actionable[:5]:

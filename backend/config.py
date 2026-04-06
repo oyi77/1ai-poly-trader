@@ -1,5 +1,4 @@
 """Configuration settings for the BTC 5-min trading bot."""
-import os
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -12,6 +11,11 @@ class Settings(BaseSettings):
 
     # API Keys (optional)
     POLYMARKET_API_KEY: Optional[str] = None
+
+    # Polymarket auth (for live trading)
+    POLYMARKET_PRIVATE_KEY: Optional[str] = None
+    POLYMARKET_API_SECRET: Optional[str] = None
+    POLYMARKET_API_PASSPHRASE: Optional[str] = None
 
     # Kalshi API
     KALSHI_API_KEY_ID: Optional[str] = None
@@ -65,7 +69,11 @@ class Settings(BaseSettings):
     WEATHER_MIN_EDGE_THRESHOLD: float = 0.08  # 8% — weather has more signal than 5-min BTC
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 100.0
-    WEATHER_CITIES: str = "nyc,chicago,miami,los_angeles,denver"
+    WEATHER_CITIES: str = "nyc,chicago,miami,dallas,seattle,atlanta,los_angeles,denver,london,seoul,tokyo"
+
+    # Telegram bot
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_ADMIN_CHAT_IDS: str = ""  # comma-separated chat IDs
 
     class Config:
         env_file = ".env"

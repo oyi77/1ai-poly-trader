@@ -4,9 +4,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
 
+from scipy.stats import norm
+
 from backend.config import settings
+from backend.core.calibration import get_sigma
 from backend.core.signals import calculate_edge, calculate_kelly_size
-from backend.data.weather import fetch_ensemble_forecast, EnsembleForecast, CITY_CONFIG
+from backend.data.weather import fetch_ensemble_forecast
 from backend.data.weather_markets import WeatherMarket, fetch_polymarket_weather_markets
 from backend.models.database import SessionLocal, Signal
 
@@ -73,6 +76,21 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
     # Clip extreme probabilities (ensemble can be unanimous but don't bet 100%)
     model_yes_prob = max(0.05, min(0.95, model_yes_prob))
 
+    # Secondary: Gaussian CDF using calibrated sigma for this city
+    # Provides a cross-check against pure ensemble counting
+    city_sigma_f = get_sigma(market.city_key, source="gefs")
+    gaussian_prob = None
+    if city_sigma_f > 0:
+        mean_f = forecast.mean_high if market.metric == "high" else forecast.mean_low
+        if market.direction == "above":
+            gaussian_prob = float(norm.sf(market.threshold_f, loc=mean_f, scale=city_sigma_f))
+        else:
+            gaussian_prob = float(norm.cdf(market.threshold_f, loc=mean_f, scale=city_sigma_f))
+        gaussian_prob = max(0.05, min(0.95, gaussian_prob))
+        # Blend: 70% ensemble count, 30% Gaussian CDF
+        model_yes_prob = 0.70 * model_yes_prob + 0.30 * gaussian_prob
+        model_yes_prob = max(0.05, min(0.95, model_yes_prob))
+
     market_yes_prob = market.yes_price
 
     # Use existing edge calculation (treats yes=up, no=down)
@@ -116,14 +134,22 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
         filter_notes.append(f"entry {entry_price:.0%} > {settings.WEATHER_MAX_ENTRY_PRICE:.0%}")
     filter_note = f" [{', '.join(filter_notes)}]" if filter_notes else ""
 
+    gaussian_note = f" | Gaussian: {gaussian_prob:.0%}" if gaussian_prob is not None else ""
+
     reasoning = (
         f"[{filter_status}]{filter_note} "
         f"{market.city_name} {market.metric} {market.direction} {market.threshold_f:.0f}F on {market.target_date} | "
         f"Ensemble: {mean_val:.1f}F +/- {std_val:.1f}F ({forecast.num_members} members) | "
-        f"Model YES: {model_yes_prob:.0%} vs Market: {market_yes_prob:.0%} | "
+        f"Model YES: {model_yes_prob:.0%} vs Market: {market_yes_prob:.0%}"
+        f"{gaussian_note} | "
         f"Edge: {edge:+.1%} -> {direction.upper()} @ {entry_price:.0%} | "
         f"Agreement: {agreement_frac:.0%}"
     )
+
+    sources = [f"open_meteo_ensemble_{forecast.num_members}m"]
+    if gaussian_prob is not None:
+        sources.append("gaussian_calibrated")
+    sources.append(f"city:{market.city_key}")
 
     return WeatherTradingSignal(
         market=market,
@@ -134,7 +160,7 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
         confidence=confidence,
         kelly_fraction=suggested_size / bankroll if bankroll > 0 else 0,
         suggested_size=suggested_size,
-        sources=[f"open_meteo_ensemble_{forecast.num_members}m"],
+        sources=sources,
         reasoning=reasoning,
         ensemble_mean=mean_val,
         ensemble_std=std_val,
