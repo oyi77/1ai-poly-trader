@@ -21,7 +21,8 @@ from eth_account.signers.local import LocalAccount
 
 logger = logging.getLogger("trading_bot")
 
-CLOB_HOST = "https://clob.polymarket.com"
+CLOB_HOST_MAINNET = "https://clob.polymarket.com"
+CLOB_HOST_TESTNET = "https://clob-staging.polymarket.com"
 GAMMA_HOST = "https://gamma-api.polymarket.com"
 DATA_HOST = "https://data-api.polymarket.com"
 POLYGON_CHAIN_ID = 137
@@ -136,12 +137,19 @@ class PolymarketCLOB:
         return self.mode == "paper"
 
     @property
+    def _clob_host(self) -> str:
+        # paper uses mainnet host for real price data (no real orders submitted)
+        if self.mode in ("live", "paper"):
+            return CLOB_HOST_MAINNET
+        return CLOB_HOST_TESTNET  # testnet
+
+    @property
     def _chain_id(self) -> int:
-        return CHAIN_ID_MAINNET if self.mode == "live" else CHAIN_ID_AMOY
+        return CHAIN_ID_AMOY if self.mode == "testnet" else CHAIN_ID_MAINNET
 
     @property
     def _contract_address(self) -> str:
-        return CTF_EXCHANGE_MAINNET if self.mode == "live" else CTF_EXCHANGE_AMOY
+        return CTF_EXCHANGE_AMOY if self.mode == "testnet" else CTF_EXCHANGE_MAINNET
 
     async def __aenter__(self):
         self._http = httpx.AsyncClient(
@@ -162,7 +170,7 @@ class PolymarketCLOB:
 
     async def get_order_book(self, token_id: str) -> OrderBook:
         """Fetch live order book for a token."""
-        resp = await self._http.get(f"{CLOB_HOST}/book", params={"token_id": token_id})
+        resp = await self._http.get(f"{self._clob_host}/book", params={"token_id": token_id})
         resp.raise_for_status()
         data = resp.json()
 
@@ -182,7 +190,7 @@ class PolymarketCLOB:
     async def get_mid_price(self, token_id: str) -> float:
         """Get mid-price for a token (fast, single endpoint)."""
         try:
-            resp = await self._http.get(f"{CLOB_HOST}/midpoint", params={"token_id": token_id})
+            resp = await self._http.get(f"{self._clob_host}/midpoint", params={"token_id": token_id})
             resp.raise_for_status()
             return float(resp.json().get("mid", 0.5))
         except Exception:
@@ -377,7 +385,7 @@ class PolymarketCLOB:
             path = "/order"
             headers = self._l2_headers("POST", path, body)
 
-            resp = await self._http.post(f"{CLOB_HOST}{path}", content=body, headers=headers)
+            resp = await self._http.post(f"{self._clob_host}{path}", content=body, headers=headers)
             resp.raise_for_status()
             data = resp.json()
 
@@ -406,7 +414,7 @@ class PolymarketCLOB:
         try:
             path = f"/order/{order_id}"
             headers = self._l2_headers("DELETE", path)
-            resp = await self._http.delete(f"{CLOB_HOST}{path}", headers=headers)
+            resp = await self._http.delete(f"{self._clob_host}{path}", headers=headers)
             resp.raise_for_status()
             return resp.json().get("success", False)
         except Exception as e:
@@ -420,7 +428,7 @@ class PolymarketCLOB:
         try:
             path = "/orders"
             headers = self._l2_headers("GET", path)
-            resp = await self._http.get(f"{CLOB_HOST}{path}", headers=headers)
+            resp = await self._http.get(f"{self._clob_host}{path}", headers=headers)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
@@ -434,7 +442,7 @@ class PolymarketCLOB:
         try:
             path = "/orders/all"
             headers = self._l2_headers("DELETE", path)
-            resp = await self._http.delete(f"{CLOB_HOST}{path}", headers=headers)
+            resp = await self._http.delete(f"{self._clob_host}{path}", headers=headers)
             resp.raise_for_status()
             count = resp.json().get("canceled", 0)
             logger.info(f"Cancelled {count} open orders")
