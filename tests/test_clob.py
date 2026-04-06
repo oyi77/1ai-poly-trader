@@ -314,9 +314,11 @@ class TestPolymarketCLOBHTTP:
 # ============================================================================
 
 class TestClobFromSettings:
-    def test_creates_simulation_clob_by_default(self):
+    def test_creates_paper_clob_by_default(self):
         from backend.data.polymarket_clob import clob_from_settings
         from backend.config import settings
-        # Default settings have SIMULATION_MODE=True
+        # Default settings have TRADING_MODE="paper"
         clob = clob_from_settings()
-        assert clob.simulation == settings.SIMULATION_MODE
+        assert clob.mode == settings.TRADING_MODE
+        assert clob.is_paper is True
+        assert clob.simulation is True  # backward-compat property

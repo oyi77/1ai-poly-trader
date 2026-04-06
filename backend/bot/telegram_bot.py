@@ -58,12 +58,14 @@ class PolyEdgeBot:
         on_copy_trade: Optional[Callable] = None,  # called when user presses COPY TRADE
         on_pause: Optional[Callable] = None,
         on_resume: Optional[Callable] = None,
+        on_mode_switch: Optional[Callable] = None,
     ):
         self.token = token
         self.admin_ids = set(admin_ids)
         self.on_copy_trade = on_copy_trade
         self.on_pause = on_pause
         self.on_resume = on_resume
+        self.on_mode_switch = on_mode_switch
 
         self._app: Optional["Application"] = None
         self._bot: Optional["Bot"] = None
@@ -292,13 +294,14 @@ class PolyEdgeBot:
             f"/resume — resume scanning\n"
             f"/settings — current config\n"
             f"/calibration — weather calibration report\n"
-            f"/mode paper|live — switch mode (admin)",
+            f"/mode paper|testnet|live — switch mode (admin)",
             parse_mode=ParseMode.HTML,
         )
 
     async def _cmd_status(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
         from backend.config import settings
-        mode = "🟠 PAPER" if settings.SIMULATION_MODE else "🔴 LIVE"
+        mode_emoji = {"paper": "🟠 PAPER", "testnet": "🟡 TESTNET", "live": "🔴 LIVE"}
+        mode = mode_emoji.get(settings.TRADING_MODE, "🟠 PAPER")
         paused = "⏸ PAUSED" if self._paused else "🟢 RUNNING"
         await update.message.reply_text(
             f"<b>PolyEdge Status</b>\n\n"
@@ -351,12 +354,12 @@ class PolyEdgeBot:
         from backend.config import settings
         await update.message.reply_text(
             f"<b>PolyEdge Settings</b>\n\n"
+            f"Trading mode:      {settings.TRADING_MODE}\n"
             f"Kelly fraction:    {settings.KELLY_FRACTION}\n"
             f"Max trade size:    ${settings.WEATHER_MAX_TRADE_SIZE}\n"
             f"Edge threshold:    {settings.WEATHER_MIN_EDGE_THRESHOLD:.0%}\n"
             f"Max entry price:   {settings.WEATHER_MAX_ENTRY_PRICE:.0%}\n"
-            f"Scan interval:     {settings.WEATHER_SCAN_INTERVAL_SECONDS}s\n"
-            f"Simulation mode:   {settings.SIMULATION_MODE}",
+            f"Scan interval:     {settings.WEATHER_SCAN_INTERVAL_SECONDS}s",
             parse_mode=ParseMode.HTML,
         )
 
@@ -365,13 +368,22 @@ class PolyEdgeBot:
             await update.message.reply_text("❌ Admin only.")
             return
         args = context.args
-        if not args or args[0] not in ("paper", "live"):
-            await update.message.reply_text("Usage: /mode paper|live")
+        if not args or args[0] not in ("paper", "testnet", "live"):
+            from backend.config import settings
+            current = settings.TRADING_MODE
+            await update.message.reply_text(
+                f"Current mode: <b>{current.upper()}</b>\n\nUsage: /mode paper|testnet|live",
+                parse_mode=ParseMode.HTML,
+            )
             return
-        mode = args[0]
+        new_mode = args[0]
+        if self.on_mode_switch:
+            await self.on_mode_switch(new_mode)
+
+        mode_emoji = {"paper": "🟠", "testnet": "🟡", "live": "🔴"}
         await update.message.reply_text(
-            f"⚠️ Mode switch to <b>{mode.upper()}</b> requires restart with updated config.\n"
-            f"Set SIMULATION_MODE={'true' if mode == 'paper' else 'false'} in .env and restart.",
+            f"{mode_emoji.get(new_mode, '⚪')} Mode switched to <b>{new_mode.upper()}</b>.\n"
+            f"New trades will execute in {new_mode} mode.",
             parse_mode=ParseMode.HTML,
         )
 

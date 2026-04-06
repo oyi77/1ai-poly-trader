@@ -55,6 +55,7 @@ class Orchestrator:
             self._bot.on_copy_trade = self._execute_weather_signal
             self._bot.on_pause = self._on_pause
             self._bot.on_resume = self._on_resume
+            self._bot.on_mode_switch = self.on_mode_switch
             await self._bot.start()
 
         # 3. Copy trader
@@ -104,7 +105,7 @@ class Orchestrator:
 
         if self._clob:
             # Cancel open orders on shutdown (live mode only)
-            if not settings.SIMULATION_MODE:
+            if settings.TRADING_MODE == "live":
                 await self._clob.cancel_all_orders()
             await self._clob.__aexit__(None, None, None)
 
@@ -150,8 +151,8 @@ class Orchestrator:
                     except Exception as e:
                         logger.warning(f"Failed to send weather alert: {e}")
             else:
-                # No Telegram — auto-execute in paper/sim mode
-                if settings.SIMULATION_MODE:
+                # No Telegram — auto-execute in paper mode
+                if settings.TRADING_MODE == "paper":
                     await _auto_execute_weather(actionable[:3], clob)
 
             # Always persist to DB via original job logic (settlement tracking)
@@ -243,6 +244,17 @@ class Orchestrator:
             price=signal.market_price,
             size=size,
         )
+
+    # =========================================================================
+    # Mode switch (called by Telegram /mode)
+    # =========================================================================
+
+    async def on_mode_switch(self, new_mode: str) -> None:
+        """Runtime mode switch — updates CLOB client mode."""
+        settings.TRADING_MODE = new_mode
+        if self._clob:
+            self._clob.mode = new_mode
+        logger.info(f"Trading mode switched to: {new_mode.upper()}")
 
     # =========================================================================
     # Pause / resume (called by Telegram /pause /resume)

@@ -44,6 +44,9 @@ class Trade(Base):
     market_price_at_entry = Column(Float)
     edge_at_entry = Column(Float)
 
+    # Trading mode this trade was placed in
+    trading_mode = Column(String, default="paper", index=True)
+
 
 class BtcPriceSnapshot(Base):
     """Cached BTC prices for momentum calculation."""
@@ -66,6 +69,12 @@ class BotState(Base):
     total_pnl = Column(Float, default=0.0)
     last_run = Column(DateTime, nullable=True)
     is_running = Column(Boolean, default=False)
+
+    # Paper trading tracking
+    paper_bankroll = Column(Float, default=10000.0)
+    paper_pnl = Column(Float, default=0.0)
+    paper_trades = Column(Integer, default=0)
+    paper_wins = Column(Integer, default=0)
 
 
 class Signal(Base):
@@ -171,6 +180,32 @@ def ensure_schema():
         with engine.connect() as conn:
             with conn.begin():
                 conn.execute(text("ALTER TABLE trades ADD COLUMN market_type VARCHAR DEFAULT 'btc'"))
+
+    if "trading_mode" not in columns:
+        with engine.connect() as conn:
+            with conn.begin():
+                conn.execute(text("ALTER TABLE trades ADD COLUMN trading_mode VARCHAR DEFAULT 'paper'"))
+
+    # Add paper tracking columns to bot_state
+    try:
+        bot_state_columns = [col["name"] for col in inspector.get_columns("bot_state")]
+    except Exception:
+        bot_state_columns = []
+
+    if bot_state_columns:
+        with engine.connect() as conn:
+            for col, coltype in [
+                ("paper_bankroll", "FLOAT DEFAULT 10000.0"),
+                ("paper_pnl", "FLOAT DEFAULT 0.0"),
+                ("paper_trades", "INTEGER DEFAULT 0"),
+                ("paper_wins", "INTEGER DEFAULT 0"),
+            ]:
+                if col not in bot_state_columns:
+                    try:
+                        with conn.begin():
+                            conn.execute(text(f"ALTER TABLE bot_state ADD COLUMN {col} {coltype}"))
+                    except Exception:
+                        pass  # column already exists
 
     # Add calibration columns to signals table
     try:

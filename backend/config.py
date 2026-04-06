@@ -32,8 +32,15 @@ class Settings(BaseSettings):
     AI_LOG_ALL_CALLS: bool = True
     AI_DAILY_BUDGET_USD: float = 1.0
 
+    # Trading mode: "paper", "testnet", or "live"
+    TRADING_MODE: str = "paper"
+
+    # Testnet / network config
+    POLYGON_AMOY_RPC: str = "https://rpc-amoy.polygon.technology"
+    POLYGON_AMOY_CHAIN_ID: int = 80002
+    POLYMARKET_TESTNET_CLOB_HOST: str = "https://clob.polymarket.com"
+
     # Bot settings - BTC 5-MIN TRADING
-    SIMULATION_MODE: bool = True
     INITIAL_BANKROLL: float = 10000.0
     KELLY_FRACTION: float = 0.15  # Fractional Kelly
 
@@ -74,6 +81,11 @@ class Settings(BaseSettings):
     # Telegram bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_ADMIN_CHAT_IDS: str = ""  # comma-separated chat IDs
+
+    @property
+    def SIMULATION_MODE(self) -> bool:
+        """Backward-compat property — True for paper and testnet, False only for live."""
+        return self.TRADING_MODE != "live"
 
     class Config:
         env_file = ".env"

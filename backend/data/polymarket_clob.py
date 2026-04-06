@@ -26,6 +26,31 @@ GAMMA_HOST = "https://gamma-api.polymarket.com"
 DATA_HOST = "https://data-api.polymarket.com"
 POLYGON_CHAIN_ID = 137
 
+# Chain IDs
+CHAIN_ID_MAINNET = 137
+CHAIN_ID_AMOY = 80002
+
+# CTF Exchange contract addresses
+CTF_EXCHANGE_MAINNET = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
+CTF_EXCHANGE_AMOY = "0xdFE02Eb6733538f8Ea35D585af8DE5958AD99E40"
+
+ORDER_STRUCT_TYPES = {
+    "Order": [
+        {"name": "salt", "type": "uint256"},
+        {"name": "maker", "type": "address"},
+        {"name": "signer", "type": "address"},
+        {"name": "taker", "type": "address"},
+        {"name": "tokenId", "type": "uint256"},
+        {"name": "makerAmount", "type": "uint256"},
+        {"name": "takerAmount", "type": "uint256"},
+        {"name": "expiration", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "feeRateBps", "type": "uint256"},
+        {"name": "side", "type": "uint8"},
+        {"name": "signatureType", "type": "uint8"},
+    ]
+}
+
 # Polymarket minimum order size
 MIN_ORDER_USDC = 1.0
 
@@ -81,9 +106,14 @@ class PolymarketCLOB:
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
         api_passphrase: Optional[str] = None,
-        simulation: bool = True,
+        mode: str = "paper",
+        simulation: Optional[bool] = None,  # backward-compat: simulation=True -> mode="paper"
     ):
-        self.simulation = simulation
+        # Backward-compat: if simulation kwarg passed, map to mode
+        if simulation is not None:
+            self.mode = "paper" if simulation else "live"
+        else:
+            self.mode = mode
         self.private_key = private_key
         self.api_key = api_key
         self.api_secret = api_secret
@@ -95,6 +125,23 @@ class PolymarketCLOB:
 
         # Shared connection pool — reused across all requests
         self._http: Optional[httpx.AsyncClient] = None
+
+    @property
+    def simulation(self) -> bool:
+        """Backward-compat: True when not in live mode."""
+        return self.mode != "live"
+
+    @property
+    def is_paper(self) -> bool:
+        return self.mode == "paper"
+
+    @property
+    def _chain_id(self) -> int:
+        return CHAIN_ID_MAINNET if self.mode == "live" else CHAIN_ID_AMOY
+
+    @property
+    def _contract_address(self) -> str:
+        return CTF_EXCHANGE_MAINNET if self.mode == "live" else CTF_EXCHANGE_AMOY
 
     async def __aenter__(self):
         self._http = httpx.AsyncClient(
@@ -181,6 +228,62 @@ class PolymarketCLOB:
     # Authenticated order management
     # =========================================================================
 
+    def _sign_order_eip712(self, token_id: str, side: str, price: float, size: float) -> tuple:
+        """Sign a CLOB order using EIP-712 typed data signing."""
+        import secrets
+        from eth_account.messages import encode_typed_data
+
+        side_int = 0 if side == "BUY" else 1
+        usdc_amount = int(round(size * 1_000_000))  # 6 decimals
+        if side == "BUY":
+            maker_amount = usdc_amount
+            taker_amount = int(round(size / price * 1_000_000))
+        else:
+            maker_amount = int(round(size / price * 1_000_000))
+            taker_amount = usdc_amount
+
+        token_id_int = int(token_id) if token_id.isdigit() else abs(hash(token_id)) % (2**128)
+
+        order = {
+            "salt": secrets.randbits(128),
+            "maker": self._account.address,
+            "signer": self._account.address,
+            "taker": "0x0000000000000000000000000000000000000000",
+            "tokenId": token_id_int,
+            "makerAmount": maker_amount,
+            "takerAmount": taker_amount,
+            "expiration": 0,
+            "nonce": 0,
+            "feeRateBps": 0,
+            "side": side_int,
+            "signatureType": 0,
+        }
+
+        domain = {
+            "name": "Polymarket CTF Exchange",
+            "version": "1",
+            "chainId": self._chain_id,
+            "verifyingContract": self._contract_address,
+        }
+
+        structured_data = {
+            "types": {
+                "EIP712Domain": [
+                    {"name": "name", "type": "string"},
+                    {"name": "version", "type": "string"},
+                    {"name": "chainId", "type": "uint256"},
+                    {"name": "verifyingContract", "type": "address"},
+                ],
+                **ORDER_STRUCT_TYPES,
+            },
+            "primaryType": "Order",
+            "domain": domain,
+            "message": order,
+        }
+
+        signed = self._account.sign_message(encode_typed_data(full_message=structured_data))
+        return order, signed.signature.hex()
+
     def _l2_headers(self, method: str, path: str, body: str = "") -> dict:
         """
         Generate L2 HMAC-SHA256 authentication headers for CLOB API.
@@ -227,7 +330,7 @@ class PolymarketCLOB:
         if size < MIN_ORDER_USDC:
             return OrderResult(success=False, error=f"Size ${size:.2f} below minimum ${MIN_ORDER_USDC}")
 
-        if self.simulation:
+        if self.is_paper:
             # Paper trade: simulate fill at current mid-price
             try:
                 mid = await self.get_mid_price(token_id)
@@ -244,23 +347,28 @@ class PolymarketCLOB:
                 fill_size=size,
             )
 
-        # Live mode — sign and submit
+        # Testnet or live mode — sign with EIP-712 and submit
         if not self._account or not self.api_key:
             return OrderResult(success=False, error="Live mode requires private_key and api credentials")
 
+        mode_label = "[TESTNET]" if self.mode == "testnet" else "[LIVE]"
         try:
+            order, signature = self._sign_order_eip712(token_id, side, price, size)
+
             payload = {
                 "orderType": order_type,
                 "tokenID": token_id,
                 "price": str(round(price, 4)),
                 "size": str(round(size, 2)),
                 "side": side,
-                "funder": self._account.address,
                 "maker": self._account.address,
                 "signer": self._account.address,
-                "nonce": str(int(time.time() * 1000)),
-                "expiration": "0",
+                "signature": signature,
                 "signatureType": 0,
+                "expiration": str(order["expiration"]),
+                "nonce": str(order["nonce"]),
+                "salt": str(order["salt"]),
+                "feeRateBps": str(order["feeRateBps"]),
             }
 
             body = json.dumps(payload)
@@ -273,7 +381,7 @@ class PolymarketCLOB:
 
             if data.get("success") or data.get("orderID"):
                 order_id = data.get("orderID", data.get("id", "unknown"))
-                logger.info(f"[LIVE] Order placed: {order_id} | {side} {size} @ {price}")
+                logger.info(f"{mode_label} Order placed: {order_id} | {side} {size} @ {price}")
                 return OrderResult(success=True, order_id=order_id)
             else:
                 error = data.get("error", str(data))
@@ -290,7 +398,7 @@ class PolymarketCLOB:
 
     async def cancel_order(self, order_id: str) -> bool:
         """Cancel an open order."""
-        if self.simulation:
+        if self.is_paper:
             logger.info(f"[PAPER] Cancel order {order_id}")
             return True
         try:
@@ -305,7 +413,7 @@ class PolymarketCLOB:
 
     async def get_open_orders(self) -> list[dict]:
         """Get all open orders for this account."""
-        if self.simulation or not self.api_key:
+        if self.is_paper or not self.api_key:
             return []
         try:
             path = "/orders"
@@ -319,7 +427,7 @@ class PolymarketCLOB:
 
     async def cancel_all_orders(self) -> bool:
         """Cancel all open orders. Called on graceful shutdown."""
-        if self.simulation:
+        if self.is_paper:
             return True
         try:
             path = "/orders/all"
@@ -342,9 +450,9 @@ def clob_from_settings() -> PolymarketCLOB:
     """Create PolymarketCLOB from app settings."""
     from backend.config import settings
     return PolymarketCLOB(
-        private_key=settings.POLYMARKET_PRIVATE_KEY if hasattr(settings, "POLYMARKET_PRIVATE_KEY") else None,
+        private_key=settings.POLYMARKET_PRIVATE_KEY,
         api_key=settings.POLYMARKET_API_KEY,
         api_secret=getattr(settings, "POLYMARKET_API_SECRET", None),
         api_passphrase=getattr(settings, "POLYMARKET_API_PASSPHRASE", None),
-        simulation=settings.SIMULATION_MODE,
+        mode=settings.TRADING_MODE,
     )

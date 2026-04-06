@@ -1,0 +1,47 @@
+{
+  "project": "PolyEdge — trading mode support",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Fix asyncio.get_event_loop() deprecation in copy_trader.py",
+      "passes": true,
+      "evidence": "Both occurrences replaced with asyncio.get_running_loop(). 98 tests pass."
+    },
+    {
+      "id": "US-002",
+      "title": "Add backend/__main__.py entry point",
+      "passes": true,
+      "evidence": "backend/__main__.py created. python -c 'import backend.__main__' succeeds. 98 tests pass."
+    },
+    {
+      "id": "US-003",
+      "title": "Wire update_calibration() into weather trade settlement",
+      "passes": true,
+      "evidence": "_try_calibrate_weather() added to settlement.py. city:<key> stored in Signal.sources by weather_signals.py. Function wrapped in try/except, never raises. 98 tests pass."
+    },
+    {
+      "id": "US-004",
+      "title": "Replace SIMULATION_MODE bool with TradingMode enum (paper/testnet/live)",
+      "passes": true,
+      "evidence": "TRADING_MODE: str = 'paper' added to config.py. SIMULATION_MODE kept as computed @property (TRADING_MODE != 'live'). PolymarketCLOB now takes mode='paper'|'testnet'|'live'. backward-compat simulation kwarg preserved. 98 tests pass."
+    },
+    {
+      "id": "US-005",
+      "title": "EIP-712 order signing for testnet and live modes",
+      "passes": true,
+      "evidence": "_sign_order_eip712() added to PolymarketCLOB using eth_account encode_typed_data. ORDER_STRUCT_TYPES defined with Polymarket CTF Exchange fields. Chain ID and contract address derived from mode (137/mainnet, 80002/Amoy). 98 tests pass."
+    },
+    {
+      "id": "US-006",
+      "title": "Add trading_mode column to Trade model with schema migration",
+      "passes": true,
+      "evidence": "trading_mode column added to Trade. paper_bankroll, paper_pnl, paper_trades, paper_wins added to BotState. ensure_schema() migrates all new columns. 98 tests pass."
+    },
+    {
+      "id": "US-007",
+      "title": "Runtime mode switching via Telegram /mode command",
+      "passes": true,
+      "evidence": "/mode paper|testnet|live now calls on_mode_switch callback which updates settings.TRADING_MODE and clob.mode at runtime. /status shows mode with emoji (🟠/🟡/🔴). on_mode_switch wired in Orchestrator.start(). 98 tests pass."
+    }
+  ]
+}
