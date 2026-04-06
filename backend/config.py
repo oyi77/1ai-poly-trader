@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     WEATHER_MAX_TRADE_SIZE: float = 100.0
     WEATHER_CITIES: str = "nyc,chicago,miami,dallas,seattle,atlanta,los_angeles,denver,london,seoul,tokyo"
 
+    # Admin API security
+    ADMIN_API_KEY: Optional[str] = None
+    CORS_ORIGINS: str = "http://localhost:5173"
+
     # Telegram bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_ADMIN_CHAT_IDS: str = ""  # comma-separated chat IDs

@@ -1,4 +1,5 @@
 """Signal generator for weather temperature markets using ensemble forecasts."""
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -203,13 +204,19 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
 
     logger.info(f"Found {len(markets)} total weather temperature markets")
 
-    for market in markets:
-        try:
-            signal = await generate_weather_signal(market)
-            if signal:
-                signals.append(signal)
-        except Exception as e:
-            logger.debug(f"Weather signal generation failed for {market.title}: {e}")
+    sem = asyncio.Semaphore(5)
+
+    async def _gen_with_sem(market):
+        async with sem:
+            return await generate_weather_signal(market)
+
+    results = await asyncio.gather(*[_gen_with_sem(m) for m in markets], return_exceptions=True)
+    signals = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.debug(f"Weather signal generation failed for {markets[i].title}: {result}")
+        elif result is not None:
+            signals.append(result)
 
     # Sort by absolute edge
     signals.sort(key=lambda s: abs(s.edge), reverse=True)

@@ -75,6 +75,7 @@ export interface BotStats {
   total_pnl: number
   is_running: boolean
   last_run: string | null
+  trading_mode?: string
 }
 
 export interface EquityPoint {

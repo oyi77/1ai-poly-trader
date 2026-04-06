@@ -177,7 +177,7 @@ class Orchestrator:
 
         market = signal.market
         token_id = getattr(market, "token_id", "") or market.market_id
-        side = "BUY" if signal.direction == "yes" else "BUY"  # Always BUY the direction
+        side = "BUY"  # Always BUY the correct outcome token (token_id selects YES vs NO)
         price = market.yes_price if signal.direction == "yes" else market.no_price
 
         result = await self._clob.place_limit_order(
@@ -299,13 +299,40 @@ async def _auto_execute_weather(signals: list, clob: Optional[PolymarketCLOB]) -
             logger.warning(f"Auto-execute failed: {e}")
 
 
+from functools import lru_cache as _lru_cache
+
+@_lru_cache(maxsize=1024)
 def _condition_to_token(condition_id: str, outcome: str) -> str:
     """
-    Map condition_id + outcome to a CLOB token ID.
-    In production this would be looked up from the Gamma API market data.
-    For now returns condition_id as placeholder (paper mode fills at mid anyway).
+    Map condition_id + outcome to a CLOB token ID via Gamma API.
+    Cached — the mapping is immutable (condition_id to token_id never changes).
+    outcome: "YES" or "NO"
     """
-    return condition_id
+    import httpx as _httpx
+    try:
+        resp = _httpx.get(
+            "https://gamma-api.polymarket.com/markets",
+            params={"conditionId": condition_id},
+            timeout=10.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data:
+            logger.warning(f"No market found for condition_id={condition_id}, using fallback")
+            return condition_id
+
+        market = data[0]
+        tokens = market.get("tokens", [])
+        # tokens[0] = YES token, tokens[1] = NO token
+        if outcome.upper() == "YES" and len(tokens) > 0:
+            return str(tokens[0].get("token_id", condition_id))
+        elif outcome.upper() == "NO" and len(tokens) > 1:
+            return str(tokens[1].get("token_id", condition_id))
+
+        return condition_id
+    except Exception as e:
+        logger.warning(f"Failed to resolve token_id for {condition_id}/{outcome}: {e}")
+        return condition_id
 
 
 # =========================================================================

@@ -1,5 +1,5 @@
 """FastAPI backend for BTC 5-min trading bot dashboard."""
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -24,10 +24,11 @@ app = FastAPI(
     version="3.0.0"
 )
 
+origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -55,6 +56,15 @@ class ConnectionManager:
 
 
 ws_manager = ConnectionManager()
+
+
+def require_admin(authorization: Optional[str] = Header(None)):
+    """Require admin API key if ADMIN_API_KEY is configured."""
+    key = settings.ADMIN_API_KEY
+    if not key:
+        return  # No key configured = open (dev mode)
+    if not authorization or authorization != f"Bearer {key}":
+        raise HTTPException(status_code=401, detail="Unauthorized — set Authorization: Bearer <ADMIN_API_KEY>")
 
 
 # Pydantic response models
@@ -212,6 +222,7 @@ class DashboardData(BaseModel):
     calibration: Optional[CalibrationSummary] = None
     weather_signals: List[WeatherSignalResponse] = []
     weather_forecasts: List[WeatherForecastResponse] = []
+    trading_mode: str = "paper"
 
 
 class EventResponse(BaseModel):
@@ -786,7 +797,7 @@ async def get_events(limit: int = 50):
 
 # Bot control
 @app.post("/api/bot/start")
-async def start_bot(db: Session = Depends(get_db)):
+async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import start_scheduler, log_event, is_scheduler_running
 
     state = db.query(BotState).first()
@@ -802,7 +813,7 @@ async def start_bot(db: Session = Depends(get_db)):
 
 
 @app.post("/api/bot/stop")
-async def stop_bot(db: Session = Depends(get_db)):
+async def stop_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import log_event
 
     state = db.query(BotState).first()
@@ -815,7 +826,7 @@ async def stop_bot(db: Session = Depends(get_db)):
 
 
 @app.post("/api/bot/reset")
-async def reset_bot(db: Session = Depends(get_db)):
+async def reset_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import log_event
 
     try:
@@ -1000,6 +1011,7 @@ async def get_dashboard(db: Session = Depends(get_db)):
         calibration=calibration,
         weather_signals=weather_signals_data,
         weather_forecasts=weather_forecasts_data,
+        trading_mode=settings.TRADING_MODE,
     )
 
 
@@ -1179,13 +1191,13 @@ def _get_grouped_settings() -> dict:
 
 
 @app.get("/api/admin/settings")
-async def get_admin_settings():
+async def get_admin_settings(_: None = Depends(require_admin)):
     """Return all configurable settings grouped by category."""
     return _get_grouped_settings()
 
 
 @app.post("/api/admin/settings")
-async def update_admin_settings(body: SettingsUpdate):
+async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_admin)):
     """Update settings at runtime and persist to .env file."""
     env_path = ".env"
 
@@ -1215,7 +1227,8 @@ async def update_admin_settings(body: SettingsUpdate):
         elif isinstance(current, float):
             value = float(value)
         setattr(settings, field, value)
-        env_lines[field] = str(value)
+        safe_value = str(value).replace('\n', '').replace('\r', '')
+        env_lines[field] = safe_value
         updated_count += 1
 
     # Write .env
@@ -1227,7 +1240,7 @@ async def update_admin_settings(body: SettingsUpdate):
 
 
 @app.get("/api/admin/system")
-async def get_admin_system(db: Session = Depends(get_db)):
+async def get_admin_system(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     """Return system health overview."""
     state = db.query(BotState).first()
     pending_trades = db.query(Trade).filter(Trade.settled == False).count()

@@ -1,4 +1,5 @@
 """Trade settlement logic for BTC 5-min and weather markets using Polymarket API."""
+import asyncio
 import json
 import logging
 import re
@@ -11,6 +12,9 @@ from sqlalchemy.orm import Session
 from backend.models.database import Trade, BotState, Signal
 
 logger = logging.getLogger("trading_bot")
+
+# Module-level: track consecutive 404s per market_id
+_market_404_counts: dict = {}
 
 
 async def fetch_polymarket_resolution(market_id: str, event_slug: Optional[str] = None) -> Tuple[bool, Optional[float]]:
@@ -44,6 +48,10 @@ async def fetch_polymarket_resolution(market_id: str, event_slug: Optional[str] 
             response = await client.get(url)
 
             if response.status_code == 404:
+                _market_404_counts[market_id] = _market_404_counts.get(market_id, 0) + 1
+                if _market_404_counts[market_id] >= 3:
+                    logger.debug(f"Skipping market {market_id} — 3+ consecutive 404s")
+                    return False, None
                 return await _search_market_in_events(market_id)
 
             response.raise_for_status()
@@ -245,48 +253,46 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
         return []
 
     logger.info(f"Checking {len(pending)} pending trades for settlement...")
-    settled_trades = []
+    sem = asyncio.Semaphore(10)
 
-    for trade in pending:
-        try:
-            # Route settlement by market type
+    async def _settle_one(trade):
+        async with sem:
             market_type = getattr(trade, 'market_type', 'btc') or 'btc'
             if market_type == "weather":
-                is_settled, settlement_value, pnl = await check_weather_settlement(trade)
-            else:
-                is_settled, settlement_value, pnl = await check_market_settlement(trade)
+                return trade, await check_weather_settlement(trade)
+            return trade, await check_market_settlement(trade)
 
-            if is_settled and settlement_value is not None:
-                trade.settled = True
-                trade.settlement_value = settlement_value
-                trade.pnl = pnl
-                trade.settlement_time = datetime.utcnow()
+    results = await asyncio.gather(*[_settle_one(t) for t in pending], return_exceptions=True)
 
-                if pnl is not None and pnl > 0:
-                    trade.result = "win"
-                elif pnl is not None and pnl < 0:
-                    trade.result = "loss"
-                else:
-                    trade.result = "push"
-
-                settled_trades.append(trade)
-
-                # Update linked Signal with actual outcome for calibration
-                if trade.signal_id:
-                    linked_signal = db.query(Signal).filter(Signal.id == trade.signal_id).first()
-                    if linked_signal:
-                        actual_outcome = "up" if settlement_value == 1.0 else "down"
-                        linked_signal.actual_outcome = actual_outcome
-                        linked_signal.outcome_correct = (linked_signal.direction == actual_outcome)
-                        linked_signal.settlement_value = settlement_value
-                        linked_signal.settled_at = datetime.utcnow()
-
-                        # Feed Welford calibration for weather trades
-                        if market_type == "weather" and linked_signal.sources:
-                            _try_calibrate_weather(linked_signal, settlement_value)
-        except Exception as e:
-            logger.error(f"Failed to settle trade {trade.id}: {e}")
+    settled_trades = []
+    for item in results:
+        if isinstance(item, Exception):
+            logger.error(f"Settlement error: {item}")
             continue
+        trade, (is_settled, settlement_value, pnl) = item
+        if is_settled and settlement_value is not None:
+            trade.settled = True
+            trade.settlement_value = settlement_value
+            trade.pnl = pnl
+            trade.settlement_time = datetime.utcnow()
+            if pnl is not None and pnl > 0:
+                trade.result = "win"
+            elif pnl is not None and pnl < 0:
+                trade.result = "loss"
+            else:
+                trade.result = "push"
+            settled_trades.append(trade)
+            if trade.signal_id:
+                linked_signal = db.query(Signal).filter(Signal.id == trade.signal_id).first()
+                if linked_signal:
+                    actual_outcome = "up" if settlement_value == 1.0 else "down"
+                    linked_signal.actual_outcome = actual_outcome
+                    linked_signal.outcome_correct = (linked_signal.direction == actual_outcome)
+                    linked_signal.settlement_value = settlement_value
+                    linked_signal.settled_at = datetime.utcnow()
+                    market_type = getattr(trade, 'market_type', 'btc') or 'btc'
+                    if market_type == "weather" and linked_signal.sources:
+                        _try_calibrate_weather(linked_signal, settlement_value)
 
     if settled_trades:
         try:
@@ -315,10 +321,18 @@ async def update_bot_state_with_settlements(db: Session, settled_trades: List[Tr
 
         for trade in settled_trades:
             if trade.pnl is not None:
-                state.total_pnl += trade.pnl
-                state.bankroll += trade.pnl
-                if trade.result == "win":
-                    state.winning_trades += 1
+                trading_mode = getattr(trade, 'trading_mode', 'paper') or 'paper'
+                if trading_mode == 'paper':
+                    state.paper_pnl = (state.paper_pnl or 0.0) + trade.pnl
+                    state.paper_bankroll = (state.paper_bankroll or 10000.0) + trade.pnl
+                    state.paper_trades = (state.paper_trades or 0) + 1
+                    if trade.result == "win":
+                        state.paper_wins = (state.paper_wins or 0) + 1
+                else:
+                    state.total_pnl += trade.pnl
+                    state.bankroll += trade.pnl
+                    if trade.result == "win":
+                        state.winning_trades += 1
 
         db.commit()
         logger.info(f"Updated bot state: Bankroll ${state.bankroll:.2f}, P&L ${state.total_pnl:+.2f}")

@@ -242,7 +242,9 @@ class PolymarketCLOB:
             maker_amount = int(round(size / price * 1_000_000))
             taker_amount = usdc_amount
 
-        token_id_int = int(token_id) if token_id.isdigit() else abs(hash(token_id)) % (2**128)
+        if not token_id.isdigit():
+            raise ValueError(f"token_id must be a numeric string, got: {token_id!r}. Ensure the CLOB token_id (not condition_id) is used.")
+        token_id_int = int(token_id)
 
         order = {
             "salt": secrets.randbits(128),
@@ -452,7 +454,7 @@ def clob_from_settings() -> PolymarketCLOB:
     return PolymarketCLOB(
         private_key=settings.POLYMARKET_PRIVATE_KEY,
         api_key=settings.POLYMARKET_API_KEY,
-        api_secret=getattr(settings, "POLYMARKET_API_SECRET", None),
-        api_passphrase=getattr(settings, "POLYMARKET_API_PASSPHRASE", None),
+        api_secret=settings.POLYMARKET_API_SECRET,
+        api_passphrase=settings.POLYMARKET_API_PASSPHRASE,
         mode=settings.TRADING_MODE,
     )

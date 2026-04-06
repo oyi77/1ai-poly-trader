@@ -49,13 +49,21 @@ class CLOBWebSocket:
         await ws.stop()
     """
 
-    def __init__(self, on_price: Optional[Callable[[PriceUpdate], None]] = None):
+    def __init__(
+        self,
+        on_price: Optional[Callable[[PriceUpdate], None]] = None,
+        max_consecutive_failures: int = 20,
+        on_failure: Optional[Callable] = None,
+    ):
         self._on_price = on_price
+        self.max_consecutive_failures = max_consecutive_failures
+        self._on_failure = on_failure
         self._subscribed: set[str] = set()
         self._running = False
         self._ws = None
         self._connected = False
         self._stop_event = asyncio.Event()
+        self._consecutive_failures = 0
 
     # =========================================================================
     # Public API
@@ -91,9 +99,19 @@ class CLOBWebSocket:
             try:
                 await self._connect_and_process()
                 backoff = 1.0  # Reset on clean disconnect
+                self._consecutive_failures = 0
             except Exception as e:
                 self._connected = False
                 if not self._running:
+                    break
+                self._consecutive_failures += 1
+                if self._consecutive_failures >= self.max_consecutive_failures:
+                    logger.error(
+                        f"WebSocket: {self.max_consecutive_failures} consecutive failures, "
+                        f"stopping reconnect loop"
+                    )
+                    if self._on_failure:
+                        self._on_failure(e)
                     break
                 logger.warning(f"WebSocket disconnected: {e}. Reconnecting in {backoff:.0f}s")
                 try:

@@ -137,7 +137,8 @@ async def scan_and_trade_job():
                     size=trade_size,
                     model_probability=signal.model_probability,
                     market_price_at_entry=signal.market_probability,
-                    edge_at_entry=signal.edge
+                    edge_at_entry=signal.edge,
+                    trading_mode=settings.TRADING_MODE,
                 )
 
                 db.add(trade)
@@ -264,6 +265,7 @@ async def weather_scan_and_trade_job():
                     model_probability=signal.model_probability,
                     market_price_at_entry=signal.market_probability,
                     edge_at_entry=signal.edge,
+                    trading_mode=settings.TRADING_MODE,
                 )
 
                 db.add(trade)

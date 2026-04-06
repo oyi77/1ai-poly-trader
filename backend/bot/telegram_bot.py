@@ -314,15 +314,37 @@ class PolyEdgeBot:
         )
 
     async def _cmd_positions(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
-        # Query DB for open positions
         try:
-            from backend.models.database import SessionLocal
+            from backend.models.database import SessionLocal, Trade
             db = SessionLocal()
-            # This is a placeholder — positions table queried here in full implementation
+            pending = db.query(Trade).filter(Trade.settled == False).order_by(Trade.timestamp.desc()).all()
             db.close()
-            await update.message.reply_text("📊 <b>Open Positions</b>\n\nNo positions tracked yet.", parse_mode=ParseMode.HTML)
+
+            if not pending:
+                await update.message.reply_text(
+                    "📊 <b>Open Positions</b>\n\nNo open positions.",
+                    parse_mode=ParseMode.HTML,
+                )
+                return
+
+            lines = ["📊 <b>Open Positions</b>\n"]
+            total_size = 0.0
+            for t in pending[:15]:
+                mode_tag = f"[{(getattr(t, 'trading_mode', None) or 'paper').upper()[:1]}]"
+                lines.append(
+                    f"{mode_tag} <b>{t.direction.upper()}</b> {t.market_type} "
+                    f"${t.size:.0f} @ {t.entry_price:.0%} "
+                    f"<i>{t.market_ticker[:20]}</i>"
+                )
+                total_size += t.size
+
+            if len(pending) > 15:
+                lines.append(f"\n... and {len(pending) - 15} more")
+
+            lines.append(f"\n<b>Total exposure: ${total_size:.0f}</b> across {len(pending)} positions")
+            await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
         except Exception as e:
-            await update.message.reply_text(f"Error: {e}")
+            await update.message.reply_text(f"Error loading positions: {e}")
 
     async def _cmd_leaderboard(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
         await update.message.reply_text(

@@ -185,6 +185,12 @@ def ensure_schema():
         with engine.connect() as conn:
             with conn.begin():
                 conn.execute(text("ALTER TABLE trades ADD COLUMN trading_mode VARCHAR DEFAULT 'paper'"))
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("UPDATE trades SET trading_mode = 'paper' WHERE trading_mode IS NULL"))
+        except Exception:
+            pass  # Silently skip if column doesn't exist yet
 
     # Add paper tracking columns to bot_state
     try:

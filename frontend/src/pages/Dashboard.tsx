@@ -176,9 +176,20 @@ export default function Dashboard() {
           }`}>
             {stats.is_running ? 'Live' : 'Idle'}
           </span>
-          <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            Sim
-          </span>
+          {(() => {
+            const mode = (stats as any).trading_mode || 'paper'
+            const cfg: Record<string, { label: string; cls: string }> = {
+              paper: { label: 'Paper', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+              testnet: { label: 'Testnet', cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
+              live: { label: 'LIVE', cls: 'bg-red-500/10 text-red-500 border-red-500/20' },
+            }
+            const { label, cls } = cfg[mode] || cfg['paper']
+            return (
+              <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border ${cls}`}>
+                {label}
+              </span>
+            )
+          })()}
         </div>
 
         {btcPrice && (
