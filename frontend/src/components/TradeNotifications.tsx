@@ -73,11 +73,13 @@ function mapEventToNotification(event: TradeEvent): Notification | null {
   if (event.type === 'connected') return null
 
   if (event.type === 'signal_found') {
-    const ticker = String(event.data.ticker ?? event.data.symbol ?? 'UNKNOWN')
+    const ticker = String(event.data.market_ticker ?? event.data.ticker ?? event.data.symbol ?? '—')
+    const direction = String(event.data.direction ?? '')
+    const confidence = event.data.confidence != null ? `${(Number(event.data.confidence) * 100).toFixed(0)}%` : ''
     return {
       id,
       type: 'signal_found',
-      title: 'SIGNAL',
+      title: `SIGNAL ${direction.toUpperCase()}${confidence ? ` ${confidence}` : ''}`,
       body: ticker,
       tier: 'info',
       side: 'neutral',
@@ -89,7 +91,7 @@ function mapEventToNotification(event: TradeEvent): Notification | null {
 
   if (event.type === 'trade_opened') {
     const size = Number(event.data.size ?? event.data.notional ?? 0)
-    const ticker = String(event.data.ticker ?? event.data.symbol ?? 'UNKNOWN')
+    const ticker = String(event.data.market_ticker ?? event.data.ticker ?? event.data.symbol ?? '—')
     const direction = String(event.data.direction ?? event.data.side ?? '')
     const units = Number(event.data.units ?? event.data.qty ?? 0)
     const multiplier = Number(event.data.multiplier ?? event.data.leverage ?? 1)
@@ -115,7 +117,7 @@ function mapEventToNotification(event: TradeEvent): Notification | null {
     const pnl = Number(event.data.pnl ?? 0)
     const result = String(event.data.result ?? (pnl >= 0 ? 'win' : 'loss'))
     const side: Side = result === 'win' ? 'win' : 'loss'
-    const ticker = String(event.data.ticker ?? event.data.symbol ?? 'UNKNOWN')
+    const ticker = String(event.data.market_ticker ?? event.data.ticker ?? event.data.symbol ?? '—')
     const direction = String(event.data.direction ?? event.data.side ?? '')
     const units = Number(event.data.units ?? event.data.qty ?? 0)
     const multiplier = Number(event.data.multiplier ?? event.data.leverage ?? 1)
