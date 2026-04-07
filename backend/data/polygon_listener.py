@@ -3,7 +3,7 @@ import asyncio
 import json
 import logging
 from typing import Optional, Callable, Awaitable
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.config import settings
 from backend.models.database import SessionLocal, WhaleTransaction
@@ -65,11 +65,18 @@ class PolygonListener:
             wallet = self._extract_wallet(topics)
             position_id = self._extract_position(topics)
             await self._persist(tx_hash, wallet, position_id, size_usd, block)
+            payload = {
+                "tx_hash": tx_hash, "wallet": wallet,
+                "market_id": position_id, "size_usd": size_usd, "block": block,
+            }
             if self.on_whale:
-                await self.on_whale({
-                    "tx_hash": tx_hash, "wallet": wallet,
-                    "market_id": position_id, "size_usd": size_usd, "block": block,
-                })
+                await self.on_whale(payload)
+            # Broadcast to /ws/whales subscribers (lazy import avoids circular dep)
+            try:
+                from backend.api.main import broadcast_whale_tick
+                await broadcast_whale_tick(payload)
+            except Exception:
+                pass
         except Exception as e:
             logger.warning(f"polygon msg parse failed: {e}")
 
@@ -98,7 +105,7 @@ class PolygonListener:
                 if existing:
                     return
                 row = WhaleTransaction(
-                    tx_hash=tx_hash or f"unknown_{datetime.utcnow().timestamp()}",
+                    tx_hash=tx_hash or f"unknown_{datetime.now(timezone.utc).timestamp()}",
                     wallet=wallet or "unknown",
                     market_id=position_id, side="buy",
                     size_usd=size_usd, block_number=block,

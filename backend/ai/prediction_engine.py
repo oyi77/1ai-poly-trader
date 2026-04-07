@@ -1,13 +1,15 @@
-"""Prediction engine — interface scaffold for the future ML model.
-
-The current implementation is a deterministic logistic baseline so the
-end-to-end pipeline (feature extraction → predict → consume) is callable
-without a trained model. Phase 4 of the polyedge plan will swap this for
-an ensemble (LSTM + XGBoost + Transformer) without changing the interface.
+"""Prediction engine — loads the Phase-4 trained logistic regression if
+available; otherwise falls back to a deterministic logistic baseline so
+the end-to-end pipeline stays callable on a fresh checkout.
 """
+import logging
 import math
+import os
+import pickle
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("trading_bot.prediction_engine")
 
 
 @dataclass
@@ -17,8 +19,9 @@ class Prediction:
     model_version: str
 
 
-# Default feature weights for the baseline scorer.
-# Phase 4 trainers will replace these with learned coefficients.
+# Default feature weights for the baseline scorer (used when no trained
+# model is on disk). The Phase-4 trainer overwrites these via the saved
+# logistic-regression coefficients in backend/ai/models/baseline.pkl.
 DEFAULT_WEIGHTS: Dict[str, float] = {
     "edge": 1.5,
     "model_probability": 2.0,
@@ -27,6 +30,10 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
     "sentiment": 0.6,
     "volume_log": 0.3,
 }
+
+DEFAULT_MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), "models", "baseline.pkl"
+)
 
 
 def _sigmoid(x: float) -> float:
@@ -40,8 +47,34 @@ def _sigmoid(x: float) -> float:
 class PredictionEngine:
     MODEL_VERSION = "baseline-0.1"
 
-    def __init__(self, weights: Optional[Dict[str, float]] = None):
+    def __init__(
+        self,
+        weights: Optional[Dict[str, float]] = None,
+        model_path: Optional[str] = None,
+    ):
         self.weights = weights or DEFAULT_WEIGHTS
+        self._sk_model = None
+        self._feature_order: List[str] = list(self.weights.keys())
+        self._model_path = model_path or DEFAULT_MODEL_PATH
+        self._try_load_model()
+
+    def _try_load_model(self) -> None:
+        if not os.path.exists(self._model_path):
+            return
+        try:
+            with open(self._model_path, "rb") as fh:
+                bundle = pickle.load(fh)
+            self._sk_model = bundle.get("model")
+            self._feature_order = list(
+                bundle.get("feature_order", list(self.weights.keys()))
+            )
+            self.MODEL_VERSION = bundle.get("version", "logreg-1.0")
+            logger.info(
+                f"prediction_engine: loaded {self.MODEL_VERSION} from {self._model_path}"
+            )
+        except Exception as e:
+            logger.warning(f"prediction_engine: failed to load model: {e}")
+            self._sk_model = None
 
     def extract_features(self, market: Dict[str, Any], signal_data: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
         signal_data = signal_data or {}
@@ -60,12 +93,23 @@ class PredictionEngine:
         }
 
     def predict(self, features: Dict[str, float]) -> Prediction:
-        z = sum(self.weights.get(k, 0.0) * v for k, v in features.items())
-        prob = _sigmoid(z)
-        # Confidence: distance from 0.5, scaled to [0, 1]
+        if self._sk_model is not None:
+            try:
+                vec = [[float(features.get(k, 0.0)) for k in self._feature_order]]
+                prob = float(self._sk_model.predict_proba(vec)[0][1])
+            except Exception as e:
+                logger.warning(f"sklearn predict failed, using baseline: {e}")
+                prob = self._baseline_predict(features)
+        else:
+            prob = self._baseline_predict(features)
+
         confidence = min(1.0, abs(prob - 0.5) * 2.0)
         return Prediction(
             probability_yes=round(prob, 6),
             confidence=round(confidence, 6),
             model_version=self.MODEL_VERSION,
         )
+
+    def _baseline_predict(self, features: Dict[str, float]) -> float:
+        z = sum(self.weights.get(k, 0.0) * v for k, v in features.items())
+        return _sigmoid(z)

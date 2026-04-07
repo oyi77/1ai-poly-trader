@@ -2,7 +2,7 @@
 low-confidence signals to a manual approval queue."""
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from backend.config import settings
@@ -44,7 +44,7 @@ class AutoTrader:
 
         # High-confidence path
         if settings.TRADING_MODE == "paper" or self.clob_factory is None:
-            return ExecutionResult(True, False, "paper-mode auto-execute", order_id=f"paper-{datetime.utcnow().timestamp()}")
+            return ExecutionResult(True, False, "paper-mode auto-execute", order_id=f"paper-{datetime.now(timezone.utc).timestamp()}")
 
         try:
             async with self.clob_factory() as clob:

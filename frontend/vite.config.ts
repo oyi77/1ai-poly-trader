@@ -16,6 +16,11 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8100',
         changeOrigin: true
+      },
+      '/ws': {
+        target: 'ws://localhost:8100',
+        ws: true,
+        changeOrigin: true
       }
     }
   },
@@ -26,6 +31,11 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8100',
+        changeOrigin: true
+      },
+      '/ws': {
+        target: 'ws://localhost:8100',
+        ws: true,
         changeOrigin: true
       }
     }

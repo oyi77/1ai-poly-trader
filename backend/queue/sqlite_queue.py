@@ -8,7 +8,12 @@ RQ-003: AsyncSQLiteQueue implementation
 """
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _now() -> datetime:
+    """Naive UTC datetime — replacement for deprecated _now()."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from typing import Optional, Dict, Any
 
 from sqlalchemy import select, case, update, func
@@ -103,7 +108,7 @@ class AsyncSQLiteQueue(AbstractQueue):
                     priority=priority,
                     idempotency_key=idempotency_key,
                     status="pending",
-                    scheduled_at=datetime.utcnow(),
+                    scheduled_at=_now(),
                 )
                 session.add(job)
                 session.commit()
@@ -163,7 +168,7 @@ class AsyncSQLiteQueue(AbstractQueue):
 
                 # Update status to processing
                 job.status = "processing"
-                job.started_at = datetime.utcnow()
+                job.started_at = _now()
                 session.commit()
                 session.refresh(job)
 
@@ -207,7 +212,7 @@ class AsyncSQLiteQueue(AbstractQueue):
                     raise ValueError(f"Job {job_id} is not in processing state (current: {job.status})")
 
                 job.status = "completed"
-                job.completed_at = datetime.utcnow()
+                job.completed_at = _now()
                 session.commit()
             except SQLAlchemyError as e:
                 session.rollback()
