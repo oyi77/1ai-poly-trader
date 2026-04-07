@@ -1,5 +1,14 @@
 """FastAPI backend for BTC 5-min trading bot dashboard."""
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Header, Request
+
+from fastapi import (
+    FastAPI,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    Header,
+    Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -11,9 +20,18 @@ from collections import deque
 
 from backend.config import settings
 from backend.models.database import (
-    get_db, init_db, SessionLocal,
-    Signal, Trade, BotState, AILog, StrategyConfig,
-    MarketWatch, WalletConfig, DecisionLog, TradeContext
+    get_db,
+    init_db,
+    SessionLocal,
+    Signal,
+    Trade,
+    BotState,
+    AILog,
+    StrategyConfig,
+    MarketWatch,
+    WalletConfig,
+    DecisionLog,
+    TradeContext,
 )
 from backend.core.signals import scan_for_signals, TradingSignal
 from backend.data.btc_markets import fetch_active_btc_markets
@@ -27,7 +45,7 @@ logger = logging.getLogger("trading_bot")
 app = FastAPI(
     title="BTC 5-Min Trading Bot",
     description="Polymarket BTC Up/Down 5-minute market trading bot",
-    version="3.0.0"
+    version="3.0.0",
 )
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -72,6 +90,7 @@ _event_history: deque = deque(maxlen=50)
 def _broadcast_event(event_type: str, data: dict):
     """Push an event to all connected SSE subscribers. Thread-safe via asyncio."""
     import json as _json
+
     payload = {
         "type": event_type,
         "timestamp": datetime.utcnow().isoformat(),
@@ -91,7 +110,10 @@ def require_admin(authorization: Optional[str] = Header(None)):
     if not key:
         return  # No key configured = open (dev mode)
     if not authorization or authorization != f"Bearer {key}":
-        raise HTTPException(status_code=401, detail="Unauthorized — set Authorization: Bearer <ADMIN_API_KEY>")
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized — set Authorization: Bearer <ADMIN_API_KEY>",
+        )
 
 
 # Pydantic response models
@@ -291,15 +313,19 @@ async def startup():
                 total_trades=0,
                 winning_trades=0,
                 total_pnl=0.0,
-                is_running=True
+                is_running=True,
             )
             db.add(state)
             db.commit()
-            print(f"Created new bot state with ${settings.INITIAL_BANKROLL:,.2f} bankroll")
+            print(
+                f"Created new bot state with ${settings.INITIAL_BANKROLL:,.2f} bankroll"
+            )
         else:
             state.is_running = True
             db.commit()
-            print(f"Loaded bot state: Bankroll ${state.bankroll:,.2f}, P&L ${state.total_pnl:+,.2f}, {state.total_trades} trades")
+            print(
+                f"Loaded bot state: Bankroll ${state.bankroll:,.2f}, P&L ${state.total_pnl:+,.2f}, {state.total_trades} trades"
+            )
     finally:
         db.close()
 
@@ -313,14 +339,19 @@ async def startup():
     print("")
 
     from backend.core.scheduler import start_scheduler, log_event
+
     start_scheduler()
     log_event("success", "BTC 5-min trading bot initialized")
 
     print("Bot is now running!")
-    print(f"  - BTC scan: every {settings.SCAN_INTERVAL_SECONDS}s (edge >= {settings.MIN_EDGE_THRESHOLD:.0%})")
+    print(
+        f"  - BTC scan: every {settings.SCAN_INTERVAL_SECONDS}s (edge >= {settings.MIN_EDGE_THRESHOLD:.0%})"
+    )
     print(f"  - Settlement check: every {settings.SETTLEMENT_INTERVAL_SECONDS}s")
     if settings.WEATHER_ENABLED:
-        print(f"  - Weather scan: every {settings.WEATHER_SCAN_INTERVAL_SECONDS}s (edge >= {settings.WEATHER_MIN_EDGE_THRESHOLD:.0%})")
+        print(
+            f"  - Weather scan: every {settings.WEATHER_SCAN_INTERVAL_SECONDS}s (edge >= {settings.WEATHER_MIN_EDGE_THRESHOLD:.0%})"
+        )
         print(f"  - Weather cities: {settings.WEATHER_CITIES}")
     else:
         print("  - Weather trading: DISABLED")
@@ -330,19 +361,25 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     from backend.core.scheduler import stop_scheduler
+
     stop_scheduler()
 
 
 # Core endpoints
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "BTC 5-Min Trading Bot API v3.0", "simulation_mode": settings.SIMULATION_MODE}
+    return {
+        "status": "ok",
+        "message": "BTC 5-Min Trading Bot API v3.0",
+        "simulation_mode": settings.SIMULATION_MODE,
+    }
 
 
 @app.get("/api/health")
 async def health_check(db: Session = Depends(get_db)):
     """Return system health including per-strategy heartbeat status."""
     from backend.core.heartbeat import get_strategy_health
+
     healths = get_strategy_health(db)
     all_healthy = all(h["healthy"] or h["lag_seconds"] is None for h in healths)
     bot_state = db.query(BotState).first()
@@ -360,7 +397,9 @@ async def get_stats(db: Session = Depends(get_db)):
     if not state:
         raise HTTPException(status_code=404, detail="Bot state not initialized")
 
-    win_rate = state.winning_trades / state.total_trades if state.total_trades > 0 else 0
+    win_rate = (
+        state.winning_trades / state.total_trades if state.total_trades > 0 else 0
+    )
 
     # Paper trading stats
     paper_pnl = state.paper_pnl or 0.0
@@ -372,7 +411,9 @@ async def get_stats(db: Session = Depends(get_db)):
     # Fallback: if total_pnl is 0 but settled paper trades exist, recalculate from DB
     pnl_source = "botstate"
     if state.total_pnl == 0 and paper_trades > 0:
-        db_paper_pnl = db.query(func.sum(Trade.pnl)).filter(Trade.settled == True).scalar() or 0.0
+        db_paper_pnl = (
+            db.query(func.sum(Trade.pnl)).filter(Trade.settled == True).scalar() or 0.0
+        )
         if db_paper_pnl != 0:
             paper_pnl = db_paper_pnl
             pnl_source = "recalculated"
@@ -392,8 +433,20 @@ async def get_stats(db: Session = Depends(get_db)):
         paper_win_rate=paper_win_rate,
         mode=settings.TRADING_MODE,
         pnl_source=pnl_source,
-        paper={"pnl": paper_pnl, "bankroll": paper_bankroll, "trades": paper_trades, "wins": paper_wins, "win_rate": paper_win_rate},
-        live={"pnl": state.total_pnl, "bankroll": state.bankroll, "trades": state.total_trades, "wins": state.winning_trades, "win_rate": win_rate},
+        paper={
+            "pnl": paper_pnl,
+            "bankroll": paper_bankroll,
+            "trades": paper_trades,
+            "wins": paper_wins,
+            "win_rate": paper_win_rate,
+        },
+        live={
+            "pnl": state.total_pnl,
+            "bankroll": state.bankroll,
+            "trades": state.total_trades,
+            "wins": state.winning_trades,
+            "win_rate": win_rate,
+        },
     )
 
 
@@ -412,7 +465,7 @@ async def get_btc_price():
             change_7d=btc.change_7d,
             market_cap=btc.market_cap,
             volume_24h=btc.volume_24h,
-            last_updated=btc.last_updated
+            last_updated=btc.last_updated,
         )
     except Exception:
         return None
@@ -463,13 +516,16 @@ async def get_signals_history(
 ):
     """Return historical signals from the database with outcome data."""
     from backend.models.database import Signal as SignalModel
+
     query = db.query(SignalModel)
     if market_type:
         query = query.filter(SignalModel.market_type == market_type)
     if direction:
         query = query.filter(SignalModel.direction == direction)
     total = query.count()
-    rows = query.order_by(SignalModel.timestamp.desc()).offset(offset).limit(limit).all()
+    rows = (
+        query.order_by(SignalModel.timestamp.desc()).offset(offset).limit(limit).all()
+    )
     items = [
         {
             "id": r.id,
@@ -530,9 +586,7 @@ def _signal_to_response(s: TradingSignal, actionable: bool = False) -> SignalRes
 
 @app.get("/api/trades", response_model=List[TradeResponse])
 async def get_trades(
-    limit: int = 50,
-    status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    limit: int = 50, status: Optional[str] = None, db: Session = Depends(get_db)
 ):
     query = db.query(Trade)
     if status:
@@ -542,7 +596,9 @@ async def get_trades(
     trade_ids = [t.id for t in trades]
     context_map = {}
     if trade_ids:
-        contexts = db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
+        contexts = (
+            db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
+        )
         context_map = {c.trade_id: c for c in contexts}
 
     result_list = []
@@ -559,12 +615,18 @@ async def get_trades(
             timestamp=t.timestamp,
             settled=t.settled,
             result=t.result,
-            pnl=t.pnl
+            pnl=t.pnl,
         )
         trade_dict = trade_dict.model_dump()
-        trade_dict["strategy"] = (ctx.strategy if ctx else None) or getattr(t, 'strategy', None)
-        trade_dict["signal_source"] = (ctx.signal_source if ctx else None) or getattr(t, 'signal_source', None)
-        trade_dict["confidence"] = (ctx.confidence if ctx else None) or getattr(t, 'confidence', None)
+        trade_dict["strategy"] = (ctx.strategy if ctx else None) or getattr(
+            t, "strategy", None
+        )
+        trade_dict["signal_source"] = (ctx.signal_source if ctx else None) or getattr(
+            t, "signal_source", None
+        )
+        trade_dict["confidence"] = (ctx.confidence if ctx else None) or getattr(
+            t, "confidence", None
+        )
         result_list.append(trade_dict)
 
     return result_list
@@ -572,7 +634,9 @@ async def get_trades(
 
 @app.get("/api/equity-curve")
 async def get_equity_curve(db: Session = Depends(get_db)):
-    trades = db.query(Trade).filter(Trade.settled == True).order_by(Trade.timestamp).all()
+    trades = (
+        db.query(Trade).filter(Trade.settled == True).order_by(Trade.timestamp).all()
+    )
 
     curve = []
     cumulative_pnl = 0
@@ -581,12 +645,14 @@ async def get_equity_curve(db: Session = Depends(get_db)):
     for trade in trades:
         if trade.pnl is not None:
             cumulative_pnl += trade.pnl
-            curve.append({
-                "timestamp": trade.timestamp.isoformat(),
-                "pnl": cumulative_pnl,
-                "bankroll": bankroll + cumulative_pnl,
-                "trade_id": trade.id
-            })
+            curve.append(
+                {
+                    "timestamp": trade.timestamp.isoformat(),
+                    "pnl": cumulative_pnl,
+                    "bankroll": bankroll + cumulative_pnl,
+                    "trade_id": trade.id,
+                }
+            )
 
     return curve
 
@@ -605,7 +671,9 @@ async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
     if not state:
         raise HTTPException(status_code=500, detail="Bot state not initialized")
 
-    entry_price = signal.market.up_price if signal.direction == "up" else signal.market.down_price
+    entry_price = (
+        signal.market.up_price if signal.direction == "up" else signal.market.down_price
+    )
 
     trade = Trade(
         market_ticker=signal.market.market_id,
@@ -616,23 +684,28 @@ async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
         size=min(signal.suggested_size, state.bankroll * 0.05),
         model_probability=signal.model_probability,
         market_price_at_entry=signal.market_probability,
-        edge_at_entry=signal.edge
+        edge_at_entry=signal.edge,
     )
 
     db.add(trade)
     state.total_trades += 1
     db.commit()
 
-    _broadcast_event("trade_opened", {
-        "trade_id": trade.id,
-        "market_ticker": trade.market_ticker,
-        "direction": trade.direction,
-        "size": trade.size,
-        "entry_price": trade.entry_price,
-        "mode": settings.TRADING_MODE,
-    })
+    _broadcast_event(
+        "trade_opened",
+        {
+            "trade_id": trade.id,
+            "market_ticker": trade.market_ticker,
+            "direction": trade.direction,
+            "size": trade.size,
+            "entry_price": trade.entry_price,
+            "mode": settings.TRADING_MODE,
+        },
+    )
 
-    log_event("trade", f"Manual BTC trade: {signal.direction.upper()} {signal.market.slug}")
+    log_event(
+        "trade", f"Manual BTC trade: {signal.direction.upper()} {signal.market.slug}"
+    )
     return {"status": "ok", "trade_id": trade.id, "size": trade.size}
 
 
@@ -662,6 +735,7 @@ async def run_scan(db: Session = Depends(get_db), _: None = Depends(require_admi
     if settings.WEATHER_ENABLED:
         try:
             from backend.core.weather_signals import scan_for_weather_signals
+
             wx_signals = await scan_for_weather_signals()
             wx_actionable = [s for s in wx_signals if s.passes_threshold]
             result["weather_signals"] = len(wx_signals)
@@ -675,7 +749,10 @@ async def run_scan(db: Session = Depends(get_db), _: None = Depends(require_admi
 
 @app.post("/api/settle-trades")
 async def settle_trades_endpoint(db: Session = Depends(get_db)):
-    from backend.core.settlement import settle_pending_trades, update_bot_state_with_settlements
+    from backend.core.settlement import (
+        settle_pending_trades,
+        update_bot_state_with_settlements,
+    )
     from backend.core.scheduler import log_event
 
     log_event("info", "Manual settlement triggered")
@@ -686,7 +763,7 @@ async def settle_trades_endpoint(db: Session = Depends(get_db)):
     return {
         "status": "ok",
         "settled_count": len(settled),
-        "trades": [{"id": t.id, "result": t.result, "pnl": t.pnl} for t in settled]
+        "trades": [{"id": t.id, "result": t.result, "pnl": t.pnl} for t in settled],
     }
 
 
@@ -713,10 +790,10 @@ def _compute_calibration_summary(db: Session) -> Optional[CalibrationSummary]:
 
     avg_predicted_edge = sum(abs(s.edge) for s in settled_signals) / total_with_outcome
     # Actual edge: for correct predictions, edge was real; for incorrect, edge was negative
-    avg_actual_edge = sum(
-        abs(s.edge) if s.outcome_correct else -abs(s.edge)
-        for s in settled_signals
-    ) / total_with_outcome
+    avg_actual_edge = (
+        sum(abs(s.edge) if s.outcome_correct else -abs(s.edge) for s in settled_signals)
+        / total_with_outcome
+    )
 
     # Brier score: mean squared error of probability forecasts
     # For each signal: (predicted_prob - actual_outcome)^2
@@ -747,6 +824,7 @@ async def get_calibration(db: Session = Depends(get_db)):
 
     # Bucket signals by model_probability into 5% bins
     from collections import defaultdict
+
     buckets_data = defaultdict(lambda: {"predicted_sum": 0.0, "correct": 0, "total": 0})
 
     for s in signals:
@@ -763,12 +841,14 @@ async def get_calibration(db: Session = Depends(get_db)):
     buckets = []
     for bucket_key in sorted(buckets_data.keys()):
         d = buckets_data[bucket_key]
-        buckets.append(CalibrationBucket(
-            bucket=bucket_key,
-            predicted_avg=d["predicted_sum"] / d["total"],
-            actual_rate=d["correct"] / d["total"],
-            count=d["total"],
-        ))
+        buckets.append(
+            CalibrationBucket(
+                bucket=bucket_key,
+                predicted_avg=d["predicted_sum"] / d["total"],
+                actual_rate=d["correct"] / d["total"],
+                count=d["total"],
+            )
+        )
 
     summary = _compute_calibration_summary(db)
 
@@ -819,17 +899,19 @@ async def get_weather_forecasts():
                 continue
             forecast = await fetch_ensemble_forecast(city_key)
             if forecast:
-                forecasts.append(WeatherForecastResponse(
-                    city_key=forecast.city_key,
-                    city_name=forecast.city_name,
-                    target_date=forecast.target_date.isoformat(),
-                    mean_high=forecast.mean_high,
-                    std_high=forecast.std_high,
-                    mean_low=forecast.mean_low,
-                    std_low=forecast.std_low,
-                    num_members=forecast.num_members,
-                    ensemble_agreement=forecast.ensemble_agreement,
-                ))
+                forecasts.append(
+                    WeatherForecastResponse(
+                        city_key=forecast.city_key,
+                        city_name=forecast.city_name,
+                        target_date=forecast.target_date.isoformat(),
+                        mean_high=forecast.mean_high,
+                        std_high=forecast.std_high,
+                        mean_low=forecast.mean_low,
+                        std_low=forecast.std_low,
+                        num_members=forecast.num_members,
+                        ensemble_agreement=forecast.ensemble_agreement,
+                    )
+                )
 
         return forecasts
     except Exception:
@@ -853,6 +935,7 @@ async def get_weather_markets():
             try:
                 from backend.data.kalshi_client import kalshi_credentials_present
                 from backend.data.kalshi_markets import fetch_kalshi_weather_markets
+
                 if kalshi_credentials_present():
                     kalshi_markets = await fetch_kalshi_weather_markets(city_keys)
                     markets.extend(kalshi_markets)
@@ -921,13 +1004,14 @@ def _weather_signal_to_response(s) -> WeatherSignalResponse:
 @app.get("/api/events", response_model=List[EventResponse])
 async def get_events(limit: int = 50):
     from backend.core.scheduler import get_recent_events
+
     events = get_recent_events(limit)
     return [
         EventResponse(
             timestamp=e["timestamp"],
             type=e["type"],
             message=e["message"],
-            data=e.get("data", {})
+            data=e.get("data", {}),
         )
         for e in events
     ]
@@ -940,7 +1024,9 @@ async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
 
     state = db.query(BotState).first()
     if state and state.is_running:
-        raise HTTPException(status_code=409, detail={"error": "already_running", "is_running": True})
+        raise HTTPException(
+            status_code=409, detail={"error": "already_running", "is_running": True}
+        )
 
     if state:
         state.is_running = True
@@ -959,7 +1045,9 @@ async def stop_bot(db: Session = Depends(get_db), _: None = Depends(require_admi
 
     state = db.query(BotState).first()
     if state and not state.is_running:
-        raise HTTPException(status_code=409, detail={"error": "already_stopped", "is_running": False})
+        raise HTTPException(
+            status_code=409, detail={"error": "already_stopped", "is_running": False}
+        )
 
     if state:
         state.is_running = False
@@ -986,13 +1074,16 @@ async def reset_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
         ai_logs_deleted = db.query(AILog).delete()
         db.commit()
 
-        log_event("success", f"Bot reset: {trades_deleted} trades deleted. Fresh start with ${settings.INITIAL_BANKROLL:,.2f}")
+        log_event(
+            "success",
+            f"Bot reset: {trades_deleted} trades deleted. Fresh start with ${settings.INITIAL_BANKROLL:,.2f}",
+        )
 
         return {
             "status": "reset",
             "trades_deleted": trades_deleted,
             "ai_logs_deleted": ai_logs_deleted,
-            "new_bankroll": settings.INITIAL_BANKROLL
+            "new_bankroll": settings.INITIAL_BANKROLL,
         }
 
     except Exception as e:
@@ -1042,7 +1133,7 @@ async def get_dashboard(db: Session = Depends(get_db)):
                     change_7d=btc.change_7d,
                     market_cap=btc.market_cap,
                     volume_24h=btc.volume_24h,
-                    last_updated=btc.last_updated
+                    last_updated=btc.last_updated,
                 )
         except Exception:
             pass
@@ -1074,7 +1165,9 @@ async def get_dashboard(db: Session = Depends(get_db)):
     signals = []
     try:
         raw_signals = await scan_for_signals()
-        signals = [_signal_to_response(s, actionable=s.passes_threshold) for s in raw_signals]
+        signals = [
+            _signal_to_response(s, actionable=s.passes_threshold) for s in raw_signals
+        ]
     except Exception:
         pass
 
@@ -1092,23 +1185,27 @@ async def get_dashboard(db: Session = Depends(get_db)):
             timestamp=t.timestamp,
             settled=t.settled,
             result=t.result,
-            pnl=t.pnl
+            pnl=t.pnl,
         )
         for t in trades
     ]
 
     # Equity curve
-    equity_trades = db.query(Trade).filter(Trade.settled == True).order_by(Trade.timestamp).all()
+    equity_trades = (
+        db.query(Trade).filter(Trade.settled == True).order_by(Trade.timestamp).all()
+    )
     equity_curve = []
     cumulative_pnl = 0
     for trade in equity_trades:
         if trade.pnl is not None:
             cumulative_pnl += trade.pnl
-            equity_curve.append({
-                "timestamp": trade.timestamp.isoformat(),
-                "pnl": cumulative_pnl,
-                "bankroll": settings.INITIAL_BANKROLL + cumulative_pnl
-            })
+            equity_curve.append(
+                {
+                    "timestamp": trade.timestamp.isoformat(),
+                    "pnl": cumulative_pnl,
+                    "bankroll": settings.INITIAL_BANKROLL + cumulative_pnl,
+                }
+            )
 
     # Calibration summary
     calibration = _compute_calibration_summary(db)
@@ -1124,23 +1221,27 @@ async def get_dashboard(db: Session = Depends(get_db)):
             wx_signals = await scan_for_weather_signals()
             weather_signals_data = [_weather_signal_to_response(s) for s in wx_signals]
 
-            city_keys = [c.strip() for c in settings.WEATHER_CITIES.split(",") if c.strip()]
+            city_keys = [
+                c.strip() for c in settings.WEATHER_CITIES.split(",") if c.strip()
+            ]
             for city_key in city_keys:
                 if city_key not in CITY_CONFIG:
                     continue
                 forecast = await fetch_ensemble_forecast(city_key)
                 if forecast:
-                    weather_forecasts_data.append(WeatherForecastResponse(
-                        city_key=forecast.city_key,
-                        city_name=forecast.city_name,
-                        target_date=forecast.target_date.isoformat(),
-                        mean_high=forecast.mean_high,
-                        std_high=forecast.std_high,
-                        mean_low=forecast.mean_low,
-                        std_low=forecast.std_low,
-                        num_members=forecast.num_members,
-                        ensemble_agreement=forecast.ensemble_agreement,
-                    ))
+                    weather_forecasts_data.append(
+                        WeatherForecastResponse(
+                            city_key=forecast.city_key,
+                            city_name=forecast.city_name,
+                            target_date=forecast.target_date.isoformat(),
+                            mean_high=forecast.mean_high,
+                            std_high=forecast.std_high,
+                            mean_low=forecast.mean_low,
+                            std_low=forecast.std_low,
+                            num_members=forecast.num_members,
+                            ensemble_agreement=forecast.ensemble_agreement,
+                        )
+                    )
         except Exception:
             pass
 
@@ -1162,6 +1263,7 @@ async def get_dashboard(db: Session = Depends(get_db)):
 # =========================================================================
 # Copy Trader endpoints
 # =========================================================================
+
 
 class ScoredTraderResponse(BaseModel):
     wallet: str
@@ -1252,6 +1354,7 @@ async def get_copy_signals(limit: int = 20):
 # =========================================================================
 # Admin endpoints
 # =========================================================================
+
 
 class SettingsUpdate(BaseModel):
     updates: dict
@@ -1383,7 +1486,9 @@ class ChangePasswordBody(BaseModel):
 
 
 @app.post("/api/admin/change-password")
-async def change_admin_password(body: ChangePasswordBody, _: None = Depends(require_admin)):
+async def change_admin_password(
+    body: ChangePasswordBody, _: None = Depends(require_admin)
+):
     """Change the admin password (ADMIN_API_KEY). Persists to .env and hot-reloads."""
     new_pw = body.new_password.strip()
     if not new_pw:
@@ -1447,11 +1552,11 @@ async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_
             value = float(value)
         setattr(settings, field, value)
         # Strip characters that could corrupt .env format
-        safe_value = str(value).replace('\n', '').replace('\r', '').replace('\x00', '')
+        safe_value = str(value).replace("\n", "").replace("\r", "").replace("\x00", "")
         # For string fields that are comma-separated lists (cities, origins, etc.),
         # strip any trailing key=value injections (chars after unexpected = in list values)
-        if isinstance(current, str) and ',' in safe_value and '=' in safe_value:
-            safe_value = safe_value.split('=')[0].rstrip()
+        if isinstance(current, str) and "," in safe_value and "=" in safe_value:
+            safe_value = safe_value.split("=")[0].rstrip()
         env_lines[field] = safe_value
         updated_count += 1
 
@@ -1461,9 +1566,14 @@ async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_
             f.write(f"{k}={v}\n")
 
     from backend.core.scheduler import reschedule_jobs
+
     scheduler_result = reschedule_jobs()
 
-    return {"status": "ok", "message": f"Updated {updated_count} settings", "scheduler": scheduler_result}
+    return {
+        "status": "ok",
+        "message": f"Updated {updated_count} settings",
+        "scheduler": scheduler_result,
+    }
 
 
 class ModeSwitch(BaseModel):
@@ -1482,7 +1592,9 @@ async def switch_mode(body: ModeSwitch, _: None = Depends(require_admin)):
     """Switch trading mode at runtime and persist to .env."""
     new_mode = body.mode.lower()
     if new_mode not in ("paper", "testnet", "live"):
-        raise HTTPException(status_code=400, detail="mode must be paper, testnet, or live")
+        raise HTTPException(
+            status_code=400, detail="mode must be paper, testnet, or live"
+        )
 
     old_mode = settings.TRADING_MODE
     settings.TRADING_MODE = new_mode
@@ -1555,6 +1667,7 @@ async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_
 
     # Restart polyedge-bot to pick up new credentials
     import subprocess as _subprocess
+
     try:
         _subprocess.run(
             ["pm2", "restart", "polyedge-bot"],
@@ -1571,21 +1684,28 @@ async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_
         "restarted_bot": True,
         "creds_paper": True,
         "creds_testnet": has_private_key,
-        "creds_live": has_private_key and has_api_key and has_api_secret and has_api_passphrase,
+        "creds_live": has_private_key
+        and has_api_key
+        and has_api_secret
+        and has_api_passphrase,
         "missing_for_testnet": [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"],
         "missing_for_live": [
-            k for k, v in {
+            k
+            for k, v in {
                 "POLYMARKET_PRIVATE_KEY": has_private_key,
                 "POLYMARKET_API_KEY": has_api_key,
                 "POLYMARKET_API_SECRET": has_api_secret,
                 "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
-            }.items() if not v
+            }.items()
+            if not v
         ],
     }
 
 
 @app.get("/api/admin/system")
-async def get_admin_system(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def get_admin_system(
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     """Return system health overview."""
     state = db.query(BotState).first()
     pending_trades = db.query(Trade).filter(Trade.settled == False).count()
@@ -1612,15 +1732,20 @@ async def get_admin_system(db: Session = Depends(get_db), _: None = Depends(requ
         # Credential readiness per mode
         "creds_paper": True,  # paper needs no credentials
         "creds_testnet": has_private_key,
-        "creds_live": has_private_key and has_api_key and has_api_secret and has_api_passphrase,
+        "creds_live": has_private_key
+        and has_api_key
+        and has_api_secret
+        and has_api_passphrase,
         "missing_for_testnet": [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"],
         "missing_for_live": [
-            k for k, v in {
+            k
+            for k, v in {
                 "POLYMARKET_PRIVATE_KEY": has_private_key,
                 "POLYMARKET_API_KEY": has_api_key,
                 "POLYMARKET_API_SECRET": has_api_secret,
                 "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
-            }.items() if not v
+            }.items()
+            if not v
         ],
     }
 
@@ -1629,6 +1754,7 @@ async def get_admin_system(db: Session = Depends(get_db), _: None = Depends(requ
 async def test_alert(_: None = Depends(require_admin)):
     """Send a test Telegram alert to verify bot configuration."""
     from backend.core.heartbeat import _send_telegram_alert_sync
+
     if not settings.TELEGRAM_BOT_TOKEN:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN not configured")
     _send_telegram_alert_sync("✅ PolyEdge alert test — bot is configured correctly")
@@ -1639,10 +1765,18 @@ async def test_alert(_: None = Depends(require_admin)):
 # Strategy Config CRUD
 # =========================================================================
 
+
 @app.get("/api/strategies")
-async def list_strategies_endpoint(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def list_strategies_endpoint(
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     """List all registered strategies merged with their DB config."""
-    from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY, list_strategies as _list_strategies
+    from backend.strategies.registry import (
+        load_all_strategies,
+        STRATEGY_REGISTRY,
+        list_strategies as _list_strategies,
+    )
+
     load_all_strategies()
 
     metas = {m.name: m for m in _list_strategies()}
@@ -1652,29 +1786,40 @@ async def list_strategies_endpoint(db: Session = Depends(get_db), _: None = Depe
     for name, meta in metas.items():
         cfg = configs.get(name)
         import json as _json
-        result.append({
-            "name": name,
-            "description": meta.description,
-            "category": meta.category,
-            "default_params": meta.default_params,
-            "enabled": cfg.enabled if cfg else False,
-            "interval_seconds": cfg.interval_seconds if cfg else 60,
-            "params": _json.loads(cfg.params) if cfg and cfg.params else meta.default_params,
-            "updated_at": cfg.updated_at.isoformat() if cfg and cfg.updated_at else None,
-        })
+
+        result.append(
+            {
+                "name": name,
+                "description": meta.description,
+                "category": meta.category,
+                "default_params": meta.default_params,
+                "enabled": cfg.enabled if cfg else False,
+                "interval_seconds": cfg.interval_seconds if cfg else 60,
+                "params": _json.loads(cfg.params)
+                if cfg and cfg.params
+                else meta.default_params,
+                "updated_at": cfg.updated_at.isoformat()
+                if cfg and cfg.updated_at
+                else None,
+            }
+        )
     return result
 
 
 @app.get("/api/strategies/{name}")
-async def get_strategy(name: str, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def get_strategy(
+    name: str, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     """Get a single strategy by name."""
     from backend.strategies.registry import STRATEGY_REGISTRY, load_all_strategies
+
     load_all_strategies()
     if name not in STRATEGY_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' not registered")
     cfg = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
     import json as _json
     from backend.strategies.registry import list_strategies as _ls
+
     meta = next((m for m in _ls() if m.name == name), None)
     return {
         "name": name,
@@ -1682,7 +1827,9 @@ async def get_strategy(name: str, db: Session = Depends(get_db), _: None = Depen
         "category": meta.category if meta else "",
         "enabled": cfg.enabled if cfg else False,
         "interval_seconds": cfg.interval_seconds if cfg else 60,
-        "params": _json.loads(cfg.params) if cfg and cfg.params else (meta.default_params if meta else {}),
+        "params": _json.loads(cfg.params)
+        if cfg and cfg.params
+        else (meta.default_params if meta else {}),
         "updated_at": cfg.updated_at.isoformat() if cfg and cfg.updated_at else None,
     }
 
@@ -1694,9 +1841,15 @@ class StrategyUpdate(BaseModel):
 
 
 @app.put("/api/strategies/{name}")
-async def update_strategy(name: str, body: StrategyUpdate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def update_strategy(
+    name: str,
+    body: StrategyUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     """Upsert strategy config and hot-reload scheduler."""
     from backend.strategies.registry import STRATEGY_REGISTRY, load_all_strategies
+
     load_all_strategies()
     if name not in STRATEGY_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' not registered")
@@ -1707,6 +1860,7 @@ async def update_strategy(name: str, body: StrategyUpdate, db: Session = Depends
         db.add(cfg)
 
     import json as _json
+
     if body.enabled is not None:
         cfg.enabled = body.enabled
     if body.interval_seconds is not None:
@@ -1719,27 +1873,39 @@ async def update_strategy(name: str, body: StrategyUpdate, db: Session = Depends
 
     # Hot-reload scheduler
     from backend.core.scheduler import schedule_strategy, unschedule_strategy
+
     if cfg.enabled:
         schedule_strategy(name, cfg.interval_seconds or 60)
     else:
         unschedule_strategy(name)
 
-    return {"status": "ok", "name": name, "enabled": cfg.enabled, "interval_seconds": cfg.interval_seconds}
+    return {
+        "status": "ok",
+        "name": name,
+        "enabled": cfg.enabled,
+        "interval_seconds": cfg.interval_seconds,
+    }
 
 
 @app.post("/api/strategies/{name}/run-now")
-async def run_strategy_now(name: str, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def run_strategy_now(
+    name: str, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     """Execute one strategy cycle synchronously and return the result."""
     from backend.strategies.registry import STRATEGY_REGISTRY, load_all_strategies
     from backend.strategies.base import StrategyContext
+
     load_all_strategies()
 
     strategy_cls = STRATEGY_REGISTRY.get(name)
     if not strategy_cls:
-        raise HTTPException(status_code=404, detail=f"Strategy '{name}' not in registry")
+        raise HTTPException(
+            status_code=404, detail=f"Strategy '{name}' not in registry"
+        )
 
     cfg = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
     import json as _json
+
     params = {}
     if cfg and cfg.params:
         try:
@@ -1775,11 +1941,13 @@ class MarketWatchCreate(BaseModel):
     config: dict | None = None
     enabled: bool = True
 
+
 class MarketWatchUpdate(BaseModel):
     category: str | None = None
     source: str | None = None
     config: dict | None = None
     enabled: bool | None = None
+
 
 class WalletConfigCreate(BaseModel):
     address: str
@@ -1788,6 +1956,7 @@ class WalletConfigCreate(BaseModel):
     tags: list[str] | None = None
     enabled: bool = True
     notes: str | None = None
+
 
 class WalletConfigUpdate(BaseModel):
     pseudonym: str | None = None
@@ -1799,6 +1968,7 @@ class WalletConfigUpdate(BaseModel):
 # =========================================================================
 # MarketWatch CRUD
 # =========================================================================
+
 
 @app.get("/api/markets/watch")
 async def list_market_watches(
@@ -1828,17 +1998,34 @@ async def list_market_watches(
         col = col.desc()
     items = query.order_by(col).offset(offset).limit(limit).all()
     return {
-        "items": [{"id": m.id, "ticker": m.ticker, "category": m.category, "source": m.source, "enabled": m.enabled, "created_at": m.created_at.isoformat() if m.created_at else None} for m in items],
+        "items": [
+            {
+                "id": m.id,
+                "ticker": m.ticker,
+                "category": m.category,
+                "source": m.source,
+                "enabled": m.enabled,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in items
+        ],
         "total": total,
     }
 
 
 @app.post("/api/markets/watch", status_code=201)
-async def create_market_watch(body: MarketWatchCreate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def create_market_watch(
+    body: MarketWatchCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     existing = db.query(MarketWatch).filter(MarketWatch.ticker == body.ticker).first()
     if existing:
-        raise HTTPException(status_code=409, detail=f"Market '{body.ticker}' already watched")
+        raise HTTPException(
+            status_code=409, detail=f"Market '{body.ticker}' already watched"
+        )
     import json as _json
+
     row = MarketWatch(
         ticker=body.ticker,
         category=body.category,
@@ -1853,11 +2040,17 @@ async def create_market_watch(body: MarketWatchCreate, db: Session = Depends(get
 
 
 @app.put("/api/markets/watch/{watch_id}")
-async def update_market_watch(watch_id: int, body: MarketWatchUpdate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def update_market_watch(
+    watch_id: int,
+    body: MarketWatchUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = db.query(MarketWatch).filter(MarketWatch.id == watch_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="MarketWatch not found")
     import json as _json
+
     if body.category is not None:
         row.category = body.category
     if body.source is not None:
@@ -1871,7 +2064,9 @@ async def update_market_watch(watch_id: int, body: MarketWatchUpdate, db: Sessio
 
 
 @app.delete("/api/markets/watch/{watch_id}", status_code=204)
-async def delete_market_watch(watch_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def delete_market_watch(
+    watch_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     row = db.query(MarketWatch).filter(MarketWatch.id == watch_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="MarketWatch not found")
@@ -1882,6 +2077,7 @@ async def delete_market_watch(watch_id: int, db: Session = Depends(get_db), _: N
 # =========================================================================
 # WalletConfig CRUD + Leaderboard
 # =========================================================================
+
 
 @app.get("/api/wallets/config")
 async def list_wallet_configs(
@@ -1910,6 +2106,7 @@ async def list_wallet_configs(
         col = col.desc()
     items = query.order_by(col).offset(offset).limit(limit).all()
     import json as _json
+
     return {
         "items": [
             {
@@ -1929,11 +2126,20 @@ async def list_wallet_configs(
 
 
 @app.post("/api/wallets/config", status_code=201)
-async def create_wallet_config(body: WalletConfigCreate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
-    existing = db.query(WalletConfig).filter(WalletConfig.address == body.address).first()
+async def create_wallet_config(
+    body: WalletConfigCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    existing = (
+        db.query(WalletConfig).filter(WalletConfig.address == body.address).first()
+    )
     if existing:
-        raise HTTPException(status_code=409, detail=f"Wallet '{body.address}' already configured")
+        raise HTTPException(
+            status_code=409, detail=f"Wallet '{body.address}' already configured"
+        )
     import json as _json
+
     row = WalletConfig(
         address=body.address,
         pseudonym=body.pseudonym,
@@ -1949,11 +2155,17 @@ async def create_wallet_config(body: WalletConfigCreate, db: Session = Depends(g
 
 
 @app.put("/api/wallets/config/{wallet_id}")
-async def update_wallet_config(wallet_id: int, body: WalletConfigUpdate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def update_wallet_config(
+    wallet_id: int,
+    body: WalletConfigUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = db.query(WalletConfig).filter(WalletConfig.id == wallet_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="WalletConfig not found")
     import json as _json
+
     if body.pseudonym is not None:
         row.pseudonym = body.pseudonym
     if body.tags is not None:
@@ -1967,7 +2179,9 @@ async def update_wallet_config(wallet_id: int, body: WalletConfigUpdate, db: Ses
 
 
 @app.delete("/api/wallets/config/{wallet_id}", status_code=204)
-async def delete_wallet_config(wallet_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def delete_wallet_config(
+    wallet_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     row = db.query(WalletConfig).filter(WalletConfig.id == wallet_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="WalletConfig not found")
@@ -2002,6 +2216,7 @@ async def get_wallet_leaderboard(
         col = col.desc()
     items = query.order_by(col).offset(offset).limit(limit).all()
     import json as _json
+
     return {
         "items": [
             {
@@ -2021,6 +2236,7 @@ async def get_wallet_leaderboard(
 # =========================================================================
 # Decision Log
 # =========================================================================
+
 
 @app.get("/api/decisions")
 async def list_decisions(
@@ -2119,8 +2335,11 @@ async def export_decisions(
             }
             yield _json.dumps(row) + "\n"
 
-    return StreamingResponse(generate(), media_type="application/x-ndjson",
-                             headers={"Content-Disposition": "attachment; filename=decisions.jsonl"})
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": "attachment; filename=decisions.jsonl"},
+    )
 
 
 @app.get("/api/decisions/{decision_id}")
@@ -2130,6 +2349,7 @@ async def get_decision(decision_id: int, db: Session = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="Decision not found")
     import json as _json
+
     signal_data = None
     if row.signal_data:
         try:
@@ -2150,7 +2370,9 @@ async def get_decision(decision_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/admin/ai/suggest")
-async def ai_suggest_params(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def ai_suggest_params(
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     """Use AI to analyze recent performance and suggest parameter improvements."""
     import json as _json
 
@@ -2158,7 +2380,9 @@ async def ai_suggest_params(db: Session = Depends(get_db), _: None = Depends(req
     trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(100).all()
 
     # 2. Query last 100 decisions
-    decisions = db.query(DecisionLog).order_by(DecisionLog.created_at.desc()).limit(100).all()
+    decisions = (
+        db.query(DecisionLog).order_by(DecisionLog.created_at.desc()).limit(100).all()
+    )
 
     # 3. Compute stats
     total_trades = len(trades)
@@ -2168,14 +2392,22 @@ async def ai_suggest_params(db: Session = Depends(get_db), _: None = Depends(req
     win_rate = len(wins) / len(settled_trades) if settled_trades else 0.0
     total_pnl = sum(t.pnl or 0.0 for t in trades)
 
-    avg_win_edge = sum(t.edge_at_entry or 0.0 for t in wins) / len(wins) if wins else 0.0
-    avg_loss_edge = sum(t.edge_at_entry or 0.0 for t in losses) / len(losses) if losses else 0.0
+    avg_win_edge = (
+        sum(t.edge_at_entry or 0.0 for t in wins) / len(wins) if wins else 0.0
+    )
+    avg_loss_edge = (
+        sum(t.edge_at_entry or 0.0 for t in losses) / len(losses) if losses else 0.0
+    )
 
     strategy_counts: dict = {}
     for t in trades:
         s = t.strategy or "unknown"
         strategy_counts[s] = strategy_counts.get(s, 0) + 1
-    top_strategy = max(strategy_counts, key=lambda k: strategy_counts[k]) if strategy_counts else "unknown"
+    top_strategy = (
+        max(strategy_counts, key=lambda k: strategy_counts[k])
+        if strategy_counts
+        else "unknown"
+    )
 
     # 4. Current settings
     kelly = settings.KELLY_FRACTION
@@ -2222,7 +2454,7 @@ Provide specific numerical suggestions in JSON format:
 }}"""
 
     def _parse_suggestions(raw: str) -> dict:
-        json_match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+        json_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
         if json_match:
             return _json.loads(json_match.group())
         return _json.loads(raw)
@@ -2232,6 +2464,7 @@ Provide specific numerical suggestions in JSON format:
     # --- OmniRoute / Custom (OpenAI-compatible) ---
     if ai_provider in ("omniroute", "custom"):
         from backend.ai.custom import get_custom_client
+
         custom = get_custom_client()
         if custom:
             try:
@@ -2248,11 +2481,14 @@ Provide specific numerical suggestions in JSON format:
                 logger.warning(f"{ai_provider} AI suggest failed: {e}")
 
     # --- Groq ---
-    if ai_provider == "groq" or (ai_provider in ("omniroute", "custom") and not get_custom_client()):
+    if ai_provider == "groq" or (
+        ai_provider in ("omniroute", "custom") and not get_custom_client()
+    ):
         groq_key = getattr(settings, "GROQ_API_KEY", None)
         if groq_key:
             try:
                 from groq import Groq
+
                 model = getattr(settings, "AI_MODEL", None) or "llama-3.1-70b-versatile"
                 client = Groq(api_key=groq_key)
                 prompt = _build_prompt()
@@ -2280,7 +2516,10 @@ Provide specific numerical suggestions in JSON format:
         if claude_key:
             try:
                 import anthropic
-                model = getattr(settings, "AI_MODEL", None) or "claude-3-5-haiku-20241022"
+
+                model = (
+                    getattr(settings, "AI_MODEL", None) or "claude-3-5-haiku-20241022"
+                )
                 client = anthropic.Anthropic(api_key=claude_key)
                 prompt = _build_prompt()
                 message = client.messages.create(
@@ -2341,6 +2580,7 @@ Provide specific numerical suggestions in JSON format:
 async def get_scheduler_jobs_endpoint(_: None = Depends(require_admin)):
     """Return current APScheduler job list."""
     from backend.core.scheduler import get_scheduler_jobs
+
     return get_scheduler_jobs()
 
 
@@ -2413,6 +2653,7 @@ async def get_copy_trader_status():
 
     if status == "down":
         from fastapi.responses import JSONResponse
+
         return JSONResponse(status_code=503, content=response_body)
 
     return response_body
@@ -2422,7 +2663,13 @@ async def get_copy_trader_status():
 async def get_copy_trader_positions(db: Session = Depends(get_db)):
     """Return recent copy trader position entries from DB."""
     from backend.models.database import CopyTraderEntry
-    entries = db.query(CopyTraderEntry).order_by(CopyTraderEntry.opened_at.desc()).limit(100).all()
+
+    entries = (
+        db.query(CopyTraderEntry)
+        .order_by(CopyTraderEntry.opened_at.desc())
+        .limit(100)
+        .all()
+    )
     return [
         {
             "wallet": e.wallet,
@@ -2437,11 +2684,10 @@ async def get_copy_trader_positions(db: Session = Depends(get_db)):
 
 @app.get("/api/settlements")
 async def get_settlements(
-    limit: int = 100,
-    offset: int = 0,
-    db: Session = Depends(get_db)
+    limit: int = 100, offset: int = 0, db: Session = Depends(get_db)
 ):
     from backend.models.database import SettlementEvent
+
     events = (
         db.query(SettlementEvent)
         .order_by(SettlementEvent.settled_at.desc())
@@ -2499,6 +2745,9 @@ async def events_stream(request: Request):
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": ", ".join(origins) if origins else "*",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
         },
     )
 
@@ -2508,13 +2757,16 @@ async def websocket_events(websocket: WebSocket):
     await ws_manager.connect(websocket)
 
     try:
-        await websocket.send_json({
-            "timestamp": datetime.utcnow().isoformat(),
-            "type": "success",
-            "message": "Connected to BTC trading bot"
-        })
+        await websocket.send_json(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "type": "success",
+                "message": "Connected to BTC trading bot",
+            }
+        )
 
         from backend.core.scheduler import get_recent_events
+
         for event in get_recent_events(20):
             await websocket.send_json(event)
 
@@ -2524,15 +2776,14 @@ async def websocket_events(websocket: WebSocket):
 
             current_events = get_recent_events(200)
             if len(current_events) > last_event_count:
-                new_events = current_events[last_event_count - len(current_events):]
+                new_events = current_events[last_event_count - len(current_events) :]
                 for event in new_events:
                     await websocket.send_json(event)
                 last_event_count = len(current_events)
 
-            await websocket.send_json({
-                "type": "heartbeat",
-                "timestamp": datetime.utcnow().isoformat()
-            })
+            await websocket.send_json(
+                {"type": "heartbeat", "timestamp": datetime.utcnow().isoformat()}
+            )
 
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
@@ -2542,4 +2793,5 @@ async def websocket_events(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
