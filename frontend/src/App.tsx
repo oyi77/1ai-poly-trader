@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Admin from './pages/Admin'
+import { TradeNotifications } from './components/TradeNotifications'
 
 const WhaleTracker = lazy(() => import('./pages/WhaleTracker'))
 const Settlements = lazy(() => import('./pages/Settlements'))
@@ -53,6 +54,7 @@ class ErrorBoundary extends React.Component<
 export default function App() {
   return (
     <ErrorBoundary>
+      <TradeNotifications />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />

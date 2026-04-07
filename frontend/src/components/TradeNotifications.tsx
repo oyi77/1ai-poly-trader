@@ -1,0 +1,294 @@
+import { useState, useCallback, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useTradeEvents, TradeEvent } from '../hooks/useTradeEvents'
+
+type Tier = 'info' | 'small' | 'medium' | 'large' | 'whale'
+type Side = 'win' | 'loss' | 'neutral'
+
+interface Notification {
+  id: string
+  type: 'trade_opened' | 'trade_settled' | 'signal_found'
+  title: string
+  body: string
+  tier: Tier
+  side: Side
+  pnl?: number
+  size?: number
+  expiresAt: number
+  ticker?: string
+  direction?: string
+  units?: number
+  multiplier?: number
+  ageLabel?: string
+  createdAt: number
+}
+
+const MAX_VISIBLE = 6
+
+const TIER_DURATIONS: Record<Tier, number> = {
+  whale: 8000,
+  large: 6000,
+  medium: 4000,
+  small: 3000,
+  info: 2500,
+}
+
+function getTier(amount: number): Tier {
+  const abs = Math.abs(amount)
+  if (abs > 100) return 'whale'
+  if (abs > 50) return 'large'
+  if (abs > 20) return 'medium'
+  if (abs > 5) return 'small'
+  return 'info'
+}
+
+function getCardStyle(tier: Tier, side: Side): { border: string; titleColor: string; glow?: string } {
+  if (side === 'win') {
+    if (tier === 'whale') return { border: '#fbbf24', titleColor: '#fbbf24', glow: '0 0 12px rgba(251,191,36,0.4)' }
+    if (tier === 'large') return { border: '#22c55e', titleColor: '#22c55e' }
+    if (tier === 'medium') return { border: '#16a34a', titleColor: '#16a34a' }
+    return { border: '#15803d', titleColor: '#15803d' }
+  }
+  if (side === 'loss') {
+    if (tier === 'whale') return { border: '#7f1d1d', titleColor: '#ef4444', glow: '0 0 12px rgba(239,68,68,0.4)' }
+    if (tier === 'large') return { border: '#ef4444', titleColor: '#ef4444' }
+    if (tier === 'medium') return { border: '#dc2626', titleColor: '#dc2626' }
+    return { border: '#991b1b', titleColor: '#dc2626' }
+  }
+  // neutral / signal
+  if (tier === 'info') return { border: '#f59e0b', titleColor: '#f59e0b' }
+  return { border: '#38bdf8', titleColor: '#38bdf8' }
+}
+
+function formatAge(ms: number): string {
+  if (ms < 1000) return `${ms}ms ago`
+  if (ms < 60000) return `${Math.floor(ms / 1000)}s ago`
+  return `${Math.floor(ms / 60000)}m ago`
+}
+
+function mapEventToNotification(event: TradeEvent): Notification | null {
+  const now = Date.now()
+  const id = `${now}-${Math.random().toString(36).slice(2, 7)}`
+
+  if (event.type === 'connected') return null
+
+  if (event.type === 'signal_found') {
+    const ticker = String(event.data.ticker ?? event.data.symbol ?? 'UNKNOWN')
+    return {
+      id,
+      type: 'signal_found',
+      title: 'SIGNAL',
+      body: ticker,
+      tier: 'info',
+      side: 'neutral',
+      ticker,
+      expiresAt: now + TIER_DURATIONS.info,
+      createdAt: now,
+    }
+  }
+
+  if (event.type === 'trade_opened') {
+    const size = Number(event.data.size ?? event.data.notional ?? 0)
+    const ticker = String(event.data.ticker ?? event.data.symbol ?? 'UNKNOWN')
+    const direction = String(event.data.direction ?? event.data.side ?? '')
+    const units = Number(event.data.units ?? event.data.qty ?? 0)
+    const multiplier = Number(event.data.multiplier ?? event.data.leverage ?? 1)
+    const tier = getTier(size)
+    return {
+      id,
+      type: 'trade_opened',
+      title: 'OPENED',
+      body: ticker,
+      tier,
+      side: 'neutral',
+      size,
+      ticker,
+      direction,
+      units,
+      multiplier,
+      expiresAt: now + TIER_DURATIONS[tier],
+      createdAt: now,
+    }
+  }
+
+  if (event.type === 'trade_settled') {
+    const pnl = Number(event.data.pnl ?? 0)
+    const result = String(event.data.result ?? (pnl >= 0 ? 'win' : 'loss'))
+    const side: Side = result === 'win' ? 'win' : 'loss'
+    const ticker = String(event.data.ticker ?? event.data.symbol ?? 'UNKNOWN')
+    const direction = String(event.data.direction ?? event.data.side ?? '')
+    const units = Number(event.data.units ?? event.data.qty ?? 0)
+    const multiplier = Number(event.data.multiplier ?? event.data.leverage ?? 1)
+    const tier = getTier(Math.abs(pnl))
+    return {
+      id,
+      type: 'trade_settled',
+      title: 'SETTLED',
+      body: ticker,
+      tier,
+      side,
+      pnl,
+      ticker,
+      direction,
+      units,
+      multiplier,
+      expiresAt: now + TIER_DURATIONS[tier],
+      createdAt: now,
+    }
+  }
+
+  return null
+}
+
+function TierBadge({ tier, side }: { tier: Tier; side: Side }) {
+  const { titleColor } = getCardStyle(tier, side)
+  const label = tier.toUpperCase()
+  return (
+    <span
+      className="font-mono text-[9px] font-700 uppercase tracking-wider px-1 py-0.5 border"
+      style={{
+        color: titleColor,
+        borderColor: titleColor,
+        background: `${titleColor}18`,
+        fontWeight: 700,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function NotificationCard({
+  notification,
+  onDismiss,
+}: {
+  notification: Notification
+  onDismiss: (id: string) => void
+}) {
+  const { border, titleColor, glow } = getCardStyle(notification.tier, notification.side)
+  const age = formatAge(Date.now() - notification.createdAt)
+
+  const pnlDisplay =
+    notification.pnl !== undefined
+      ? `${notification.pnl >= 0 ? '+' : ''}$${Math.abs(notification.pnl).toFixed(2)}`
+      : notification.size !== undefined
+      ? `$${notification.size.toFixed(2)}`
+      : ''
+
+  const sideLabel =
+    notification.side === 'win' ? 'WIN' : notification.side === 'loss' ? 'LOSS' : ''
+
+  return (
+    <motion.div
+      layout
+      initial={{ x: 60, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 60, opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      onClick={() => onDismiss(notification.id)}
+      className="cursor-pointer select-none"
+      style={{
+        background: '#0a0a0a',
+        border: `1px solid ${border}`,
+        boxShadow: glow ?? 'none',
+        width: 260,
+        padding: '6px 8px',
+        fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+      }}
+    >
+      {/* Row 1: badge + direction + ticker + pnl */}
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <TierBadge tier={notification.tier} side={notification.side} />
+        {notification.direction && (
+          <span className="text-[10px] text-neutral-300 uppercase font-mono font-semibold">
+            {notification.direction}
+          </span>
+        )}
+        <span className="text-[11px] font-mono font-semibold flex-1 truncate" style={{ color: titleColor }}>
+          {notification.ticker}
+        </span>
+        {pnlDisplay && (
+          <span className="text-[11px] font-mono font-semibold" style={{ color: titleColor }}>
+            {pnlDisplay}
+          </span>
+        )}
+      </div>
+
+      {/* Row 2: subtitle + side label + age */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] text-neutral-500 font-mono flex-1">
+          {notification.type === 'signal_found'
+            ? 'signal detected'
+            : notification.multiplier && notification.units
+            ? `${notification.multiplier}× ${notification.units} units`
+            : notification.title.toLowerCase()}
+        </span>
+        {sideLabel && (
+          <span className="text-[9px] font-mono font-semibold" style={{ color: titleColor }}>
+            {sideLabel}
+          </span>
+        )}
+        <span className="text-[9px] text-neutral-600 font-mono">{age}</span>
+      </div>
+    </motion.div>
+  )
+}
+
+export function useNotifications() {
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  const dismiss = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+    const timer = timersRef.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      timersRef.current.delete(id)
+    }
+  }, [])
+
+  const addNotification = useCallback(
+    (notif: Notification) => {
+      setNotifications((prev) => {
+        const next = [notif, ...prev].slice(0, MAX_VISIBLE)
+        return next
+      })
+
+      const timer = setTimeout(() => {
+        dismiss(notif.id)
+      }, notif.expiresAt - Date.now())
+
+      timersRef.current.set(notif.id, timer)
+    },
+    [dismiss]
+  )
+
+  return { notifications, addNotification, dismiss }
+}
+
+export function TradeNotifications() {
+  const { notifications, addNotification, dismiss } = useNotifications()
+
+  const handleEvent = useCallback(
+    (event: TradeEvent) => {
+      const notif = mapEventToNotification(event)
+      if (notif) addNotification(notif)
+    },
+    [addNotification]
+  )
+
+  useTradeEvents(handleEvent)
+
+  return (
+    <div
+      className="fixed z-50 flex flex-col-reverse gap-2"
+      style={{ bottom: '1rem', right: '1rem' }}
+    >
+      <AnimatePresence mode="popLayout">
+        {notifications.map((n) => (
+          <NotificationCard key={n.id} notification={n} onDismiss={dismiss} />
+        ))}
+      </AnimatePresence>
+    </div>
+  )
+}

@@ -1,12 +1,13 @@
 """FastAPI backend for BTC 5-min trading bot dashboard."""
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 import asyncio
 import os
+from collections import deque
 
 from backend.config import settings
 from backend.models.database import (
@@ -61,6 +62,27 @@ class ConnectionManager:
 
 
 ws_manager = ConnectionManager()
+
+
+# Global SSE event broadcaster
+_event_subscribers: list = []
+_event_history: deque = deque(maxlen=50)
+
+
+def _broadcast_event(event_type: str, data: dict):
+    """Push an event to all connected SSE subscribers. Thread-safe via asyncio."""
+    import json as _json
+    payload = {
+        "type": event_type,
+        "timestamp": datetime.utcnow().isoformat(),
+        "data": data,
+    }
+    _event_history.append(payload)
+    for q in _event_subscribers[:]:
+        try:
+            q.put_nowait(payload)
+        except asyncio.QueueFull:
+            pass  # subscriber is slow, drop event
 
 
 def require_admin(authorization: Optional[str] = Header(None)):
@@ -553,6 +575,15 @@ async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
     db.add(trade)
     state.total_trades += 1
     db.commit()
+
+    _broadcast_event("trade_opened", {
+        "trade_id": trade.id,
+        "market_ticker": trade.market_ticker,
+        "direction": trade.direction,
+        "size": trade.size,
+        "entry_price": trade.entry_price,
+        "mode": settings.TRADING_MODE,
+    })
 
     log_event("trade", f"Manual BTC trade: {signal.direction.upper()} {signal.market.slug}")
     return {"status": "ok", "trade_id": trade.id, "size": trade.size}
@@ -2121,6 +2152,46 @@ async def get_settlements(
         }
         for e in events
     ]
+
+
+@app.get("/api/events/stream")
+async def events_stream(request: Request):
+    """Server-Sent Events stream for real-time trade notifications."""
+    from fastapi.responses import StreamingResponse
+    import json as _json
+
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    _event_subscribers.append(queue)
+
+    async def generate() -> AsyncGenerator[str, None]:
+        # Send recent history on connect
+        for event in list(_event_history):
+            yield f"data: {_json.dumps(event)}\n\n"
+        # Send connected heartbeat immediately
+        yield f"data: {_json.dumps({'type': 'connected', 'timestamp': datetime.utcnow().isoformat()})}\n\n"
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield f"data: {_json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    # heartbeat keepalive
+                    yield f": keepalive\n\n"
+        finally:
+            if queue in _event_subscribers:
+                _event_subscribers.remove(queue)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.websocket("/ws/events")

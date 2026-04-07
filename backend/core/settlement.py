@@ -356,6 +356,17 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
             else:
                 trade.result = "push"
             settled_trades.append(trade)
+            try:
+                from backend.api.main import _broadcast_event
+                _broadcast_event("trade_settled", {
+                    "trade_id": trade.id,
+                    "market_ticker": trade.market_ticker,
+                    "result": trade.result,
+                    "pnl": trade.pnl,
+                    "mode": getattr(trade, 'trading_mode', 'paper'),
+                })
+            except Exception:
+                pass
             platform = getattr(trade, 'platform', 'polymarket') or 'polymarket'
             resolved_outcome = "up" if settlement_value == 1.0 else "down"
             db.add(SettlementEvent(

@@ -156,6 +156,19 @@ async def scan_and_trade_job():
                 state.total_trades += 1
                 trades_executed += 1
 
+                try:
+                    from backend.api.main import _broadcast_event
+                    _broadcast_event("trade_opened", {
+                        "trade_id": trade.id,
+                        "market_ticker": trade.market_ticker,
+                        "direction": trade.direction,
+                        "size": trade.size,
+                        "entry_price": trade.entry_price,
+                        "mode": settings.TRADING_MODE,
+                    })
+                except Exception:
+                    pass
+
                 log_event("trade",
                     f"BTC {signal.direction.upper()} ${trade_size:.0f} @ {entry_price:.0%} | {signal.market.slug}",
                     {
@@ -283,6 +296,19 @@ async def weather_scan_and_trade_job():
 
                 state.total_trades += 1
                 trades_executed += 1
+
+                try:
+                    from backend.api.main import _broadcast_event
+                    _broadcast_event("trade_opened", {
+                        "trade_id": trade.id,
+                        "market_ticker": trade.market_ticker,
+                        "direction": trade.direction,
+                        "size": trade.size,
+                        "entry_price": trade.entry_price,
+                        "mode": settings.TRADING_MODE,
+                    })
+                except Exception:
+                    pass
 
                 log_event("trade",
                     f"WX {signal.market.city_name}: {signal.direction.upper()} "
