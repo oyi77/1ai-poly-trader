@@ -57,6 +57,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add metrics middleware for automatic tracking
+@app.middleware("http")
+async def metrics_middleware_wrapper(request: Request, call_next):
+    from backend.monitoring.middleware import metrics_middleware
+    return await metrics_middleware(request, call_next)
+
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -117,6 +123,29 @@ def require_admin(authorization: Optional[str] = Header(None)):
 
 
 # Pydantic response models
+# Default backtest configuration values
+_DEFAULT_MAX_TRADE_SIZE = 100.0
+_DEFAULT_MIN_EDGE_THRESHOLD = 0.02
+_DEFAULT_MARKET_TYPES = ["BTC"]
+DEFAULT_SLIPPAGE_BPS = 5
+
+
+class BacktestRequest(BaseModel):
+    initial_bankroll: float = 1000.0
+    max_trade_size: float = 100.0
+    min_edge_threshold: float = 0.02
+    start_date: str | None = None  # ISO format datetime
+    end_date: str | None = None  # ISO format datetime
+    market_types: list[str] = ["BTC", "Weather", "CopyTrader"]
+    slippage_bps: int = 5  # basis points
+
+class FrontendBacktestRequest(BaseModel):
+    strategy_name: str
+    start_date: str | None = None
+    end_date: str | None = None
+    initial_bankroll: float = 10000.0
+
+
 class BtcPriceResponse(BaseModel):
     price: float
     change_24h: float
@@ -338,6 +367,12 @@ async def startup():
     print(f"  - Settlement interval: {settings.SETTLEMENT_INTERVAL_SECONDS}s")
     print("")
 
+    # Load all strategies BEFORE starting scheduler
+    from backend.strategies.registry import load_all_strategies
+    print("Loading trading strategies...")
+    load_all_strategies()
+    print(f"  - Strategies loaded: {', '.join(sorted(__import__('backend.strategies.registry', fromlist=['STRATEGY_REGISTRY']).STRATEGY_REGISTRY.keys()))}")
+
     from backend.core.scheduler import start_scheduler, log_event
 
     start_scheduler()
@@ -389,6 +424,18 @@ async def health_check(db: Session = Depends(get_db)):
         "timestamp": datetime.utcnow().isoformat(),
         "bot_running": bot_state.is_running if bot_state else False,
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    """
+    Prometheus metrics endpoint.
+
+    Returns all trading bot metrics in Prometheus text format.
+    Scrape this endpoint with Prometheus or other monitoring systems.
+    """
+    from backend.monitoring import get_metrics
+    return get_metrics()
 
 
 @app.get("/api/stats", response_model=BotStats)
@@ -1001,6 +1048,46 @@ def _weather_signal_to_response(s) -> WeatherSignalResponse:
     )
 
 
+@app.get("/api/polymarket/markets")
+async def get_polymarket_markets(
+    offset: int = 0,
+    limit: int = 100,
+    category: str | None = None
+):
+    """Get Polymarket CLOB markets with pagination."""
+    try:
+        from backend.core.market_scanner import fetch_all_active_markets
+
+        markets = await fetch_all_active_markets(
+            category=category,
+            limit=limit + offset if limit else None
+        )
+        # Apply pagination
+        paginated = markets[offset:offset + limit]
+        return {
+            "markets": [
+                {
+                    "ticker": m.ticker,
+                    "slug": m.slug,
+                    "question": m.question,
+                    "category": m.category,
+                    "yes_price": m.yes_price,
+                    "no_price": m.no_price,
+                    "volume": m.volume,
+                    "liquidity": m.liquidity,
+                    "end_date": m.end_date,
+                }
+                for m in paginated
+            ],
+            "total": len(markets),
+            "offset": offset,
+            "limit": limit,
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch Polymarket markets: {e}")
+        return {"markets": [], "total": 0, "offset": offset, "limit": limit}
+
+
 @app.get("/api/events", response_model=List[EventResponse])
 async def get_events(limit: int = 50):
     from backend.core.scheduler import get_recent_events
@@ -1089,6 +1176,234 @@ async def reset_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Reset failed: {e}")
+
+
+@app.post("/api/backtest/run")
+async def run_backtest_frontend(
+    body: FrontendBacktestRequest, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
+    """Run backtest against historical signals - matches frontend API contract."""
+    from backend.core.backtesting import BacktestEngine, BacktestConfig
+    from datetime import datetime, timedelta
+
+    try:
+        # Parse dates
+        end_date = datetime.fromisoformat(body.end_date) if body.end_date else datetime.utcnow()
+        start_date = datetime.fromisoformat(body.start_date) if body.start_date else end_date - timedelta(days=30)
+
+        # Create config with defaults from settings
+        config = BacktestConfig(
+            initial_bankroll=body.initial_bankroll,
+            max_trade_size=_DEFAULT_MAX_TRADE_SIZE,
+            min_edge_threshold=_DEFAULT_MIN_EDGE_THRESHOLD,
+            start_date=start_date,
+            end_date=end_date,
+            market_types=_DEFAULT_MARKET_TYPES,
+            slippage_bps=DEFAULT_SLIPPAGE_BPS,
+        )
+
+        # Run backtest
+        engine = BacktestEngine(config)
+        result = engine.run(db)
+
+        return {
+            "strategy_name": body.strategy_name,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "initial_bankroll": body.initial_bankroll,
+            "results": {
+                "summary": {
+                    "total_signals": result.total_trades,
+                    "total_trades": result.total_trades,
+                    "winning_trades": result.winning_trades,
+                    "losing_trades": result.losing_trades,
+                    "win_rate": result.win_rate,
+                    "initial_bankroll": body.initial_bankroll,
+                    "final_equity": result.final_bankroll,
+                    "total_pnl": result.total_pnl,
+                    "total_return_pct": result.roi * 100,
+                    "sharpe_ratio": result.sharpe_ratio,
+                },
+                "trade_log": [],
+                "equity_curve": [],
+            },
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backtest failed: {e}")
+
+
+@app.post("/api/backtest")
+async def run_backtest(
+    body: BacktestRequest, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
+    """Run backtest against historical signals."""
+    from backend.core.backtesting import BacktestEngine, BacktestConfig
+    from datetime import datetime
+
+    try:
+        # Parse dates
+        start_date = datetime.fromisoformat(body.start_date) if body.start_date else None
+        end_date = datetime.fromisoformat(body.end_date) if body.end_date else None
+
+        # Create config
+        config = BacktestConfig(
+            initial_bankroll=body.initial_bankroll,
+            max_trade_size=body.max_trade_size,
+            min_edge_threshold=body.min_edge_threshold,
+            start_date=start_date,
+            end_date=end_date,
+            market_types=body.market_types,
+            slippage_bps=body.slippage_bps,
+        )
+
+        # Run backtest
+        engine = BacktestEngine(config)
+        result = engine.run(db)
+
+        return {
+            "strategy_name": "signal_replay",
+            "start_date": (start_date.isoformat() if start_date else body.start_date),
+            "end_date": (end_date.isoformat() if end_date else body.end_date),
+            "initial_bankroll": body.initial_bankroll,
+            "results": {
+                "summary": {
+                    "total_signals": result.total_trades,
+                    "total_trades": result.total_trades,
+                    "winning_trades": result.winning_trades,
+                    "losing_trades": result.losing_trades,
+                    "win_rate": result.win_rate,
+                    "initial_bankroll": body.initial_bankroll,
+                    "final_equity": result.final_bankroll,
+                    "total_pnl": result.total_pnl,
+                    "total_return_pct": result.roi * 100,
+                    "sharpe_ratio": result.sharpe_ratio,
+                },
+                "trade_log": [],
+                "equity_curve": [],
+            },
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backtest failed: {e}")
+
+
+@app.get("/api/backtest/quick")
+async def quick_backtest(
+    days_back: int = 30,
+    initial_bankroll: float = 1000.0,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Quick backtest for recent N days."""
+    from backend.core.backtesting import run_quick_backtest
+
+    try:
+        result = run_quick_backtest(db, days_back=days_back, initial_bankroll=initial_bankroll)
+
+        return {
+            "status": "success",
+            "result": {
+                "total_trades": result.total_trades,
+                "winning_trades": result.winning_trades,
+                "losing_trades": result.losing_trades,
+                "total_pnl": result.total_pnl,
+                "final_bankroll": result.final_bankroll,
+                "win_rate": result.win_rate,
+                "avg_win": result.avg_win,
+                "avg_loss": result.avg_loss,
+                "max_drawdown": result.max_drawdown,
+                "sharpe_ratio": result.sharpe_ratio,
+                "trades_per_day": result.trades_per_day,
+                "roi": result.roi,
+            },
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Quick backtest failed: {e}")
+
+@app.get("/api/edge-performance")
+async def get_edge_performance(
+    track: str | None = None,
+    days: int = 7,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns aggregated performance metrics for edge discovery tracks.
+
+    Metrics per track:
+    - Total signals generated
+    - Signals executed (paper)
+    - Win rate (paper)
+    - Total PNL (paper)
+    - Sharpe ratio (paper)
+    - Max drawdown (paper)
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import case, cast, Float
+
+    # Calculate date threshold
+    since_date = datetime.utcnow() - timedelta(days=days)
+
+    # Build query
+    query = db.query(
+        Signal.track_name,
+        func.count(Signal.id).label('total_signals'),
+        func.sum(case((Signal.executed == True, 1))).label('signals_executed'),
+        func.sum(case((Signal.outcome_correct == True, 1))).label('winning_trades'),
+    ).filter(
+        Signal.timestamp >= since_date,
+        Signal.track_name.isnot(None),
+    ).group_by(Signal.track_name)
+
+    # Filter by specific track if requested
+    if track:
+        query = query.filter(Signal.track_name == track)
+
+    results = query.all()
+
+    # Calculate metrics for each track
+    track_metrics = []
+    for row in results:
+        total_signals = row.total_signals or 0
+        signals_executed = row.signals_executed or 0
+        winning_trades = row.winning_trades or 0
+
+        # Calculate win rate
+        win_rate = (winning_trades / signals_executed) if signals_executed > 0 else 0.0
+
+        # Get PNL data for this track
+        pnl_query = db.query(
+            func.sum(Trade.pnl).label('total_pnl'),
+            func.count(Trade.id).label('trade_count'),
+        ).join(
+            Signal, Trade.signal_id == Signal.id
+        ).filter(
+            Signal.track_name == row.track_name,
+            Signal.execution_mode == 'paper',
+            Signal.timestamp >= since_date,
+        )
+
+        pnl_result = pnl_query.first()
+        total_pnl = pnl_result.total_pnl or 0.0
+        trade_count = pnl_result.trade_count or 0
+
+        track_metrics.append({
+            'track_name': row.track_name,
+            'total_signals': total_signals,
+            'signals_executed': signals_executed,
+            'winning_trades': winning_trades,
+            'win_rate': win_rate,
+            'total_pnl': total_pnl,
+            'trade_count': trade_count,
+            'status': 'paper',  # All edge discovery starts in paper mode
+        })
+
+    return {
+        'tracks': track_metrics,
+        'days': days,
+        'since_date': since_date.isoformat(),
+    }
 
 
 @app.get("/api/dashboard", response_model=DashboardData)

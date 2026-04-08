@@ -152,6 +152,10 @@ class Signal(Base):
     sources = Column(JSON)
     reasoning = Column(String)
 
+    # Edge discovery tracking
+    track_name = Column(String, nullable=True, default='legacy', index=True)  # Which edge track generated this signal
+    execution_mode = Column(String, nullable=True, default='paper')  # 'paper' or 'live'
+
     executed = Column(Boolean, default=False)
 
     # Calibration tracking — filled after settlement
@@ -450,6 +454,52 @@ def ensure_schema():
                         with conn.begin():
                             conn.execute(
                                 text(f"ALTER TABLE signals ADD COLUMN {col} {coltype}")
+                            )
+                    except Exception:
+                        pass  # column already exists
+
+    # Add edge discovery tracking columns to signals table
+    with engine.connect() as conn:
+        for col, coltype in [
+            ("track_name", "VARCHAR DEFAULT 'legacy'"),  # Which edge track generated this signal
+            ("execution_mode", "VARCHAR DEFAULT 'paper'"),  # 'paper' or 'live'
+        ]:
+            if col not in signal_columns:
+                try:
+                    with conn.begin():
+                        conn.execute(
+                            text(f"ALTER TABLE signals ADD COLUMN {col} {coltype}")
+                        )
+                except Exception:
+                    pass  # column already exists
+
+    # Add per-track bankroll and PNL tracking to bot_state
+    try:
+        bot_state_columns = [col["name"] for col in inspector.get_columns("bot_state")]
+    except Exception:
+        bot_state_columns = []
+
+    if bot_state_columns:
+        with engine.connect() as conn:
+            for col, coltype in [
+                # Per-track bankrolls (for isolation)
+                ("track_bankroll_realtime", "FLOAT DEFAULT 500.0"),
+                ("track_bankroll_whale", "FLOAT DEFAULT 500.0"),
+                ("track_bankroll_commodity", "FLOAT DEFAULT 500.0"),
+                # Per-track PNL tracking
+                ("track_pnl_realtime", "FLOAT DEFAULT 0.0"),
+                ("track_pnl_whale", "FLOAT DEFAULT 0.0"),
+                ("track_pnl_commodity", "FLOAT DEFAULT 0.0"),
+                # Per-track loss limits
+                ("track_loss_limit_realtime", "FLOAT DEFAULT 100.0"),
+                ("track_loss_limit_whale", "FLOAT DEFAULT 100.0"),
+                ("track_loss_limit_commodity", "FLOAT DEFAULT 100.0"),
+            ]:
+                if col not in bot_state_columns:
+                    try:
+                        with conn.begin():
+                            conn.execute(
+                                text(f"ALTER TABLE bot_state ADD COLUMN {col} {coltype}")
                             )
                     except Exception:
                         pass  # column already exists

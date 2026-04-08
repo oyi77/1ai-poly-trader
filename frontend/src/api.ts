@@ -64,6 +64,32 @@ export async function fetchStats(): Promise<BotStats> {
   return data
 }
 
+export interface PolymarketMarket {
+  ticker: string
+  slug: string
+  question: string
+  category: string
+  yes_price: number
+  no_price: number
+  volume: number
+  liquidity: number
+  end_date: string | null
+}
+
+export interface PolymarketMarketsResponse {
+  markets: PolymarketMarket[]
+  total: number
+  offset: number
+  limit: number
+}
+
+export async function fetchPolymarketMarkets(offset = 0, limit = 100, category?: string): Promise<PolymarketMarket[]> {
+  const { data } = await api.get<PolymarketMarketsResponse>('/polymarket/markets', {
+    params: { offset, limit, category }
+  })
+  return data.markets
+}
+
 export async function runScan(): Promise<{ total_signals: number; actionable_signals: number }> {
   const { data } = await adminApi.post('/run-scan')
   return data
@@ -93,6 +119,76 @@ export async function settleTradesApi(): Promise<{ settled_count: number }> {
 
 export async function resetBot(): Promise<{ status: string; trades_deleted: number; new_bankroll: number }> {
   const { data } = await adminApi.post('/bot/reset')
+  return data
+}
+
+export async function fetchBacktestStrategies(): Promise<{
+  strategies: Array<{
+    name: string
+    description: string
+    category: string
+    default_params: Record<string, any>
+  }>
+}> {
+  const { data } = await api.get('/backtest/strategies')
+  return data
+}
+
+export async function fetchBacktestHistory(params?: {
+  limit?: number
+  offset?: number
+}): Promise<{
+  runs: Array<any>
+  total: number
+  limit: number
+  offset: number
+}> {
+  const { data } = await api.get('/backtest/history', { params })
+  return data
+}
+
+export async function runBacktest(config: {
+  strategy_name: string
+  start_date?: string
+  end_date?: string
+  initial_bankroll?: number
+  params?: Record<string, any>
+}): Promise<{
+  strategy_name: string
+  start_date: string
+  end_date: string
+  initial_bankroll: number
+  results: {
+    summary: {
+      total_signals: number
+      total_trades: number
+      winning_trades: number
+      losing_trades: number
+      win_rate: number
+      initial_bankroll: number
+      final_equity: number
+      total_pnl: number
+      total_return_pct: number
+      sharpe_ratio: number
+    }
+    trade_log: Array<{
+      entry_price: number
+      exit_price: number
+      size: number
+      pnl: number
+      result: string
+      timestamp: string
+      bankroll_after_trade: number
+    }>
+    equity_curve: Array<{
+      timestamp: string
+      equity: number
+      pnl: number
+    }>
+  }
+  run_id?: number
+}> {
+  const { data } = await adminApi.post('/backtest/run', config)
   return data
 }
 
@@ -449,4 +545,28 @@ export interface ArbOpportunity {
 export async function fetchArbitrageOpportunities(): Promise<ArbOpportunity[]> {
   const { data } = await api.get<{ opportunities: ArbOpportunity[] }>('/arbitrage/opportunities')
   return data.opportunities ?? []
+}
+
+// ── Edge Performance (Parallel Edge Discovery) ───────────────────────────────────
+
+export interface EdgePerformanceTrack {
+  track_name: string
+  total_signals: number
+  signals_executed: number
+  winning_trades: number
+  win_rate: number
+  total_pnl: number
+  trade_count: number
+  status: string
+}
+
+export interface EdgePerformanceResponse {
+  tracks: EdgePerformanceTrack[]
+  days: number
+  since_date: string
+}
+
+export async function fetchEdgePerformance(days = 7): Promise<EdgePerformanceResponse> {
+  const { data } = await api.get<EdgePerformanceResponse>('/edge-performance', { params: { days } })
+  return data
 }

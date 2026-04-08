@@ -1,6 +1,6 @@
 # PolyEdge Trading Bot — Implementation Gap Analysis
 
-**Status**: ~88% Complete | **Last Updated**: 2026-04-07
+**Status**: ~92% Complete | **Last Updated**: 2026-04-07
 
 This document tracks what remains to achieve 100% completion of the PolyEdge trading bot.
 
@@ -28,9 +28,19 @@ This document tracks what remains to achieve 100% completion of the PolyEdge tra
 - **Parameter Optimizer** (`backend/api/main.py:/api/admin/ai/suggest`) — All providers wired
 
 ### Frontend
-- **Dashboard** (`frontend/src/pages/Dashboard.tsx`) — 7-tab trading terminal complete
-- **Admin Panel** (`frontend/src/pages/Admin.tsx`) — 10 tabs including AI provider config
-- **API Client** (`frontend/src/api.ts`) — All endpoints exposed and typed
+- **Dashboard** (`frontend/src/pages/Dashboard.tsx`) — 7-tab trading terminal complete ✅
+- **Admin Panel** (`frontend/src/pages/Admin.tsx`) — 10 tabs including AI provider config ✅
+- **API Client** (`frontend/src/api.ts`) — All endpoints exposed and typed ✅
+- **NEW: Unified Stats Display** ✅
+  - Fixed stats duplication using `useStats()` hook
+  - Single source of truth for all statistics
+  - Removed redundant Account Stats Bar
+- **NEW: Playwright E2E Tests** ✅
+  - All visual tests passing (dashboard, markets, performance tabs)
+  - Screenshot verification for UI changes
+- **NEW: Vite Proxy Configuration** ✅
+  - Fixed API proxy to forward requests to correct backend port
+  - Resolved 404 errors on `/api/polymarket/markets`
 
 ### Data Sources
 - **BTC Prices** — Coinbase, Kraken, Binance integrations
@@ -42,6 +52,43 @@ This document tracks what remains to achieve 100% completion of the PolyEdge tra
 - **Bot Core** (`backend/bot/telegram_bot.py`) — All alerts and commands implemented
 - **Notifier** (`backend/bot/notifier.py`) — Dispatch layer wired to scheduler
 - **Commands** — `/status`, `/positions`, `/trades`, `/bankroll`, `/pnl`, `/scan`, `/settle`, `/pause`, `/resume`, `/mode`, `/settings`, `/calibration`, `/leaderboard`
+
+### Parallel Edge Discovery Platform (NEW - Phase 1 & 2 Complete ✅)
+- **Database Schema Extensions** — Signal and BotState tables extended with edge discovery tracking
+  - `Signal.track_name` — Identifies which edge track generated the signal ('legacy', 'realtime', 'whale', 'commodity')
+  - `Signal.execution_mode` — Tracks paper vs live mode ('paper', 'testnet', 'live')
+  - Per-track bankrolls: `track_bankroll_realtime`, `track_bankroll_whale`, `track_bankroll_commodity`
+  - Per-track PNL: `track_pnl_realtime`, `track_pnl_whale`, `track_pnl_commodity`
+  - Per-track loss limits: `track_loss_limit_realtime`, `track_loss_limit_whale`, `track_loss_limit_commodity`
+- **Edge Performance API** — `GET /api/edge-performance?days=7` returns per-track metrics
+  - Tracks total signals, signals executed, win rate, PNL, trade count, status
+  - Supports day filtering: 3, 7, 14, 30 days
+- **EdgeTracker Frontend** — `/edge-tracker` page displays real-time performance per track
+  - Track cards with status badges, win rate, PNL, signals/trades counts
+  - Execution rate progress bars
+  - Day filter dropdown
+  - Color-coded track indicators (legacy, realtime, whale, commodity)
+- **Track 1: Real-time Scanner** (`realtime_scanner` strategy) — Price velocity signals from WebSocket
+  - Monitors Polymarket CLOB WebSocket for rapid price movements
+  - Calculates velocity over sliding windows (5s, 15s, 30s)
+  - Generates UP/DOWN signals when velocity exceeds thresholds
+  - Configurable: velocity_threshold_up (0.15), velocity_threshold_down (-0.15)
+  - Runs every 30 seconds in paper mode
+- **Track 2: Whale PNL Tracker** (`whale_pnl_tracker` strategy) — Realized PNL ranking
+  - Fetches whale positions from Polymarket Data API
+  - Ranks wallets by whale_score (PNL × win_rate × consistency)
+  - Mirrors positions from top 5 whales (configurable)
+  - Min whale score filter (0.3 on 0-1 scale)
+  - Runs every 60 seconds in paper mode
+- **Track 3: Commodity Mean Reversion** — SKIPPED (Kalshi credentials not configured)
+  - Strategy scaffolded but not implemented due to missing KALSHI_API_KEY_ID
+  - Can be implemented when Kalshi credentials are available
+
+**Phase 3 Status**: 14-day paper trading period in progress (started 2026-04-08)
+  - Both edge discovery strategies enabled and running
+  - Per-track bankroll isolation enforced
+  - Day 21 evaluation will determine promotion to live trading
+  - Success criteria: win rate >55% (95% CI), positive PNL, Sharpe >1.0, max drawdown <15%
 
 ---
 
@@ -129,43 +176,40 @@ docs/
 
 ---
 
-### 3. Production Monitoring (~50% complete)
+### 3. Production Monitoring (~90% complete) ✅
 
 **What Exists**:
-- Basic health endpoint `GET /health`
-- Error logging via Python logging
-- Telegram error alerts
+- Basic health endpoint `GET /health` ✅
+- Error logging via Python logging ✅
+- Telegram error alerts ✅
+- **NEW: Prometheus metrics endpoint** ✅
+  - `GET /metrics` returns Prometheus format
+  - Tracks: trades, signals, PNL, bankroll, API latency, error rate
+  - Thread-safe metrics with automatic collection
+- **NEW: Metrics middleware** ✅
+  - Automatic API latency tracking
+  - Error rate monitoring
+  - Request counting
 
 **What's Missing**:
-- [ ] Metrics export (Prometheus format)
-- [ ] Performance dashboards (Grafana)
+- [ ] Grafana dashboards (JSON templates)
 - [ ] Application Performance Monitoring (APM)
 - [ ] Log aggregation (ELK/Loki)
 - [ ] Alerting rules (Paging, not just Telegram)
 
-**Files to Create**:
+**Files Created**:
 ```
 backend/monitoring/
-├── __init__.py
-├── metrics.py                    # Prometheus metrics
-├── middleware.py                 # Request/response tracking
-└── alerts.py                     # Alert rule engine
-
-docker/
-├── prometheus/
-│   └── prometheus.yml
-├── grafana/
-│   └── dashboards/
-│       ├── trading-performance.json
-│       └── system-health.json
-└── loki/
-    └── loki-config.yml
+├── __init__.py                   ✅ Created
+├── metrics.py                    ✅ Created (Prometheus exporter)
+└── middleware.py                 ✅ Created (auto-tracking)
 ```
 
 **Acceptance Criteria**:
-- `GET /metrics` returns Prometheus format
-- Grafana dashboards show: PnL, trade count, win rate, API latency, error rate
-- Alerts fire on: high error rate, failed settlements, low bankroll
+- ✅ `GET /metrics` returns Prometheus format
+- ✅ Metrics include: PnL, trade count, win rate, API latency, error rate
+- [ ] Grafana dashboards show: PnL, trade count, win rate, API latency, error rate
+- [ ] Alerts fire on: high error rate, failed settlements, low bankroll
 
 ---
 
@@ -288,14 +332,45 @@ async def get_signals():
 
 ## 🔧 QUICK WINS (Can Complete in <2 Hours Each)
 
-1. **Add Alembic for database migrations** — ~1 hour
-2. **Add Prometheus metrics endpoint** — ~1 hour
-3. **Create API documentation with FastAPI auto-gen** — ~30 minutes (already built into FastAPI, just need to enable)
-4. **Add basic unit tests for BTC strategy** — ~2 hours
-5. **Add rate limiting middleware** — ~1 hour
-6. **Create deployment runbook** — ~2 hours
-7. **Add Grafana dashboard templates** — ~2 hours
-8. **Create troubleshooting guide** — ~1 hour
+### ✅ COMPLETED
+1. ~~**Add Prometheus metrics endpoint** — ~1 hour~~ ✅ **COMPLETE**
+   - Implemented `/metrics` endpoint in Prometheus format
+   - Added automatic metrics tracking middleware (latency, errors, request count)
+   - Metrics include: trades, signals, PNL, bankroll, API latency, strategy status
+   - Ready for Grafana integration
+
+2. ~~**Create API documentation with FastAPI auto-gen** — ~30 minutes~~ ✅ **COMPLETE**
+   - API docs accessible at `http://localhost:8000/docs` (Swagger UI)
+   - Auto-generated from FastAPI endpoints
+   - All endpoints documented with request/response schemas
+
+3. ~~**Fix frontend API proxy configuration** — ~15 minutes~~ ✅ **COMPLETE**
+   - Fixed Vite proxy to forward `/api` requests to correct backend port (8000)
+   - Resolved 404 errors on Polymarket markets endpoint
+
+4. ~~**Fix stats duplication in UI** — ~30 minutes~~ ✅ **COMPLETE**
+   - Unified stats display using `useStats()` hook
+   - Removed redundant Account Stats Bar
+   - Single source of truth for all statistics
+
+5. ~~**Fix Playwright E2E tests** — ~45 minutes~~ ✅ **COMPLETE**
+   - Updated tests to navigate to `/dashboard` instead of landing page
+   - All 3 visual tests passing (dashboard, markets, performance tabs)
+   - Verified UI functionality with screenshots
+
+6. ~~**Add reset button to System tab** — ~30 minutes~~ ✅ **COMPLETE**
+   - Added "Reset" button to Admin → System tab
+   - One-click reset for fresh paper trading tests
+   - Deletes all trades, resets bankroll to INITIAL_BANKROLL
+   - Confirmation dialog prevents accidental resets
+
+### REMAINING
+7. **Add Alembic for database migrations** — ~1 hour
+8. **Add rate limiting middleware** — ~1 hour
+9. **Add basic unit tests for BTC strategy** — ~2 hours
+10. **Create deployment runbook** — ~2 hours
+11. **Add Grafana dashboard templates** — ~2 hours
+12. **Create troubleshooting guide** — ~1 hour
 
 ---
 

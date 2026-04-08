@@ -11,6 +11,7 @@ const MarketIntel = lazy(() => import('./pages/MarketIntel'))
 const DecisionLog = lazy(() => import('./pages/DecisionLog'))
 const TradingTerminal = lazy(() => import('./pages/TradingTerminal'))
 const PendingApprovals = lazy(() => import('./pages/PendingApprovals'))
+const EdgeTracker = lazy(() => import('./pages/EdgeTracker'))
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/decisions" element={<Suspense fallback={null}><DecisionLog /></Suspense>} />
           <Route path="/trading-terminal" element={<Suspense fallback={null}><TradingTerminal /></Suspense>} />
           <Route path="/pending-approvals" element={<Suspense fallback={null}><PendingApprovals /></Suspense>} />
+          <Route path="/edge-tracker" element={<Suspense fallback={null}><EdgeTracker /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
