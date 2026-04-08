@@ -112,7 +112,7 @@ class BotState(Base):
     __tablename__ = "bot_state"
 
     id = Column(Integer, primary_key=True)
-    bankroll = Column(Float, default=10000.0)
+    bankroll = Column(Float, default=100.0)
     total_trades = Column(Integer, default=0)
     winning_trades = Column(Integer, default=0)
     total_pnl = Column(Float, default=0.0)
@@ -120,7 +120,7 @@ class BotState(Base):
     is_running = Column(Boolean, default=False)
 
     # Paper trading tracking
-    paper_bankroll = Column(Float, default=10000.0)
+    paper_bankroll = Column(Float, default=100.0)
     paper_pnl = Column(Float, default=0.0)
     paper_trades = Column(Integer, default=0)
     paper_wins = Column(Integer, default=0)
@@ -483,17 +483,17 @@ def ensure_schema():
         with engine.connect() as conn:
             for col, coltype in [
                 # Per-track bankrolls (for isolation)
-                ("track_bankroll_realtime", "FLOAT DEFAULT 500.0"),
-                ("track_bankroll_whale", "FLOAT DEFAULT 500.0"),
-                ("track_bankroll_commodity", "FLOAT DEFAULT 500.0"),
+                ("track_bankroll_realtime", "FLOAT DEFAULT 100.0"),
+                ("track_bankroll_whale", "FLOAT DEFAULT 100.0"),
+                ("track_bankroll_commodity", "FLOAT DEFAULT 100.0"),
                 # Per-track PNL tracking
                 ("track_pnl_realtime", "FLOAT DEFAULT 0.0"),
                 ("track_pnl_whale", "FLOAT DEFAULT 0.0"),
                 ("track_pnl_commodity", "FLOAT DEFAULT 0.0"),
                 # Per-track loss limits
-                ("track_loss_limit_realtime", "FLOAT DEFAULT 100.0"),
-                ("track_loss_limit_whale", "FLOAT DEFAULT 100.0"),
-                ("track_loss_limit_commodity", "FLOAT DEFAULT 100.0"),
+                ("track_loss_limit_realtime", "FLOAT DEFAULT 50.0"),
+                ("track_loss_limit_whale", "FLOAT DEFAULT 50.0"),
+                ("track_loss_limit_commodity", "FLOAT DEFAULT 50.0"),
             ]:
                 if col not in bot_state_columns:
                     try:
