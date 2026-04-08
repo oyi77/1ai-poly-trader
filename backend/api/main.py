@@ -33,6 +33,13 @@ from backend.models.database import (
     DecisionLog,
     TradeContext,
 )
+
+# Wallet creation support
+try:
+    from eth_account import Account
+except ImportError:
+    Account = None
+    logger.warning("eth_account not available - wallet creation disabled")
 from backend.core.signals import scan_for_signals, TradingSignal
 from backend.data.btc_markets import fetch_active_btc_markets
 from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
@@ -2266,6 +2273,12 @@ class WalletConfigUpdate(BaseModel):
     notes: str | None = None
 
 
+class WalletCreateResponse(BaseModel):
+    address: str
+    private_key: str
+    """WARNING: Save this key securely. Never share or commit to repo."""
+
+
 # =========================================================================
 # MarketWatch CRUD
 # =========================================================================
@@ -2453,6 +2466,35 @@ async def create_wallet_config(
     db.commit()
     db.refresh(row)
     return {"id": row.id, "address": row.address, "enabled": row.enabled}
+
+
+@app.post("/api/wallets/create", status_code=201)
+async def create_fresh_wallet(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Generate a fresh wallet for Polymarket trading.
+
+    Returns a new Ethereum address and private key.
+    WARNING: Private key is shown ONCE - save it securely.
+    This key is NOT stored in the database.
+    """
+    if Account is None:
+        raise HTTPException(
+            status_code=503, detail="Wallet creation unavailable - eth_account library not installed"
+        )
+
+    # Generate new account
+    acct = Account.create()
+    address = acct.address
+    private_key = acct.key.hex()
+
+    logger.info(f"Fresh wallet created: {address}")
+
+    return WalletCreateResponse(
+        address=address,
+        private_key=private_key,
+    )
 
 
 @app.put("/api/wallets/config/{wallet_id}")

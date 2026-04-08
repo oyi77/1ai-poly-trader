@@ -376,6 +376,17 @@ export async function deleteWalletConfig(id: number): Promise<void> {
   await adminApi.delete(`/wallets/config/${id}`)
 }
 
+export interface CreatedWallet {
+  address: string
+  private_key: string
+  /** WARNING: Save this key securely. Never share or commit to repo. */
+}
+
+export async function createWallet(): Promise<CreatedWallet> {
+  const { data } = await adminApi.post<CreatedWallet>('/wallets/create')
+  return data
+}
+
 // ── Strategies ────────────────────────────────────────────────────────────────
 
 export interface StrategyConfig {

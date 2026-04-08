@@ -21,11 +21,13 @@ import {
   createWalletConfig,
   updateWalletConfig,
   deleteWalletConfig,
+  createWallet,
   fetchSystemStatus,
   switchTradingMode,
   fetchAdminSettings,
   updateAdminSettings,
   fetchAISuggest,
+  type CreatedWallet,
 } from '../api'
 
 function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
@@ -266,6 +268,10 @@ function WalletConfigTab() {
   const [pseudonym, setPseudonym] = useState('')
   const [adding, setAdding] = useState(false)
 
+  const [creating, setCreating] = useState(false)
+  const [createdWallet, setCreatedWallet] = useState<CreatedWallet | null>(null)
+  const [copiedKey, setCopiedKey] = useState(false)
+
   const { data, isLoading } = useQuery({
     queryKey: ['wallet-configs'],
     queryFn: () => fetchWalletConfigs(),
@@ -294,6 +300,27 @@ function WalletConfigTab() {
       qc.invalidateQueries({ queryKey: ['wallet-configs'] })
     } finally {
       setAdding(false)
+    }
+  }
+
+  const handleCreateFresh = async () => {
+    setCreating(true)
+    setCreatedWallet(null)
+    try {
+      const wallet = await createWallet()
+      setCreatedWallet(wallet)
+    } catch (err) {
+      console.error('Failed to create wallet:', err)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleCopyKey = () => {
+    if (createdWallet) {
+      navigator.clipboard.writeText(createdWallet.private_key)
+      setCopiedKey(true)
+      setTimeout(() => setCopiedKey(false), 2000)
     }
   }
 
@@ -353,8 +380,10 @@ function WalletConfigTab() {
           </tbody>
         </table>
       </div>
+
+      {/* Track Existing Wallet */}
       <div className="border border-neutral-800 p-3">
-        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Track Wallet</div>
+        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Track Existing Wallet</div>
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -381,6 +410,57 @@ function WalletConfigTab() {
           </button>
         </div>
       </div>
+
+      {/* Create Fresh Wallet */}
+      <div className="border border-neutral-800 p-3 bg-neutral-900/20">
+        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Create Fresh Wallet</div>
+        <p className="text-[11px] text-neutral-600 mb-4 leading-relaxed">
+          Generate a new wallet with private key for Polymarket trading.
+          <span className="text-red-400">Save the private key securely — never share it or commit to a repo.</span>
+        </p>
+        <button
+          onClick={handleCreateFresh}
+          disabled={creating}
+          className="px-3 py-1.5 bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] uppercase tracking-wider hover:bg-green-500/20 transition-colors disabled:opacity-40"
+        >
+          {creating ? 'Generating...' : 'Generate New Wallet'}
+        </button>
+      </div>
+
+      {/* Fresh Wallet Result Modal */}
+      {createdWallet && (
+        <div className="border border-red-900/50 bg-red-950/10 p-4">
+          <div className="text-[10px] text-red-400 uppercase tracking-wider mb-2">Wallet Created — Save This Key Securely</div>
+          <div className="space-y-3">
+            <div>
+              <span className="text-[10px] text-neutral-600">Address:</span>
+              <span className="text-[11px] font-mono text-neutral-300 ml-2">{truncate(createdWallet.address)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-neutral-600">Private Key:</span>
+              <div className="flex items-center gap-2 ml-2">
+                <span className="text-[11px] font-mono text-amber-400 break-all">{createdWallet.private_key}</span>
+                <button
+                  onClick={handleCopyKey}
+                  className="px-2 py-0.5 bg-neutral-800 border border-neutral-700 text-neutral-300 text-[9px] uppercase tracking-wider hover:border-neutral-500 transition-colors"
+                >
+                  {copiedKey ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  onClick={() => setCreatedWallet(null)}
+                  className="px-2 py-0.5 bg-neutral-800 border border-neutral-700 text-neutral-300 text-[9px] uppercase tracking-wider hover:border-neutral-500 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="text-[9px] text-neutral-700 mt-3">
+              Use this key in your .env file as <span className="font-mono text-neutral-500">POLYMARKET_PRIVATE_KEY</span>
+              or store in your password manager.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
