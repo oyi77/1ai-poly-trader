@@ -119,6 +119,9 @@ class BotState(Base):
     last_run = Column(DateTime, nullable=True)
     is_running = Column(Boolean, default=False)
 
+    # Active wallet for multi-wallet management
+    active_wallet = Column(String, nullable=True, index=True)
+
     # Paper trading tracking
     paper_bankroll = Column(Float, default=100.0)
     paper_pnl = Column(Float, default=0.0)
@@ -281,6 +284,7 @@ class WalletConfig(Base):
     notes = Column(Text, nullable=True)
     added_at = Column(DateTime, default=datetime.utcnow)
     whale_score = Column(Float, nullable=True)
+    balance_cache = Column(Text, nullable=True)  # JSON: {"usdc_balance", "last_updated"}
 
 
 class StrategyConfig(Base):

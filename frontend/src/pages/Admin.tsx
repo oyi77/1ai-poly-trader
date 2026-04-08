@@ -272,13 +272,34 @@ function WalletConfigTab() {
   const [createdWallet, setCreatedWallet] = useState<CreatedWallet | null>(null)
   const [copiedKey, setCopiedKey] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  // Active wallet state
+  const { data: activeWalletData } = useQuery({
+    queryKey: ['wallets-active'],
+    queryFn: () => getActiveWallet(),
+    refetchInterval: 30000,
+  })
+  const activeWallet = activeWalletData?.active_wallet ?? null
+
+  // Wallet balances state (map by address)
+  const [walletBalances, setWalletBalances] = useState<Record<string, { balance: WalletBalance }>>({})
+
+  const { data: configs, isLoading } = useQuery({
     queryKey: ['wallet-configs'],
     queryFn: () => fetchWalletConfigs(),
   })
 
-  const items = data?.items ?? []
-  const total = data?.total ?? 0
+  const items = configs?.items ?? []
+  const total = configs?.total ?? 0
+
+  // Fetch balance for active wallet
+  const { data: activeWalletBalance } = useQuery({
+    queryKey: ['wallet-balance', activeWallet],
+    queryFn: () => activeWallet ? getWalletBalance(activeWallet) : null,
+    refetchInterval: 30000,
+    enabled: !!activeWallet,
+  })
+
+  const activeWalletBalance = activeWalletBalanceData ?? null
 
   const handleToggle = async (id: number, enabled: boolean) => {
     await updateWalletConfig(id, { enabled: !enabled })
@@ -321,6 +342,17 @@ function WalletConfigTab() {
       navigator.clipboard.writeText(createdWallet.private_key)
       setCopiedKey(true)
       setTimeout(() => setCopiedKey(false), 2000)
+    }
+  }
+
+  const handleSetActive = async (address: string) => {
+    await setActiveWallet(address)
+    qc.invalidateQueries({ queryKey: ['wallets-active'] })
+  }
+
+  const handleRefreshBalance = async () => {
+    if (activeWallet) {
+      qc.invalidateQueries({ queryKey: ['wallet-balance'] })
     }
   }
 
@@ -410,6 +442,85 @@ function WalletConfigTab() {
           </button>
         </div>
       </div>
+
+      {/* Active Wallet Switcher */}
+      <div className="border border-neutral-800 p-3 bg-neutral-900/20">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Active Trading Wallet</div>
+          {activeWallet && (
+            <button
+              onClick={() => handleSetActive('')}
+              className="text-[9px] text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              Clear Active
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-neutral-600">Select:</span>
+          <select
+            value={activeWallet || ''}
+            onChange={e => handleSetActive(e.target.value)}
+            className="bg-black border border-neutral-700 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-green-500/40 focus:outline-none flex-1"
+          >
+            <option value="">None selected</option>
+            {items.map(item => (
+              <option key={item.id} value={item.address}>
+                {item.pseudonym || item.address.slice(0, 8)}... {item.pseudonym && ` (${item.pseudonym})`}
+              </option>
+            ))}
+          </select>
+          {activeWallet && (
+            <button
+              onClick={handleRefreshBalance}
+              className="text-[9px] text-neutral-400 hover:text-neutral-300 transition-colors"
+              title="Refresh balance"
+            >
+              ↻
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active Wallet Balance Display */}
+      {activeWallet && (
+        <div className="border border-neutral-800 p-3 bg-neutral-900/20">
+          <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Active Wallet Balance</div>
+          {activeWalletBalance ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-neutral-600">Address:</span>
+                <span className="text-[11px] font-mono text-neutral-300">{truncate(activeWallet)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-neutral-600">USDC Balance:</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-bold ${
+                    activeWalletBalance.usdc_balance > 0 ? 'text-green-400' : 'text-neutral-500'
+                  }`}>
+                    ${activeWalletBalance.usdc_balance?.toFixed(2) || '0.00'}
+                  </span>
+                  <span className="text-[9px] text-neutral-500">
+                    {activeWalletBalance.source === 'cache' && 'cached'}
+                    {activeWalletBalance.source === 'polymarket' && 'live'}
+                    {activeWalletBalance.source === 'error' && 'error'}
+                  </span>
+                  <span className="text-[9px] text-neutral-700 ml-2">
+                    {activeWalletBalance.last_updated ? new Date(activeWalletBalance.last_updated).toLocaleTimeString() : 'N/A'}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[10px] text-neutral-700 mt-2">
+                <span className="text-neutral-500">Auto-refresh every 30s</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[10px] text-neutral-600 p-2">
+              Select an active wallet above to see balance.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create Fresh Wallet */}
       <div className="border border-neutral-800 p-3 bg-neutral-900/20">

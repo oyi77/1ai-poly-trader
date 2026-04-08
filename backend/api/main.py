@@ -2575,6 +2575,94 @@ async def get_wallet_leaderboard(
         "total": total,
     }
 
+# =========================================================================
+# Wallet Manager - Active Wallet & Balance Tracking
+# =========================================================================
+
+class ActiveWalletRequest(BaseModel):
+    address: str
+    """Wallet address to set as active"""
+
+class BalanceCacheEntry(BaseModel):
+    address: str
+    usdc_balance: float
+    """USDC balance from Polymarket CLOB"""
+    last_updated: str
+
+
+@app.get("/api/wallets/active")
+async def get_active_wallet(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Get currently active wallet address."""
+    state = db.query(BotState).first()
+    if not state or not state.active_wallet:
+        return {"active_wallet": None}
+    return {"active_wallet": state.active_wallet}
+
+
+@app.put("/api/wallets/active")
+async def set_active_wallet(
+    body: ActiveWalletRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Set active wallet for trading."""
+    state = db.query(BotState).first()
+    if not state:
+        state = BotState()
+        db.add(state)
+    state.active_wallet = body.address
+    db.commit()
+    logger.info(f"Active wallet changed to: {body.address}")
+    return {"active_wallet": body.address}
+
+
+@app.get("/api/wallets/{address}/balance")
+async def get_wallet_balance(
+    address: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Get cached balance for a wallet."""
+    wallet = db.query(WalletConfig).filter(WalletConfig.address == address).first()
+    if wallet and wallet.balance_cache:
+        try:
+            import json as _json
+            cache = _json.loads(wallet.balance_cache)
+            return {
+                "address": address,
+                "usdc_balance": cache.get("usdc_balance", 0),
+                "last_updated": cache.get("last_updated"),
+                "source": "cache",
+            }
+        except:
+            pass
+
+    return {"address": address, "usdc_balance": 0, "last_updated": None, "source": "none"}
+
+
+@app.put("/api/wallets/{address}/balance")
+async def update_wallet_balance(
+    address: str,
+    cache: BalanceCacheEntry,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Manually update wallet balance cache."""
+    wallet = db.query(WalletConfig).filter(WalletConfig.address == address).first()
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+
+    wallet.balance_cache = json.dumps({
+        "usdc_balance": cache.usdc_balance,
+        "last_updated": cache.last_updated,
+    })
+    db.commit()
+    logger.info(f"Balance updated for {address}: {cache.usdc_balance} USDC")
+    return {"address": address, "usdc_balance": cache.usdc_balance}
+
 
 # =========================================================================
 # Decision Log

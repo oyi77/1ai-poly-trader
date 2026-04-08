@@ -387,6 +387,41 @@ export async function createWallet(): Promise<CreatedWallet> {
   return data
 }
 
+export interface ActiveWallet {
+  active_wallet: string | null
+}
+
+export async function getActiveWallet(): Promise<ActiveWallet> {
+  const { data } = await adminApi.get<ActiveWallet>('/wallets/active')
+  return data
+}
+
+export async function setActiveWallet(address: string): Promise<{ active_wallet: string }> {
+  const { data } = await adminApi.put<{ active_wallet: string }>('/wallets/active', { address })
+  return data
+}
+
+export interface WalletBalance {
+  address: string
+  usdc_balance: number
+  last_updated: string | null
+  source: 'cache' | 'polymarket' | 'error' | 'none'
+  error?: string
+}
+
+export async function getWalletBalance(address: string): Promise<WalletBalance> {
+  const { data } = await adminApi.get<WalletBalance>(`/wallets/${address}/balance`)
+  return data
+}
+
+export async function updateWalletBalance(address: string, balance: number): Promise<WalletBalance> {
+  const { data } = await adminApi.put<WalletBalance>(`/wallets/${address}/balance`, {
+    usdc_balance: balance,
+    last_updated: new Date().toISOString()
+  })
+  return data
+}
+
 // ── Strategies ────────────────────────────────────────────────────────────────
 
 export interface StrategyConfig {
