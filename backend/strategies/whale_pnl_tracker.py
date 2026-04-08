@@ -284,33 +284,3 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         )
 
         return "BUY"
-
-    async def sync_copy_trader_entries(self, db) -> None:
-        """
-        Sync whale positions to CopyTraderEntry table for copy trading.
-
-        This enables the copy_trader strategy to execute these positions.
-        """
-        for position in self._tracked_positions.values():
-            try:
-                # Check if entry already exists
-                existing = db.query(CopyTraderEntry).filter(
-                    CopyTraderEntry.wallet == position.wallet,
-                    CopyTraderEntry.condition_id == position.condition_id,
-                    CopyTraderEntry.side == position.side,
-                ).first()
-
-                if not existing:
-                    entry = CopyTraderEntry(
-                        wallet=position.wallet,
-                        condition_id=position.condition_id,
-                        side=position.side,
-                        size=position.size,
-                        opened_at=position.opened_at,
-                    )
-                    db.add(entry)
-                    db.commit()
-                    logger.debug(f"[{self.name}] Synced copy trader entry: {position.ticker}")
-            except Exception as e:
-                logger.debug(f"[{self.name}] Error syncing copy trader entry: {e}")
-                db.rollback()

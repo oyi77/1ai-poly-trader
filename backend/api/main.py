@@ -326,6 +326,8 @@ class EventResponse(BaseModel):
 # Startup / Shutdown
 @app.on_event("startup")
 async def startup():
+    from datetime import datetime as _dt
+    app.state.start_time = _dt.utcnow()
     print("=" * 60)
     print("BTC 5-MIN TRADING BOT v3.0")
     print("=" * 60)
@@ -1686,14 +1688,13 @@ class SettingsUpdate(BaseModel):
     updates: dict
 
 
-_bot_start_time = datetime.utcnow()
-
-SECRET_KEYWORDS = {"KEY", "SECRET", "PASSWORD", "PASSPHRASE", "TOKEN", "PRIVATE"}
+# Secret keywords for masking sensitive values
+_SECRET_KEYWORDS = {"KEY", "SECRET", "PASSWORD", "PASSPHRASE", "TOKEN", "PRIVATE"}
 
 
 def _is_secret(field_name: str) -> bool:
     upper = field_name.upper()
-    return any(kw in upper for kw in SECRET_KEYWORDS)
+    return any(kw in upper for kw in _SECRET_KEYWORDS)
 
 
 def _mask_value(field_name: str, value) -> str:
@@ -1702,6 +1703,37 @@ def _mask_value(field_name: str, value) -> str:
     if _is_secret(field_name):
         return "****"
     return value
+
+
+def _persist_env_updates(updates: dict[str, str]) -> None:
+    """
+    Atomic .env file update helper.
+
+    Reads existing .env, merges in updates, and writes back.
+    Handles key=value parsing and preserves comments.
+
+    Args:
+        updates: dict of env var names to their new values
+    """
+    env_path = ".env"
+    env_lines: dict[str, str] = {}
+
+    # Read existing .env
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line_stripped = line.strip()
+                if "=" in line_stripped and not line_stripped.startswith("#"):
+                    k, v = line_stripped.split("=", 1)
+                    env_lines[k.strip()] = v.strip()
+
+    # Merge updates
+    env_lines.update(updates)
+
+    # Write back
+    with open(env_path, "w") as f:
+        for k, v in env_lines.items():
+            f.write(f"{k}={v}\n")
 
 
 def _get_grouped_settings() -> dict:
@@ -1820,21 +1852,7 @@ async def change_admin_password(
     if not new_pw:
         raise HTTPException(status_code=400, detail="Password cannot be empty")
 
-    env_path = ".env"
-    env_lines: dict[str, str] = {}
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    env_lines[k.strip()] = v.strip()
-
-    env_lines["ADMIN_API_KEY"] = new_pw
-    with open(env_path, "w") as f:
-        for k, v in env_lines.items():
-            f.write(f"{k}={v}\n")
-
+    _persist_env_updates({"ADMIN_API_KEY": new_pw})
     settings.ADMIN_API_KEY = new_pw
     logger.info("Admin password changed")
     return {"status": "ok", "message": "Password updated — please re-login"}
@@ -1849,19 +1867,8 @@ async def get_admin_settings(_: None = Depends(require_admin)):
 @app.post("/api/admin/settings")
 async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_admin)):
     """Update settings at runtime and persist to .env file."""
-    env_path = ".env"
+    env_updates = {}
 
-    # Read existing .env
-    env_lines = {}
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    env_lines[k.strip()] = v.strip()
-
-    updated_count = 0
     for field, value in body.updates.items():
         if not hasattr(settings, field):
             continue
@@ -1883,13 +1890,9 @@ async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_
         # strip any trailing key=value injections (chars after unexpected = in list values)
         if isinstance(current, str) and "," in safe_value and "=" in safe_value:
             safe_value = safe_value.split("=")[0].rstrip()
-        env_lines[field] = safe_value
-        updated_count += 1
+        env_updates[field] = safe_value
 
-    # Write .env
-    with open(env_path, "w") as f:
-        for k, v in env_lines.items():
-            f.write(f"{k}={v}\n")
+    _persist_env_updates(env_updates)
 
     from backend.core.scheduler import reschedule_jobs
 
@@ -1897,7 +1900,7 @@ async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_
 
     return {
         "status": "ok",
-        "message": f"Updated {updated_count} settings",
+        "message": f"Updated {len(env_updates)} settings",
         "scheduler": scheduler_result,
     }
 
@@ -1924,21 +1927,7 @@ async def switch_mode(body: ModeSwitch, _: None = Depends(require_admin)):
 
     old_mode = settings.TRADING_MODE
     settings.TRADING_MODE = new_mode
-
-    # Persist to .env
-    env_path = ".env"
-    env_lines = {}
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    env_lines[k.strip()] = v.strip()
-    env_lines["TRADING_MODE"] = new_mode
-    with open(env_path, "w") as f:
-        for k, v in env_lines.items():
-            f.write(f"{k}={v}\n")
+    _persist_env_updates({"TRADING_MODE": new_mode})
 
     logger.info(f"Trading mode switched: {old_mode} → {new_mode}")
     return {"status": "ok", "mode": new_mode, "previous_mode": old_mode}
@@ -1947,32 +1936,18 @@ async def switch_mode(body: ModeSwitch, _: None = Depends(require_admin)):
 @app.post("/api/admin/credentials")
 async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_admin)):
     """Update Polymarket trading credentials, persist to .env, and hot-reload settings."""
-    env_map = {
-        "POLYMARKET_PRIVATE_KEY": body.private_key,
-        "POLYMARKET_API_KEY": body.api_key,
-        "POLYMARKET_API_SECRET": body.api_secret,
-        "POLYMARKET_API_PASSPHRASE": body.api_passphrase,
+    env_updates = {
+        k: v.strip()
+        for k, v in {
+            "POLYMARKET_PRIVATE_KEY": body.private_key,
+            "POLYMARKET_API_KEY": body.api_key,
+            "POLYMARKET_API_SECRET": body.api_secret,
+            "POLYMARKET_API_PASSPHRASE": body.api_passphrase,
+        }.items()
+        if v and v.strip()
     }
 
-    env_path = ".env"
-    env_lines: dict[str, str] = {}
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    env_lines[k.strip()] = v.strip()
-
-    updated: list[str] = []
-    for env_key, value in env_map.items():
-        if value is not None and value.strip():
-            env_lines[env_key] = value.strip()
-            updated.append(env_key)
-
-    with open(env_path, "w") as f:
-        for k, v in env_lines.items():
-            f.write(f"{k}={v}\n")
+    _persist_env_updates(env_updates)
 
     # Hot-reload into running settings object
     if body.private_key and body.private_key.strip():
@@ -1989,7 +1964,7 @@ async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_
     has_api_secret = bool(settings.POLYMARKET_API_SECRET)
     has_api_passphrase = bool(settings.POLYMARKET_API_PASSPHRASE)
 
-    logger.info(f"Credentials updated: {updated}")
+    logger.info(f"Credentials updated: {list(env_updates.keys())}")
 
     # Restart polyedge-bot to pick up new credentials
     import subprocess as _subprocess
@@ -2006,7 +1981,7 @@ async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_
 
     return {
         "status": "ok",
-        "updated": updated,
+        "updated": list(env_updates.keys()),
         "restarted_bot": True,
         "creds_paper": True,
         "creds_testnet": has_private_key,
@@ -2038,7 +2013,7 @@ async def get_admin_system(
     db_trade_count = db.query(Trade).count()
     db_signal_count = db.query(Signal).count()
 
-    uptime = (datetime.utcnow() - _bot_start_time).total_seconds()
+    uptime = (datetime.utcnow() - app.state.start_time if hasattr(app.state, 'start_time') else datetime.utcnow()).total_seconds()
 
     has_private_key = bool(settings.POLYMARKET_PRIVATE_KEY)
     has_api_key = bool(settings.POLYMARKET_API_KEY)
@@ -2700,206 +2675,10 @@ async def ai_suggest_params(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     """Use AI to analyze recent performance and suggest parameter improvements."""
-    import json as _json
+    from backend.ai.optimizer import ParameterOptimizer
 
-    # 1. Query last 100 trades
-    trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(100).all()
-
-    # 2. Query last 100 decisions
-    decisions = (
-        db.query(DecisionLog).order_by(DecisionLog.created_at.desc()).limit(100).all()
-    )
-
-    # 3. Compute stats
-    total_trades = len(trades)
-    settled_trades = [t for t in trades if t.result in ("win", "loss")]
-    wins = [t for t in settled_trades if t.result == "win"]
-    losses = [t for t in settled_trades if t.result == "loss"]
-    win_rate = len(wins) / len(settled_trades) if settled_trades else 0.0
-    total_pnl = sum(t.pnl or 0.0 for t in trades)
-
-    avg_win_edge = (
-        sum(t.edge_at_entry or 0.0 for t in wins) / len(wins) if wins else 0.0
-    )
-    avg_loss_edge = (
-        sum(t.edge_at_entry or 0.0 for t in losses) / len(losses) if losses else 0.0
-    )
-
-    strategy_counts: dict = {}
-    for t in trades:
-        s = t.strategy or "unknown"
-        strategy_counts[s] = strategy_counts.get(s, 0) + 1
-    top_strategy = (
-        max(strategy_counts, key=lambda k: strategy_counts[k])
-        if strategy_counts
-        else "unknown"
-    )
-
-    # 4. Current settings
-    kelly = settings.KELLY_FRACTION
-    edge = settings.MIN_EDGE_THRESHOLD
-    max_size = settings.MAX_TRADE_SIZE
-    daily_limit = settings.DAILY_LOSS_LIMIT
-
-    analysis = {
-        "win_rate": win_rate,
-        "total_trades": total_trades,
-        "pnl": total_pnl,
-        "avg_win_edge": avg_win_edge,
-        "avg_loss_edge": avg_loss_edge,
-        "top_strategy": top_strategy,
-    }
-
-    # 5. Build the optimizer prompt (shared by all providers)
-    import re as _re
-
-    def _build_prompt() -> str:
-        return f"""You are a trading parameter optimizer. Analyze this trading bot's performance data and suggest parameter adjustments.
-
-Current parameters:
-- Kelly Fraction: {kelly}
-- Min Edge Threshold: {edge}
-- Max Trade Size: {max_size}
-- Daily Loss Limit: {daily_limit}
-
-Recent performance (last {total_trades} trades):
-- Win rate: {win_rate:.1%}
-- Total PNL: ${total_pnl:.2f}
-- Avg edge of winning trades: {avg_win_edge:.3f}
-- Avg edge of losing trades: {avg_loss_edge:.3f}
-- Most active strategy: {top_strategy}
-
-Provide specific numerical suggestions in JSON format:
-{{
-  "kelly_fraction": <number>,
-  "min_edge_threshold": <number>,
-  "max_trade_size": <number>,
-  "daily_loss_limit": <number>,
-  "reasoning": "<2-3 sentence explanation>",
-  "confidence": "<low|medium|high>"
-}}"""
-
-    def _parse_suggestions(raw: str) -> dict:
-        json_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
-        if json_match:
-            return _json.loads(json_match.group())
-        return _json.loads(raw)
-
-    ai_provider = getattr(settings, "AI_PROVIDER", "groq")
-
-    # --- OmniRoute / Custom (OpenAI-compatible) ---
-    if ai_provider in ("omniroute", "custom"):
-        from backend.ai.custom import get_custom_client
-
-        custom = get_custom_client()
-        if custom:
-            try:
-                prompt = _build_prompt()
-                suggestions, raw = custom.suggest_params(prompt)
-                return {
-                    "status": "ok",
-                    "suggestions": suggestions,
-                    "analysis": analysis,
-                    "ai_provider": f"{ai_provider}/{custom.model}",
-                    "raw_response": raw,
-                }
-            except Exception as e:
-                logger.warning(f"{ai_provider} AI suggest failed: {e}")
-
-    # --- Groq ---
-    if ai_provider == "groq" or (
-        ai_provider in ("omniroute", "custom") and not get_custom_client()
-    ):
-        groq_key = getattr(settings, "GROQ_API_KEY", None)
-        if groq_key:
-            try:
-                from groq import Groq
-
-                model = getattr(settings, "AI_MODEL", None) or "llama-3.1-70b-versatile"
-                client = Groq(api_key=groq_key)
-                prompt = _build_prompt()
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=400,
-                    temperature=0.2,
-                )
-                raw = response.choices[0].message.content.strip()
-                suggestions = _parse_suggestions(raw)
-                return {
-                    "status": "ok",
-                    "suggestions": suggestions,
-                    "analysis": analysis,
-                    "ai_provider": f"groq/{model}",
-                    "raw_response": raw,
-                }
-            except Exception as e:
-                logger.warning(f"Groq AI suggest failed: {e}")
-
-    # --- Claude ---
-    if ai_provider == "claude":
-        claude_key = getattr(settings, "ANTHROPIC_API_KEY", None)
-        if claude_key:
-            try:
-                import anthropic
-
-                model = (
-                    getattr(settings, "AI_MODEL", None) or "claude-3-5-haiku-20241022"
-                )
-                client = anthropic.Anthropic(api_key=claude_key)
-                prompt = _build_prompt()
-                message = client.messages.create(
-                    model=model,
-                    max_tokens=400,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                raw = message.content[0].text.strip()
-                suggestions = _parse_suggestions(raw)
-                return {
-                    "status": "ok",
-                    "suggestions": suggestions,
-                    "analysis": analysis,
-                    "ai_provider": f"claude/{model}",
-                    "raw_response": raw,
-                }
-            except Exception as e:
-                logger.warning(f"Claude AI suggest failed: {e}")
-
-    # Math-based fallback
-    suggested_kelly = kelly
-    suggested_edge = edge
-    suggested_max_size = max_size
-    suggested_daily_limit = daily_limit
-    confidence = "low"
-    reasoning = "AI provider unavailable. Suggestions based on performance math."
-
-    if total_trades >= 10:
-        if win_rate > 0.6:
-            suggested_kelly = min(kelly * 1.1, 0.25)
-            suggested_max_size = min(max_size * 1.1, 150.0)
-            confidence = "medium"
-            reasoning = f"Win rate of {win_rate:.1%} is strong. Slightly increasing Kelly and max trade size."
-        elif win_rate < 0.4:
-            suggested_kelly = max(kelly * 0.8, 0.05)
-            suggested_edge = min(edge * 1.2, 0.10)
-            suggested_max_size = max(max_size * 0.8, 25.0)
-            confidence = "medium"
-            reasoning = f"Win rate of {win_rate:.1%} is weak. Reducing position sizing and raising edge threshold."
-
-    return {
-        "status": "ok",
-        "suggestions": {
-            "kelly_fraction": round(suggested_kelly, 4),
-            "min_edge_threshold": round(suggested_edge, 4),
-            "max_trade_size": round(suggested_max_size, 2),
-            "daily_loss_limit": round(suggested_daily_limit, 2),
-            "reasoning": reasoning,
-            "confidence": confidence,
-        },
-        "analysis": analysis,
-        "ai_provider": "unavailable",
-        "raw_response": "",
-    }
+    optimizer = ParameterOptimizer(settings)
+    return await optimizer.get_suggestions(db)
 
 
 @app.get("/api/admin/scheduler/jobs")

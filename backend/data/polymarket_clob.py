@@ -1,15 +1,14 @@
 """
 Polymarket CLOB execution client.
 
-Uses httpx.AsyncClient directly with a shared connection pool — avoids
-py-clob-client's per-request client creation which destroys connection pooling.
+Uses httpx.AsyncClient for read-only queries (shared connection pool).
+Delegates order creation/placement/cancellation to py_clob_client.ClobClient,
+which handles EIP-712 signing, L2 HMAC auth, and tick-size resolution internally.
 
 Auth: EIP-712 L1 (derive API keys) + HMAC-SHA256 L2 (per-request headers).
 All order sizes in USDC. All prices in [0.01, 0.99].
 """
-import hashlib
-import hmac
-import json
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -19,38 +18,17 @@ import httpx
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 
+from py_clob_client.client import ClobClient
+from py_clob_client.clob_types import ApiCreds, OrderArgs, OrderType
+
 logger = logging.getLogger("trading_bot")
 
 CLOB_HOST_MAINNET = "https://clob.polymarket.com"
 CLOB_HOST_TESTNET = "https://clob-staging.polymarket.com"
 GAMMA_HOST = "https://gamma-api.polymarket.com"
 DATA_HOST = "https://data-api.polymarket.com"
-POLYGON_CHAIN_ID = 137
-
-# Chain IDs
 CHAIN_ID_MAINNET = 137
 CHAIN_ID_AMOY = 80002
-
-# CTF Exchange contract addresses
-CTF_EXCHANGE_MAINNET = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
-CTF_EXCHANGE_AMOY = "0xdFE02Eb6733538f8Ea35D585af8DE5958AD99E40"
-
-ORDER_STRUCT_TYPES = {
-    "Order": [
-        {"name": "salt", "type": "uint256"},
-        {"name": "maker", "type": "address"},
-        {"name": "signer", "type": "address"},
-        {"name": "taker", "type": "address"},
-        {"name": "tokenId", "type": "uint256"},
-        {"name": "makerAmount", "type": "uint256"},
-        {"name": "takerAmount", "type": "uint256"},
-        {"name": "expiration", "type": "uint256"},
-        {"name": "nonce", "type": "uint256"},
-        {"name": "feeRateBps", "type": "uint256"},
-        {"name": "side", "type": "uint8"},
-        {"name": "signatureType", "type": "uint8"},
-    ]
-}
 
 # Polymarket minimum order size
 MIN_ORDER_USDC = 1.0
@@ -124,8 +102,28 @@ class PolymarketCLOB:
         if private_key:
             self._account = Account.from_key(private_key)
 
-        # Shared connection pool — reused across all requests
+        # Shared async connection pool for read-only queries
         self._http: Optional[httpx.AsyncClient] = None
+
+        # py-clob-client instance for order operations (sync — wrapped via asyncio.to_thread)
+        self._clob_client: Optional[ClobClient] = None
+        if private_key:
+            creds = None
+            if api_key and api_secret and api_passphrase:
+                creds = ApiCreds(
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    api_passphrase=api_passphrase,
+                )
+            try:
+                self._clob_client = ClobClient(
+                    host=self._clob_host,
+                    chain_id=self._chain_id,
+                    key=private_key,
+                    creds=creds,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialise ClobClient: {e}")
 
     @property
     def simulation(self) -> bool:
@@ -146,10 +144,6 @@ class PolymarketCLOB:
     @property
     def _chain_id(self) -> int:
         return CHAIN_ID_AMOY if self.mode == "testnet" else CHAIN_ID_MAINNET
-
-    @property
-    def _contract_address(self) -> str:
-        return CTF_EXCHANGE_AMOY if self.mode == "testnet" else CTF_EXCHANGE_MAINNET
 
     async def __aenter__(self):
         self._http = httpx.AsyncClient(
@@ -233,92 +227,39 @@ class PolymarketCLOB:
         return resp.json()
 
     # =========================================================================
-    # Authenticated order management
+    # API credential derivation (via py-clob-client)
     # =========================================================================
 
-    def _sign_order_eip712(self, token_id: str, side: str, price: float, size: float) -> tuple:
-        """Sign a CLOB order using EIP-712 typed data signing."""
-        import secrets
-        from eth_account.messages import encode_typed_data
-
-        side_int = 0 if side == "BUY" else 1
-        usdc_amount = int(round(size * 1_000_000))  # 6 decimals
-        if side == "BUY":
-            maker_amount = usdc_amount
-            taker_amount = int(round(size / price * 1_000_000))
-        else:
-            maker_amount = int(round(size / price * 1_000_000))
-            taker_amount = usdc_amount
-
-        if not token_id.isdigit():
-            raise ValueError(f"token_id must be a numeric string, got: {token_id!r}. Ensure the CLOB token_id (not condition_id) is used.")
-        token_id_int = int(token_id)
-
-        order = {
-            "salt": secrets.randbits(128),
-            "maker": self._account.address,
-            "signer": self._account.address,
-            "taker": "0x0000000000000000000000000000000000000000",
-            "tokenId": token_id_int,
-            "makerAmount": maker_amount,
-            "takerAmount": taker_amount,
-            "expiration": 0,
-            "nonce": 0,
-            "feeRateBps": 0,
-            "side": side_int,
-            "signatureType": 0,
-        }
-
-        domain = {
-            "name": "Polymarket CTF Exchange",
-            "version": "1",
-            "chainId": self._chain_id,
-            "verifyingContract": self._contract_address,
-        }
-
-        structured_data = {
-            "types": {
-                "EIP712Domain": [
-                    {"name": "name", "type": "string"},
-                    {"name": "version", "type": "string"},
-                    {"name": "chainId", "type": "uint256"},
-                    {"name": "verifyingContract", "type": "address"},
-                ],
-                **ORDER_STRUCT_TYPES,
-            },
-            "primaryType": "Order",
-            "domain": domain,
-            "message": order,
-        }
-
-        signed = self._account.sign_message(encode_typed_data(full_message=structured_data))
-        return order, signed.signature.hex()
-
-    def _l2_headers(self, method: str, path: str, body: str = "") -> dict:
+    async def create_or_derive_api_creds(self) -> Optional[ApiCreds]:
         """
-        Generate L2 HMAC-SHA256 authentication headers for CLOB API.
-        Required for all order placement and cancellation.
+        Derive or create API credentials from the private key.
+
+        Uses ClobClient.create_or_derive_api_creds() which:
+        1. Tries to create a new API key (L1 auth via private key)
+        2. Falls back to deriving an existing key if already created
+
+        Returns ApiCreds(api_key, api_secret, api_passphrase) or None on failure.
         """
-        if not self.api_key or not self.api_secret:
-            raise ValueError("api_key and api_secret required for order placement")
+        if not self._clob_client:
+            logger.error("ClobClient not initialised — private_key required")
+            return None
+        try:
+            creds = await asyncio.to_thread(self._clob_client.create_or_derive_api_creds)
+            if creds:
+                # Store and upgrade the client to L2
+                self.api_key = creds.api_key
+                self.api_secret = creds.api_secret
+                self.api_passphrase = creds.api_passphrase
+                self._clob_client.set_api_creds(creds)
+                logger.info(f"API credentials derived for {self._account.address}")
+            return creds
+        except Exception as e:
+            logger.error(f"Failed to derive API credentials: {e}")
+            return None
 
-        timestamp = str(int(time.time() * 1000))
-        message = timestamp + method.upper() + path + (body or "")
-
-        signature = hmac.new(
-            self.api_secret.encode("utf-8"),
-            message.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-
-        return {
-            "POLY_ADDRESS": self._account.address if self._account else "",
-            "POLY_SIGNATURE": signature,
-            "POLY_TIMESTAMP": timestamp,
-            "POLY_API_KEY": self.api_key,
-            "POLY_PASSPHRASE": self.api_passphrase or "",
-            "Content-Type": "application/json",
-        }
+    # =========================================================================
+    # Authenticated order management (delegated to py-clob-client)
+    # =========================================================================
 
     async def place_limit_order(
         self,
@@ -331,8 +272,8 @@ class PolymarketCLOB:
         """
         Place a limit order on the CLOB.
 
-        In simulation mode: returns a fake success with mid-price fill.
-        In live mode: signs and submits to CLOB API.
+        In paper mode: returns a fake success with mid-price fill.
+        In live/testnet mode: delegates to py-clob-client for signing and submission.
 
         price: [0.01, 0.99] — the limit price in USDC per share
         size: USDC amount to spend
@@ -357,95 +298,76 @@ class PolymarketCLOB:
                 fill_size=size,
             )
 
-        # Testnet or live mode — sign with EIP-712 and submit
-        if not self._account or not self.api_key:
-            return OrderResult(success=False, error="Live mode requires private_key and api credentials")
+        # Live/testnet mode — use py-clob-client
+        if not self._clob_client:
+            return OrderResult(success=False, error="ClobClient not initialised — private_key required")
+        if not self._clob_client.creds:
+            return OrderResult(success=False, error="API credentials required — call create_or_derive_api_creds() first")
 
         mode_label = "[TESTNET]" if self.mode == "testnet" else "[LIVE]"
         try:
-            order, signature = self._sign_order_eip712(token_id, side, price, size)
+            order_args = OrderArgs(
+                token_id=token_id,
+                price=price,
+                size=size,
+                side=side,
+            )
 
-            payload = {
-                "orderType": order_type,
-                "tokenID": token_id,
-                "price": str(round(price, 4)),
-                "size": str(round(size, 2)),
-                "side": side,
-                "maker": self._account.address,
-                "signer": self._account.address,
-                "signature": signature,
-                "signatureType": 0,
-                "expiration": str(order["expiration"]),
-                "nonce": str(order["nonce"]),
-                "salt": str(order["salt"]),
-                "feeRateBps": str(order["feeRateBps"]),
-            }
+            # ClobClient.create_order handles tick-size resolution, neg_risk, signing
+            signed_order = await asyncio.to_thread(
+                self._clob_client.create_order, order_args
+            )
 
-            body = json.dumps(payload)
-            path = "/order"
-            headers = self._l2_headers("POST", path, body)
+            # Post the signed order
+            ot = OrderType(order_type)
+            resp = await asyncio.to_thread(
+                self._clob_client.post_order, signed_order, ot
+            )
 
-            resp = await self._http.post(f"{self._clob_host}{path}", content=body, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+            order_id = resp.get("orderID", resp.get("id", "unknown")) if isinstance(resp, dict) else str(resp)
+            logger.info(f"{mode_label} Order placed: {order_id} | {side} {size} @ {price}")
+            return OrderResult(success=True, order_id=order_id)
 
-            if data.get("success") or data.get("orderID"):
-                order_id = data.get("orderID", data.get("id", "unknown"))
-                logger.info(f"{mode_label} Order placed: {order_id} | {side} {size} @ {price}")
-                return OrderResult(success=True, order_id=order_id)
-            else:
-                error = data.get("error", str(data))
-                logger.error(f"Order rejected: {error}")
-                return OrderResult(success=False, error=error)
-
-        except httpx.HTTPStatusError as e:
-            error = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
-            logger.error(f"Order failed: {error}")
-            return OrderResult(success=False, error=error)
         except Exception as e:
-            logger.error(f"Order failed: {e}")
-            return OrderResult(success=False, error=str(e))
+            error_msg = str(e)
+            logger.error(f"Order failed: {error_msg}")
+            return OrderResult(success=False, error=error_msg)
 
     async def cancel_order(self, order_id: str) -> bool:
-        """Cancel an open order."""
+        """Cancel an open order. Delegates to py-clob-client."""
         if self.is_paper:
             logger.info(f"[PAPER] Cancel order {order_id}")
             return True
+        if not self._clob_client or not self._clob_client.creds:
+            logger.error("Cancel requires ClobClient with API credentials")
+            return False
         try:
-            path = f"/order/{order_id}"
-            headers = self._l2_headers("DELETE", path)
-            resp = await self._http.delete(f"{self._clob_host}{path}", headers=headers)
-            resp.raise_for_status()
-            return resp.json().get("success", False)
+            resp = await asyncio.to_thread(self._clob_client.cancel, order_id)
+            return resp.get("success", False) if isinstance(resp, dict) else bool(resp)
         except Exception as e:
             logger.error(f"Cancel failed: {e}")
             return False
 
     async def get_open_orders(self) -> list[dict]:
-        """Get all open orders for this account."""
-        if self.is_paper or not self.api_key:
+        """Get all open orders for this account. Delegates to py-clob-client."""
+        if self.is_paper or not self._clob_client or not self._clob_client.creds:
             return []
         try:
-            path = "/orders"
-            headers = self._l2_headers("GET", path)
-            resp = await self._http.get(f"{self._clob_host}{path}", headers=headers)
-            resp.raise_for_status()
-            return resp.json()
+            return await asyncio.to_thread(self._clob_client.get_orders)
         except Exception as e:
             logger.error(f"Failed to get open orders: {e}")
             return []
 
     async def cancel_all_orders(self) -> bool:
-        """Cancel all open orders. Called on graceful shutdown."""
+        """Cancel all open orders. Delegates to py-clob-client."""
         if self.is_paper:
             return True
+        if not self._clob_client or not self._clob_client.creds:
+            logger.error("Cancel all requires ClobClient with API credentials")
+            return False
         try:
-            path = "/orders/all"
-            headers = self._l2_headers("DELETE", path)
-            resp = await self._http.delete(f"{self._clob_host}{path}", headers=headers)
-            resp.raise_for_status()
-            count = resp.json().get("canceled", 0)
-            logger.info(f"Cancelled {count} open orders")
+            resp = await asyncio.to_thread(self._clob_client.cancel_all)
+            logger.info("Cancelled all open orders")
             return True
         except Exception as e:
             logger.error(f"Failed to cancel all orders: {e}")

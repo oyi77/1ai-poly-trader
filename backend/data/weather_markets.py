@@ -47,9 +47,66 @@ class WeatherMarket:
     closed: bool = False
 
 
+def _extract_city_from_title(title: str) -> Optional[str]:
+    """
+    Extract a city name from a weather market title using regex.
+
+    Handles patterns like:
+    - "Will the high temperature in New York exceed 75°F?"
+    - "NYC high temperature above 80°F"
+    - "Chicago daily high over 60°F"
+    - "Will Miami's low be above 65°F?"
+    - "Temperature in Denver above 70°F"
+    - "High temperature in Los Angeles above 90°F"
+    - "Will the high in San Francisco exceed 75°F?"
+
+    Returns the extracted city name (proper-cased), or None.
+    """
+    import re as _re
+
+    # Words to skip when they appear after "in"
+    _SKIP_WORDS = frozenset({
+        "The", "This", "Which", "What", "How", "March", "April", "May",
+        "June", "July", "August", "September", "October", "November",
+        "December", "January", "February", "Fahrenheit", "Celsius",
+        "Addition", "Total", "Fact", "Order", "General",
+    })
+
+    # Pattern A: "<CityName>'s" — e.g. "Miami's low", "Dallas's high"
+    # Match a single capitalized word directly before 's.
+    # Multi-word possessives (e.g. "New York's") handled by "in" pattern instead.
+    m = _re.search(r"(?:^|\s)([A-Z][a-z]+)'s\b", title)
+    if m:
+        candidate = m.group(1).strip()
+        # Skip common auxiliary verbs
+        if candidate.lower() not in {"will", "can", "does", "is", "was", "it"}:
+            return candidate
+
+    # Pattern B: "in <CityName>" — most common (handles multi-word cities)
+    m = _re.search(
+        r'\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', title
+    )
+    if m:
+        candidate = m.group(1).strip()
+        if candidate not in _SKIP_WORDS:
+            return candidate
+
+    # Pattern C: Title starts with city name (handles ALL-CAPS like "NYC")
+    # e.g. "NYC high temperature above 80°F" or "Chicago daily high over 60°F"
+    m = _re.match(r'^([A-Z][A-Za-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:daily|high|low|temperature|temp)', title)
+    if m:
+        return m.group(1).strip()
+
+    return None
+
+
 def _parse_weather_market_title(title: str) -> Optional[dict]:
     """
     Parse a weather market title to extract city, threshold, metric, date.
+
+    City names are extracted directly from the title via regex — no
+    hardcoded CITY_CONFIG dependency.  Unknown cities are resolved
+    to coordinates at forecast-fetch time via geocoding.
 
     Handles patterns like:
     - "Will the high temperature in New York exceed 75°F on March 5?"
@@ -64,30 +121,35 @@ def _parse_weather_market_title(title: str) -> Optional[dict]:
     if not any(kw in title_lower for kw in ["temperature", "temp", "°f", "degrees", "high", "low"]):
         return None
 
-    # Extract city by scanning CITY_CONFIG keys/names dynamically
-    city_key = None
-    city_name = None
-    try:
-        from backend.data.weather import CITY_CONFIG
-        # Build alias map from CITY_CONFIG: check both key and name variants
-        candidates = []
-        for key, cfg in CITY_CONFIG.items():
-            name_lower = cfg["name"].lower()
-            candidates.append((name_lower, key, cfg["name"]))
-            candidates.append((key.replace("_", " "), key, cfg["name"]))
-            candidates.append((key, key, cfg["name"]))
-        # Sort longest alias first to prefer specific matches
-        candidates.sort(key=lambda x: -len(x[0]))
-        for alias, key, name in candidates:
-            if alias in title_lower:
-                city_key = key
-                city_name = name
-                break
-    except Exception:
-        pass
-
-    if not city_key:
+    # ── Extract city name from title ──────────────────────────────────
+    city_name_raw = _extract_city_from_title(title)
+    if not city_name_raw:
         return None
+
+    # Resolve to a city_key: check static config first, then use slug
+    from backend.data.weather import CITY_CONFIG, _slugify_city
+
+    city_key = None
+    city_name = city_name_raw
+
+    # Try matching against static CITY_CONFIG names/keys
+    for key, cfg in CITY_CONFIG.items():
+        cfg_name_lower = cfg["name"].lower()
+        raw_lower = city_name_raw.lower()
+        # Exact name match or slug match
+        if cfg_name_lower == raw_lower or key == _slugify_city(city_name_raw):
+            city_key = key
+            city_name = cfg["name"]
+            break
+        # Partial match: "New York" matches "New York City"
+        if raw_lower in cfg_name_lower or cfg_name_lower in raw_lower:
+            city_key = key
+            city_name = cfg["name"]
+            break
+
+    # If not in static config, slugify for use as dynamic key
+    if not city_key:
+        city_key = _slugify_city(city_name_raw)
 
     # Extract threshold temperature
     temp_match = re.search(r'(\d+)\s*°?\s*f', title_lower)
@@ -162,6 +224,7 @@ async def fetch_polymarket_weather_markets(
 ) -> List[WeatherMarket]:
     """
     Search Polymarket for weather temperature markets using keyword-based scanning.
+    Dynamically geocodes and registers any city not already in CITY_CONFIG.
     """
     if keywords is None:
         keywords = _DEFAULT_WEATHER_KEYWORDS
@@ -174,6 +237,8 @@ async def fetch_polymarket_weather_markets(
         for info in scanner_results:
             market = _parse_scanner_market(info, city_keys)
             if market and market.market_id not in seen_ids:
+                # Ensure the city is registered (geocoded if new)
+                await _ensure_market_city_registered(market)
                 seen_ids.add(market.market_id)
                 markets.append(market)
     except Exception as e:
@@ -181,6 +246,16 @@ async def fetch_polymarket_weather_markets(
 
     logger.info(f"Found {len(markets)} weather temperature markets")
     return markets
+
+
+async def _ensure_market_city_registered(market: WeatherMarket) -> None:
+    """
+    If the market's city_key is not yet in any registry, geocode and
+    register it so that forecast fetches will work.
+    """
+    from backend.data.weather import get_city_config, ensure_city_registered
+    if get_city_config(market.city_key) is None:
+        await ensure_city_registered(market.city_name)
 
 
 def _parse_scanner_market(

@@ -457,7 +457,6 @@ export async function fetchDecision(id: number): Promise<DecisionLogDetail> {
 }
 
 export function decisionsExportUrl(params?: Record<string, string>): string {
-  const API_BASE = import.meta.env.VITE_API_URL || ''
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
   return `${API_BASE}/api/decisions/export${qs}`
 }

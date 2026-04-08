@@ -4,6 +4,7 @@ import { NavBar } from '../components/NavBar'
 import { SettingsEditor } from '../components/admin/SettingsEditor'
 import { SystemStatus } from '../components/admin/SystemStatus'
 import { CopyTraderMonitor } from '../components/admin/CopyTraderMonitor'
+import { Backtest } from './Backtest'
 import { useAuth } from '../hooks/useAuth'
 import {
   getAdminApiKey,
@@ -76,7 +77,7 @@ function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
   )
 }
 
-const TABS = ['System', 'Risk', 'Credentials', 'Strategies', 'Settings', 'Copy Trader', 'Telegram', 'Market Watch', 'Wallet Config', 'AI'] as const
+const TABS = ['System', 'Backtest', 'Risk', 'Credentials', 'Strategies', 'Settings', 'Copy Trader', 'Telegram', 'Market Watch', 'Wallet Config', 'AI'] as const
 type Tab = typeof TABS[number]
 
 function StrategiesTab() {
@@ -1155,6 +1156,7 @@ export default function Admin() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 max-w-4xl">
         {activeTab === 'System' && <SystemStatus />}
+        {activeTab === 'Backtest' && <Backtest />}
         {activeTab === 'Risk' && <RiskTab />}
         {activeTab === 'Credentials' && <CredentialsTab />}
         {activeTab === 'Strategies' && <StrategiesTab />}

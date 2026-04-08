@@ -13,6 +13,7 @@ aiohttp==3.9.1
 
 # Polymarket integration
 py-clob-client>=3.0.0
+py-order-utils>=0.3.0
 
 # Kalshi API auth (RSA-PSS signatures)
 cryptography>=42.0.0

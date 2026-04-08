@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchSystemStatus, startBot, stopBot, switchTradingMode } from '../../api'
+import { fetchSystemStatus, startBot, stopBot, switchTradingMode, resetBot } from '../../api'
 
 const MODE_BADGES: Record<string, { label: string; className: string }> = {
   paper: { label: 'Paper', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
@@ -48,6 +48,15 @@ export function SystemStatus() {
     },
     onError: (err: Error) => {
       setModeError(err.message || 'Failed to switch mode')
+    },
+  })
+
+  const resetMutation = useMutation({
+    mutationFn: resetBot,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-system'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['stats-unified'] })
     },
   })
 
@@ -141,6 +150,17 @@ export function SystemStatus() {
               }`}
             >
               {data.bot_running ? 'Stop' : 'Start'}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('Reset bot? This will delete all trades and reset bankroll to initial value.')) {
+                  resetMutation.mutate()
+                }
+              }}
+              disabled={resetMutation.isPending}
+              className="ml-2 px-2.5 py-1 text-[10px] uppercase tracking-wider border border-orange-500/30 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors disabled:opacity-50"
+            >
+              {resetMutation.isPending ? 'Resetting...' : 'Reset'}
             </button>
           </div>
         </div>

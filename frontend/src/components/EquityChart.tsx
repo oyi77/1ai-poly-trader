@@ -45,7 +45,7 @@ export function EquityChart({ data, initialBankroll }: Props) {
     { timestamp: 'Start', pnl: 0, bankroll: initialBankroll },
     ...data.map(d => ({
       ...d,
-      timestamp: new Date(d.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      timestamp: new Date(d.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
     }))
   ]
 

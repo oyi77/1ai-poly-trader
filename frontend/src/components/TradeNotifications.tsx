@@ -1,9 +1,30 @@
 import { useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTradeEvents, TradeEvent } from '../hooks/useTradeEvents'
+import { simulateTrade } from '../api'
 
 type Tier = 'info' | 'small' | 'medium' | 'large' | 'whale'
 type Side = 'win' | 'loss' | 'neutral'
+
+interface SignalContext {
+  market_ticker: string
+  market_title: string
+  platform: string
+  direction: string
+  model_probability: number
+  market_probability: number
+  edge: number
+  confidence: number
+  suggested_size: number
+  reasoning: string
+  timestamp: string
+  category: string
+  btc_price: number
+  btc_change_24h: number
+  window_end?: string
+  actionable: boolean
+  event_slug?: string
+}
 
 interface Notification {
   id: string
@@ -21,6 +42,7 @@ interface Notification {
   multiplier?: number
   ageLabel?: string
   createdAt: number
+  signalContext?: SignalContext
 }
 
 const MAX_VISIBLE = 6
@@ -66,6 +88,37 @@ function formatAge(ms: number): string {
   return `${Math.floor(ms / 60000)}m ago`
 }
 
+function calculateTimeRemaining(windowEnd: string): string {
+  const endTime = new Date(windowEnd).getTime()
+  const now = Date.now()
+  const remaining = endTime - now
+
+  if (remaining <= 0) return 'Expired'
+
+  const hours = Math.floor(remaining / 3600000)
+  const minutes = Math.floor((remaining % 3600000) / 60000)
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+}
+
+async function handleApproveSignal(signalContext: SignalContext) {
+  try {
+    // Simulate trade for this signal
+    const result = await simulateTrade(signalContext.market_ticker)
+    console.log(`Trade approved for ${signalContext.market_ticker}:`, result)
+  } catch (error) {
+    console.error('Failed to approve signal:', error)
+  }
+}
+
+function handleSkipSignal(signalContext: SignalContext) {
+  console.log(`Signal skipped: ${signalContext.market_ticker}`)
+  // Could add logging to track skipped signals
+}
+
 function mapEventToNotification(event: TradeEvent): Notification | null {
   const now = Date.now()
   const id = `${now}-${Math.random().toString(36).slice(2, 7)}`
@@ -73,17 +126,39 @@ function mapEventToNotification(event: TradeEvent): Notification | null {
   if (event.type === 'connected') return null
 
   if (event.type === 'signal_found') {
-    const ticker = String(event.data.market_ticker ?? event.data.ticker ?? event.data.symbol ?? '—')
-    const direction = String(event.data.direction ?? '')
-    const confidence = event.data.confidence != null ? `${(Number(event.data.confidence) * 100).toFixed(0)}%` : ''
+    const ticker = String(event.data.market_ticker ?? event.data.ticker ?? event.data.symbol ?? event.data.condition_id ?? 'Unknown Market')
+    const direction = String(event.data.direction ?? event.data.side ?? event.data.action ?? 'WAIT')
+    const confidence = event.data.confidence != null ? `${(Number(event.data.confidence) * 100).toFixed(0)}%` : 'N/A'
+    const title = String(event.data.market_title ?? event.data.question ?? ticker)
+    const platform = String(event.data.platform ?? event.data.source ?? 'Polymarket')
+    const signalContext: SignalContext = {
+      market_ticker: ticker,
+      market_title: title,
+      platform,
+      direction,
+      model_probability: Number(event.data.model_probability ?? event.data.probability ?? 0.5),
+      market_probability: Number(event.data.market_probability ?? event.data.yes_price ?? 0.5),
+      edge: Number(event.data.edge ?? 0),
+      confidence: Number(event.data.confidence ?? 0.5),
+      suggested_size: Number(event.data.suggested_size ?? event.data.position_size ?? 0),
+      reasoning: String(event.data.reasoning ?? event.data.analysis ?? 'Signal detected'),
+      timestamp: String(event.data.timestamp ?? new Date().toISOString()),
+      category: String(event.data.category ?? 'trading'),
+      btc_price: Number(event.data.btc_price ?? 0),
+      btc_change_24h: Number(event.data.btc_change_24h ?? 0),
+      window_end: event.data.window_end ? String(event.data.window_end) : undefined,
+      actionable: Boolean(event.data.actionable ?? true),
+      event_slug: event.data.event_slug ? String(event.data.event_slug) : undefined,
+    }
     return {
       id,
       type: 'signal_found',
-      title: `SIGNAL ${direction.toUpperCase()}${confidence ? ` ${confidence}` : ''}`,
-      body: ticker,
+      title: `${direction.toUpperCase()} • ${confidence} conf`,
+      body: `${platform}: ${title.slice(0, 40)}${title.length > 40 ? '...' : ''}`,
       tier: 'info',
       side: 'neutral',
       ticker,
+      signalContext,
       expiresAt: now + TIER_DURATIONS.info,
       createdAt: now,
     }
@@ -180,6 +255,110 @@ function NotificationCard({
   const sideLabel =
     notification.side === 'win' ? 'WIN' : notification.side === 'loss' ? 'LOSS' : ''
 
+  // Show full context for signals
+  if (notification.type === 'signal_found' && notification.signalContext) {
+    const ctx = notification.signalContext
+    const timeRemaining = ctx.window_end ? calculateTimeRemaining(ctx.window_end) : null
+
+    return (
+      <motion.div
+        layout
+        initial={{ x: 60, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 60, opacity: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="cursor-pointer select-none"
+        style={{
+          background: '#0a0a0a',
+          border: `1px solid ${border}`,
+          boxShadow: glow ?? 'none',
+          width: 320,
+          fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+        }}
+      >
+        <div className="p-3">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2">
+            <TierBadge tier={notification.tier} side={notification.side} />
+            <span className="text-[9px] text-neutral-500">{age}</span>
+          </div>
+
+          {/* Market Info */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] text-neutral-500 uppercase">MARKET</span>
+              <span className="text-[11px] font-semibold text-neutral-100 truncate">{ctx.market_title}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] text-neutral-500 uppercase">PLATFORM</span>
+              <span className="text-[9px] text-neutral-300">{ctx.platform}</span>
+            </div>
+          </div>
+
+          {/* Direction & Probabilities */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-bold uppercase" style={{ color: titleColor }}>
+                {ctx.direction}
+              </span>
+              <span className="text-[10px] text-neutral-500">Model</span>
+              <span className="text-[10px] font-mono font-semibold text-green-400">{(ctx.model_probability * 100).toFixed(1)}%</span>
+              <span className="text-[10px] text-neutral-500">Market</span>
+              <span className="text-[10px] font-mono font-semibold text-neutral-400">{(ctx.market_probability * 100).toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-neutral-500">Edge</span>
+              <span className="text-[10px] font-bold text-amber-400">{(ctx.edge * 100).toFixed(1)}%</span>
+              <span className="text-[10px] text-neutral-500">Kelly</span>
+              <span className="text-[10px] font-mono font-semibold text-blue-400">${ctx.suggested_size.toFixed(0)}</span>
+            </div>
+          </div>
+
+          {/* Additional Context */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[9px] text-neutral-500 uppercase">CONFIDENCE</span>
+              <span className="text-[9px] font-mono font-semibold text-cyan-400">{(ctx.confidence * 100).toFixed(0)}%</span>
+            </div>
+            {timeRemaining && (
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-neutral-500 uppercase">EXPIRES</span>
+                <span className="text-[9px] font-mono text-neutral-300">{timeRemaining}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          {ctx.actionable && (
+            <div className="flex gap-1 mt-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleApproveSignal(ctx)
+                  onDismiss(notification.id)
+                }}
+                className="flex-1 px-2 py-1 text-[9px] font-bold uppercase bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors"
+              >
+                APPROVE
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSkipSignal(ctx)
+                  onDismiss(notification.id)
+                }}
+                className="flex-1 px-2 py-1 text-[9px] font-bold uppercase bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+              >
+                SKIP
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Regular notification for trades
   return (
     <motion.div
       layout

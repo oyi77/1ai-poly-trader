@@ -38,7 +38,8 @@ export function useStats() {
   const pnl = active ? active.pnl : stats.total_pnl
   const wins = active ? active.wins : stats.winning_trades
   const trades = active ? active.trades : stats.total_trades
-  const bankroll = stats.bankroll // Always use single bankroll, never from active
+  // Use mode-specific bankroll when available, otherwise use default
+  const bankroll = active ? active.bankroll : stats.bankroll
   const winRate = trades > 0 ? (wins / trades) : 0
   const costBasis = bankroll - pnl
   const returnPercent = costBasis > 0 ? (pnl / costBasis * 100) : 0

@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     POLYMARKET_TESTNET_CLOB_HOST: str = "https://clob.polymarket.com"
 
     # Bot settings - BTC 5-MIN TRADING
-    INITIAL_BANKROLL: float = 10000.0
+    INITIAL_BANKROLL: float = 100.0
     KELLY_FRACTION: float = 0.15  # Fractional Kelly
 
     # BTC 5-min specific settings

@@ -17,19 +17,35 @@ interface CityMarker {
   hasActionable: boolean
 }
 
-const CITIES: Record<string, { lat: number; lng: number; name: string }> = {
+// Default cities if no forecasts provided
+const DEFAULT_CITIES: Record<string, { lat: number; lng: number; name: string }> = {
   nyc: { lat: 40.7128, lng: -74.006, name: 'NYC' },
   chicago: { lat: 41.8781, lng: -87.6298, name: 'CHI' },
   miami: { lat: 25.7617, lng: -80.1918, name: 'MIA' },
   los_angeles: { lat: 34.0522, lng: -118.2437, name: 'LA' },
   denver: { lat: 39.7392, lng: -104.9903, name: 'DEN' },
+  seattle: { lat: 47.6062, lng: -122.3321, name: 'SEA' },
+  boston: { lat: 42.3601, lng: -71.0589, name: 'BOS' },
+  sf: { lat: 37.7749, lng: -122.4194, name: 'SFO' },
+  atlanta: { lat: 33.749, lng: -84.388, name: 'ATL' },
+  dallas: { lat: 32.7767, lng: -96.797, name: 'DAL' },
 }
 
 export function GlobeView({ forecasts, signals }: Props) {
   const globeRef = useRef<any>(null)
 
   const markers: CityMarker[] = useMemo(() => {
-    return Object.entries(CITIES).map(([key, city]) => {
+    // Use forecast cities if available, else use defaults
+    const citiesToUse = forecasts.length > 0
+      ? Object.fromEntries(
+          forecasts.map(f => [
+            f.city_key,
+            { lat: 0, lng: 0, name: f.city_name }
+          ])
+        )
+      : DEFAULT_CITIES
+
+    return Object.entries(citiesToUse).map(([key, city]) => {
       const forecast = forecasts.find(f => f.city_key === key) || null
       const citySignals = signals.filter(s => s.city_key === key)
       const actionableSignals = citySignals.filter(s => s.actionable)

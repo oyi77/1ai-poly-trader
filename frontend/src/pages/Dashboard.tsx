@@ -4,13 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
   fetchDashboard, runScan, simulateTrade, startBot, stopBot,
-  fetchSignalHistory, fetchBtcWindows, fetchTrades, fetchStats,
+  fetchSignalHistory, fetchBtcWindows, fetchTrades,
   fetchDecisions, fetchHealth, fetchCopyLeaderboard, fetchWeatherForecasts,
+  fetchPolymarketMarkets, createWalletConfig, type PolymarketMarket,
 } from '../api'
 import type { SignalHistoryRow, ScoredTrader, DecisionLogRow, StrategyHealth } from '../api'
 import { StatsCards } from '../components/StatsCards'
 import { LoginModal } from '../components/LoginModal'
 import { useAuth } from '../hooks/useAuth'
+import { useStats } from '../hooks/useStats'
 import { SignalsTable } from '../components/SignalsTable'
 import { TradesTable } from '../components/TradesTable'
 import { EquityChart } from '../components/EquityChart'
@@ -204,7 +206,6 @@ function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimula
 
 interface OverviewTabProps {
   data: Awaited<ReturnType<typeof fetchDashboard>>
-  stats: Awaited<ReturnType<typeof fetchDashboard>>['stats']
   equityCurve: Awaited<ReturnType<typeof fetchDashboard>>['equity_curve']
   activeSignals: Awaited<ReturnType<typeof fetchDashboard>>['active_signals']
   recentTrades: Awaited<ReturnType<typeof fetchDashboard>>['recent_trades']
@@ -222,10 +223,12 @@ interface OverviewTabProps {
 
 function OverviewTab({
   data: _data,
-  stats, equityCurve, activeSignals, recentTrades, weatherSignals,
+  equityCurve, activeSignals, recentTrades, weatherSignals,
   weatherForecasts, calibration, windows, micro,
   onSimulateTrade, isSimulating, onStart, onStop, onScan,
 }: OverviewTabProps) {
+  // Use unified stats hook for all stats (single source of truth)
+  const stats = useStats()
   const actionableCount = activeSignals.filter(s => s.actionable).length + weatherSignals.filter(s => s.actionable).length
 
   return (
@@ -241,28 +244,21 @@ function OverviewTab({
             <MicrostructurePanel micro={micro} />
           </motion.div>
         )}
-        <div className="border-b border-neutral-800" style={{ height: '28%', minHeight: '120px' }}>
+        <div className="border-b border-neutral-800" style={{ height: '25%', minHeight: '150px' }}>
           <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Equity</span>
-            {(() => {
-              const activePnl = stats.mode === 'live' && stats.live ? stats.live.pnl
-                : stats.paper ? stats.paper.pnl
-                : stats.total_pnl
-              return (
-                <span className={`text-[10px] tabular-nums ${activePnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {activePnl >= 0 ? '+' : ''}${activePnl.toFixed(0)}
-                </span>
-              )
-            })()}
+            <span className={`text-[10px] tabular-nums ${stats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(0)}
+            </span>
           </div>
           <div className="h-[calc(100%-24px)] p-1">
-            <EquityChart data={equityCurve} initialBankroll={stats.bankroll - stats.total_pnl} />
+            <EquityChart data={equityCurve} initialBankroll={stats.bankroll - stats.pnl} />
           </div>
         </div>
-        {(stats.paper || stats.live) && (
+        {(stats.paperStats || stats.liveStats) && (
           <div className="shrink-0 border-b border-neutral-800 px-2 py-2 flex gap-2">
             {(['paper', 'live'] as const).map(modeKey => {
-              const modeData = stats[modeKey]
+              const modeData = modeKey === 'paper' ? stats.paperStats : stats.liveStats
               if (!modeData) return null
               const isActive = stats.mode === modeKey
               return (
@@ -292,9 +288,9 @@ function OverviewTab({
         )}
         <div className="flex-1 min-h-0">
           <Terminal
-            isRunning={stats.is_running}
-            lastRun={stats.last_run}
-            stats={{ total_trades: stats.total_trades, total_pnl: stats.total_pnl }}
+            isRunning={stats.isRunning}
+            lastRun={stats.lastRun}
+            stats={{ total_trades: stats.trades, total_pnl: stats.pnl }}
             onStart={onStart}
             onStop={onStop}
             onScan={onScan}
@@ -598,8 +594,15 @@ function MarketsTab() {
     refetchInterval: 30_000,
   })
 
+  // Polymarket markets - fetch all (no pagination)
+  const { data: polymarketMarkets = [], isLoading: pmLoading } = useQuery({
+    queryKey: ['polymarket-markets-all'],
+    queryFn: () => fetchPolymarketMarkets(0, 5000), // Fetch up to 5000 markets
+    refetchInterval: 60_000,
+  })
+
   return (
-    <div className="grid grid-cols-2 gap-0 h-full min-h-0 divide-x divide-neutral-800">
+    <div className="grid grid-cols-3 gap-0 h-full min-h-0 divide-x divide-neutral-800">
       {/* BTC Windows */}
       <div className="flex flex-col min-h-0">
         <div className="px-3 py-2 border-b border-neutral-800 shrink-0">
@@ -668,6 +671,44 @@ function MarketsTab() {
           </table>
         </div>
       </div>
+
+      {/* Polymarket Markets */}
+      <div className="flex flex-col min-h-0">
+        <div className="px-3 py-2 border-b border-neutral-800 shrink-0 flex items-center justify-between">
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Polymarket</span>
+          <span className="text-[9px] text-neutral-600">{polymarketMarkets.length} markets</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {pmLoading ? (
+            <div className="px-3 py-6 text-center text-neutral-600 text-[10px]">Loading...</div>
+          ) : (
+            <table className="w-full text-[10px] font-mono">
+              <thead className="sticky top-0 bg-neutral-950">
+                <tr className="border-b border-neutral-800">
+                  <th className="text-left px-3 py-1 text-neutral-600 uppercase tracking-wider">Ticker</th>
+                  <th className="text-left px-3 py-1 text-neutral-600 uppercase tracking-wider">Question</th>
+                  <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Yes</th>
+                  <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">No</th>
+                  <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Volume</th>
+                </tr>
+              </thead>
+              <tbody>
+                {polymarketMarkets.map((m: PolymarketMarket) => (
+                  <tr key={m.ticker} className="border-b border-neutral-800/40 hover:bg-neutral-900/30">
+                    <td className="px-3 py-1 text-neutral-300 truncate max-w-[80px]" title={m.ticker}>{m.ticker.slice(0, 8)}...</td>
+                    <td className="px-3 py-1 text-neutral-500 truncate max-w-[150px]" title={m.question}>{m.question}</td>
+                    <td className="px-3 py-1 text-right text-green-400 tabular-nums">{(m.yes_price * 100).toFixed(1)}¢</td>
+                    <td className="px-3 py-1 text-right text-red-400 tabular-nums">{(m.no_price * 100).toFixed(1)}¢</td>
+                    <td className="px-3 py-1 text-right text-neutral-500 tabular-nums">{m.volume > 0 ? `$${(m.volume / 1000).toFixed(0)}k` : '—'}</td>
+                  </tr>
+                ))}
+                {polymarketMarkets.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-neutral-700">No markets</td></tr>}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+      </div>
     </div>
   )
 }
@@ -681,7 +722,40 @@ function LeaderboardTab() {
     retry: false,
   })
 
+  const queryClient = useQueryClient()
+  const [copyingWallet, setCopyingWallet] = useState<string | null>(null)
+  const [copySuccess, setCopySuccess] = useState<string | null>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
+
   const sorted = [...leaders].sort((a, b) => b.score - a.score)
+
+  const handleCopyTrade = async (trader: ScoredTrader) => {
+    setCopyingWallet(trader.wallet)
+    setCopySuccess(null)
+    setCopyError(null)
+
+    try {
+      await createWalletConfig({
+        address: trader.wallet,
+        pseudonym: trader.pseudonym || undefined,
+        source: 'leaderboard',
+        enabled: true,
+      })
+      setCopySuccess(trader.wallet)
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['copy-trader-status'] })
+      queryClient.invalidateQueries({ queryKey: ['wallets-config'] })
+    } catch (err: any) {
+      setCopyError(trader.wallet)
+      console.error('Failed to copy trader:', err)
+    } finally {
+      setCopyingWallet(null)
+      // Clear success message after 3 seconds
+      if (copySuccess) {
+        setTimeout(() => setCopySuccess(null), 3000)
+      }
+    }
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -704,6 +778,7 @@ function LeaderboardTab() {
               <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Win Rate</th>
               <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Trades</th>
               <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Score</th>
+              <th className="text-center px-3 py-1 text-neutral-600 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -717,10 +792,25 @@ function LeaderboardTab() {
                 <td className="px-3 py-1 text-right tabular-nums text-neutral-400">{(t.win_rate * 100).toFixed(1)}%</td>
                 <td className="px-3 py-1 text-right tabular-nums text-neutral-500">{t.total_trades}</td>
                 <td className="px-3 py-1 text-right tabular-nums text-amber-400 font-semibold">{t.score.toFixed(2)}</td>
+                <td className="px-3 py-1 text-center">
+                  {copySuccess === t.wallet ? (
+                    <span className="text-[9px] text-green-500">✓ Copied</span>
+                  ) : copyError === t.wallet ? (
+                    <span className="text-[9px] text-red-500">Failed</span>
+                  ) : (
+                    <button
+                      onClick={() => handleCopyTrade(t)}
+                      disabled={copyingWallet === t.wallet}
+                      className="text-[9px] px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-500/30 rounded"
+                    >
+                      {copyingWallet === t.wallet ? 'Copying...' : 'Copy Trade'}
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {sorted.length === 0 && !isError && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-700">No leaderboard data</td></tr>
+              <tr><td colSpan={7} className="px-3 py-6 text-center text-neutral-700">No leaderboard data</td></tr>
             )}
           </tbody>
         </table>
@@ -816,17 +906,14 @@ function DecisionsTab() {
 // ── PERFORMANCE TAB ───────────────────────────────────────────────────────────
 
 function PerformanceTab() {
-  const { data: stats } = useQuery({
-    queryKey: ['stats-perf'],
-    queryFn: fetchStats,
-    refetchInterval: 30_000,
-  })
+  // Use unified stats hook (single source of truth)
+  const { pnl, bankroll, winRate, trades } = useStats()
   const { data: health } = useQuery({
     queryKey: ['health-perf'],
     queryFn: fetchHealth,
     refetchInterval: 30_000,
   })
-  const { data: trades = [] } = useQuery({
+  const { data: allTrades = [] } = useQuery({
     queryKey: ['trades-perf'],
     queryFn: () => fetchTrades(),
     refetchInterval: 30_000,
@@ -834,9 +921,9 @@ function PerformanceTab() {
 
   const strategies: StrategyHealth[] = health?.strategies ?? []
 
-  // Build win rate chart data
-  const paperTrades = trades.filter((t: any) => t.trading_mode === 'paper')
-  const liveTrades = trades.filter((t: any) => t.trading_mode === 'live')
+  // Build win rate chart data (from raw trades for paper/live breakdown)
+  const paperTrades = allTrades.filter((t: any) => t.trading_mode === 'paper')
+  const liveTrades = allTrades.filter((t: any) => t.trading_mode === 'live')
   const paperWins = paperTrades.filter((t: any) => t.result === 'win').length
   const paperSettled = paperTrades.filter((t: any) => t.result === 'win' || t.result === 'loss').length
   const liveWins = liveTrades.filter((t: any) => t.result === 'win').length
@@ -849,20 +936,11 @@ function PerformanceTab() {
 
   // Daily PNL approximation
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-  const dailyPnl = trades
+  const dailyPnl = allTrades
     .filter((t: any) => t.timestamp && new Date(t.timestamp) >= todayStart)
     .reduce((s: number, t: any) => s + (t.pnl ?? 0), 0)
 
-  // Use mode-aware stats for consistency with StatsCards
-  const activeStats = (stats as any)?.mode === 'live' && (stats as any)?.live 
-    ? (stats as any).live 
-    : (stats as any)?.paper || (stats as any)
-  
-  const totalPnl = activeStats?.pnl ?? (stats as any)?.total_pnl ?? 0
-  const bankroll = activeStats?.bankroll ?? (stats as any)?.bankroll ?? 0
-  const winRate = activeStats?.win_rate ?? (stats as any)?.win_rate ?? 0
-  const totalTrades = activeStats?.trades ?? (stats as any)?.total_trades ?? 0
-  const avgTradeSize = trades.length > 0 ? trades.reduce((s: number, t: any) => s + (t.size ?? 0), 0) / trades.length : 0
+  const avgTradeSize = allTrades.length > 0 ? allTrades.reduce((s: number, t: any) => s + (t.size ?? 0), 0) / allTrades.length : 0
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
@@ -872,9 +950,9 @@ function PerformanceTab() {
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Bankroll', value: `$${bankroll.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, color: 'text-neutral-200' },
-            { label: 'Total PNL', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`, color: totalPnl >= 0 ? 'text-green-500' : 'text-red-500' },
+            { label: 'Total PNL', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, color: pnl >= 0 ? 'text-green-500' : 'text-red-500' },
             { label: 'Win Rate', value: `${(winRate * 100).toFixed(1)}%`, color: winRate >= 0.5 ? 'text-green-500' : 'text-amber-400' },
-            { label: 'Total Trades', value: String(totalTrades), color: 'text-neutral-300' },
+            { label: 'Total Trades', value: String(trades), color: 'text-neutral-300' },
             { label: 'Avg Trade Size', value: `$${avgTradeSize.toFixed(0)}`, color: 'text-neutral-300' },
             { label: 'Daily PNL', value: `${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`, color: dailyPnl >= 0 ? 'text-green-500' : 'text-red-500' },
           ].map(m => (
@@ -949,6 +1027,9 @@ export default function Dashboard() {
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>('Overview')
 
+  // Use unified stats hook as single source of truth
+  const unifiedStats = useStats()
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboard,
@@ -957,22 +1038,34 @@ export default function Dashboard() {
 
   const scanMutation = useMutation({
     mutationFn: runScan,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['stats-unified'] })
+    },
   })
 
   const tradeMutation = useMutation({
     mutationFn: simulateTrade,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['stats-unified'] })
+    },
   })
 
   const startMutation = useMutation({
     mutationFn: startBot,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['stats-unified'] })
+    },
   })
 
   const stopMutation = useMutation({
     mutationFn: stopBot,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['stats-unified'] })
+    },
   })
 
   const activeSignals = data?.active_signals ?? []
@@ -1034,8 +1127,8 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 shrink-0">
           <Link to="/admin" className="text-[9px] text-neutral-600 hover:text-green-500 uppercase tracking-wider transition-colors mr-1">Admin</Link>
           <h1 className="text-xs font-bold text-neutral-100 uppercase tracking-widest whitespace-nowrap font-mono">TRADING TERMINAL</h1>
-          <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase ${stats.is_running ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-neutral-800 text-neutral-500 border border-neutral-700'}`}>
-            {stats.is_running ? 'Live' : 'Idle'}
+          <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase ${unifiedStats.isRunning ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-neutral-800 text-neutral-500 border border-neutral-700'}`}>
+            {unifiedStats.isRunning ? 'Live' : 'Idle'}
           </span>
           {(() => {
             const mode = (stats as any).trading_mode || 'paper'
@@ -1079,15 +1172,6 @@ export default function Dashboard() {
         </AnimatePresence>
       </motion.header>
 
-      {/* ACCOUNT STATS BAR */}
-      <div className="shrink-0 border-b border-neutral-800 px-3 py-1 flex items-center gap-6 text-[10px] font-mono bg-neutral-950/50">
-        <span className="text-neutral-600">Bankroll: <span className="text-neutral-200 tabular-nums">${stats.bankroll.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
-        <span className="text-neutral-600">PNL: <span className={`tabular-nums ${stats.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>{stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}</span></span>
-        <span className="text-neutral-600">Win Rate: <span className="text-neutral-300 tabular-nums">{((stats as any).win_rate != null ? ((stats as any).win_rate * 100).toFixed(1) : '—')}%</span></span>
-        <span className="text-neutral-600">Open: <span className="text-neutral-300 tabular-nums">{recentTrades.filter((t: any) => t.result === 'pending').length}</span></span>
-        <span className="text-neutral-600">Last Scan: <span className="text-neutral-500 tabular-nums">{stats.last_run ? new Date(stats.last_run).toLocaleTimeString('en-US', { hour12: false }) : '—'}</span></span>
-      </div>
-
       {/* TAB BAR */}
       <div className="shrink-0 border-b border-neutral-800 px-3 flex items-center gap-0">
         {DASHBOARD_TABS.map(tab => (
@@ -1110,7 +1194,6 @@ export default function Dashboard() {
         {activeTab === 'Overview' && (
           <OverviewTab
             data={data}
-            stats={stats}
             equityCurve={equityCurve}
             activeSignals={activeSignals}
             recentTrades={recentTrades}
