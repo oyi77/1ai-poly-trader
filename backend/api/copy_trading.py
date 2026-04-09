@@ -38,38 +38,93 @@ class CopySignalResponse(BaseModel):
 
 
 @router.get("/api/copy/leaderboard", response_model=List[ScoredTraderResponse])
-async def get_copy_leaderboard(limit: int = 50):
-    """Return REAL top-scored traders scraped from Polymarket leaderboard."""
+async def get_copy_leaderboard(limit: int = 100):
+    """Return top traders from Polymarket Data API leaderboard."""
+    import httpx
+
+    DATA_API = "https://data-api.polymarket.com"
+    all_traders = []
+
     try:
-        from backend.data.polymarket_scraper import fetch_real_leaderboard
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Fetch in pages of 50 (API max)
+            for offset in range(0, limit, 50):
+                page_limit = min(50, limit - offset)
+                resp = await client.get(
+                    f"{DATA_API}/leaderboard",
+                    params={"timePeriod": "all", "orderBy": "PNL", "limit": page_limit, "offset": offset},
+                )
+                resp.raise_for_status()
+                page = resp.json()
+                if not page:
+                    break
+                all_traders.extend(page)
+                if len(page) < page_limit:
+                    break
 
-        traders = await fetch_real_leaderboard(limit=limit)
+        result = []
+        for t in all_traders:
+            wallet = t.get("address", t.get("wallet", ""))
+            profit = float(t.get("pnl", t.get("profit", 0)))
+            volume = float(t.get("volume", 0))
+            markets = int(t.get("numMarkets", t.get("markets_traded", 0)))
+            trades = int(t.get("numTrades", t.get("total_trades", 0)))
 
-        if not traders:
-            logger.warning("No real leaderboard data available from Polymarket")
-            return []
+            win_rate = 0.0
+            if trades > 0:
+                wins = int(t.get("numWins", 0))
+                win_rate = wins / trades if wins else 0.0
 
-        result = [
-            ScoredTraderResponse(
-                wallet=t["wallet"],
-                pseudonym=t["pseudonym"],
-                profit_30d=round(t["profit_30d"], 2),
-                win_rate=round(t["win_rate"], 3),
-                total_trades=t["total_trades"],
-                unique_markets=t["unique_markets"],
-                estimated_bankroll=round(t["estimated_bankroll"], 2),
-                score=round(t["score"], 3),
-                market_diversity=round(t["market_diversity"], 3),
-            )
-            for t in traders
-        ]
+            # Score: weighted composite of profit, win rate, market diversity
+            score = 0.0
+            if profit > 0:
+                score += min(profit / 10000, 1.0) * 0.4
+            score += win_rate * 0.3
+            score += min(markets / 100, 1.0) * 0.3
 
-        logger.info(f"Returning {len(result)} real traders from Polymarket leaderboard")
+            pseudonym = t.get("username", t.get("pseudonym", ""))
+            if not pseudonym:
+                pseudonym = f"{wallet[:6]}...{wallet[-4:]}" if len(wallet) > 10 else wallet
+
+            result.append(ScoredTraderResponse(
+                wallet=wallet,
+                pseudonym=pseudonym,
+                profit_30d=round(profit, 2),
+                win_rate=round(win_rate, 3),
+                total_trades=trades,
+                unique_markets=markets,
+                estimated_bankroll=round(volume * 0.1, 2),
+                score=round(score, 3),
+                market_diversity=round(min(markets / 100, 1.0), 3),
+            ))
+
+        logger.info(f"Returning {len(result)} traders from Polymarket Data API")
         return result
 
     except Exception as e:
-        logger.error(f"Error fetching real leaderboard: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch real leaderboard: {str(e)}")
+        logger.error(f"Leaderboard fetch failed, trying scraper fallback: {e}")
+        # Fallback to scraper
+        try:
+            from backend.data.polymarket_scraper import fetch_real_leaderboard
+            traders = await fetch_real_leaderboard(limit=limit)
+            if traders:
+                return [
+                    ScoredTraderResponse(
+                        wallet=t["wallet"],
+                        pseudonym=t.get("pseudonym", ""),
+                        profit_30d=round(t.get("profit_30d", 0), 2),
+                        win_rate=round(t.get("win_rate", 0), 3),
+                        total_trades=t.get("total_trades", 0),
+                        unique_markets=t.get("unique_markets", 0),
+                        estimated_bankroll=round(t.get("estimated_bankroll", 0), 2),
+                        score=round(t.get("score", 0), 3),
+                        market_diversity=round(t.get("market_diversity", 0), 3),
+                    )
+                    for t in traders
+                ]
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Failed to fetch leaderboard: {str(e)}")
 
 
 @router.get("/api/copy/signals", response_model=List[CopySignalResponse])
