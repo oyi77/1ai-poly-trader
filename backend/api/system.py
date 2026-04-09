@@ -134,6 +134,42 @@ async def get_stats(db: Session = Depends(get_db)):
 
 
 # ============================================================================
+# AI Status & Control
+# ============================================================================
+
+
+@router.get("/api/ai/status")
+async def get_ai_status(db: Session = Depends(get_db)):
+    """Return AI system status: enabled, provider, budget usage."""
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    spent_today = db.query(func.coalesce(func.sum(AILog.cost_usd), 0.0)).filter(
+        AILog.timestamp >= today_start
+    ).scalar() or 0.0
+    calls_today = db.query(func.count(AILog.id)).filter(
+        AILog.timestamp >= today_start
+    ).scalar() or 0
+
+    return {
+        "enabled": settings.AI_ENABLED,
+        "provider": settings.AI_PROVIDER,
+        "model": settings.AI_MODEL or settings.GROQ_MODEL,
+        "daily_budget": settings.AI_DAILY_BUDGET_USD,
+        "spent_today": round(spent_today, 4),
+        "remaining": round(max(0, settings.AI_DAILY_BUDGET_USD - spent_today), 4),
+        "calls_today": calls_today,
+        "signal_weight": settings.AI_SIGNAL_WEIGHT,
+    }
+
+
+@router.post("/api/ai/toggle")
+async def toggle_ai(_: None = Depends(require_admin)):
+    """Toggle AI-enhanced signals on/off."""
+    settings.AI_ENABLED = not settings.AI_ENABLED
+    logger.info("AI signals %s", "ENABLED" if settings.AI_ENABLED else "DISABLED")
+    return {"enabled": settings.AI_ENABLED}
+
+
+# ============================================================================
 # Bot Control Endpoints
 # ============================================================================
 

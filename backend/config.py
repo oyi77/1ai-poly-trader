@@ -37,8 +37,10 @@ class Settings(BaseSettings):
     AI_API_KEY: Optional[str] = None    # API key for custom/omniroute providers
 
     # AI Feature Flags
+    AI_ENABLED: bool = False  # Master toggle for AI-enhanced signals
     AI_LOG_ALL_CALLS: bool = True
     AI_DAILY_BUDGET_USD: float = 1.0
+    AI_SIGNAL_WEIGHT: float = 0.30  # Weight of AI in ensemble (0 = disabled, max 0.50)
 
     # Trading mode: "paper", "testnet", or "live"
     TRADING_MODE: str = "paper"

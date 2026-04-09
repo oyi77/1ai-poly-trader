@@ -323,9 +323,47 @@ async def scan_and_trade_job():
         signals = await scan_for_signals()
         actionable = [s for s in signals if s.passes_threshold]
 
+        # AI enhancement: if enabled, enrich actionable signals with AI analysis
+        if settings.AI_ENABLED and actionable:
+            try:
+                from backend.ai.market_analyzer import analyze_market
+                from backend.ai.ensemble import EnsembleSignalGenerator
+
+                ensemble = EnsembleSignalGenerator(weights={
+                    "technical": max(0.10, 1.0 - settings.AI_SIGNAL_WEIGHT),
+                    "ai": settings.AI_SIGNAL_WEIGHT,
+                    "orderbook": 0.0,
+                    "data_quality": 0.0,
+                })
+
+                for sig in actionable:
+                    try:
+                        question = getattr(sig.market, 'slug', '') or 'BTC 5-min Up/Down'
+                        ai_result = await analyze_market(
+                            question=question,
+                            current_price=sig.market_probability,
+                            volume=getattr(sig.market, 'volume', 0),
+                            category="crypto",
+                        )
+                        if ai_result:
+                            combined = ensemble.combine_signals(
+                                technical_prob=sig.model_probability,
+                                ai_prob=ai_result.probability,
+                                market_price=sig.market_probability,
+                            )
+                            sig.model_probability = combined.combined_probability
+                            sig.edge = combined.edge
+                            sig.confidence = min(sig.confidence, ai_result.confidence)
+                            log_event("data", f"AI enhanced signal: edge={combined.edge:.3f} (was {sig.edge:.3f})")
+                    except Exception as ai_err:
+                        logger.debug("AI enhancement failed for signal, using technical only: %s", ai_err)
+            except ImportError:
+                logger.debug("AI modules not available, using technical signals only")
+
         log_event("data", f"Found {len(signals)} signals, {len(actionable)} actionable", {
             "total_signals": len(signals),
             "actionable": len(actionable),
+            "ai_enabled": settings.AI_ENABLED,
         })
 
         # Record SKIP decisions for all non-actionable signals (before the early return)
