@@ -71,7 +71,9 @@ def get_strategy_health(db) -> list[dict]:
                     threshold = (cfg.interval_seconds or 60) * 2
                     healthy = lag < threshold
                 except Exception:
-                    logger.warning(f"Failed to check heartbeat for strategy {name}")            result.append({
+                    logger.warning(f"Failed to check heartbeat for strategy {name}")
+
+            result.append({
                 "name": cfg.strategy_name,
                 "last_heartbeat": last_hb_str,
                 "lag_seconds": round(lag, 1) if lag is not None else None,
