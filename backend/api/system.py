@@ -138,6 +138,41 @@ async def get_stats(db: Session = Depends(get_db)):
 # ============================================================================
 
 
+@router.get("/api/stats/strategies")
+async def get_strategy_stats(db: Session = Depends(get_db)):
+    """Return P&L breakdown per strategy."""
+    from sqlalchemy import case
+
+    results = db.query(
+        Trade.strategy,
+        func.count(Trade.id).label("total_trades"),
+        func.sum(case((Trade.result == "win", 1), else_=0)).label("wins"),
+        func.sum(case((Trade.result == "loss", 1), else_=0)).label("losses"),
+        func.sum(case((Trade.settled == True, Trade.pnl), else_=0)).label("total_pnl"),
+        func.avg(Trade.edge_at_entry).label("avg_edge"),
+        func.avg(Trade.size).label("avg_size"),
+    ).filter(
+        Trade.strategy.isnot(None)
+    ).group_by(Trade.strategy).all()
+
+    strategies = []
+    for r in results:
+        total = r.wins + r.losses
+        strategies.append({
+            "strategy": r.strategy or "unknown",
+            "total_trades": r.total_trades,
+            "wins": r.wins,
+            "losses": r.losses,
+            "pending": r.total_trades - r.wins - r.losses,
+            "win_rate": r.wins / total if total > 0 else 0,
+            "total_pnl": round(r.total_pnl or 0, 2),
+            "avg_edge": round(r.avg_edge or 0, 4),
+            "avg_size": round(r.avg_size or 0, 2),
+        })
+
+    return {"strategies": sorted(strategies, key=lambda s: s["total_pnl"], reverse=True)}
+
+
 @router.get("/api/ai/status")
 async def get_ai_status(db: Session = Depends(get_db)):
     """Return AI system status: enabled, provider, budget usage."""

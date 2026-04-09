@@ -827,6 +827,17 @@ async def strategy_cycle_job(strategy_name: str) -> None:
         strategy = strategy_cls()
         result = await strategy.run(ctx)
 
+        # Execute BUY decisions via the strategy executor pipeline
+        from backend.core.strategy_executor import execute_decisions as _exec_decisions
+
+        buy_decisions = [
+            d for d in getattr(result, "decisions", [])
+            if isinstance(d, dict) and d.get("decision") == "BUY" and d.get("market_ticker")
+        ]
+        if buy_decisions:
+            trade_results = await _exec_decisions(buy_decisions, strategy_name)
+            logger.info(f"Strategy {strategy_name}: executed {len(trade_results)} trades")
+
         log_event("info", f"Strategy {strategy_name} cycle done: decisions={result.decisions_recorded} trades={result.trades_placed} errors={len(result.errors)}")
 
     except Exception as e:

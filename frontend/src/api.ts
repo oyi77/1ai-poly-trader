@@ -607,6 +607,25 @@ export async function fetchArbitrageOpportunities(): Promise<ArbOpportunity[]> {
   return data.opportunities ?? []
 }
 
+// ── Strategy P&L ─────────────────────────────────────────────────────────────────
+
+export interface StrategyPnL {
+  strategy: string
+  total_trades: number
+  wins: number
+  losses: number
+  pending: number
+  win_rate: number
+  total_pnl: number
+  avg_edge: number
+  avg_size: number
+}
+
+export async function fetchStrategyStats(): Promise<{ strategies: StrategyPnL[] }> {
+  const { data } = await api.get('/stats/strategies')
+  return data
+}
+
 // ── Edge Performance (Parallel Edge Discovery) ───────────────────────────────────
 
 export interface EdgePerformanceTrack {

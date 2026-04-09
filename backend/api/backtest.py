@@ -4,13 +4,13 @@ Backtesting API endpoints for PolyEdge strategy evaluation.
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import pandas as pd
-import numpy as np
 
 from backend.models.database import get_db, SessionLocal, Trade, Signal
 from backend.models.backtest import BacktestRun, BacktestTrade
 from backend.strategies.registry import BaseStrategy, STRATEGY_REGISTRY, load_all_strategies
+from backend.api.auth import require_admin
 
 
 def get_all_strategies() -> dict:
@@ -24,7 +24,78 @@ SignalHistoryRow = Signal
 
 router = APIRouter()
 
-# Note: /api/backtest/run and /api/backtest/quick are in system.py to avoid duplicates.
+
+class BacktestRunRequest(BaseModel):
+    strategy_name: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    initial_bankroll: float = 100.0
+    kelly_fraction: float = 0.0625
+    max_trade_size: float = 10.0
+    max_position_fraction: float = 0.10
+    max_total_exposure: float = 0.60
+    daily_loss_limit: float = 15.0
+
+
+def _parse_date(date_str: Optional[str], fallback: datetime) -> datetime:
+    if not date_str:
+        return fallback
+    return datetime.fromisoformat(date_str)
+
+
+@router.post("/api/backtest/run")
+async def run_backtest_endpoint(
+    body: BacktestRunRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Run a backtest for a given strategy and return results."""
+    from backend.core.backtester import BacktestEngine, BacktestConfig
+
+    end_date = _parse_date(body.end_date, datetime.utcnow())
+    start_date = _parse_date(body.start_date, end_date - timedelta(days=30))
+
+    config = BacktestConfig(
+        strategy_name=body.strategy_name,
+        start_date=start_date,
+        end_date=end_date,
+        initial_bankroll=body.initial_bankroll,
+        kelly_fraction=body.kelly_fraction,
+        max_trade_size=body.max_trade_size,
+        max_position_fraction=body.max_position_fraction,
+        max_total_exposure=body.max_total_exposure,
+        daily_loss_limit=body.daily_loss_limit,
+    )
+
+    try:
+        engine = BacktestEngine(config)
+        result = await engine.run()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Backtest failed: {exc}")
+
+    return {
+        "total_pnl": result.total_pnl,
+        "total_trades": result.total_trades,
+        "win_rate": result.win_rate,
+        "max_drawdown": result.max_drawdown,
+        "sharpe_ratio": result.sharpe_ratio,
+        "return_pct": result.return_pct,
+        "final_bankroll": result.final_bankroll,
+        "equity_curve": result.equity_curve,
+        "trades": [
+            {
+                "timestamp": t.timestamp.isoformat(),
+                "market_ticker": t.market_ticker,
+                "direction": t.direction,
+                "entry_price": t.entry_price,
+                "size": t.size,
+                "pnl": t.pnl,
+                "settled": t.settled,
+            }
+            for t in result.trades
+        ],
+    }
+
 
 @router.get("/api/backtest/strategies")
 async def get_backtest_strategies():
@@ -49,6 +120,7 @@ async def get_backtest_strategies():
             })
     return {"strategies": result}
 
+
 @router.get("/api/backtest/history")
 async def get_backtest_history(
     limit: int = 10,
@@ -56,14 +128,13 @@ async def get_backtest_history(
     db: Session = Depends(get_db)
 ):
     """Get history of backtest runs."""
-    # This would query a BacktestRun table if we had one
-    # For now, return placeholder
     return {
         "runs": [],
         "total": 0,
         "limit": limit,
         "offset": offset
     }
+
 
 async def run_backtest_engine(
     strategy: BaseStrategy,
@@ -75,7 +146,7 @@ async def run_backtest_engine(
     run_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Core backtesting engine.
+    Core backtesting engine (legacy helper used by other routes).
     """
     # Get historical signals for the date range
     historical_signals = get_historical_signals(db, strategy.name, start_date, end_date)
@@ -92,7 +163,7 @@ async def run_backtest_engine(
         kelly_size = calculate_kelly_size(
             edge=signal['edge'],
             bankroll=current_bankroll,
-            max_bankroll_pct=0.15  # 15% max bankroll per trade
+            max_bankroll_pct=0.15
         )
 
         # Execute trade
@@ -148,6 +219,7 @@ async def run_backtest_engine(
         db.commit()
 
     # Calculate performance metrics
+    import numpy as np
     final_equity = current_bankroll
     total_pnl = final_equity - initial_bankroll
     total_return = total_pnl / initial_bankroll * 100
@@ -158,9 +230,8 @@ async def run_backtest_engine(
 
     win_rate = winning_trades / total_trades if total_trades > 0 else 0
 
-    # Sharpe ratio calculation (simplified)
     returns = np.diff(portfolio_value)
-    sharpe_ratio = np.mean(returns) / np.std(returns) * np.sqrt(365 * 24 * 60) if len(returns) > 1 else 0  # minute-level data
+    sharpe_ratio = np.mean(returns) / np.std(returns) * np.sqrt(365 * 24 * 60) if len(returns) > 1 else 0
 
     return {
         "summary": {
@@ -180,27 +251,24 @@ async def run_backtest_engine(
         "signals_processed": len(historical_signals)
     }
 
+
 def get_historical_signals(
     db: Session,
     strategy_name: str,
     start_date: datetime,
     end_date: datetime
 ) -> List[Dict[str, Any]]:
-    """
-    Get historical signals for a strategy in the given date range.
-    """
+    """Get historical signals for a strategy in the given date range."""
     query = db.query(SignalHistoryRow).filter(
         SignalHistoryRow.timestamp.between(start_date, end_date),
         SignalHistoryRow.market_type.in_(['btc', 'weather'])
     )
 
     if strategy_name:
-        # Filter by strategy if specified
         query = query.filter(SignalHistoryRow.reasoning.contains(strategy_name))
 
     signals = query.all()
 
-    # Convert to dict format
     historical_signals = []
     for signal in signals:
         historical_signals.append({
@@ -224,23 +292,16 @@ def get_historical_signals(
 
     return historical_signals
 
+
 def calculate_kelly_size(edge: float, bankroll: float, max_bankroll_pct: float = 0.15) -> float:
-    """
-    Calculate Kelly Criterion position size.
-    """
+    """Calculate Kelly Criterion position size."""
     if edge <= 0:
         return 0
-
-    # Kelly fraction: f = (bp - q) / b
-    # Where b = odds received, p = probability of win, q = probability of loss
-    # For binary options, b = 1 (payout is 1:1)
     kelly_fraction = edge
-
-    # Apply maximum size constraint
     max_size = bankroll * max_bankroll_pct
     kelly_size = bankroll * kelly_fraction
-
     return min(kelly_size, max_size)
+
 
 async def execute_backtest_trade(
     strategy: BaseStrategy,
@@ -248,18 +309,13 @@ async def execute_backtest_trade(
     size: float,
     current_bankroll: float
 ) -> Dict[str, Any]:
-    """
-    Simulate executing a trade and calculate P&L.
-    """
-    # Get settlement value (0.0 for Down win, 1.0 for Up win)
+    """Simulate executing a trade and calculate P&L."""
     settlement_value = signal.get('settlement_value')
 
     if settlement_value is None:
-        # Trade hasn't settled yet, use actual_outcome if available
         if signal.get('actual_outcome'):
             settlement_value = 1.0 if signal['actual_outcome'] == signal['direction'] else 0.0
         else:
-            # Cannot determine outcome, skip
             return {
                 'entry_price': signal.get('market_probability', 0.5),
                 'exit_price': None,
@@ -269,19 +325,18 @@ async def execute_backtest_trade(
                 'edge_at_entry': signal.get('edge', 0)
             }
 
-    # Calculate P&L
     if signal['direction'] == 'up':
-        if settlement_value == 1.0:  # Up won
+        if settlement_value == 1.0:
             pnl = size * (1 - signal.get('market_probability', 0.5))
             result = 'win'
-        else:  # Down won
+        else:
             pnl = -size
             result = 'loss'
-    else:  # down
-        if settlement_value == 0.0:  # Down won
+    else:
+        if settlement_value == 0.0:
             pnl = size * (1 - signal.get('market_probability', 0.5))
             result = 'win'
-        else:  # Up won
+        else:
             pnl = -size
             result = 'loss'
 
