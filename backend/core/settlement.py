@@ -143,6 +143,8 @@ async def update_bot_state_with_settlements(
         for trade in settled_trades:
             if trade.pnl is not None:
                 trading_mode = getattr(trade, "trading_mode", "paper") or "paper"
+
+                # Always update mode-specific stats
                 if trading_mode == "paper":
                     state.paper_pnl = (state.paper_pnl or 0.0) + trade.pnl
                     state.paper_bankroll = (state.paper_bankroll or 10000.0) + trade.pnl
@@ -150,10 +152,19 @@ async def update_bot_state_with_settlements(
                     if trade.result == "win":
                         state.paper_wins = (state.paper_wins or 0) + 1
                 else:
-                    state.total_pnl += trade.pnl
-                    state.bankroll += trade.pnl
+                    state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
+                    state.bankroll = (state.bankroll or 0.0) + trade.pnl
                     if trade.result == "win":
-                        state.winning_trades += 1
+                        state.winning_trades = (state.winning_trades or 0) + 1
+                    state.total_trades = (state.total_trades or 0) + 1
+
+                # Also update general stats for paper mode so dashboard shows correctly
+                if trading_mode == "paper":
+                    state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
+                    state.bankroll = (state.bankroll or 0.0) + trade.pnl
+                    state.total_trades = (state.total_trades or 0) + 1
+                    if trade.result == "win":
+                        state.winning_trades = (state.winning_trades or 0) + 1
 
         db.commit()
         logger.info(
