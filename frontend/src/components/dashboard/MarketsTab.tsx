@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchBtcWindows, fetchWeatherForecasts, fetchPolymarketMarkets, type PolymarketMarket } from '../../api'
+import { fetchBtcWindows, fetchPolymarketMarkets, type PolymarketMarket } from '../../api'
 import type { BtcWindow } from '../../types'
 import { formatCountdown } from '../../utils'
 
@@ -8,11 +8,6 @@ export function MarketsTab() {
     queryKey: ['btc-windows-tab'],
     queryFn: fetchBtcWindows,
     refetchInterval: 10_000,
-  })
-  const { data: weatherForecasts = [] } = useQuery({
-    queryKey: ['weather-forecasts-tab'],
-    queryFn: fetchWeatherForecasts,
-    refetchInterval: 30_000,
   })
 
   // Polymarket markets - fetch all (no pagination)
@@ -23,7 +18,7 @@ export function MarketsTab() {
   })
 
   return (
-    <div className="grid grid-cols-3 gap-0 h-full min-h-0 divide-x divide-neutral-800">
+    <div className="grid grid-cols-2 gap-0 h-full min-h-0 divide-x divide-neutral-800">
       {/* BTC Windows */}
       <div className="flex flex-col min-h-0">
         <div className="px-3 py-2 border-b border-neutral-800 shrink-0">
@@ -55,39 +50,6 @@ export function MarketsTab() {
                 </tr>
               ))}
               {btcWindows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-neutral-700">No BTC windows</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Weather Markets */}
-      <div className="flex flex-col min-h-0">
-        <div className="px-3 py-2 border-b border-neutral-800 shrink-0 flex items-center justify-between">
-          <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Weather Markets</span>
-          <span className="text-[9px] text-neutral-600">auto-refresh 30s</span>
-        </div>
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-neutral-950">
-              <tr className="border-b border-neutral-800">
-                <th className="text-left px-3 py-1 text-neutral-600 uppercase tracking-wider">City</th>
-                <th className="text-left px-3 py-1 text-neutral-600 uppercase tracking-wider">Target</th>
-                <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">High</th>
-                <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Low</th>
-                <th className="text-right px-3 py-1 text-neutral-600 uppercase tracking-wider">Agreement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {weatherForecasts.map((f, i) => (
-                <tr key={i} className="border-b border-neutral-800/40 hover:bg-neutral-900/30">
-                  <td className="px-3 py-1 text-neutral-300">{f.city_name ?? '—'}</td>
-                  <td className="px-3 py-1 text-neutral-500">{f.target_date ?? '—'}</td>
-                  <td className="px-3 py-1 text-right tabular-nums text-red-400">{f.mean_high != null ? `${f.mean_high.toFixed(1)}°` : '—'}</td>
-                  <td className="px-3 py-1 text-right tabular-nums text-blue-400">{f.mean_low != null ? `${f.mean_low.toFixed(1)}°` : '—'}</td>
-                  <td className="px-3 py-1 text-right tabular-nums text-neutral-400">{f.ensemble_agreement != null ? `${(f.ensemble_agreement * 100).toFixed(0)}%` : '—'}</td>
-                </tr>
-              ))}
-              {weatherForecasts.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-neutral-700">No weather forecasts</td></tr>}
             </tbody>
           </table>
         </div>

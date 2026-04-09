@@ -3,10 +3,11 @@ import json
 import re
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 from backend.core.market_scanner import fetch_markets_by_keywords
+from backend.data.market_types import UnifiedMarketView
 
 logger = logging.getLogger("trading_bot")
 
@@ -45,6 +46,36 @@ class WeatherMarket:
     no_price: float          # Price of NO outcome (0-1)
     volume: float = 0.0
     closed: bool = False
+
+    def to_unified(self) -> UnifiedMarketView:
+        """
+        Convert to UnifiedMarketView for API responses.
+
+        This is a lightweight adapter, not a base class inheritance pattern.
+        BtcMarket and WeatherMarket remain independent domain models.
+        """
+        # Convert date to datetime for closes_at (end of day UTC)
+        closes_at = datetime.combine(self.target_date, datetime.min.time()).replace(tzinfo=None)
+
+        return UnifiedMarketView(
+            slug=self.slug,
+            platform=self.platform,
+            title=self.title,
+            yes_price=self.yes_price,
+            no_price=self.no_price,
+            volume=self.volume,
+            closes_at=closes_at,
+            extra={
+                "market_id": self.market_id,
+                "city_key": self.city_key,
+                "city_name": self.city_name,
+                "target_date": self.target_date.isoformat(),
+                "threshold_f": self.threshold_f,
+                "metric": self.metric,
+                "direction": self.direction,
+                "type": "weather-temperature",
+            },
+        )
 
 
 def _extract_city_from_title(title: str) -> Optional[str]:

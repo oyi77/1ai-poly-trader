@@ -5,14 +5,18 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
 from backend.core.market_scanner import fetch_markets_by_keywords
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.data.market_types import UnifiedMarketView
 
 logger = logging.getLogger("trading_bot")
 
 GAMMA_API = "https://gamma-api.polymarket.com"
+
+gamma_breaker = CircuitBreaker("gamma_api")
 
 # Strict regex: only match real BTC 5-min window slugs (e.g. btc-updown-5m-1708531200)
 _BTC_SLUG_RE = re.compile(r"^btc-updown-5m-\d{10}$")
@@ -62,6 +66,31 @@ class BtcMarket:
         """Window hasn't started yet."""
         now = datetime.now(timezone.utc)
         return now < self.window_start and not self.closed
+
+    def to_unified(self) -> UnifiedMarketView:
+        """
+        Convert to UnifiedMarketView for API responses.
+
+        This is a lightweight adapter, not a base class inheritance pattern.
+        BtcMarket and WeatherMarket remain independent domain models.
+        """
+        return UnifiedMarketView(
+            slug=self.slug,
+            platform="polymarket",
+            title=f"BTC {self.window_start.strftime('%H:%M')} - {self.window_end.strftime('%H:%M')} UTC",
+            yes_price=self.up_price,
+            no_price=self.down_price,
+            volume=self.volume,
+            closes_at=self.window_end,
+            extra={
+                "market_id": self.market_id,
+                "window_start": self.window_start.isoformat(),
+                "window_end": self.window_end.isoformat(),
+                "up_token_id": self.up_token_id,
+                "down_token_id": self.down_token_id,
+                "type": "btc-5min",
+            },
+        )
 
 
 def _round_to_5min(ts: float) -> int:
@@ -167,21 +196,27 @@ async def fetch_btc_market_by_slug(slug: str) -> Optional[BtcMarket]:
     url = f"{GAMMA_API}/events"
     params = {"slug": slug}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            events = response.json()
+    try:
+        async def _do_fetch():
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
 
-            if not events:
-                return None
+        events = await gamma_breaker.call(_do_fetch)
 
-            event = events[0] if isinstance(events, list) else events
-            return _parse_event_to_btc_market(event)
-
-        except Exception as e:
-            logger.debug(f"Failed to fetch BTC market {slug}: {e}")
+        if not events:
             return None
+
+        event = events[0] if isinstance(events, list) else events
+        return _parse_event_to_btc_market(event)
+
+    except CircuitOpenError:
+        logger.warning("Gamma API circuit open, skipping BTC market fetch")
+        return None
+    except Exception as e:
+        logger.debug(f"Failed to fetch BTC market {slug}: {e}")
+        return None
 
 
 async def fetch_active_btc_markets(
@@ -241,21 +276,27 @@ async def fetch_btc_market_for_settlement(slug: str) -> Optional[BtcMarket]:
     url = f"{GAMMA_API}/events"
     params = {"slug": slug}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            events = response.json()
+    try:
+        async def _do_fetch():
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
 
-            if not events:
-                return None
+        events = await gamma_breaker.call(_do_fetch)
 
-            event = events[0] if isinstance(events, list) else events
-            return _parse_event_to_btc_market(event)
-
-        except Exception as e:
-            logger.warning(f"Failed to fetch BTC market for settlement {slug}: {e}")
+        if not events:
             return None
+
+        event = events[0] if isinstance(events, list) else events
+        return _parse_event_to_btc_market(event)
+
+    except CircuitOpenError:
+        logger.warning("Gamma API circuit open, skipping settlement fetch for %s", slug)
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to fetch BTC market for settlement {slug}: {e}")
+        return None
 
 
 if __name__ == "__main__":

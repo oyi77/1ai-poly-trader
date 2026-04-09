@@ -50,6 +50,7 @@ from backend.api.auth import router as auth_router, require_admin
 from backend.api.markets import router as markets_router
 from backend.api.trading import (
     router as trading_router,
+    _signal_to_response,
     _compute_calibration_summary,
     CalibrationSummary,
     CalibrationBucket,
@@ -83,6 +84,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from backend.api.rate_limiter import RateLimiterMiddleware
+app.add_middleware(RateLimiterMiddleware, requests_per_minute=100)
 
 # Include routers
 app.include_router(auth_router)
@@ -329,9 +333,32 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    from backend.core.scheduler import stop_scheduler
+    from backend.core.scheduler import stop_scheduler, scheduler as _scheduler
 
+    logger.info("Shutdown initiated — stopping scheduler...")
+    app.state.shutting_down = True
+
+    # Stop APScheduler gracefully
     stop_scheduler()
+
+    # Wait up to 30s for in-flight operations
+    deadline = 30
+    waited = 0
+    while waited < deadline:
+        if _scheduler is None or not getattr(_scheduler, "running", False):
+            break
+        await asyncio.sleep(0.5)
+        waited += 0.5
+
+    # Close database connections
+    try:
+        from backend.models.database import engine
+        engine.dispose()
+        logger.info("Database connections closed")
+    except Exception:
+        logger.exception("Error closing database connections")
+
+    logger.info("Shutdown complete")
 
 
 # Core endpoints

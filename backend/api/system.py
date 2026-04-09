@@ -31,6 +31,8 @@ class BotStats(BaseModel):
     total_pnl: float
     is_running: bool
     last_run: Optional[datetime]
+    # Initial bankroll for return calculation
+    initial_bankroll: float = 10000.0
     # Paper trading fields
     paper_pnl: float = 0.0
     paper_bankroll: float = 10000.0
@@ -106,6 +108,7 @@ async def get_stats(db: Session = Depends(get_db)):
         total_pnl=display_pnl,
         is_running=state.is_running,
         last_run=state.last_run,
+        initial_bankroll=settings.INITIAL_BANKROLL,
         paper_pnl=paper_pnl,
         paper_bankroll=paper_bankroll,
         paper_trades=paper_trades,

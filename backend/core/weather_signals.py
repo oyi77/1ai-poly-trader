@@ -269,7 +269,7 @@ def _persist_weather_signals(signals: list):
             )
             db.add(db_signal)
             try:
-                from backend.api.main import _broadcast_event
+                from backend.core.event_bus import _broadcast_event
                 _broadcast_event("signal_found", {
                     "market_ticker": db_signal.market_ticker,
                     "direction": db_signal.direction,

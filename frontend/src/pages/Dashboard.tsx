@@ -178,9 +178,9 @@ export default function Dashboard() {
 
         {btcPrice && (
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-sm font-bold tabular-nums text-neutral-100">${btcPrice.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-            <span className={`text-[10px] tabular-nums ${btcPrice.change_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {btcPrice.change_24h >= 0 ? '+' : ''}{btcPrice.change_24h.toFixed(2)}%
+            <span className="text-sm font-bold tabular-nums text-neutral-100">${(btcPrice.price ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            <span className={`text-[10px] tabular-nums ${(btcPrice.change_24h ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {(btcPrice.change_24h ?? 0) >= 0 ? '+' : ''}{(btcPrice.change_24h ?? 0).toFixed(2)}%
             </span>
           </div>
         )}

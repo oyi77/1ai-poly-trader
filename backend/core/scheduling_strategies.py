@@ -8,10 +8,306 @@ from datetime import datetime
 from sqlalchemy import func
 
 from backend.config import settings
-from backend.models.database import SessionLocal, Trade, BotState, Signal
+from backend.models.database import SessionLocal, Trade, BotState, Signal, PendingApproval
 from backend.core.signals import scan_for_signals
+from backend.core.decisions import record_decision
+from backend.core.event_bus import _broadcast_event
 
 logger = logging.getLogger("trading_bot")
+
+
+async def _process_signal_with_approval(
+    signal,
+    state,
+    db,
+    trades_executed: int,
+    max_trades: int,
+) -> int:
+    """
+    Process a signal through the approval workflow.
+
+    Returns updated trades_executed count.
+    """
+    from backend.core.scheduler import log_event
+
+    # Check if we already have a trade or pending approval for this market
+    existing_trade = db.query(Trade).filter(
+        Trade.event_slug == signal.market.slug,
+        Trade.settled == False
+    ).first()
+
+    existing_pending = db.query(PendingApproval).filter(
+        PendingApproval.market_id == signal.market.market_id,
+        PendingApproval.status == "pending"
+    ).first()
+
+    if existing_trade or existing_pending:
+        logger.debug(f"Skipping {signal.market.slug}: already has trade or pending approval")
+        return trades_executed
+
+    if trades_executed >= max_trades:
+        return trades_executed
+
+    # Get approval mode
+    approval_mode = settings.SIGNAL_APPROVAL_MODE
+    min_confidence = settings.AUTO_APPROVE_MIN_CONFIDENCE
+
+    # Calculate trade size
+    MAX_TRADE_FRACTION = 0.03
+    MIN_TRADE_SIZE = 10
+    trade_size = min(signal.suggested_size, state.bankroll * MAX_TRADE_FRACTION)
+    trade_size = max(trade_size, MIN_TRADE_SIZE)
+
+    if state.bankroll < MIN_TRADE_SIZE:
+        log_event("warning", f"Bankroll too low: ${state.bankroll:.2f}")
+        return trades_executed
+
+    # Map signal to approval format
+    approval_signal = {
+        "market_id": signal.market.market_id,
+        "market_title": f"BTC {signal.market.window_start.strftime('%H:%M')} - {signal.market.window_end.strftime('%H:%M')} UTC",
+        "side": signal.direction.upper(),
+        "price": signal.market.up_price if signal.direction == "up" else signal.market.down_price,
+        "size": trade_size,
+        "confidence": signal.confidence,
+        "model_probability": signal.model_probability,
+        "market_probability": signal.market_probability,
+        "edge": signal.edge,
+        "direction": signal.direction,
+        "slug": signal.market.slug,
+        "up_token_id": signal.market.up_token_id,
+        "down_token_id": signal.market.down_token_id,
+    }
+
+    # Handle based on approval mode
+    if approval_mode == "auto_deny":
+        # Auto-deny: skip all signals
+        record_decision(
+            db, "btc_5m",
+            signal.market.market_id,
+            "SKIP",
+            confidence=signal.confidence,
+            signal_data={
+                "direction": signal.direction,
+                "model_probability": signal.model_probability,
+                "market_probability": signal.market_probability,
+                "edge": signal.edge,
+                "btc_price": getattr(signal, "btc_price", None),
+            },
+            reason="auto-deny mode: signal rejected"
+        )
+        log_event("info", f"Auto-denied signal for {signal.market.slug}")
+        return trades_executed
+
+    elif approval_mode == "auto_approve" and signal.confidence >= min_confidence:
+        # Auto-approve high confidence signals
+        return await _execute_trade(signal, state, db, trade_size, trades_executed)
+
+    # Manual approval or low confidence: queue for approval
+    return await _queue_for_approval(signal, state, db, trade_size, approval_signal, trades_executed)
+
+
+async def _execute_trade(signal, state, db, trade_size, trades_executed: int) -> int:
+    """Execute a trade immediately."""
+    from backend.core.scheduler import log_event
+    from backend.data.polymarket_clob import clob_from_settings
+    from sqlalchemy.exc import IntegrityError
+
+    # Map up/down to yes/no for storage
+    entry_price = signal.market.up_price if signal.direction == "up" else signal.market.down_price
+
+    trade = Trade(
+        market_ticker=signal.market.market_id,
+        platform="polymarket",
+        event_slug=signal.market.slug,
+        direction=signal.direction,
+        entry_price=entry_price,
+        size=trade_size,
+        model_probability=signal.model_probability,
+        market_price_at_entry=signal.market_probability,
+        edge_at_entry=signal.edge,
+        trading_mode=settings.TRADING_MODE,
+    )
+
+    try:
+        db.add(trade)
+        db.flush()  # get trade.id
+    except IntegrityError:
+        # Duplicate trade for this market window - skip
+        logger.debug(f"Skipping {signal.market.slug}: trade already exists for this window")
+        db.rollback()
+        return trades_executed
+
+    # Link trade to the most recent matching Signal and mark it executed
+    matching_signal = db.query(Signal).filter(
+        Signal.market_ticker == signal.market.market_id,
+        Signal.executed == False,
+    ).order_by(Signal.timestamp.desc()).first()
+    if matching_signal:
+        matching_signal.executed = True
+        trade.signal_id = matching_signal.id
+
+    trades_executed += 1
+
+    # Execute on-chain for testnet / live modes
+    clob_order_id = None
+    if settings.TRADING_MODE in ("testnet", "live"):
+        token_id = (
+            signal.market.up_token_id
+            if signal.direction == "up"
+            else signal.market.down_token_id
+        )
+        if token_id:
+            try:
+                async with clob_from_settings() as clob:
+                    result = await clob.place_limit_order(
+                        token_id=token_id,
+                        side="BUY",
+                        price=entry_price,
+                        size=trade_size,
+                    )
+                if result.success:
+                    clob_order_id = result.order_id
+                    log_event("success",
+                        f"[{settings.TRADING_MODE.upper()}] Order placed: {result.order_id}",
+                        {"order_id": result.order_id, "mode": settings.TRADING_MODE}
+                    )
+                else:
+                    log_event("warning",
+                        f"[{settings.TRADING_MODE.upper()}] Order rejected: {result.error}",
+                        {"error": result.error}
+                    )
+            except Exception as _clob_err:
+                log_event("error", f"CLOB execution error: {_clob_err}")
+        else:
+            log_event("warning",
+                f"[{settings.TRADING_MODE.upper()}] No token_id for {signal.market.slug} — order skipped"
+            )
+
+    if clob_order_id:
+        trade.clob_order_id = clob_order_id
+
+    # Record BUY decision
+    try:
+        record_decision(
+            db, "btc_5m",
+            signal.market.market_id,
+            "BUY",
+            confidence=signal.confidence,
+            signal_data={
+                "direction": signal.direction,
+                "model_probability": signal.model_probability,
+                "market_probability": signal.market_probability,
+                "edge": signal.edge,
+                "btc_price": getattr(signal, "btc_price", None),
+                "trade_id": trade.id,
+                "trade_size": trade_size,
+                "mode": settings.TRADING_MODE,
+            },
+            reason=f"edge {signal.edge:.3f} >= threshold, {signal.direction} @ {entry_price:.0%}"
+        )
+    except Exception as _de:
+        logger.warning(f"Decision logging (BUY) failed: {_de}")
+
+    # Broadcast event
+    try:
+        _broadcast_event("trade_opened", {
+            "trade_id": trade.id,
+            "market_ticker": trade.market_ticker,
+            "direction": trade.direction,
+            "size": trade.size,
+            "entry_price": trade.entry_price,
+            "mode": settings.TRADING_MODE,
+            "clob_order_id": clob_order_id,
+        })
+    except Exception:
+        pass
+
+    # Send notification
+    try:
+        from backend.bot.notifier import notify_btc_signal
+        notify_btc_signal(signal, trade)
+    except Exception:
+        pass
+
+    mode_label = f"[{settings.TRADING_MODE.upper()}] " if settings.TRADING_MODE != "paper" else ""
+    log_event("trade",
+        f"{mode_label}BTC {signal.direction.upper()} ${trade_size:.0f} @ {entry_price:.0%} | {signal.market.slug}",
+        {
+            "slug": signal.market.slug,
+            "direction": signal.direction,
+            "size": trade_size,
+            "edge": signal.edge,
+            "entry_price": entry_price,
+            "btc_price": signal.btc_price,
+            "clob_order_id": clob_order_id,
+        }
+    )
+
+    return trades_executed
+
+
+async def _queue_for_approval(signal, state, db, trade_size, approval_signal, trades_executed: int) -> int:
+    """Queue a signal for manual approval."""
+    from backend.core.scheduler import log_event
+
+    pending = PendingApproval(
+        market_id=signal.market.market_id,
+        direction=signal.direction.upper(),
+        size=trade_size,
+        confidence=signal.confidence,
+        signal_data=approval_signal,
+        status="pending",
+    )
+    db.add(pending)
+    db.flush()
+
+    # Record decision
+    try:
+        record_decision(
+            db, "btc_5m",
+            signal.market.market_id,
+            "PENDING",
+            confidence=signal.confidence,
+            signal_data={
+                "direction": signal.direction,
+                "model_probability": signal.model_probability,
+                "market_probability": signal.market_probability,
+                "edge": signal.edge,
+                "btc_price": getattr(signal, "btc_price", None),
+                "pending_id": pending.id,
+                "trade_size": trade_size,
+            },
+            reason=f"queued for manual approval (conf {signal.confidence:.2f})"
+        )
+    except Exception as _de:
+        logger.warning(f"Decision logging (PENDING) failed: {_de}")
+
+    # Broadcast event
+    try:
+        _broadcast_event("signal_found", {
+            "market_ticker": signal.market.market_id,
+            "market_title": f"BTC {signal.market.window_start.strftime('%H:%M')} - {signal.market.window_end.strftime('%H:%M')} UTC",
+            "direction": signal.direction,
+            "model_probability": signal.model_probability,
+            "market_probability": signal.market_probability,
+            "edge": signal.edge,
+            "confidence": signal.confidence,
+            "suggested_size": trade_size,
+            "reasoning": "Signal queued for approval",
+            "timestamp": datetime.utcnow().isoformat(),
+            "category": "trading",
+            "btc_price": getattr(signal, "btc_price", None),
+            "window_end": signal.market.window_end.isoformat() if signal.market.window_end else None,
+            "actionable": True,
+            "event_slug": signal.market.slug,
+        })
+    except Exception:
+        pass
+
+    log_event("info", f"Queued signal for approval: {signal.market.slug} (conf {signal.confidence:.2f})")
+
+    return trades_executed
 
 
 async def scan_and_trade_job():
@@ -96,149 +392,14 @@ async def scan_and_trade_job():
                 log_event("info", f"Max pending trades reached ({total_pending}/{MAX_TOTAL_PENDING})")
                 return
 
+            # Process signals through approval workflow
+            MAX_TRADES_PER_SCAN = 2
             trades_executed = 0
+
             for signal in actionable[:MAX_TRADES_PER_SCAN]:
-                # Check if we already have a trade for this market window
-                existing = db.query(Trade).filter(
-                    Trade.event_slug == signal.market.slug,
-                    Trade.settled == False
-                ).first()
-
-                if existing:
-                    continue
-
-                trade_size = min(signal.suggested_size, state.bankroll * MAX_TRADE_FRACTION)
-                trade_size = max(trade_size, MIN_TRADE_SIZE)
-
-                if state.bankroll < MIN_TRADE_SIZE:
-                    log_event("warning", f"Bankroll too low: ${state.bankroll:.2f}")
-                    break
-
-                if trades_executed >= MAX_TRADES_PER_SCAN:
-                    break
-
-                # Map up/down to yes/no for storage
-                entry_price = signal.market.up_price if signal.direction == "up" else signal.market.down_price
-
-                trade = Trade(
-                    market_ticker=signal.market.market_id,
-                    platform="polymarket",
-                    event_slug=signal.market.slug,
-                    direction=signal.direction,
-                    entry_price=entry_price,
-                    size=trade_size,
-                    model_probability=signal.model_probability,
-                    market_price_at_entry=signal.market_probability,
-                    edge_at_entry=signal.edge,
-                    trading_mode=settings.TRADING_MODE,
+                trades_executed = await _process_signal_with_approval(
+                    signal, state, db, trades_executed, MAX_TRADES_PER_SCAN
                 )
-
-                db.add(trade)
-                db.flush()  # get trade.id
-
-                # Link trade to the most recent matching Signal and mark it executed
-                matching_signal = db.query(Signal).filter(
-                    Signal.market_ticker == signal.market.market_id,
-                    Signal.executed == False,
-                ).order_by(Signal.timestamp.desc()).first()
-                if matching_signal:
-                    matching_signal.executed = True
-                    trade.signal_id = matching_signal.id
-
-                trades_executed += 1
-
-                # Execute on-chain for testnet / live modes
-                clob_order_id = None
-                if settings.TRADING_MODE in ("testnet", "live"):
-                    token_id = (
-                        signal.market.up_token_id
-                        if signal.direction == "up"
-                        else signal.market.down_token_id
-                    )
-                    if token_id:
-                        try:
-                            from backend.data.polymarket_clob import clob_from_settings
-                            async with clob_from_settings() as clob:
-                                result = await clob.place_limit_order(
-                                    token_id=token_id,
-                                    side="BUY",
-                                    price=entry_price,
-                                    size=trade_size,
-                                )
-                            if result.success:
-                                clob_order_id = result.order_id
-                                log_event("success",
-                                    f"[{settings.TRADING_MODE.upper()}] Order placed: {result.order_id}",
-                                    {"order_id": result.order_id, "mode": settings.TRADING_MODE}
-                                )
-                            else:
-                                log_event("warning",
-                                    f"[{settings.TRADING_MODE.upper()}] Order rejected: {result.error}",
-                                    {"error": result.error}
-                                )
-                        except Exception as _clob_err:
-                            log_event("error", f"CLOB execution error: {_clob_err}")
-                    else:
-                        log_event("warning",
-                            f"[{settings.TRADING_MODE.upper()}] No token_id for {signal.market.slug} — order skipped"
-                        )
-
-                if clob_order_id:
-                    trade.clob_order_id = clob_order_id
-
-                # Record BUY decision
-                try:
-                    from backend.core.decisions import record_decision
-                    record_decision(
-                        db, "btc_5m",
-                        signal.market.market_id,
-                        "BUY",
-                        confidence=signal.confidence,
-                        signal_data={
-                            "direction": signal.direction,
-                            "model_probability": signal.model_probability,
-                            "market_probability": signal.market_probability,
-                            "edge": signal.edge,
-                            "btc_price": getattr(signal, "btc_price", None),
-                            "trade_id": trade.id,
-                            "trade_size": trade_size,
-                            "mode": settings.TRADING_MODE,
-                        },
-                        reason=f"edge {signal.edge:.3f} >= threshold, {signal.direction} @ {entry_price:.0%}"
-                    )
-                except Exception as _de:
-                    logger.warning(f"Decision logging (BUY) failed: {_de}")
-
-                try:
-                    from backend.core.event_bus import _broadcast_event
-                    _broadcast_event("trade_opened", {
-                        "trade_id": trade.id,
-                        "market_ticker": trade.market_ticker,
-                        "direction": trade.direction,
-                        "size": trade.size,
-                        "entry_price": trade.entry_price,
-                        "mode": settings.TRADING_MODE,
-                        "clob_order_id": clob_order_id,
-                    })
-                except Exception:
-                    pass
-
-                mode_label = f"[{settings.TRADING_MODE.upper()}] " if settings.TRADING_MODE != "paper" else ""
-                log_event("trade",
-                    f"{mode_label}BTC {signal.direction.upper()} ${trade_size:.0f} @ {entry_price:.0%} | {signal.market.slug}",
-                    {
-                        "slug": signal.market.slug,
-                        "direction": signal.direction,
-                        "size": trade_size,
-                        "edge": signal.edge,
-                        "entry_price": entry_price,
-                        "btc_price": signal.btc_price,
-                        "clob_order_id": clob_order_id,
-                    }
-                )
-
-                from backend.bot.notifier import notify_btc_signal
-                notify_btc_signal(signal, trade)
 
             state.last_run = datetime.utcnow()
             db.commit()

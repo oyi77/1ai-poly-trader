@@ -24,6 +24,7 @@ export function useStats() {
     bankroll: 10000,
     winning_trades: 0,
     win_rate: 0,
+    initial_bankroll: 10000,
     mode: 'paper',
     paper: { pnl: 0, bankroll: 10000, trades: 0, wins: 0, win_rate: 0 },
     live: { pnl: 0, bankroll: 0, trades: 0, wins: 0, win_rate: 0 },
@@ -40,9 +41,9 @@ export function useStats() {
   const trades = active ? active.trades : stats.total_trades
   // Use mode-specific bankroll when available, otherwise use default
   const bankroll = active ? active.bankroll : stats.bankroll
-  const winRate = trades > 0 ? (wins / trades) : 0
-  const costBasis = bankroll - pnl
-  const returnPercent = costBasis > 0 ? (pnl / costBasis * 100) : 0
+  const initialBankroll = stats.initial_bankroll || 10000
+  const winRate = trades > 0 ? (wins / trades * 100) : 0
+  const returnPercent = initialBankroll > 0 ? (pnl / initialBankroll * 100) : 0
 
   return {
     // Raw stats

@@ -38,11 +38,16 @@ export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props)
     try {
       const res = await fetch(`${API_URL}/api/events?limit=30`)
       if (res.ok) {
+        const contentType = res.headers.get('content-type') || ''
+        if (!contentType.includes('application/json')) {
+          // API returned HTML (e.g. nginx fallback) — terminal unavailable
+          return
+        }
         const events = await res.json()
         setLogs(events.filter((e: LogEntry) => e.type !== 'heartbeat'))
       }
-    } catch (err) {
-      console.error('Failed to fetch events:', err)
+    } catch {
+      // Silently ignore fetch/parse errors — terminal degrades gracefully
     }
   }, [])
 
@@ -75,15 +80,16 @@ export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props)
         ws.onclose = () => {
           setWsConnected(false)
           wsRef.current = null
-          // Attempt reconnect after 5 seconds
-          reconnectTimeoutRef.current = setTimeout(connectWs, 5000)
+          // Attempt reconnect after 10 seconds (reduced frequency to avoid console spam)
+          reconnectTimeoutRef.current = setTimeout(connectWs, 10000)
         }
 
         ws.onerror = () => {
+          // Suppress error — onclose will handle reconnect
           ws.close()
         }
-      } catch (err) {
-        // Fallback to polling if WebSocket fails
+      } catch {
+        // Fallback to polling if WebSocket construction fails
         setWsConnected(false)
       }
     }

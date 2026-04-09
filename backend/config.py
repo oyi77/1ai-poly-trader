@@ -88,7 +88,7 @@ class Settings(BaseSettings):
 
     # Admin API security
     ADMIN_API_KEY: Optional[str] = None
-    CORS_ORIGINS: str = "http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
 
     # Telegram bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None
@@ -110,9 +110,20 @@ class Settings(BaseSettings):
     MAX_POSITION_FRACTION: float = 0.05
     MAX_TOTAL_EXPOSURE_FRACTION: float = 0.50
     SLIPPAGE_TOLERANCE: float = 0.02
+    DAILY_DRAWDOWN_LIMIT_PCT: float = 0.10  # Pause trading if 24h loss > 10% of bankroll
+    WEEKLY_DRAWDOWN_LIMIT_PCT: float = 0.20  # Pause trading if 7d loss > 20% of bankroll
 
     AUTO_APPROVE_MIN_CONFIDENCE: float = 0.85
     AUTO_TRADER_ENABLED: bool = False
+
+    # Signal approval mode: "manual", "auto_approve", "auto_deny"
+    # manual: always show popup for user approval
+    # auto_approve: auto-approve signals above AUTO_APPROVE_MIN_CONFIDENCE
+    # auto_deny: auto-deny all signals
+    SIGNAL_APPROVAL_MODE: str = "manual"
+
+    # Signal notification duration (milliseconds)
+    SIGNAL_NOTIFICATION_DURATION_MS: int = 10000
 
     # Phase 2 feature flags
     NEWS_FEED_ENABLED: bool = False

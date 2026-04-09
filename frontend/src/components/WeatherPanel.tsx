@@ -19,8 +19,10 @@ function AgreementBar({ value }: { value: number }) {
 export function WeatherPanel({ forecasts, signals }: Props) {
   if (forecasts.length === 0 && signals.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-neutral-600 text-[10px]">
-        No weather data
+      <div className="h-full flex items-center justify-center text-center px-4">
+        <div className="text-neutral-600 text-[10px] leading-relaxed">
+          Weather scanning paused — enable in Admin &gt; Strategies
+        </div>
       </div>
     )
   }

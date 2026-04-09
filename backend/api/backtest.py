@@ -10,10 +10,12 @@ import numpy as np
 
 from backend.models.database import get_db, SessionLocal, Trade, Signal
 from backend.models.backtest import BacktestRun, BacktestTrade
-from backend.strategies.registry import BaseStrategy, STRATEGY_REGISTRY
+from backend.strategies.registry import BaseStrategy, STRATEGY_REGISTRY, load_all_strategies
 
 
 def get_all_strategies() -> dict:
+    if not STRATEGY_REGISTRY:
+        load_all_strategies()
     return dict(STRATEGY_REGISTRY)
 
 
@@ -28,17 +30,24 @@ router = APIRouter()
 async def get_backtest_strategies():
     """Get all available strategies for backtesting."""
     strategies = get_all_strategies()
-    return {
-        "strategies": [
-            {
+    result = []
+    for name, strategy_class in strategies.items():
+        try:
+            inst = strategy_class()
+            result.append({
                 "name": name,
-                "description": strategy_class().description,
-                "category": strategy_class().category,
-                "default_params": strategy_class().default_params
-            }
-            for name, strategy_class in strategies.items()
-        ]
-    }
+                "description": getattr(inst, "description", name),
+                "category": getattr(inst, "category", "general"),
+                "default_params": getattr(inst, "default_params", {}),
+            })
+        except Exception:
+            result.append({
+                "name": name,
+                "description": name,
+                "category": "unknown",
+                "default_params": {},
+            })
+    return {"strategies": result}
 
 @router.get("/api/backtest/history")
 async def get_backtest_history(

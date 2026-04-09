@@ -11,6 +11,7 @@ All order sizes in USDC. All prices in [0.01, 0.99].
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -19,9 +20,13 @@ from eth_account import Account
 from eth_account.signers.local import LocalAccount
 
 from py_clob_client.client import ClobClient
-from py_clob_client.clob_types import ApiCreds, OrderArgs, OrderType
+from py_clob_client.clob_types import ApiCreds, OrderArgs, OrderType, BalanceAllowanceParams, AssetType
+
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger("trading_bot")
+
+clob_breaker = CircuitBreaker("polymarket_clob")
 
 CLOB_HOST_MAINNET = "https://clob.polymarket.com"
 CLOB_HOST_TESTNET = "https://clob-staging.polymarket.com"
@@ -34,6 +39,17 @@ CHAIN_ID_AMOY = 80002
 MIN_ORDER_USDC = 1.0
 
 
+def _check_idempotency(key: str) -> bool:
+    """Return True if an order with this idempotency key already exists in the DB."""
+    from backend.models.database import SessionLocal, Trade
+    db = SessionLocal()
+    try:
+        existing = db.query(Trade).filter(Trade.clob_idempotency_key == key).first()
+        return existing is not None
+    finally:
+        db.close()
+
+
 @dataclass
 class OrderResult:
     success: bool
@@ -41,6 +57,7 @@ class OrderResult:
     error: Optional[str] = None
     fill_price: Optional[float] = None
     fill_size: Optional[float] = None
+    idempotency_key: Optional[str] = None
 
 
 @dataclass
@@ -164,22 +181,31 @@ class PolymarketCLOB:
 
     async def get_order_book(self, token_id: str) -> OrderBook:
         """Fetch live order book for a token."""
-        resp = await self._http.get(f"{self._clob_host}/book", params={"token_id": token_id})
-        resp.raise_for_status()
-        data = resp.json()
+        if clob_breaker.state == "OPEN":
+            raise CircuitOpenError("polymarket_clob")
+        try:
+            resp = await self._http.get(f"{self._clob_host}/book", params={"token_id": token_id})
+            resp.raise_for_status()
+            data = resp.json()
 
-        bids = sorted(data.get("bids", []), key=lambda x: float(x["price"]), reverse=True)
-        asks = sorted(data.get("asks", []), key=lambda x: float(x["price"]))
+            bids = sorted(data.get("bids", []), key=lambda x: float(x["price"]), reverse=True)
+            asks = sorted(data.get("asks", []), key=lambda x: float(x["price"]))
 
-        mid = 0.5
-        if bids and asks:
-            mid = (float(bids[0]["price"]) + float(asks[0]["price"])) / 2
-        elif bids:
-            mid = float(bids[0]["price"])
-        elif asks:
-            mid = float(asks[0]["price"])
+            mid = 0.5
+            if bids and asks:
+                mid = (float(bids[0]["price"]) + float(asks[0]["price"])) / 2
+            elif bids:
+                mid = float(bids[0]["price"])
+            elif asks:
+                mid = float(asks[0]["price"])
 
-        return OrderBook(token_id=token_id, bids=bids, asks=asks, mid_price=mid)
+            await clob_breaker._on_success()
+            return OrderBook(token_id=token_id, bids=bids, asks=asks, mid_price=mid)
+        except CircuitOpenError:
+            raise
+        except Exception:
+            await clob_breaker._on_failure()
+            raise
 
     async def get_mid_price(self, token_id: str) -> float:
         """Get mid-price for a token (fast, single endpoint)."""
@@ -281,6 +307,12 @@ class PolymarketCLOB:
         if size < MIN_ORDER_USDC:
             return OrderResult(success=False, error=f"Size ${size:.2f} below minimum ${MIN_ORDER_USDC}")
 
+        idempotency_key = str(uuid.uuid4())
+        if _check_idempotency(idempotency_key):
+            logger.warning(f"Duplicate idempotency key {idempotency_key}, skipping order")
+            return OrderResult(success=False, error="Duplicate idempotency key")
+        logger.info(f"Order idempotency_key={idempotency_key} | {side} {size} @ {price} token={token_id[:16]}...")
+
         if self.is_paper:
             # Paper trade: simulate fill at current mid-price
             try:
@@ -296,6 +328,7 @@ class PolymarketCLOB:
                 order_id=f"paper_{int(time.time())}",
                 fill_price=mid,
                 fill_size=size,
+                idempotency_key=idempotency_key,
             )
 
         # Live/testnet mode — use py-clob-client
@@ -303,6 +336,10 @@ class PolymarketCLOB:
             return OrderResult(success=False, error="ClobClient not initialised — private_key required")
         if not self._clob_client.creds:
             return OrderResult(success=False, error="API credentials required — call create_or_derive_api_creds() first")
+
+        if clob_breaker.state == "OPEN":
+            logger.warning("CLOB circuit OPEN, rejecting order placement")
+            return OrderResult(success=False, error="Circuit breaker OPEN for polymarket_clob")
 
         mode_label = "[TESTNET]" if self.mode == "testnet" else "[LIVE]"
         try:
@@ -326,11 +363,13 @@ class PolymarketCLOB:
 
             order_id = resp.get("orderID", resp.get("id", "unknown")) if isinstance(resp, dict) else str(resp)
             logger.info(f"{mode_label} Order placed: {order_id} | {side} {size} @ {price}")
+            await clob_breaker._on_success()
             return OrderResult(success=True, order_id=order_id)
 
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Order failed: {error_msg}")
+            await clob_breaker._on_failure()
             return OrderResult(success=False, error=error_msg)
 
     async def cancel_order(self, order_id: str) -> bool:
@@ -372,6 +411,34 @@ class PolymarketCLOB:
         except Exception as e:
             logger.error(f"Failed to cancel all orders: {e}")
             return False
+
+    async def get_wallet_balance(self) -> dict:
+        """
+        Fetch wallet balance from Polymarket.
+
+        Returns:
+            dict: {
+                "usdc_balance": float,
+                "token_balances": dict,  # token_id -> balance
+                "error": str | None
+            }
+        """
+        if self.is_paper or not self._clob_client or not self._clob_client.creds:
+            return {"usdc_balance": 0.0, "token_balances": {}, "error": "Not in live/testnet mode or not authenticated"}
+
+        try:
+            # Fetch collateral balance (USDC)
+            params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+            resp = await asyncio.to_thread(self._clob_client.get_balance_allowance, params)
+
+            if resp and isinstance(resp, dict):
+                usdc_balance = float(resp.get("balance", 0)) / 1e6  # Convert from 6 decimals
+                return {"usdc_balance": usdc_balance, "token_balances": resp.get("tokenBalances", {}), "error": None}
+            else:
+                return {"usdc_balance": 0.0, "token_balances": {}, "error": "Invalid response from balance endpoint"}
+        except Exception as e:
+            logger.error(f"Failed to fetch wallet balance: {e}")
+            return {"usdc_balance": 0.0, "token_balances": {}, "error": str(e)}
 
 
 # =========================================================================

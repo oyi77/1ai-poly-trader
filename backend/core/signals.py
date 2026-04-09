@@ -232,11 +232,30 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
     if not passes_filters:
         edge = 0.0
 
-    # Confidence: based on convergence strength + volatility
-    #   Low volatility = lower confidence (less movement expected)
-    vol_factor = min(1.0, micro.volatility / 0.05) if micro.volatility > 0 else 0.5
+    # Confidence: based on signal strength, convergence, and edge magnitude
+    # Higher edge + stronger convergence = higher confidence
     convergence_strength = max(up_votes, down_votes) / 4.0
-    confidence = min(0.8, 0.3 + convergence_strength * 0.3 + abs(composite) * 0.2) * vol_factor
+
+    # Base confidence from convergence (0.3 to 0.6)
+    base_confidence = 0.3 + convergence_strength * 0.3
+
+    # Add edge component (up to 0.2 for very high edges)
+    edge_component = min(0.2, abs(edge) / 0.2)  # 20% edge = max bonus
+
+    # Composite indicator strength (up to 0.1)
+    composite_component = min(0.1, abs(composite) * 0.5)
+
+    # Volatility adjustment: only penalize extreme low volatility (< 1%)
+    # Normal volatility doesn't reduce confidence
+    if micro.volatility > 0:
+        # Only reduce confidence for very low volatility (< 1%)
+        vol_adjustment = min(1.0, micro.volatility / 0.01)  # Normalizes 1% to 1.0
+        vol_adjustment = max(0.8, vol_adjustment)  # Floor at 0.8 (80%)
+    else:
+        vol_adjustment = 0.8  # 80% when volatility is 0
+
+    # Calculate final confidence (capped at 0.95)
+    confidence = min(0.95, (base_confidence + edge_component + composite_component) * vol_adjustment)
 
     # Kelly sizing
     bankroll = settings.INITIAL_BANKROLL
@@ -367,13 +386,26 @@ def _persist_signals(signals: list):
             )
             db.add(db_signal)
             try:
-                from backend.api.main import _broadcast_event
+                from backend.core.event_bus import _broadcast_event
+                # Find the original signal to get full context
+                original_signal = next((s for s in signals if s.market.market_id == db_signal.market_ticker), None)
+                market_title = f"BTC {original_signal.market.window_start.strftime('%H:%M')} - {original_signal.market.window_end.strftime('%H:%M')} UTC" if original_signal else db_signal.market_ticker
                 _broadcast_event("signal_found", {
                     "market_ticker": db_signal.market_ticker,
+                    "market_title": market_title,
                     "direction": db_signal.direction,
+                    "model_probability": db_signal.model_probability,
+                    "market_probability": db_signal.market_price,
+                    "edge": db_signal.edge,
                     "confidence": db_signal.confidence,
-                    "reasoning": db_signal.reasoning,
                     "suggested_size": db_signal.suggested_size,
+                    "reasoning": db_signal.reasoning,
+                    "timestamp": db_signal.timestamp.isoformat(),
+                    "category": "trading",
+                    "btc_price": original_signal.btc_price if original_signal else None,
+                    "window_end": original_signal.market.window_end.isoformat() if original_signal and original_signal.market.window_end else None,
+                    "actionable": abs(db_signal.edge) >= 0.02,
+                    "event_slug": original_signal.market.slug if original_signal else None,
                 })
             except Exception:
                 pass

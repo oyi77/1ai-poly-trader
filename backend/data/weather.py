@@ -9,7 +9,12 @@ from typing import Dict, List, Optional
 import statistics
 import time
 
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+
 logger = logging.getLogger("trading_bot")
+
+# Circuit breaker for Open-Meteo API calls
+openmeteo_breaker = CircuitBreaker("open_meteo")
 
 # City configurations — AIRPORT coordinates matching METAR stations used by Polymarket
 # Using airport lat/lon eliminates the systematic 3-8°F error from city-center coords
@@ -232,70 +237,75 @@ async def fetch_ensemble_forecast(city_key: str, target_date: Optional[date] = N
             return cached_forecast
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Open-Meteo Ensemble API — GFS ensemble with 31 members
-            # For non-US cities (unit="C"), fetch Celsius and convert to Fahrenheit locally
-            city_unit = city.get("unit", "F")
-            params = {
-                "latitude": city["lat"],
-                "longitude": city["lon"],
-                "daily": "temperature_2m_max,temperature_2m_min",
-                "start_date": target_date.isoformat(),
-                "end_date": target_date.isoformat(),
-                "models": "gfs_seamless",
-            }
-            if city_unit == "F":
-                params["temperature_unit"] = "fahrenheit"
-            # If unit is "C", omit temperature_unit — Open-Meteo returns Celsius by default
+        city_unit = city.get("unit", "F")
+        req_params = {
+            "latitude": city["lat"],
+            "longitude": city["lon"],
+            "daily": "temperature_2m_max,temperature_2m_min",
+            "start_date": target_date.isoformat(),
+            "end_date": target_date.isoformat(),
+            "models": "gfs_seamless",
+        }
+        if city_unit == "F":
+            req_params["temperature_unit"] = "fahrenheit"
 
-            response = await client.get(
-                "https://ensemble-api.open-meteo.com/v1/ensemble",
-                params=params,
-            )
-            response.raise_for_status()
-            data = response.json()
+        async def _do_fetch():
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                # Open-Meteo Ensemble API — GFS ensemble with 31 members
+                # For non-US cities (unit="C"), fetch Celsius and convert to Fahrenheit locally
+                response = await client.get(
+                    "https://ensemble-api.open-meteo.com/v1/ensemble",
+                    params=req_params,
+                )
+                response.raise_for_status()
+                return response.json()
 
-            daily = data.get("daily", {})
+        data = await openmeteo_breaker.call(_do_fetch)
 
-            # Open-Meteo returns each ensemble member as a separate key:
-            #   temperature_2m_max (control), temperature_2m_max_member01, ..., _member30
-            # Collect all member values for highs and lows
-            # All member temps stored in Fahrenheit regardless of source unit
-            member_highs = []
-            member_lows = []
+        daily = data.get("daily", {})
 
-            for key, values in daily.items():
-                if not isinstance(values, list) or not values:
-                    continue
-                val = values[0]
-                if val is None:
-                    continue
-                if "temperature_2m_max" in key:
-                    temp_f = float(val) if city_unit == "F" else _celsius_to_fahrenheit(float(val))
-                    member_highs.append(temp_f)
-                elif "temperature_2m_min" in key:
-                    temp_f = float(val) if city_unit == "F" else _celsius_to_fahrenheit(float(val))
-                    member_lows.append(temp_f)
+        # Open-Meteo returns each ensemble member as a separate key:
+        #   temperature_2m_max (control), temperature_2m_max_member01, ..., _member30
+        # Collect all member values for highs and lows
+        # All member temps stored in Fahrenheit regardless of source unit
+        member_highs = []
+        member_lows = []
 
-            if not member_highs:
-                logger.warning(f"No ensemble data for {city_key} on {target_date}")
-                return None
+        for key, values in daily.items():
+            if not isinstance(values, list) or not values:
+                continue
+            val = values[0]
+            if val is None:
+                continue
+            if "temperature_2m_max" in key:
+                temp_f = float(val) if city_unit == "F" else _celsius_to_fahrenheit(float(val))
+                member_highs.append(temp_f)
+            elif "temperature_2m_min" in key:
+                temp_f = float(val) if city_unit == "F" else _celsius_to_fahrenheit(float(val))
+                member_lows.append(temp_f)
 
-            forecast = EnsembleForecast(
-                city_key=city_key,
-                city_name=city["name"],
-                target_date=target_date,
-                member_highs=member_highs,
-                member_lows=member_lows,
-            )
+        if not member_highs:
+            logger.warning(f"No ensemble data for {city_key} on {target_date}")
+            return None
 
-            _forecast_cache[cache_key] = (now, forecast)
-            logger.info(f"Ensemble forecast for {city['name']} on {target_date}: "
-                        f"High {forecast.mean_high:.1f}F +/- {forecast.std_high:.1f}F "
-                        f"({forecast.num_members} members)")
+        forecast = EnsembleForecast(
+            city_key=city_key,
+            city_name=city["name"],
+            target_date=target_date,
+            member_highs=member_highs,
+            member_lows=member_lows,
+        )
 
-            return forecast
+        _forecast_cache[cache_key] = (now, forecast)
+        logger.info(f"Ensemble forecast for {city['name']} on {target_date}: "
+                    f"High {forecast.mean_high:.1f}F +/- {forecast.std_high:.1f}F "
+                    f"({forecast.num_members} members)")
 
+        return forecast
+
+    except CircuitOpenError:
+        logger.warning("Open-Meteo circuit OPEN, skipping ensemble forecast for %s", city_key)
+        return None
     except Exception as e:
         logger.warning(f"Failed to fetch ensemble forecast for {city_key}: {e}")
         return None

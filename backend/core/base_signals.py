@@ -1,9 +1,12 @@
 """Abstract base classes for signal generators."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -121,7 +124,7 @@ class SignalAggregator:
                     all_signals.extend(signals)
                 except Exception as e:
                     # Log error but continue with other generators
-                    print(f"Error in signal generator {generator.get_name()}: {e}")
+                    logger.error(f"Error in signal generator {generator.get_name()}: {e}")
         return all_signals
 
     def get_generator(self, name: str) -> Optional[BaseSignalGenerator]:

@@ -7,7 +7,15 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.core.retry import retry
+
 logger = logging.getLogger(__name__)
+
+# Per-exchange circuit breakers for the BTC kline fallback chain
+coinbase_breaker = CircuitBreaker("coinbase")
+kraken_breaker = CircuitBreaker("kraken")
+binance_breaker = CircuitBreaker("binance")
 
 # ---------------------------------------------------------------------------
 # Binance 1-min kline fetcher + technical indicators for BTC 5-min trading
@@ -21,6 +29,9 @@ KRAKEN_API = "https://api.kraken.com/0/public"
 # 30-second cache to avoid hammering Binance during a single scan cycle
 _kline_cache: Dict[str, Any] = {"data": None, "ts": 0.0}
 _CACHE_TTL = 30.0
+
+# Feed health tracking: source_name -> last_successful_fetch_timestamp
+_feed_health: dict[str, float] = {}
 
 
 @dataclass
@@ -58,73 +69,91 @@ async def fetch_binance_klines(limit: int = 60) -> Optional[List[list]]:
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         # Try Coinbase first (US-accessible, reliable)
-        try:
-            import datetime as _dt
-            end = _dt.datetime.now(_dt.timezone.utc)
-            start = end - _dt.timedelta(minutes=limit)
-            resp = await client.get(
-                f"{COINBASE_API}/products/BTC-USD/candles",
-                params={
-                    "start": start.isoformat(),
-                    "end": end.isoformat(),
-                    "granularity": 60,
-                },
-            )
-            resp.raise_for_status()
-            rows = resp.json()
-            # Coinbase returns [time, low, high, open, close, volume] newest-first
-            rows = list(reversed(rows))
-            candles = [
-                [int(r[0]) * 1000, str(r[3]), str(r[2]), str(r[1]), str(r[4]), str(r[5])]
-                for r in rows
-            ]
-            _kline_cache["data"] = candles
-            _kline_cache["ts"] = now
-            _kline_cache["_source"] = "coinbase"
-            return candles
-        except Exception as e:
-            logger.warning(f"Coinbase kline fetch failed, trying Kraken: {e}")
-
-        # Fallback 1: Kraken (US-accessible, free)
-        try:
-            resp = await client.get(
-                f"{KRAKEN_API}/OHLC",
-                params={"pair": "XBTUSD", "interval": 1},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            result = data.get("result", {})
-            ohlc_key = [k for k in result if k != "last"]
-            if ohlc_key:
-                rows = result[ohlc_key[0]]
-                rows = rows[-limit:]
+        if coinbase_breaker.state != "OPEN":
+            try:
+                import datetime as _dt
+                end = _dt.datetime.now(_dt.timezone.utc)
+                start = end - _dt.timedelta(minutes=limit)
+                resp = await client.get(
+                    f"{COINBASE_API}/products/BTC-USD/candles",
+                    params={
+                        "start": start.isoformat(),
+                        "end": end.isoformat(),
+                        "granularity": 60,
+                    },
+                )
+                resp.raise_for_status()
+                rows = resp.json()
+                # Coinbase returns [time, low, high, open, close, volume] newest-first
+                rows = list(reversed(rows))
                 candles = [
-                    [int(r[0]) * 1000, str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[6])]
+                    [int(r[0]) * 1000, str(r[3]), str(r[2]), str(r[1]), str(r[4]), str(r[5])]
                     for r in rows
                 ]
                 _kline_cache["data"] = candles
                 _kline_cache["ts"] = now
-                _kline_cache["_source"] = "kraken"
+                _kline_cache["_source"] = "coinbase"
+                _feed_health["coinbase"] = time.time()
+                await coinbase_breaker._on_success()
                 return candles
-        except Exception as e:
-            logger.warning(f"Kraken kline fetch failed, trying Binance: {e}")
+            except Exception as e:
+                logger.warning(f"Coinbase kline fetch failed, trying Kraken: {e}")
+                await coinbase_breaker._on_failure()
+        else:
+            logger.warning("Coinbase circuit OPEN, skipping to Kraken")
+
+        # Fallback 1: Kraken (US-accessible, free)
+        if kraken_breaker.state != "OPEN":
+            try:
+                resp = await client.get(
+                    f"{KRAKEN_API}/OHLC",
+                    params={"pair": "XBTUSD", "interval": 1},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                result = data.get("result", {})
+                ohlc_key = [k for k in result if k != "last"]
+                if ohlc_key:
+                    rows = result[ohlc_key[0]]
+                    rows = rows[-limit:]
+                    candles = [
+                        [int(r[0]) * 1000, str(r[1]), str(r[2]), str(r[3]), str(r[4]), str(r[6])]
+                        for r in rows
+                    ]
+                    _kline_cache["data"] = candles
+                    _kline_cache["ts"] = now
+                    _kline_cache["_source"] = "kraken"
+                    _feed_health["kraken"] = time.time()
+                    await kraken_breaker._on_success()
+                    return candles
+            except Exception as e:
+                logger.warning(f"Kraken kline fetch failed, trying Binance: {e}")
+                await kraken_breaker._on_failure()
+        else:
+            logger.warning("Kraken circuit OPEN, skipping to Binance")
 
         # Fallback 2: Binance (geo-blocked in US)
-        try:
-            resp = await client.get(
-                f"{BINANCE_API}/klines",
-                params={"symbol": "BTCUSDT", "interval": "1m", "limit": limit},
-            )
-            resp.raise_for_status()
-            candles = resp.json()
-            _kline_cache["data"] = candles
-            _kline_cache["ts"] = now
-            _kline_cache["_source"] = "binance"
-            return candles
-        except Exception as e:
-            logger.warning(f"Binance kline fetch failed, trying Bybit: {e}")
+        if binance_breaker.state != "OPEN":
+            try:
+                resp = await client.get(
+                    f"{BINANCE_API}/klines",
+                    params={"symbol": "BTCUSDT", "interval": "1m", "limit": limit},
+                )
+                resp.raise_for_status()
+                candles = resp.json()
+                _kline_cache["data"] = candles
+                _kline_cache["ts"] = now
+                _kline_cache["_source"] = "binance"
+                _feed_health["binance"] = time.time()
+                await binance_breaker._on_success()
+                return candles
+            except Exception as e:
+                logger.warning(f"Binance kline fetch failed, trying Bybit: {e}")
+                await binance_breaker._on_failure()
+        else:
+            logger.warning("Binance circuit OPEN, skipping to Bybit")
 
-        # Fallback 3: Bybit
+        # Fallback 3: Bybit (last resort, no dedicated breaker)
         try:
             resp = await client.get(
                 f"{BYBIT_API}/kline",
@@ -146,6 +175,7 @@ async def fetch_binance_klines(limit: int = 60) -> Optional[List[list]]:
             _kline_cache["data"] = candles
             _kline_cache["ts"] = now
             _kline_cache["_source"] = "bybit"
+            _feed_health["bybit"] = time.time()
             return candles
         except Exception as e:
             logger.error(f"All kline sources failed: {e}")
@@ -178,80 +208,146 @@ def _compute_rsi(closes: List[float], period: int = 14) -> float:
     return 100.0 - (100.0 / (1.0 + rs))
 
 
+def get_feed_health() -> dict:
+    """Return health status per price feed source."""
+    now = time.time()
+    result = {}
+    for source in ["coinbase", "kraken", "binance", "bybit"]:
+        last_fetch = _feed_health.get(source)
+        if last_fetch is None:
+            result[source] = {"last_fetch": None, "age_seconds": None, "status": "unknown"}
+        else:
+            age = now - last_fetch
+            if age <= 60:
+                status = "ok"
+            elif age <= 300:
+                status = "stale"
+            else:
+                status = "dead"
+            result[source] = {"last_fetch": last_fetch, "age_seconds": round(age, 1), "status": status}
+    return result
+
+
+@retry(max_attempts=2, retryable_exceptions=(Exception,))
 async def compute_btc_microstructure() -> Optional[BtcMicrostructure]:
     """
     Fetch 60 one-minute candles and compute all technical indicators.
     Returns BtcMicrostructure or None on failure.
     """
-    candles = await fetch_binance_klines(limit=60)
+    try:
+        candles = await fetch_binance_klines(limit=60)
+    except Exception as e:
+        logger.error(f"Failed to fetch Binance klines: {e}")
+        # Return fallback values instead of None to prevent signal generation failure
+        return BtcMicrostructure(
+            rsi=50.0,
+            momentum_1m=0.0,
+            momentum_5m=0.0,
+            momentum_15m=0.0,
+            vwap=0.0,
+            vwap_deviation=0.0,
+            sma_crossover=0.0,
+            volatility=0.02,  # Default 2% volatility
+            price=0.0,
+            source="fallback",
+        )
+
     if not candles or len(candles) < 20:
         logger.warning("Not enough candle data for microstructure")
-        return None
+        # Return fallback values instead of None
+        return BtcMicrostructure(
+            rsi=50.0,
+            momentum_1m=0.0,
+            momentum_5m=0.0,
+            momentum_15m=0.0,
+            vwap=0.0,
+            vwap_deviation=0.0,
+            sma_crossover=0.0,
+            volatility=0.02,
+            price=0.0,
+            source="fallback",
+        )
 
-    closes = [float(c[4]) for c in candles]
-    volumes = [float(c[5]) for c in candles]
-    highs = [float(c[2]) for c in candles]
-    lows = [float(c[3]) for c in candles]
+    try:
+        closes = [float(c[4]) for c in candles]
+        volumes = [float(c[5]) for c in candles]
+        highs = [float(c[2]) for c in candles]
+        lows = [float(c[3]) for c in candles]
 
-    current_price = closes[-1]
+        current_price = closes[-1]
 
-    # RSI (14-period)
-    rsi = _compute_rsi(closes, 14)
+        # RSI (14-period)
+        rsi = _compute_rsi(closes, 14)
 
-    # Momentum: % change over lookback periods
-    def pct_change(lookback: int) -> float:
-        if len(closes) > lookback and closes[-1 - lookback] > 0:
-            return (closes[-1] - closes[-1 - lookback]) / closes[-1 - lookback] * 100
-        return 0.0
+        # Momentum: % change over lookback periods
+        def pct_change(lookback: int) -> float:
+            if len(closes) > lookback and closes[-1 - lookback] > 0:
+                return (closes[-1] - closes[-1 - lookback]) / closes[-1 - lookback] * 100
+            return 0.0
 
-    momentum_1m = pct_change(1)
-    momentum_5m = pct_change(5)
-    momentum_15m = pct_change(15)
+        momentum_1m = pct_change(1)
+        momentum_5m = pct_change(5)
+        momentum_15m = pct_change(15)
 
-    # VWAP (30-candle window)
-    vwap_window = min(30, len(closes))
-    typical_prices = [(highs[-i] + lows[-i] + closes[-i]) / 3 for i in range(1, vwap_window + 1)]
-    vwap_volumes = [volumes[-i] for i in range(1, vwap_window + 1)]
-    total_vol = sum(vwap_volumes)
-    if total_vol > 0:
-        vwap = sum(tp * v for tp, v in zip(typical_prices, vwap_volumes)) / total_vol
-    else:
-        vwap = current_price
-    vwap_deviation = (current_price - vwap) / vwap * 100 if vwap > 0 else 0.0
+        # VWAP (30-candle window)
+        vwap_window = min(30, len(closes))
+        typical_prices = [(highs[-i] + lows[-i] + closes[-i]) / 3 for i in range(1, vwap_window + 1)]
+        vwap_volumes = [volumes[-i] for i in range(1, vwap_window + 1)]
+        total_vol = sum(vwap_volumes)
+        if total_vol > 0:
+            vwap = sum(tp * v for tp, v in zip(typical_prices, vwap_volumes)) / total_vol
+        else:
+            vwap = current_price
+        vwap_deviation = (current_price - vwap) / vwap * 100 if vwap > 0 else 0.0
 
-    # SMA crossover: 5-period vs 15-period
-    sma5 = sum(closes[-5:]) / 5 if len(closes) >= 5 else current_price
-    sma15 = sum(closes[-15:]) / 15 if len(closes) >= 15 else current_price
-    sma_crossover = (sma5 - sma15) / current_price * 100 if current_price > 0 else 0.0
+        # SMA crossover: 5-period vs 15-period
+        sma5 = sum(closes[-5:]) / 5 if len(closes) >= 5 else current_price
+        sma15 = sum(closes[-15:]) / 15 if len(closes) >= 15 else current_price
+        sma_crossover = (sma5 - sma15) / current_price * 100 if current_price > 0 else 0.0
 
-    # Volatility: stdev of 1-min returns (last 30 candles)
-    vol_window = min(30, len(closes) - 1)
-    returns = [
-        (closes[-i] - closes[-i - 1]) / closes[-i - 1]
-        for i in range(1, vol_window + 1)
-        if closes[-i - 1] > 0
-    ]
-    if returns:
-        mean_ret = sum(returns) / len(returns)
-        variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
-        volatility = math.sqrt(variance) * 100  # as percentage
-    else:
-        volatility = 0.0
+        # Volatility: stdev of 1-min returns (last 30 candles)
+        vol_window = min(30, len(closes) - 1)
+        returns = [
+            (closes[-i] - closes[-i - 1]) / closes[-i - 1]
+            for i in range(1, vol_window + 1)
+            if closes[-i - 1] > 0
+        ]
+        if returns:
+            mean_ret = sum(returns) / len(returns)
+            variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
+            volatility = math.sqrt(variance) * 100  # as percentage
+        else:
+            volatility = 0.0
 
-    source = _kline_cache.get("_source", "unknown")
+        source = _kline_cache.get("_source", "unknown")
 
-    return BtcMicrostructure(
-        rsi=rsi,
-        momentum_1m=momentum_1m,
-        momentum_5m=momentum_5m,
-        momentum_15m=momentum_15m,
-        vwap=vwap,
-        vwap_deviation=vwap_deviation,
-        sma_crossover=sma_crossover,
-        volatility=volatility,
-        price=current_price,
-        source=source,
-    )
+        return BtcMicrostructure(
+            rsi=rsi,
+            momentum_1m=momentum_1m,
+            momentum_5m=momentum_5m,
+            momentum_15m=momentum_15m,
+            vwap=vwap,
+            vwap_deviation=vwap_deviation,
+            sma_crossover=sma_crossover,
+            volatility=volatility,
+            price=current_price,
+            source=source,
+        )
+    except Exception as e:
+        logger.error(f"Error computing microstructure indicators: {e}")
+        # Return fallback values on calculation error
+        return BtcMicrostructure(
+            rsi=50.0,
+            momentum_1m=0.0,
+            momentum_5m=0.0,
+            momentum_15m=0.0,
+            vwap=0.0,
+            vwap_deviation=0.0,
+            sma_crossover=0.0,
+            volatility=0.02,
+            price=0.0,
+            source="fallback_error",
+        )
 
 # CoinGecko API (free tier, no key needed)
 COINGECKO_API = "https://api.coingecko.com/api/v3"

@@ -93,6 +93,12 @@ class Trade(Base):
     clob_order_id = Column(
         String, nullable=True
     )  # Order ID returned by Polymarket CLOB
+    clob_idempotency_key = Column(String, nullable=True)  # UUID idempotency key per order attempt
+
+    # Unique constraint to prevent duplicate trades for same market window
+    __table_args__ = (
+        UniqueConstraint("event_slug", "settled", name="uq_market_window_trade"),
+    )
 
 
 class BtcPriceSnapshot(Base):
@@ -229,6 +235,7 @@ class CopyTraderEntry(Base):
     condition_id = Column(String, nullable=False)
     side = Column(String, nullable=False)  # "YES" or "NO"
     size = Column(Float, nullable=False)
+    pnl = Column(Float, nullable=True, default=0.0)
     opened_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -358,6 +365,15 @@ class PendingApproval(Base):
     status = Column(String, default="pending")  # pending|approved|rejected
     created_at = Column(DateTime, default=datetime.utcnow)
     decided_at = Column(DateTime, nullable=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    actor = Column(String, default="system")  # "system", "admin", "strategy:btc_5min"
+    action = Column(String)  # "trade_executed", "config_changed", "bot_started", etc.
+    details = Column(JSON, nullable=True)
 
 
 def init_db():
@@ -516,10 +532,24 @@ def ensure_schema():
 
     if "copy_trader_entries" not in copy_entry_tables:
         CopyTraderEntry.__table__.create(bind=engine, checkfirst=True)
+    else:
+        # Migrate: add pnl column if missing
+        try:
+            copy_cols = {c["name"] for c in inspector.get_columns("copy_trader_entries")}
+            if "pnl" not in copy_cols:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(text("ALTER TABLE copy_trader_entries ADD COLUMN pnl REAL DEFAULT 0.0"))
+        except Exception:
+            pass
 
     # Ensure settlement_events table exists
     if "settlement_events" not in copy_entry_tables:
         SettlementEvent.__table__.create(bind=engine, checkfirst=True)
+
+    # Ensure audit_log table exists
+    if "audit_log" not in copy_entry_tables:
+        AuditLog.__table__.create(bind=engine, checkfirst=True)
 
     # Ensure new tables exist (DecisionLog, MarketWatch, WalletConfig, StrategyConfig, TradeContext)
     Base.metadata.create_all(bind=engine)
@@ -543,11 +573,24 @@ def ensure_schema():
             "ALTER TABLE trades ADD COLUMN signal_source TEXT",
             "ALTER TABLE trades ADD COLUMN confidence REAL",
             "ALTER TABLE trades ADD COLUMN clob_order_id TEXT",
+            "ALTER TABLE trades ADD COLUMN clob_idempotency_key TEXT",
         ]:
             col_name = col_def.split("ADD COLUMN ")[1].split()[0]
             if col_name not in existing_cols:
                 with conn.begin():
                     conn.execute(text(col_def))
+
+
+def log_audit(action: str, actor: str = "system", details: dict = None):
+    db = SessionLocal()
+    try:
+        entry = AuditLog(action=action, actor=actor, details=details)
+        db.add(entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 def get_db():

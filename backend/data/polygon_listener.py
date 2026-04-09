@@ -71,9 +71,9 @@ class PolygonListener:
             }
             if self.on_whale:
                 await self.on_whale(payload)
-            # Broadcast to /ws/whales subscribers (lazy import avoids circular dep)
+            # Broadcast to /ws/whales subscribers
             try:
-                from backend.api.main import broadcast_whale_tick
+                from backend.api.ws_manager import broadcast_whale_tick
                 await broadcast_whale_tick(payload)
             except Exception:
                 pass

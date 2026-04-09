@@ -55,7 +55,7 @@ export async function fetchBtcWindows(): Promise<BtcWindow[]> {
 }
 
 export async function fetchTrades(): Promise<Trade[]> {
-  const { data } = await api.get<Trade[]>('/trades')
+  const { data } = await api.get<Trade[]>('/trades', { params: { limit: 10000 } })
   return data
 }
 
@@ -341,7 +341,7 @@ export interface ScoredTrader {
 }
 
 export async function fetchCopyLeaderboard(): Promise<ScoredTrader[]> {
-  const { data } = await adminApi.get<ScoredTrader[]>('/copy/leaderboard')
+  const { data } = await adminApi.get<ScoredTrader[]>('/copy/leaderboard', { params: { limit: 100 } })
   return data
 }
 
@@ -409,8 +409,10 @@ export interface WalletBalance {
   error?: string
 }
 
-export async function getWalletBalance(address: string): Promise<WalletBalance> {
-  const { data } = await adminApi.get<WalletBalance>(`/wallets/${address}/balance`)
+export async function getWalletBalance(address: string, forceRefresh = false): Promise<WalletBalance> {
+  const { data } = await adminApi.get<WalletBalance>(`/wallets/${address}/balance`, {
+    params: { force_refresh: forceRefresh }
+  })
   return data
 }
 

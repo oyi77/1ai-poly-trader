@@ -96,6 +96,7 @@ def load_all_strategies() -> None:
         "backend.strategies.btc_momentum",
         "backend.strategies.realtime_scanner",
         "backend.strategies.whale_pnl_tracker",
+        "backend.strategies.market_maker",
     ]
     for module in strategy_modules:
         try:
