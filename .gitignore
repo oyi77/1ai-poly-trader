@@ -56,3 +56,6 @@ logs/
 htmlcov/
 .pytest_cache/
 *.pem
+
+# Backup files
+*.backup

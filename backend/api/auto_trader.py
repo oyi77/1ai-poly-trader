@@ -1,0 +1,72 @@
+"""Auto-trader routes - pending approvals, approve/reject trades."""
+from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+from backend.models.database import get_db, SessionLocal, PendingApproval
+from backend.api.auth import require_admin
+import logging
+
+logger = logging.getLogger("trading_bot")
+router = APIRouter(tags=["auto_trader"])
+
+
+@router.get("/api/auto-trader/pending")
+async def list_pending_approvals(_admin=Depends(require_admin)):
+    """List all pending trade approvals."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PendingApproval)
+            .filter(PendingApproval.status == "pending")
+            .order_by(PendingApproval.created_at.desc())
+            .limit(100)
+            .all()
+        )
+        return [
+            {
+                "id": r.id,
+                "market_id": r.market_id,
+                "direction": r.direction,
+                "size": r.size,
+                "confidence": r.confidence,
+                "signal_data": r.signal_data,
+                "status": r.status,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
+    finally:
+        db.close()
+
+
+@router.post("/api/auto-trader/approve/{trade_id}")
+async def approve_pending_trade(trade_id: int, _admin=Depends(require_admin)):
+    """Approve a pending trade."""
+    db = SessionLocal()
+    try:
+        row = db.query(PendingApproval).filter(PendingApproval.id == trade_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="not found")
+        row.status = "approved"
+        row.decided_at = datetime.utcnow()
+        db.commit()
+        return {"id": row.id, "status": row.status}
+    finally:
+        db.close()
+
+
+@router.post("/api/auto-trader/reject/{trade_id}")
+async def reject_pending_trade(trade_id: int, _admin=Depends(require_admin)):
+    """Reject a pending trade."""
+    db = SessionLocal()
+    try:
+        row = db.query(PendingApproval).filter(PendingApproval.id == trade_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="not found")
+        row.status = "rejected"
+        row.decided_at = datetime.utcnow()
+        db.commit()
+        return {"id": row.id, "status": row.status}
+    finally:
+        db.close()

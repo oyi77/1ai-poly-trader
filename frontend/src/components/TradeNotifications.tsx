@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTradeEvents, TradeEvent } from '../hooks/useTradeEvents'
 import { simulateTrade } from '../api'
 
+// Config from environment variables
+const SIGNAL_NOTIFICATION_DURATION = Number(import.meta.env.VITE_SIGNAL_NOTIFICATION_DURATION) || 10000
+const SIGNAL_APPROVAL_MODE = (import.meta.env.VITE_SIGNAL_APPROVAL_MODE as 'manual' | 'auto_approve' | 'auto_deny') || 'manual'
+const AUTO_APPROVE_MIN_CONFIDENCE = 0.85
+
 type Tier = 'info' | 'small' | 'medium' | 'large' | 'whale'
 type Side = 'win' | 'loss' | 'neutral'
 
@@ -52,7 +57,7 @@ const TIER_DURATIONS: Record<Tier, number> = {
   large: 6000,
   medium: 4000,
   small: 3000,
-  info: 2500,
+  info: SIGNAL_NOTIFICATION_DURATION,  // Use config duration for signals
 }
 
 function getTier(amount: number): Tier {
@@ -453,7 +458,24 @@ export function TradeNotifications() {
   const handleEvent = useCallback(
     (event: TradeEvent) => {
       const notif = mapEventToNotification(event)
-      if (notif) addNotification(notif)
+      if (!notif) return
+
+      // Handle auto-approval for signals
+      if (notif.type === 'signal_found' && notif.signalContext) {
+        if (SIGNAL_APPROVAL_MODE === 'auto_approve' && notif.signalContext.confidence >= AUTO_APPROVE_MIN_CONFIDENCE) {
+          // Auto-approve high confidence signals
+          handleApproveSignal(notif.signalContext)
+          console.log(`Auto-approved signal for ${notif.signalContext.market_ticker} (confidence: ${(notif.signalContext.confidence * 100).toFixed(1)}%)`)
+          return
+        } else if (SIGNAL_APPROVAL_MODE === 'auto_deny') {
+          // Auto-deny all signals
+          handleSkipSignal(notif.signalContext)
+          console.log(`Auto-denied signal for ${notif.signalContext.market_ticker}`)
+          return
+        }
+      }
+
+      addNotification(notif)
     },
     [addNotification]
   )

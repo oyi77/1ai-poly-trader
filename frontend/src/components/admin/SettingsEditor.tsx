@@ -42,6 +42,19 @@ function FieldInput({
       </select>
     )
   }
+  if (fieldName === 'SIGNAL_APPROVAL_MODE') {
+    return (
+      <select
+        value={String(value)}
+        onChange={e => onChange(e.target.value)}
+        className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs px-2 py-1.5 font-mono focus:border-green-500 focus:outline-none w-full"
+      >
+        <option value="manual">Always Ask</option>
+        <option value="auto_approve">Auto Approve</option>
+        <option value="auto_deny">Auto Deny</option>
+      </select>
+    )
+  }
 
   if (typeof value === 'boolean') {
     return (
