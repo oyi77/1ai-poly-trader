@@ -322,7 +322,6 @@ async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
     )
 
     db.add(trade)
-    state.total_trades += 1
 
     # Create trade context for signal tracking
     context = TradeContext(

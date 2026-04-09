@@ -61,33 +61,49 @@ async def get_stats(db: Session = Depends(get_db)):
     if not state:
         raise HTTPException(status_code=404, detail="Bot state not initialized")
 
-    win_rate = (
-        state.winning_trades / state.total_trades if state.total_trades > 0 else 0
-    )
-
-    # Paper trading stats
+    # Paper stats
     paper_pnl = state.paper_pnl or 0.0
-    paper_bankroll = state.paper_bankroll or 10000.0
+    paper_bankroll = state.paper_bankroll or settings.INITIAL_BANKROLL
     paper_trades = state.paper_trades or 0
     paper_wins = state.paper_wins or 0
     paper_win_rate = paper_wins / paper_trades if paper_trades > 0 else 0.0
 
-    # Fallback: if total_pnl is 0 but settled paper trades exist, recalculate from DB
+    # Live stats
+    live_pnl = state.total_pnl or 0.0
+    live_bankroll = state.bankroll or settings.INITIAL_BANKROLL
+    live_trades = state.total_trades or 0
+    live_wins = state.winning_trades or 0
+    live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
+
+    # Fallback: if mode PnL is 0 but settled trades exist, recalculate from DB
     pnl_source = "botstate"
-    if state.total_pnl == 0 and paper_trades > 0:
-        db_paper_pnl = (
-            db.query(func.sum(Trade.pnl)).filter(Trade.settled == True).scalar() or 0.0
-        )
-        if db_paper_pnl != 0:
-            paper_pnl = db_paper_pnl
+    mode = settings.TRADING_MODE
+    if mode == "paper" and paper_pnl == 0 and paper_trades > 0:
+        db_pnl = db.query(func.sum(Trade.pnl)).filter(Trade.settled == True).scalar() or 0.0
+        if db_pnl != 0:
+            paper_pnl = db_pnl
             pnl_source = "recalculated"
 
+    # Top-level fields reflect the ACTIVE trading mode
+    if mode == "paper":
+        display_bankroll = paper_bankroll
+        display_trades = paper_trades
+        display_wins = paper_wins
+        display_win_rate = paper_win_rate
+        display_pnl = paper_pnl
+    else:
+        display_bankroll = live_bankroll
+        display_trades = live_trades
+        display_wins = live_wins
+        display_win_rate = live_win_rate
+        display_pnl = live_pnl
+
     return BotStats(
-        bankroll=state.bankroll,
-        total_trades=state.total_trades,
-        winning_trades=state.winning_trades,
-        win_rate=win_rate,
-        total_pnl=state.total_pnl,
+        bankroll=display_bankroll,
+        total_trades=display_trades,
+        winning_trades=display_wins,
+        win_rate=display_win_rate,
+        total_pnl=display_pnl,
         is_running=state.is_running,
         last_run=state.last_run,
         paper_pnl=paper_pnl,
@@ -95,7 +111,7 @@ async def get_stats(db: Session = Depends(get_db)):
         paper_trades=paper_trades,
         paper_wins=paper_wins,
         paper_win_rate=paper_win_rate,
-        mode=settings.TRADING_MODE,
+        mode=mode,
         pnl_source=pnl_source,
         paper={
             "pnl": paper_pnl,
@@ -105,11 +121,11 @@ async def get_stats(db: Session = Depends(get_db)):
             "win_rate": paper_win_rate,
         },
         live={
-            "pnl": state.total_pnl,
-            "bankroll": state.bankroll,
-            "trades": state.total_trades,
-            "wins": state.winning_trades,
-            "win_rate": win_rate,
+            "pnl": live_pnl,
+            "bankroll": live_bankroll,
+            "trades": live_trades,
+            "wins": live_wins,
+            "win_rate": live_win_rate,
         },
     )
 
@@ -170,6 +186,10 @@ async def reset_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
             state.total_trades = 0
             state.winning_trades = 0
             state.total_pnl = 0.0
+            state.paper_bankroll = settings.INITIAL_BANKROLL
+            state.paper_trades = 0
+            state.paper_wins = 0
+            state.paper_pnl = 0.0
             state.is_running = True
 
         ai_logs_deleted = db.query(AILog).delete()
