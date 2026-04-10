@@ -156,18 +156,13 @@ class TestL2Headers:
         with pytest.raises(ValueError, match="api_key"):
             clob._l2_headers("GET", "/orders")
 
-    def test_live_place_order_fails_without_credentials(self):
+    @pytest.mark.asyncio
+    async def test_live_place_order_fails_without_credentials(self):
         """Live mode without api_key returns failure immediately."""
-        # Construct with no credentials — simulate=False
         from backend.data.polymarket_clob import PolymarketCLOB
-        import asyncio
 
         clob = PolymarketCLOB(simulation=False)
-        # Can't use async with cleanly outside a real event loop easily,
-        # so call the check directly:
-        result = asyncio.get_event_loop().run_until_complete(
-            _run_live_without_creds(clob)
-        )
+        result = await clob.place_limit_order("token1", "BUY", price=0.5, size=10.0)
         assert not result.success
         assert "private_key" in result.error or "credentials" in result.error
 

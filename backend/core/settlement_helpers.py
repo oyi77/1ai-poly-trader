@@ -63,7 +63,9 @@ async def fetch_polymarket_resolution(
             return _parse_market_resolution(market)
 
     except Exception as e:
-        logger.warning(f"Failed to fetch resolution for {event_slug or market_id}: {e}")
+        logger.warning(
+            f"[settlement_helpers.fetch_polymarket_resolution] {type(e).__name__}: Failed to fetch resolution for {event_slug or market_id}: {e}"
+        )
         return False, None
 
 
@@ -87,7 +89,9 @@ async def _search_market_in_events(market_id: str) -> Tuple[bool, Optional[float
         return False, None
 
     except Exception as e:
-        logger.warning(f"Failed to search for market {market_id}: {e}")
+        logger.warning(
+            f"[settlement_helpers._search_market_in_events] {type(e).__name__}: Failed to search for market {market_id}: {e}"
+        )
         return False, None
 
 
@@ -154,7 +158,9 @@ async def _fetch_kalshi_resolution(ticker: str) -> Tuple[bool, Optional[float]]:
         return False, None
 
     except Exception as e:
-        logger.warning(f"Failed to fetch Kalshi resolution for {ticker}: {e}")
+        logger.warning(
+            f"[settlement_helpers._fetch_kalshi_resolution] {type(e).__name__}: Failed to fetch Kalshi resolution for {ticker}: {e}"
+        )
         return False, None
 
 
@@ -320,8 +326,10 @@ async def _get_actual_temp_from_openmeteo(
             temps = daily.get("temperature_2m_max") or daily.get("temperature_2m_min")
             if temps and len(temps) > 0:
                 return float(temps[0])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            f"[settlement_helpers._get_actual_temp_from_openmeteo] {type(e).__name__}: {e}"
+        )
     return None
 
 
@@ -376,7 +384,9 @@ async def _try_calibrate_weather(signal, settlement_value: float) -> None:
         )
 
     except Exception as e:
-        logger.debug(f"Calibration update skipped (best-effort): {e}")
+        logger.debug(
+            f"[settlement_helpers._try_calibrate_weather] {type(e).__name__}: Calibration update skipped (best-effort): {e}"
+        )
 
 
 async def _record_weather_observation(trade, settlement_value: float, db) -> None:
@@ -395,10 +405,14 @@ async def _record_weather_observation(trade, settlement_value: float, db) -> Non
             if ctx and ctx.signal_source:
                 try:
                     signal_data = json.loads(ctx.signal_source)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.debug(
+                        f"[settlement_helpers._record_weather_observation] {type(e).__name__}: JSON parse of signal_source failed: {e}"
+                    )
+        except Exception as e:
+            logger.debug(
+                f"[settlement_helpers._record_weather_observation] {type(e).__name__}: DB query for TradeContext failed: {e}"
+            )
 
     if not signal_data:
         logger.debug(f"Weather calibration: no signal_data for trade {trade.id}")
@@ -407,9 +421,9 @@ async def _record_weather_observation(trade, settlement_value: float, db) -> Non
     if isinstance(signal_data, str):
         try:
             signal_data = json.loads(signal_data)
-        except Exception:
+        except Exception as e:
             logger.debug(
-                f"Weather calibration: could not parse signal_data for trade {trade.id}"
+                f"[settlement_helpers._record_weather_observation] {type(e).__name__}: could not parse signal_data for trade {trade.id}: {e}"
             )
             return
 
@@ -492,8 +506,10 @@ async def process_settled_trade(
                 "mode": getattr(trade, "trading_mode", "paper"),
             },
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: broadcast event failed: {e}"
+        )
 
     # Create settlement event
     platform = getattr(trade, "platform", "polymarket") or "polymarket"
@@ -533,7 +549,7 @@ async def process_settled_trade(
             decision.outcome = outcome
     except Exception as e:
         logger.debug(
-            f"DecisionLog outcome backfill failed for {trade.market_ticker}: {e}"
+            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: DecisionLog outcome backfill failed for {trade.market_ticker}: {e}"
         )
 
     # Update linked signal
@@ -553,7 +569,9 @@ async def process_settled_trade(
                 try:
                     await _record_weather_observation(trade, settlement_value, db)
                 except Exception as e:
-                    logger.debug(f"Weather calibration update skipped: {e}")
+                    logger.debug(
+                        f"[settlement_helpers.process_settled_trade] {type(e).__name__}: Weather calibration update skipped: {e}"
+                    )
 
     # Write outcome to BigBrain (unified memory)
     try:
@@ -572,7 +590,9 @@ async def process_settled_trade(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: BigBrain write_trade_outcome failed: {e}"
+        )
 
     return True
