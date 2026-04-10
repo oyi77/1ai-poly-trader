@@ -1,383 +1,236 @@
-# Kalshi Weather + Econ Trading Bot Architecture
+# PolyEdge Architecture
 
 ## Overview
 
-A selective trading bot that exploits pricing inefficiencies in Kalshi prediction markets by combining deterministic data pipelines with disciplined position sizing. Focuses exclusively on **weather** and **economics** contracts where free, high-quality data sources provide genuine informational edges.
+PolyEdge is a full-stack automated prediction market trading bot targeting **Polymarket** and **Kalshi**. It combines AI-powered signal generation, multi-strategy execution, real-time market data aggregation, and a React dashboard for monitoring and control.
 
-**Core Philosophy**: Deterministic math for clean signals, AI only for ambiguous synthesis. No edge, no trade.
+The system supports paper trading (shadow mode), live trading with risk controls, and comprehensive backtesting.
 
 ---
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              LAYER 1: SCANNER                                │
-│  Polls Kalshi API every 30s → Classifies contracts → Routes to pipelines    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                    ┌─────────────────┴─────────────────┐
-                    ▼                                   ▼
-┌─────────────────────────────────┐   ┌─────────────────────────────────────┐
-│     LAYER 2A: WEATHER PIPELINE  │   │     LAYER 2B: ECON PIPELINE         │
-│  ┌───────────────────────────┐  │   │  ┌─────────────────────────────┐    │
-│  │ NWS API (api.weather.gov) │  │   │  │ Fed: SOFR futures + pyfedwatch│  │
-│  │ - Hourly forecasts        │  │   │  │ CPI: Cleveland Fed Nowcast    │  │
-│  │ - Probability ranges      │  │   │  │      + PPI + Import Prices    │  │
-│  └───────────────────────────┘  │   │  │ Jobs: Claims + ADP + ISM      │  │
-│  ┌───────────────────────────┐  │   │  │ GDP: Atlanta Fed GDPNow       │  │
-│  │ ECMWF Open Data           │  │   │  │ Yields: Treasury XML feed     │  │
-│  │ - 51-member ensemble      │  │   │  └─────────────────────────────┘    │
-│  │ - 4x daily updates        │  │   │                                     │
-│  └───────────────────────────┘  │   │  Output: Probability + Confidence   │
-│  ┌───────────────────────────┐  │   │                                     │
-│  │ HRRR (for <12h contracts) │  │   │                                     │
-│  │ - Hourly updates          │  │   │                                     │
-│  │ - 3km resolution          │  │   │                                     │
-│  └───────────────────────────┘  │   │                                     │
-│                                 │   │                                     │
-│  Output: Blended Probability    │   │                                     │
-└─────────────────────────────────┘   └─────────────────────────────────────┘
-                    │                                   │
-                    └─────────────────┬─────────────────┘
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         LAYER 3: EDGE CALCULATOR                             │
-│                                                                              │
-│  edge = bot_probability - market_probability                                 │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                         FILTER CHAIN                                 │    │
-│  │  1. Minimum Edge: 10-18pp depending on category + confidence        │    │
-│  │  2. Confidence: Ensemble agreement, source correlation              │    │
-│  │  3. Time Decay: 6h=10pp, 12h=12pp, 24h=14pp, 48h=18pp              │    │
-│  │  4. Liquidity: Skip if <$200 on orderbook                          │    │
-│  │  5. Concentration: Max 15% per city, 20% per econ release          │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  ~200 contracts scanned → ~5 trades taken per cycle                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       LAYER 4: SIZING + EXECUTION                            │
-│                                                                              │
-│  Position Size = 0.25 × (edge / odds_against)  [Quarter-Kelly]              │
-│  Caps: 5% bankroll per trade, $500 max, 2% of daily volume                  │
-│                                                                              │
-│  Execution:                                                                  │
-│  - Limit orders only (post 1c inside spread)                                │
-│  - Walk up 1c every 5 min if unfilled                                       │
-│  - Cross spread immediately if edge >20pp and <2h to settlement            │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       LAYER 5: CALIBRATION + LEARNING                        │
-│                                                                              │
-│  Post-Settlement Logging:                                                    │
-│  - Category, model prob, market price, edge, confidence, size, result, P&L  │
-│                                                                              │
-│  Weekly Calibration:                                                         │
-│  - Brier score by category                                                  │
-│  - Adjust edge thresholds if model over/under-confident                     │
-│  - Reweight data sources by predictive accuracy                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           FRONTEND                                    │
+│  React 18 + TypeScript + Vite + TanStack Query + Tailwind            │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │Dashboard │ │ Admin    │ │ Signals  │ │  Trades  │ │ GlobeView │  │
+│  │Overview  │ │ Controls │ │  Table   │ │  Table   │ │  (3D Map) │  │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+                               │ REST API (polling via TanStack Query)
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         API LAYER (FastAPI)                           │
+│  backend/api/main.py — Lifespan-managed, CORS, Prometheus metrics    │
+│  81 routes: /api/v1/{signals,trades,strategies,risk,admin,...}       │
+└──────────────────────────────────────────────────────────────────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          ▼                    ▼                    ▼
+┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
+│  ORCHESTRATOR │    │  STRATEGY ENGINE  │    │  RISK MANAGER │
+│  core/        │    │  strategies/      │    │  core/        │
+│  orchestrator │    │  strategy_executor│    │  risk_manager │
+│  .py          │    │  .py              │    │  .py          │
+└──────┬───────┘    └────────┬─────────┘    └──────┬───────┘
+       │                     │                      │
+       ▼                     ▼                      ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      STRATEGY MODULES                                 │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────────┐ │
+│  │BTC Momentum│ │Weather EMOS│ │Copy Trader │ │Market Maker        │ │
+│  │btc_momentum│ │weather_emos│ │copy_trader │ │market_maker        │ │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────────────┘ │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────────┐ │
+│  │BTC Oracle  │ │Kalshi Arb  │ │Bond Scanner│ │Whale PNL Tracker   │ │
+│  │btc_oracle  │ │kalshi_arb  │ │bond_scanner│ │whale_pnl_tracker   │ │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────────────┘ │
+│  ┌────────────────────────┐                                          │
+│  │Realtime Scanner        │                                          │
+│  │realtime_scanner        │                                          │
+│  └────────────────────────┘                                          │
+└──────────────────────────────────────────────────────────────────────┘
+       │                     │                      │
+       ▼                     ▼                      ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      AI / SIGNAL LAYER                                │
+│  ai/ensemble.py — Multi-provider AI ensemble (Claude, Groq, Custom)  │
+│  ai/sentiment_analyzer.py — Market sentiment via LLM                 │
+│  ai/bayesian_optimizer.py — Parameter optimization                   │
+│  core/signals.py, base_signals.py — Signal generation pipeline       │
+└──────────────────────────────────────────────────────────────────────┘
+       │                     │                      │
+       ▼                     ▼                      ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       DATA LAYER                                      │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────────┐ │
+│  │Polymarket  │ │Kalshi      │ │Crypto      │ │Weather             │ │
+│  │CLOB Client │ │Client      │ │(Coinbase/  │ │(Open-Meteo GFS     │ │
+│  │+ WebSocket │ │            │ │Kraken/     │ │ ensemble + NWS)    │ │
+│  │(py-clob-   │ │(kalshi_    │ │Binance)    │ │                    │ │
+│  │ client)    │ │ client.py) │ │(crypto.py) │ │(weather.py)        │ │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
+       │                     │                      │
+       ▼                     ▼                      ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                   STORAGE / QUEUE / MONITORING                        │
+│  ┌─────────┐  ┌──────────┐  ┌───────────┐  ┌──────────────────────┐ │
+│  │ SQLite  │  │Redis Queue│  │APScheduler│  │Prometheus Metrics    │ │
+│  │(primary)│  │(optional, │  │(cron jobs, │  │(monitoring/         │ │
+│  │         │  │ falls back│  │ recurring  │  │ middleware.py)      │ │
+│  │         │  │ to SQLite)│  │ scans)     │  │                    │ │
+│  └─────────┘  └──────────┘  └───────────┘  └──────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     NOTIFICATIONS                                     │
+│  bot/notification_router.py → Telegram, Discord (email de-scoped)    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## File Structure
+## Directory Structure
 
 ```
-kalshi-trading-bot/
-├── ARCHITECTURE.md          # This file
-├── config/
-│   ├── settings.yaml        # API keys, thresholds, Kelly fraction
-│   ├── cities.json          # City → NWS grid point mappings
-│   └── econ_calendar.json   # Data release schedule
-├── research/
-│   ├── weather.py           # NWS + ECMWF + HRRR pipeline
-│   ├── econ.py              # Fed/CPI/Jobs/GDP pipelines
-│   └── parser.py            # Contract text → structured data (uses Claude for edge cases)
-├── data/
-│   ├── fetchers/
-│   │   ├── nws.py           # api.weather.gov client
-│   │   ├── ecmwf.py         # ecmwf-opendata wrapper
-│   │   ├── hrrr.py          # NOAA NOMADS client
-│   │   ├── sofr.py          # CME SOFR futures
-│   │   ├── fed_nowcast.py   # Cleveland Fed + Atlanta Fed
-│   │   └── bls.py           # BLS API (claims, jobs)
-│   └── cache.py             # Local caching for API responses
-├── execution/
-│   ├── scanner.py           # Kalshi API polling + market classification
-│   ├── pricing.py           # Edge calculation + filter chain
-│   ├── sizing.py            # Kelly criterion + risk limits
-│   ├── executor.py          # Order placement + management
-│   └── kalshi_client.py     # Kalshi REST API wrapper
-├── calibration/
-│   ├── ledger.py            # Trade logging (SQLite)
-│   ├── brier.py             # Brier score calculation
-│   └── recalibrate.py       # Threshold + weight adjustments
-├── logs/
-│   └── trades.db            # SQLite database of all trades
-└── main.py                  # Entry point: runs the scan→research→price→execute loop
+polyedge/
+├── main.py                    # Entry point — starts FastAPI + background workers
+├── run.py                     # Alternate runner with env validation
+├── requirements.txt           # Python dependencies
+├── docker-compose.yml         # Multi-service (app + Redis)
+├── Dockerfile                 # Backend container
+├── ecosystem.config.js        # PM2 process manager (API + worker + scheduler)
+├── railway.json               # Railway.app deployment
+├── vercel.json                # Vercel frontend deployment
+├── pytest.ini                 # Test runner config
+├── .env.example               # Required environment variables
+│
+├── backend/
+│   ├── api/                   # FastAPI routes and middleware
+│   │   └── main.py            # App factory, lifespan, CORS, routes
+│   ├── core/                  # Orchestration, risk, scheduling, signals
+│   │   ├── orchestrator.py    # Central coordination of strategies
+│   │   ├── risk_manager.py    # Position limits, circuit breakers
+│   │   ├── strategy_executor.py # Strategy lifecycle management
+│   │   ├── settlement.py      # Trade settlement tracking
+│   │   ├── calibration.py     # Brier score, signal accuracy
+│   │   ├── circuit_breaker.py # Automatic trading halts
+│   │   └── scheduler.py       # APScheduler job definitions
+│   ├── strategies/            # Trading strategy implementations
+│   │   ├── base.py            # BaseStrategy + StrategyContext
+│   │   ├── btc_momentum.py    # BTC 5-min microstructure
+│   │   ├── weather_emos.py    # GFS ensemble weather
+│   │   ├── copy_trader.py     # Whale copy trading
+│   │   ├── market_maker.py    # Market making with inventory
+│   │   ├── kalshi_arb.py      # Cross-platform arbitrage
+│   │   ├── order_executor.py  # Order placement + management
+│   │   └── registry.py        # Strategy registration
+│   ├── ai/                    # AI signal providers
+│   │   ├── ensemble.py        # Multi-provider ensemble
+│   │   ├── claude.py          # Anthropic Claude provider
+│   │   ├── groq.py            # Groq (Llama) provider
+│   │   └── sentiment_analyzer.py
+│   ├── data/                  # Market data clients
+│   │   ├── polymarket_clob.py # Polymarket CLOB (py-clob-client)
+│   │   ├── kalshi_client.py   # Kalshi REST API
+│   │   ├── ws_client.py       # WebSocket market data
+│   │   ├── crypto.py          # Coinbase/Kraken/Binance candles
+│   │   └── weather.py         # Open-Meteo GFS ensemble
+│   ├── bot/                   # Notifications (Telegram, Discord)
+│   ├── models/                # SQLAlchemy models (Trade, Signal, etc.)
+│   ├── cache/                 # Response caching layer
+│   ├── monitoring/            # Prometheus metrics + middleware
+│   ├── queue/                 # Job queue (Redis or SQLite fallback)
+│   └── tests/                 # Backend test suite (pytest)
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/        # React components (Dashboard, Admin, GlobeView)
+│   │   ├── hooks/             # TanStack Query hooks
+│   │   ├── pages/             # Page-level components
+│   │   └── test/              # Vitest unit tests
+│   ├── e2e/                   # Playwright E2E tests
+│   ├── vite.config.ts         # Vite build config
+│   └── vitest.config.ts       # Test runner config
+│
+├── docs/                      # Project documentation
+│   ├── how-it-works.md        # Strategy explanations
+│   ├── api.md                 # API endpoint reference
+│   ├── configuration.md       # Environment variables
+│   ├── data-sources.md        # Data provider docs
+│   ├── project-structure.md   # Codebase layout
+│   └── architecture/          # ADRs (job queue, etc.)
+│
+└── tests/                     # Root-level integration tests
 ```
 
 ---
 
-## Layer-by-Layer Implementation Plan
+## Core Data Flow
 
-### Layer 1: Market Scanner (`execution/scanner.py`)
+1. **Market Data Ingestion** — Data clients (`polymarket_clob.py`, `kalshi_client.py`, `crypto.py`, `weather.py`) fetch live market prices, orderbook depth, and external data (GFS ensemble forecasts, BTC candles)
 
-**Purpose**: Continuously poll Kalshi for active markets, classify them, extract structured data.
+2. **Strategy Execution** — The orchestrator triggers registered strategies on a schedule (APScheduler). Each strategy runs its signal generation logic using the latest market data.
 
-**API Endpoint**: `GET https://trading-api.kalshi.com/trade-api/v2/markets`
+3. **AI Signal Analysis** — For strategies that use AI, the ensemble layer queries multiple providers (Claude, Groq) and aggregates predictions with confidence scores.
 
-**Implementation Steps**:
-1. Authenticate with Kalshi API (JWT token)
-2. Poll every 30 seconds
-3. For each market, extract:
-   - `ticker`, `title`, `yes_bid`, `yes_ask`, `volume`, `close_time`
-4. Classify into categories using regex patterns:
-   - Weather: matches city names + temperature/precipitation keywords
-   - Econ: matches "CPI", "Fed", "payroll", "GDP", "yield" keywords
-   - Skip: everything else
-5. Parse contract details:
-   - Weather: city, threshold (e.g., "45°F"), direction (above/below), settlement time
-   - Econ: series (CPI/Fed/Jobs/GDP), threshold, release date
-6. For edge cases regex can't handle, call Claude Sonnet API with structured prompt
+4. **Risk Management** — Before any order, the risk manager validates position limits, portfolio concentration, circuit breaker status, and shadow mode flags.
 
-**Output**: List of `ParsedContract` objects routed to appropriate research module
+5. **Order Execution** — `order_executor.py` places orders via the Polymarket CLOB SDK or Kalshi API. Supports limit orders, market orders, and partial fills.
+
+6. **Settlement Tracking** — `settlement.py` + `settlement_helpers.py` monitor open positions, reconcile outcomes, and update P&L.
+
+7. **Dashboard Updates** — The React frontend polls the FastAPI backend via TanStack Query, rendering real-time signals, trades, strategy performance, and risk metrics.
 
 ---
 
-### Layer 2A: Weather Pipeline (`research/weather.py`)
+## Trading Strategies
 
-**Purpose**: Produce probability estimates for weather contracts using ensemble model data.
-
-**Data Sources**:
-
-| Source | Endpoint | Update Freq | Best For |
-|--------|----------|-------------|----------|
-| NWS | `api.weather.gov/gridpoints/{office}/{x},{y}/forecast/hourly` | 1-6h | General forecasts |
-| ECMWF | `ecmwf-opendata` Python package | 4x daily | 1-5 day range |
-| HRRR | NOAA NOMADS `nomads.ncep.noaa.gov` | Hourly | <12h contracts |
-
-**Implementation Steps**:
-1. Map contract city → NWS grid point (maintain lookup table in `config/cities.json`)
-2. Pull NWS hourly forecast, extract temperature distribution for target time
-3. Pull ECMWF ensemble, count members above/below threshold
-4. For <12h contracts, also pull HRRR
-5. Compute blended probability:
-   - <12h: 50% HRRR, 30% ECMWF, 20% NWS
-   - 12-24h: 45% ECMWF, 35% NWS, 20% HRRR
-   - 24-48h: 55% ECMWF, 45% NWS
-6. Compute confidence score: % of ensemble members agreeing
-
-**Output**: `WeatherEstimate(probability=0.872, confidence=0.86, sources=["ECMWF", "NWS"])`
+| Strategy | Module | Description |
+|----------|--------|-------------|
+| BTC Momentum | `btc_momentum.py` | RSI + momentum + VWAP on 1m/5m/15m candles |
+| BTC Oracle | `btc_oracle.py` | AI-assisted BTC price predictions |
+| Weather EMOS | `weather_emos.py` | GFS 31-member ensemble temperature forecasting |
+| Copy Trader | `copy_trader.py` | Mirrors whale trader positions |
+| Market Maker | `market_maker.py` | Spread quoting with inventory management |
+| Kalshi Arbitrage | `kalshi_arb.py` | Cross-platform Polymarket↔Kalshi price gaps |
+| Bond Scanner | `bond_scanner.py` | Fixed-income market opportunities |
+| Whale PNL Tracker | `whale_pnl_tracker.py` | Tracks top trader realized PNL |
+| Realtime Scanner | `realtime_scanner.py` | Price velocity signal detection |
 
 ---
 
-### Layer 2B: Economics Pipeline (`research/econ.py`)
+## Infrastructure
 
-**Purpose**: Produce probability estimates for economic data contracts.
-
-**Sub-Modules**:
-
-#### Fed Rate Decisions
-- Pull SOFR futures curve (CME delayed data or `pyfedwatch` library)
-- Replicate FedWatch calculation: derive meeting-by-meeting probabilities
-- Cross-check with Atlanta Fed Market Probability Tracker
-- Output: probability of hold/hike/cut
-
-#### CPI
-- Pull Cleveland Fed Inflation Nowcast (daily update)
-- Pull recent PPI from BLS API (leading indicator)
-- Pull import price index
-- Weight by historical accuracy
-- Output: probability CPI exceeds threshold
-
-#### Jobs (Nonfarm Payrolls)
-- Track 4-week moving average of initial claims (BLS)
-- Pull ADP National Employment Report (2 days before BLS)
-- Check ISM employment sub-index
-- Output: probability jobs exceed threshold
-
-#### GDP
-- Pull Atlanta Fed GDPNow (real-time estimate)
-- Output: probability GDP exceeds threshold
-
-#### Treasury Yields
-- Pull daily yields from Treasury XML feed
-- Model yield volatility from recent history
-- Compute probability of crossing threshold
-
-**Output**: `EconEstimate(probability=0.71, confidence=0.75, sources=["Cleveland Fed", "PPI"], reasoning="...")`
+- **Database**: SQLite (primary), PostgreSQL-ready via SQLAlchemy ORM
+- **Job Queue**: Redis (preferred) with automatic SQLite fallback
+- **Scheduler**: APScheduler for recurring market scans and settlement checks
+- **Caching**: In-memory + optional Redis for API response caching
+- **Monitoring**: Prometheus metrics endpoint (`/metrics`) with request/response middleware
 
 ---
 
-### Layer 3: Edge Calculator (`execution/pricing.py`)
+## Deployment
 
-**Purpose**: Compare model probability to market price, apply filter chain, decide trade/skip.
-
-**Edge Calculation**:
-```python
-edge = model_probability - market_mid_price  # for YES bets
-# OR
-edge = (1 - model_probability) - (1 - market_mid_price)  # for NO bets
-```
-
-**Filter Chain** (all must pass):
-
-| Filter | Condition | Rationale |
-|--------|-----------|-----------|
-| Min Edge | Edge >= threshold (varies by category/confidence) | Small edges get eaten by spread |
-| Confidence | If ensemble <35/51 agree, double threshold | Uncertain models need bigger edges |
-| Time Decay | Shorter settlement = lower threshold | Near-term edges more reliable |
-| Liquidity | Orderbook depth >= $200 | Must be able to fill |
-| Concentration | <15% per city, <20% per release | Limit single-point-of-failure risk |
-
-**Edge Thresholds**:
-- Weather <24h, high confidence: 12pp
-- Weather 24-48h: 16pp
-- Econ with 3+ sources agreeing: 10pp
-- Econ with 1 source: 18pp
-
-**Output**: `TradeSignal(direction="YES", edge=0.15, confidence=0.86, pass_filters=True)`
+- **Docker**: `docker-compose.yml` runs app + Redis containers
+- **Railway**: Backend deploys via `railway.json` (auto-detected Python buildpack)
+- **Vercel**: Frontend deploys via `vercel.json` (Vite static build)
+- **PM2**: `ecosystem.config.js` manages API server, queue worker, and scheduler processes
+- **CI**: GitHub Actions (`.github/`) runs tests on push
 
 ---
 
-### Layer 4: Sizing + Execution (`execution/sizing.py`, `execution/executor.py`)
+## Key Configuration
 
-**Kelly Criterion**:
-```python
-kelly_fraction = edge / (1 - market_price)  # odds against
-position_fraction = 0.25 * kelly_fraction   # quarter-Kelly
-```
+All configuration via environment variables (see `.env.example`):
 
-**Risk Caps**:
-- Max 5% of bankroll per trade
-- Max $500 per trade
-- Max 2% of contract's daily volume
-- Max 15% of bankroll in any single city
-- Max 20% of bankroll on any single econ release
-
-**Execution Strategy**:
-1. Post limit order 1 cent inside current spread
-2. Wait 5 minutes for fill
-3. If unfilled, walk up 1 cent, repeat
-4. For <2h contracts with >20pp edge, cross spread immediately
-
-**Order Management**:
-- Track all open orders
-- Cancel unfilled orders if edge shrinks below threshold
-- Log all fills with timestamp, price, size
-
----
-
-### Layer 5: Calibration (`calibration/ledger.py`, `calibration/brier.py`)
-
-**Trade Logging** (SQLite):
-```sql
-CREATE TABLE trades (
-    id INTEGER PRIMARY KEY,
-    timestamp TEXT,
-    category TEXT,           -- "weather" or "econ"
-    subcategory TEXT,        -- city name or econ series
-    contract_ticker TEXT,
-    model_probability REAL,
-    market_price REAL,
-    edge REAL,
-    confidence REAL,
-    position_size REAL,
-    direction TEXT,          -- "YES" or "NO"
-    result TEXT,             -- "WIN" or "LOSS"
-    pnl REAL,
-    sources TEXT             -- JSON array of data sources used
-);
-```
-
-**Weekly Calibration**:
-1. Group trades by predicted probability bucket (50-60%, 60-70%, etc.)
-2. Compute actual win rate per bucket
-3. If model says 80% but actual is 72%, model is 8pp overconfident
-4. Adjust edge thresholds: required_edge += (predicted - actual)
-5. Compute Brier score by category, track trend over time
-
-**Source Reweighting**:
-- Track accuracy by data source
-- If ECMWF trades outperform NWS trades, shift blend weights
-- If Cleveland Fed Nowcast beats PPI model, increase its weight
-
----
-
-## AI Integration Points
-
-**Where AI is used** (Claude Sonnet API):
-
-1. **Contract Parsing** (~5% of operations)
-   - When regex can't parse contract title cleanly
-   - Prompt: "Extract category, city/series, threshold, direction, settlement from: [title]"
-   - Output: JSON
-
-2. **Daily Anomaly Check** (1x per day)
-   - Send summary of trades, outcomes, calibration stats
-   - Prompt: "Review this trading summary. Flag any concerning patterns."
-   - Output: List of flags for human review (not auto-acted)
-
-**Where AI is NOT used**:
-- Probability calculations (deterministic math on ensemble data)
-- Edge calculations (simple subtraction)
-- Kelly sizing (formula)
-- Execution logic (deterministic rules)
-- Calibration updates (statistical recalculation)
-
----
-
-## Data Source Reference
-
-### Weather
-
-| Source | URL | Auth | Update Frequency |
-|--------|-----|------|------------------|
-| NWS Forecast | `api.weather.gov/gridpoints/{office}/{x},{y}/forecast` | None | 1-6 hours |
-| ECMWF Open | `ecmwf-opendata` Python package | None | 4x daily (00/06/12/18Z) |
-| HRRR | `nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/` | None | Hourly |
-
-### Economics
-
-| Source | URL/Method | Auth | Update Frequency |
-|--------|------------|------|------------------|
-| SOFR Futures | CME delayed data or `pyfedwatch` | None | Daily |
-| Cleveland Fed Nowcast | `clevelandfed.org/indicators-and-data/inflation-nowcasting` | None | Daily |
-| Atlanta Fed GDPNow | `atlantafed.org/cqer/research/gdpnow` | None | After each release |
-| BLS Claims | `api.bls.gov/publicAPI/v2/timeseries/data/` | API Key (free) | Weekly |
-| Treasury Yields | `home.treasury.gov/resource-center/data-chart-center/interest-rates/` | None | Daily |
-
----
-
-## Expected Performance
-
-Based on documented mispricing in these markets:
-
-- **Trades per day**: 8-15 (highly filtered from 150-250 scanned)
-- **Win rate**: 60-70% (on filtered high-edge trades)
-- **Average win**: $15-40
-- **Average loss**: $10-25
-- **Monthly return**: 15-40% initially, declining as markets become more efficient
-
-**Key Success Factor**: Selectivity. The bot that trades everything loses. The bot that waits for 15pp edges on 24h weather contracts with 45/51 ensemble agreement wins.
-
----
-
-## Implementation Order
-
-1. **Week 1**: Scanner + Kalshi API client
-2. **Week 2**: Weather pipeline (NWS + ECMWF)
-3. **Week 3**: Edge calculator + filter chain
-4. **Week 4**: Sizing + execution
-5. **Week 5**: Econ pipeline (start with Fed, then CPI)
-6. **Week 6**: Calibration + logging
-7. **Week 7**: Paper trading (log signals but don't execute)
-8. **Week 8**: Live trading with 10% of intended bankroll
+- `TRADING_MODE` — `paper` (default) or `live`
+- `SHADOW_MODE` — `true` to log signals without executing trades
+- `AI_PROVIDER` — `groq`, `claude`, or `omniroute`
+- `JOB_WORKER_ENABLED` — Enable background job processing
+- `REDIS_URL` — Optional; falls back to SQLite queue if absent
+- Feature flags for individual strategies and data sources

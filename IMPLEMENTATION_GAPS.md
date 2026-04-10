@@ -1,77 +1,109 @@
-# PolyEdge Codebase Reassessment - Completed ✅
+# PolyEdge — Implementation Status & Known Gaps
 
-**Date**: 2026-04-08
-**Status**: 100% Complete
+**Last Updated**: 2026-04-11
 
 ## Summary
 
-The PolyEdge trading bot has undergone a comprehensive codebase reassessment to eliminate mock data, adopt canonical libraries, and implement real-time data sources.
-
-## What Was Accomplished
-
-### Core Infrastructure
-- ✅ Real Polymarket data integration (no more mock data)
-- ✅ Adopted `py-clob-client` and `py-order-utils` for Polymarket CLOB
-- ✅ Real-time leaderboard from Polymarket Data API
-- ✅ Removed 155 lines of dead code (polymarket_client.py)
-
-### Weather Trading
-- ✅ Dynamic city discovery (no longer limited to 20 hardcoded cities)
-- ✅ Auto-geocoding via Open-Meteo API
-- ✅ Runtime city registration from market titles
-
-### AI Integration
-- ✅ Groq API configured for LLM predictions
-- ✅ AI parameter optimization endpoint implemented
-- ✅ Multiple AI providers supported (Groq, Claude, OmniRoute)
-
-### Frontend Improvements
-- ✅ Terminal window enlarged (equity chart 40% → 25%)
-- ✅ Signal notifications fixed (shows market/decision/confidence)
-- ✅ Unified stats hook (single source of truth)
-- ✅ Vite proxy configuration fixed
-
-### Parallel Edge Discovery (Phase 1 & 2)
-- ✅ Track 1: Real-time Scanner (price velocity signals)
-- ✅ Track 2: Whale PNL Tracker (realized PNL ranking)
-- ✅ Per-track bankroll isolation
-- ✅ Edge performance API and frontend
-- ✅ 14-day paper trading period started
-
-### Testing & Documentation
-- ✅ Playwright E2E tests passing
-- ✅ API docs available at `/docs` (Swagger UI)
-- ✅ Prometheus metrics endpoint implemented
-- ✅ Monitoring middleware active
-
-## Current Status
-
-- **Trading Mode**: Paper trading
-- **Initial Bankroll**: $100 USD
-- **Active Strategies**: 3 (BTC Momentum, Weather EMOS, Copy Trader)
-- **Edge Discovery Tracks**: 2 (Real-time Scanner, Whale PNL Tracker)
-- **AI Provider**: Groq (Llama 3.1 8B Instant)
-
-## Next Steps
-
-For production readiness:
-1. Complete 14-day paper trading evaluation
-2. Promote tracks with >55% win rate to live trading
-3. Add comprehensive unit test coverage
-4. Set up Grafana dashboards for metrics
-5. Implement database migrations (Alembic)
-
-## Files Changed During Ralph Session
-
-- `backend/core/wallet_auto_discovery.py` - Real leaderboard data
-- `backend/data/polymarket_clob.py` - Integrated py-clob-client
-- `backend/data/weather.py` - Dynamic city discovery
-- `backend/data/weather_markets.py` - City extraction from titles
-- `frontend/src/components/TradeNotifications.tsx` - Fixed signal display
-- `frontend/src/pages/Dashboard.tsx` - Adjusted layout
-- `.env` - Added Groq API key
-- `requirements.txt` - Added py-clob-client, py-order-utils
+This document tracks what is implemented, what was intentionally de-scoped, and what remains incomplete. It is the honest source of truth — no false "100% Complete" claims.
 
 ---
 
-*This document is retained for historical reference. For current development priorities, see the project README and active issues.*
+## Backend
+
+### Fully Implemented
+- 9 trading strategies registered and executing (BTC Momentum, Weather EMOS, Copy Trader, Market Maker, Kalshi Arb, Bond Scanner, BTC Oracle, Whale PNL Tracker, Realtime Scanner)
+- Polymarket CLOB integration via `py-clob-client` and `py-order-utils`
+- Kalshi REST API client (`backend/data/kalshi_client.py`)
+- AI ensemble layer with Claude, Groq, and custom providers
+- Risk manager with position limits and circuit breakers
+- Settlement tracking and P&L reconciliation
+- Shadow mode (paper trading) with virtual bankroll
+- Job queue with Redis primary and SQLite fallback
+- APScheduler for recurring strategy scans
+- Prometheus metrics endpoint and monitoring middleware
+- WebSocket market data client (`ws_client.py`)
+
+### Intentionally De-Scoped
+- **Email notifications**: `notification_router.py` routes to Telegram and Discord only. Email channel raises `NotImplementedError` — this is a deliberate design choice, not a bug. Telegram and Discord cover all notification needs.
+
+### Fixed (April 2026 Audit)
+- Pydantic v2 `ConfigDict` migration (was using deprecated `class Config`)
+- SQLAlchemy 2.0 `declarative_base` import (was using deprecated `ext.declarative`)
+- FastAPI lifespan context manager (was using deprecated `@app.on_event`)
+- `inspect.iscoroutinefunction` (was using deprecated `asyncio.iscoroutinefunction`)
+- Market maker inventory tracking now queries real database (was returning placeholder `0`)
+- WebSocket `subscribe()` method is now properly `async` with `await`
+- Backend deprecation warnings reduced from ~69,000 to 17
+
+### Known Gaps — Backend
+- **Exception handling**: 306 bare `except Exception` blocks across 77 files. Critical-path modules (orchestrator, order_executor, risk_manager, strategy_executor, api/main, polymarket_clob, settlement_helpers) are being audited for structured error logging. Remaining non-critical files are lower priority.
+- **Database migrations**: No Alembic setup. Schema changes require manual SQLite operations or fresh DB creation.
+- **Kalshi API**: Market data endpoint returned 404 during testing. Kalshi integration may need API key updates or endpoint verification.
+
+---
+
+## Frontend
+
+### Fully Implemented
+- React 18 + TypeScript + Vite dashboard
+- TanStack Query for server state management
+- Dashboard overview, signals table, trades table, admin controls
+- GlobeView 3D map component (Three.js / react-three-fiber)
+- Playwright E2E test suite
+- Vitest unit test suite (9 files, 36 tests — all passing)
+
+### Fixed (April 2026 Audit)
+- Vitest config now includes correct `src/**/*.test.{ts,tsx}` pattern (was picking up Playwright e2e files)
+- OpportunityScanner test mocks `../api` module instead of global `fetch`
+- WhaleActivityFeed test mocks `../api` module instead of global `fetch`
+- PendingApprovals test wraps component with `QueryClientProvider`
+
+### Known Gaps — Frontend
+- **Bundle size**: GlobeView chunk is ~1.8MB, index.js is ~950KB. Needs code splitting via `React.lazy()` and Vite manual chunks to get all chunks under 500KB.
+- **Offline/error states**: Some components lack loading skeletons and error boundaries.
+
+---
+
+## Infrastructure
+
+### Implemented
+- Docker Compose (app + Redis)
+- Railway deployment config (`railway.json`)
+- Vercel frontend deployment (`vercel.json`)
+- PM2 process manager (API + worker + scheduler)
+- GitHub Actions CI pipeline
+- `.env.example` with all required variables documented
+
+### Known Gaps — Infrastructure
+- **Grafana dashboards**: Prometheus metrics are collected but no dashboards are configured. Future work.
+- **Log aggregation**: Structured logging exists but no centralized log collection (e.g., Loki, CloudWatch).
+- **Health checks**: Basic `/health` endpoint exists but no deep dependency checks (DB, Redis, external APIs).
+
+---
+
+## Documentation
+
+### Current State
+- `ARCHITECTURE.md` — Accurate system architecture, directory structure, data flow, strategies (rewritten April 2026)
+- `README.md` — Project overview, quick start, architecture diagram, doc links
+- `docs/how-it-works.md` — Strategy explanations
+- `docs/api.md` — API endpoint reference
+- `docs/configuration.md` — Environment variables
+- `docs/data-sources.md` — Data provider documentation
+- `docs/project-structure.md` — Codebase layout
+- `docs/architecture/adr-001-job-queue.md` — Job queue design decision
+
+### Known Gaps — Documentation
+- `docs/project-structure.md` may be slightly outdated relative to recent file additions
+- No runbook for production operations (deployment, rollback, incident response)
+
+---
+
+## Future Work (Not In Current Scope)
+
+1. **Alembic migrations** — Proper schema versioning for production database changes
+2. **Grafana dashboards** — Visual monitoring for Prometheus metrics
+3. **Full exception audit** — Cover remaining ~250 bare `except Exception` blocks in non-critical modules
+4. **Frontend code splitting** — Lazy-load GlobeView and heavy chart components
+5. **Kalshi live trading validation** — Verify API endpoints with active credentials
+6. **Load testing** — Stress test concurrent strategy execution and API throughput
