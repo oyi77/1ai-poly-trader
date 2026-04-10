@@ -7,6 +7,7 @@ Uses exponential back-off on disconnection, deduplicates subscriptions.
 Protocol: wss://ws-subscriptions-clob.polymarket.com/ws/market
 Message format: {"assets_ids": [...], "type": "market"}
 """
+
 import asyncio
 import json
 import logging
@@ -69,11 +70,11 @@ class CLOBWebSocket:
     # Public API
     # =========================================================================
 
-    def subscribe(self, token_id: str) -> None:
+    async def subscribe(self, token_id: str) -> None:
         """Add a token to the subscription list."""
         self._subscribed.add(token_id)
         if self._connected and self._ws:
-            asyncio.create_task(self._send_subscribe({token_id}))
+            await self._send_subscribe({token_id})
 
     def unsubscribe(self, token_id: str) -> None:
         """Remove a token from subscriptions."""
@@ -113,7 +114,9 @@ class CLOBWebSocket:
                     if self._on_failure:
                         self._on_failure(e)
                     break
-                logger.warning(f"WebSocket disconnected: {e}. Reconnecting in {backoff:.0f}s")
+                logger.warning(
+                    f"WebSocket disconnected: {e}. Reconnecting in {backoff:.0f}s"
+                )
                 try:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=backoff)
                 except asyncio.TimeoutError:
@@ -151,7 +154,9 @@ class CLOBWebSocket:
         ) as ws:
             self._ws = ws
             self._connected = True
-            logger.info(f"WebSocket connected. Subscribing to {len(self._subscribed)} tokens")
+            logger.info(
+                f"WebSocket connected. Subscribing to {len(self._subscribed)} tokens"
+            )
 
             # Re-subscribe to all tracked tokens on (re)connect
             if self._subscribed:

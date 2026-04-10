@@ -3,6 +3,7 @@ Notification router for PolyEdge.
 
 Routes events to configured channels (Telegram, Discord, Email).
 """
+
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -115,9 +116,16 @@ class NotificationRouter:
             resp.raise_for_status()
 
     async def _send_email(self, config: dict, message: str) -> None:
-        """Placeholder for SMTP email delivery."""
-        logger.info(
-            "Email notification (not implemented): to=%s subject=%s",
+        """Email notifications are intentionally de-scoped.
+
+        Telegram and Discord channels are the supported notification methods.
+        See IMPLEMENTATION_GAPS.md.
+        """
+        logger.debug(
+            "Email notification (de-scoped): to=%s subject=%s",
             config.get("to"),
             config.get("subject", "PolyEdge Alert"),
+        )
+        raise NotImplementedError(
+            "Email notifications de-scoped — use Telegram or Discord"
         )

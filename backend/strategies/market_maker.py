@@ -4,12 +4,19 @@ Market Maker Strategy for PolyEdge.
 Two-sided quoting with dynamic spread adjustment based on volatility
 and inventory skew to manage position risk.
 """
+
 import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+from backend.strategies.base import (
+    BaseStrategy,
+    StrategyContext,
+    CycleResult,
+    MarketInfo,
+)
 from backend.core.decisions import record_decision
+from backend.models.database import Trade
 
 logger = logging.getLogger("trading_bot.market_maker")
 
@@ -27,12 +34,12 @@ class MarketMakerStrategy(BaseStrategy):
     description = "Two-sided quoting with dynamic spread and inventory control"
     category = "market_making"
     default_params = {
-        "base_spread": 0.04,       # 4% base spread
-        "max_inventory": 500.0,    # max USD per market
+        "base_spread": 0.04,  # 4% base spread
+        "max_inventory": 500.0,  # max USD per market
         "inventory_skew_factor": 0.5,
         "min_spread": 0.02,
         "max_spread": 0.15,
-        "quote_size": 25.0,        # USD per side
+        "quote_size": 25.0,  # USD per side
     }
 
     def calculate_spread(self, volatility: float, inventory_pct: float) -> float:
@@ -94,8 +101,8 @@ class MarketMakerStrategy(BaseStrategy):
         they have sufficient activity to fill quotes on both sides.
         """
         return {
-            "min_volume": 10_000.0,    # at least $10k daily volume
-            "max_spread": 0.10,        # existing spread under 10%
+            "min_volume": 10_000.0,  # at least $10k daily volume
+            "max_spread": 0.10,  # existing spread under 10%
             "min_liquidity": 1_000.0,  # at least $1k liquidity on each side
         }
 
@@ -120,6 +127,7 @@ class MarketMakerStrategy(BaseStrategy):
             markets: list[MarketInfo] = []
             try:
                 from backend.data.polymarket_clob import PolymarketCLOB
+
                 if ctx.clob is not None:
                     raw_markets = await ctx.clob.get_markets(limit=50)
                     for m in raw_markets:
@@ -140,7 +148,10 @@ class MarketMakerStrategy(BaseStrategy):
             if not markets:
                 # No live data — record a skip and exit gracefully
                 record_decision(
-                    ctx.db, self.name, "all_markets", "SKIP",
+                    ctx.db,
+                    self.name,
+                    "all_markets",
+                    "SKIP",
                     confidence=0.0,
                     signal_data={"reason": "no_markets_available"},
                     reason="No markets returned from data source",
@@ -160,9 +171,22 @@ class MarketMakerStrategy(BaseStrategy):
                     liquidity = max(market.liquidity, 1.0)
                     volatility = max(0.0, 1.0 - min(liquidity / 50_000.0, 1.0)) * 0.10
 
-                    # Inventory tracking (placeholder: 0 = flat book)
-                    current_inventory = float(meta.get("current_inventory_usd", 0.0))
-                    inventory_pct = current_inventory / max_inventory if max_inventory > 0 else 0.0
+                    # Inventory tracking — query open positions from database
+                    from sqlalchemy import func
+
+                    inventory_row = (
+                        ctx.db.query(func.coalesce(func.sum(Trade.size), 0.0))
+                        .filter(
+                            Trade.market_ticker == market.ticker,
+                            Trade.settled == False,
+                            Trade.strategy == self.name,
+                        )
+                        .scalar()
+                    )
+                    current_inventory = float(inventory_row)
+                    inventory_pct = (
+                        current_inventory / max_inventory if max_inventory > 0 else 0.0
+                    )
                     inventory_pct = max(-1.0, min(1.0, inventory_pct))
 
                     spread = self.calculate_spread(volatility, inventory_pct)
@@ -170,7 +194,10 @@ class MarketMakerStrategy(BaseStrategy):
 
                     decision = "QUOTE"
                     record_decision(
-                        ctx.db, self.name, market.ticker, decision,
+                        ctx.db,
+                        self.name,
+                        market.ticker,
+                        decision,
                         confidence=0.5,
                         signal_data={
                             "bid_price": quote.bid_price,
@@ -187,7 +214,9 @@ class MarketMakerStrategy(BaseStrategy):
                     result.decisions_recorded += 1
 
                 except Exception as market_err:
-                    logger.warning(f"market_maker: error processing {market.ticker}: {market_err}")
+                    logger.warning(
+                        f"market_maker: error processing {market.ticker}: {market_err}"
+                    )
                     result.errors.append(str(market_err))
 
         except Exception as e:
