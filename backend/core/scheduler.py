@@ -257,7 +257,9 @@ def start_scheduler():
 
         # Remove APScheduler jobs to prevent double-execution
         # The worker will process jobs from the queue instead
-        jobs_to_remove = ["market_scan", "settlement_check", "weather_scan"]
+        # Note: weather_scan is NOT removed - it continues via APScheduler
+        # because there's no queue handler for it yet
+        jobs_to_remove = ["market_scan", "settlement_check"]
         for job_id in jobs_to_remove:
             try:
                 scheduler.remove_job(job_id)

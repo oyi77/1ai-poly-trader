@@ -3,6 +3,7 @@
 These functions wrap existing scheduler logic for use with RQ workers.
 Each handler is async-friendly and returns structured results.
 """
+
 import logging
 from typing import Dict, Any
 
@@ -35,10 +36,7 @@ async def market_scan(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "success": True,
             "message": "Market scan completed successfully",
-            "data": {
-                "job_type": "market_scan",
-                "params": payload
-            }
+            "data": {"job_type": "market_scan", "params": payload},
         }
 
     except Exception as e:
@@ -47,10 +45,7 @@ async def market_scan(payload: Dict[str, Any]) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
             "message": f"Market scan failed: {str(e)}",
-            "data": {
-                "job_type": "market_scan",
-                "params": payload
-            }
+            "data": {"job_type": "market_scan", "params": payload},
         }
 
 
@@ -80,10 +75,7 @@ async def settlement_check(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "success": True,
             "message": "Settlement check completed successfully",
-            "data": {
-                "job_type": "settlement_check",
-                "params": payload
-            }
+            "data": {"job_type": "settlement_check", "params": payload},
         }
 
     except Exception as e:
@@ -92,10 +84,7 @@ async def settlement_check(payload: Dict[str, Any]) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
             "message": f"Settlement check failed: {str(e)}",
-            "data": {
-                "job_type": "settlement_check",
-                "params": payload
-            }
+            "data": {"job_type": "settlement_check", "params": payload},
         }
 
 
@@ -132,8 +121,8 @@ async def signal_generation(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "job_type": "signal_generation",
                 "total_signals": len(signals),
                 "actionable_signals": len(actionable),
-                "params": payload
-            }
+                "params": payload,
+            },
         }
 
     except Exception as e:
@@ -142,8 +131,44 @@ async def signal_generation(payload: Dict[str, Any]) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
             "message": f"Signal generation failed: {str(e)}",
-            "data": {
-                "job_type": "signal_generation",
-                "params": payload
-            }
+            "data": {"job_type": "signal_generation", "params": payload},
+        }
+
+
+async def weather_scan(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler for weather scan job.
+
+    Wraps the weather_scan_and_trade_job logic from scheduling_strategies.py.
+    Can be called from async worker context.
+
+    Args:
+        payload: Dict containing optional job parameters
+
+    Returns:
+        Dict with keys:
+            - success (bool): Whether the job completed successfully
+            - message (str): Human-readable result message
+            - data (dict): Weather scan data (signals found, trades executed, etc.)
+            - error (str, optional): Error message if success=False
+    """
+    try:
+        from backend.core.scheduling_strategies import weather_scan_and_trade_job
+
+        # Execute the weather scan logic
+        await weather_scan_and_trade_job()
+
+        return {
+            "success": True,
+            "message": "Weather scan completed successfully",
+            "data": {"job_type": "weather_scan", "params": payload},
+        }
+
+    except Exception as e:
+        logger.error(f"weather_scan handler error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Weather scan failed: {str(e)}",
+            "data": {"job_type": "weather_scan", "params": payload},
         }

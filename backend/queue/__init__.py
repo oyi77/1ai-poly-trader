@@ -22,6 +22,7 @@ Usage:
         # Process job...
         cache.set(f"job:{job_id}", True, ttl_seconds=300)
 """
+
 from backend.queue.abstract import (
     AbstractQueue,
     AbstractCache,
@@ -33,6 +34,7 @@ from backend.queue.handlers import (
     market_scan,
     settlement_check,
     signal_generation,
+    weather_scan,
 )
 from backend.queue.worker import Worker
 
@@ -45,5 +47,6 @@ __all__ = [
     "market_scan",
     "settlement_check",
     "signal_generation",
+    "weather_scan",
     "Worker",
 ]
