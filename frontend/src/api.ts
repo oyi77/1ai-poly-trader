@@ -579,6 +579,21 @@ export async function rejectPendingTrade(id: number): Promise<{ id: number; stat
   return data
 }
 
+export async function batchApprovePendingTrades(ids: number[]): Promise<{ approved_count: number; approved_ids: number[] }> {
+  const { data } = await adminApi.post<{ approved_count: number; approved_ids: number[] }>('/auto-trader/batch-approve', { trade_ids: ids })
+  return data
+}
+
+export async function batchRejectPendingTrades(ids: number[]): Promise<{ rejected_count: number; rejected_ids: number[] }> {
+  const { data } = await adminApi.post<{ rejected_count: number; rejected_ids: number[] }>('/auto-trader/batch-reject', { trade_ids: ids })
+  return data
+}
+
+export async function clearAllPendingTrades(): Promise<{ cleared_count: number; cleared_ids: number[] }> {
+  const { data } = await adminApi.post<{ cleared_count: number; cleared_ids: number[] }>('/auto-trader/clear-all')
+  return data
+}
+
 export interface WhaleTx {
   id: number
   tx_hash: string

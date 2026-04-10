@@ -3,6 +3,9 @@ import {
   fetchPendingApprovals,
   approvePendingTrade,
   rejectPendingTrade,
+  batchApprovePendingTrades,
+  batchRejectPendingTrades,
+  clearAllPendingTrades,
   type PendingApproval,
 } from '../api'
 
@@ -11,6 +14,8 @@ export default function PendingApprovals() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [batchBusy, setBatchBusy] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -18,6 +23,7 @@ export default function PendingApprovals() {
       const data = await fetchPendingApprovals()
       setItems(data)
       setError(null)
+      setSelectedIds(new Set())
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -53,6 +59,63 @@ export default function PendingApprovals() {
     }
   }
 
+  const toggleSelect = (id: number) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    setSelectedIds(next)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map((it) => it.id)))
+    }
+  }
+
+  const handleBatchApprove = async () => {
+    if (selectedIds.size === 0) return
+    setBatchBusy(true)
+    try {
+      await batchApprovePendingTrades(Array.from(selectedIds))
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
+  const handleBatchReject = async () => {
+    if (selectedIds.size === 0) return
+    setBatchBusy(true)
+    try {
+      await batchRejectPendingTrades(Array.from(selectedIds))
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
+  const handleClearAll = async () => {
+    if (items.length === 0) return
+    setBatchBusy(true)
+    try {
+      await clearAllPendingTrades()
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-neutral-950 text-neutral-200">
       {/* Header */}
@@ -79,6 +142,43 @@ export default function PendingApprovals() {
         </div>
       )}
 
+      {/* Batch Actions Bar */}
+      {items.length > 0 && (
+        <div className="shrink-0 px-4 py-2 bg-neutral-900/50 border-b border-neutral-800 flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-neutral-500 mr-1">
+            <input
+              type="checkbox"
+              checked={selectedIds.size === items.length && items.length > 0}
+              onChange={toggleSelectAll}
+              className="mr-1.5 accent-green-500"
+            />
+            Select All ({selectedIds.size}/{items.length})
+          </span>
+          <button
+            disabled={selectedIds.size === 0 || batchBusy}
+            onClick={handleBatchApprove}
+            className="text-[9px] px-2.5 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {batchBusy ? '...' : `Approve Selected (${selectedIds.size})`}
+          </button>
+          <button
+            disabled={selectedIds.size === 0 || batchBusy}
+            onClick={handleBatchReject}
+            className="text-[9px] px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {batchBusy ? '...' : `Reject Selected (${selectedIds.size})`}
+          </button>
+          <div className="flex-1" />
+          <button
+            disabled={items.length === 0 || batchBusy}
+            onClick={handleClearAll}
+            className="text-[9px] px-2.5 py-1 bg-neutral-500/20 hover:bg-neutral-500/30 text-neutral-400 border border-neutral-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {batchBusy ? '...' : `Clear All (${items.length})`}
+          </button>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
@@ -89,6 +189,14 @@ export default function PendingApprovals() {
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-neutral-950">
               <tr className="border-b border-neutral-800">
+                <th className="text-left px-3 py-2 text-neutral-600 uppercase tracking-wider w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === items.length && items.length > 0}
+                    onChange={toggleSelectAll}
+                    className="accent-green-500"
+                  />
+                </th>
                 <th className="text-left px-3 py-2 text-neutral-600 uppercase tracking-wider">Market</th>
                 <th className="text-left px-3 py-2 text-neutral-600 uppercase tracking-wider">Side</th>
                 <th className="text-right px-3 py-2 text-neutral-600 uppercase tracking-wider">Size</th>
@@ -100,6 +208,14 @@ export default function PendingApprovals() {
             <tbody>
               {items.map((it) => (
                 <tr key={it.id} className="border-b border-neutral-800/40 hover:bg-neutral-900/30">
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(it.id)}
+                      onChange={() => toggleSelect(it.id)}
+                      className="accent-green-500"
+                    />
+                  </td>
                   <td className="px-3 py-2 text-neutral-300 truncate max-w-[150px]" title={it.market_id}>
                     {it.market_id.length > 20 ? `${it.market_id.slice(0, 18)}...` : it.market_id}
                   </td>

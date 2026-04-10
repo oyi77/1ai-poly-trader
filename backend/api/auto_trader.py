@@ -1,4 +1,5 @@
 """Auto-trader routes - pending approvals, approve/reject trades."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -68,5 +69,84 @@ async def reject_pending_trade(trade_id: int, _admin=Depends(require_admin)):
         row.decided_at = datetime.utcnow()
         db.commit()
         return {"id": row.id, "status": row.status}
+    finally:
+        db.close()
+
+
+@router.post("/api/auto-trader/batch-approve")
+async def batch_approve_trades(
+    trade_ids: list[int],
+    _admin=Depends(require_admin),
+):
+    """Batch approve multiple pending trades."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PendingApproval)
+            .filter(
+                PendingApproval.id.in_(trade_ids),
+                PendingApproval.status == "pending",
+            )
+            .all()
+        )
+        now = datetime.utcnow()
+        for row in rows:
+            row.status = "approved"
+            row.decided_at = now
+        db.commit()
+        return {
+            "approved_count": len(rows),
+            "approved_ids": [r.id for r in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.post("/api/auto-trader/batch-reject")
+async def batch_reject_trades(
+    trade_ids: list[int],
+    _admin=Depends(require_admin),
+):
+    """Batch reject multiple pending trades."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PendingApproval)
+            .filter(
+                PendingApproval.id.in_(trade_ids),
+                PendingApproval.status == "pending",
+            )
+            .all()
+        )
+        now = datetime.utcnow()
+        for row in rows:
+            row.status = "rejected"
+            row.decided_at = now
+        db.commit()
+        return {
+            "rejected_count": len(rows),
+            "rejected_ids": [r.id for r in rows],
+        }
+    finally:
+        db.close()
+
+
+@router.post("/api/auto-trader/clear-all")
+async def clear_all_approvals(_admin=Depends(require_admin)):
+    """Clear (reject) all pending approvals."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PendingApproval).filter(PendingApproval.status == "pending").all()
+        )
+        now = datetime.utcnow()
+        for row in rows:
+            row.status = "rejected"
+            row.decided_at = now
+        db.commit()
+        return {
+            "cleared_count": len(rows),
+            "cleared_ids": [r.id for r in rows],
+        }
     finally:
         db.close()
