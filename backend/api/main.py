@@ -14,6 +14,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Optional, AsyncGenerator
+from contextlib import asynccontextmanager
 import asyncio
 import os
 from collections import deque
@@ -45,7 +46,12 @@ from backend.data.btc_markets import fetch_active_btc_markets
 from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
 from backend.core.errors import handle_errors
 from backend.core.event_bus import event_bus, publish_event
-from backend.api.ws_manager import market_ws, whale_ws, broadcast_market_tick, broadcast_whale_tick
+from backend.api.ws_manager import (
+    market_ws,
+    whale_ws,
+    broadcast_market_tick,
+    broadcast_whale_tick,
+)
 from backend.api.auth import router as auth_router, require_admin
 from backend.api.markets import router as markets_router, _weather_signal_to_response
 from backend.api.trading import (
@@ -70,10 +76,116 @@ import logging
 
 logger = logging.getLogger("trading_bot")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # --- Startup ---
+    from datetime import datetime as _dt, timezone as _tz
+
+    app.state.start_time = _dt.now(_tz.utc)
+    logger.info("=" * 60)
+    logger.info("BTC 5-MIN TRADING BOT v3.0")
+    logger.info("=" * 60)
+    logger.info("Initializing database...")
+
+    init_db()
+
+    db = SessionLocal()
+    try:
+        state = db.query(BotState).first()
+        if not state:
+            state = BotState(
+                bankroll=settings.INITIAL_BANKROLL,
+                paper_bankroll=settings.INITIAL_BANKROLL,
+                total_trades=0,
+                winning_trades=0,
+                total_pnl=0.0,
+                is_running=True,
+            )
+            db.add(state)
+            db.commit()
+            logger.info(
+                f"Created new bot state with ${settings.INITIAL_BANKROLL:,.2f} bankroll"
+            )
+        else:
+            state.is_running = True
+            db.commit()
+            logger.info(
+                f"Loaded bot state: Bankroll ${state.bankroll:,.2f}, P&L ${state.total_pnl:+,.2f}, {state.total_trades} trades"
+            )
+    finally:
+        db.close()
+
+    logger.info("")
+    logger.info("Configuration:")
+    logger.info(f"  - Simulation mode: {settings.SIMULATION_MODE}")
+    logger.info(f"  - Min edge threshold: {settings.MIN_EDGE_THRESHOLD:.0%}")
+    logger.info(f"  - Kelly fraction: {settings.KELLY_FRACTION:.0%}")
+    logger.info(f"  - Scan interval: {settings.SCAN_INTERVAL_SECONDS}s")
+    logger.info(f"  - Settlement interval: {settings.SETTLEMENT_INTERVAL_SECONDS}s")
+    logger.info("")
+
+    # Load all strategies BEFORE starting scheduler
+    from backend.strategies.registry import load_all_strategies
+
+    logger.info("Loading trading strategies...")
+    load_all_strategies()
+    logger.info(
+        f"  - Strategies loaded: {', '.join(sorted(__import__('backend.strategies.registry', fromlist=['STRATEGY_REGISTRY']).STRATEGY_REGISTRY.keys()))}"
+    )
+
+    from backend.core.scheduler import start_scheduler, log_event
+
+    start_scheduler()
+    log_event("success", "BTC 5-min trading bot initialized")
+
+    logger.info("Bot is now running!")
+    logger.info(
+        f"  - BTC scan: every {settings.SCAN_INTERVAL_SECONDS}s (edge >= {settings.MIN_EDGE_THRESHOLD:.0%})"
+    )
+    logger.info(f"  - Settlement check: every {settings.SETTLEMENT_INTERVAL_SECONDS}s")
+    if settings.WEATHER_ENABLED:
+        logger.info(
+            f"  - Weather scan: every {settings.WEATHER_SCAN_INTERVAL_SECONDS}s (edge >= {settings.WEATHER_MIN_EDGE_THRESHOLD:.0%})"
+        )
+        logger.info(f"  - Weather cities: {settings.WEATHER_CITIES}")
+    else:
+        logger.info("  - Weather trading: DISABLED")
+    logger.info("=" * 60)
+
+    yield
+
+    # --- Shutdown ---
+    from backend.core.scheduler import stop_scheduler, scheduler as _scheduler
+
+    logger.info("Shutdown initiated — stopping scheduler...")
+    app.state.shutting_down = True
+
+    # Stop APScheduler gracefully (sets running=False immediately, cancels worker task)
+    stop_scheduler()
+
+    # Give in-flight strategy jobs a grace period to complete before closing DB.
+    # scheduler.shutdown(wait=False) cancels the scheduler but doesn't await running
+    # coroutines. A 3-second grace period covers the typical strategy cycle duration.
+    await asyncio.sleep(3.0)
+
+    # Close database connections
+    try:
+        from backend.models.database import engine
+
+        engine.dispose()
+        logger.info("Database connections closed")
+    except Exception:
+        logger.exception("Error closing database connections")
+
+    logger.info("Shutdown complete")
+
+
 app = FastAPI(
     title="BTC 5-Min Trading Bot",
     description="Polymarket BTC Up/Down 5-minute market trading bot",
     version="3.0.0",
+    lifespan=lifespan,
 )
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -86,6 +198,7 @@ app.add_middleware(
 )
 
 from backend.api.rate_limiter import RateLimiterMiddleware
+
 app.add_middleware(RateLimiterMiddleware, requests_per_minute=100)
 
 # Include routers
@@ -100,10 +213,12 @@ app.include_router(system_router)
 app.include_router(backtest_router)
 app.include_router(wallets_router)
 
+
 # Add metrics middleware for automatic tracking
 @app.middleware("http")
 async def metrics_middleware_wrapper(request: Request, call_next):
     from backend.monitoring.middleware import metrics_middleware
+
     return await metrics_middleware(request, call_next)
 
 
@@ -147,6 +262,7 @@ class BacktestRequest(BaseModel):
     end_date: str | None = None  # ISO format datetime
     market_types: list[str] = ["BTC", "Weather", "CopyTrader"]
     slippage_bps: int = 5  # basis points
+
 
 class FrontendBacktestRequest(BaseModel):
     strategy_name: str
@@ -259,105 +375,6 @@ class EventResponse(BaseModel):
     data: dict = {}
 
 
-# Startup / Shutdown
-@app.on_event("startup")
-async def startup():
-    from datetime import datetime as _dt, timezone as _tz
-    app.state.start_time = _dt.now(_tz.utc)
-    logger.info("=" * 60)
-    logger.info("BTC 5-MIN TRADING BOT v3.0")
-    logger.info("=" * 60)
-    logger.info("Initializing database...")
-
-    init_db()
-
-    db = SessionLocal()
-    try:
-        state = db.query(BotState).first()
-        if not state:
-            state = BotState(
-                bankroll=settings.INITIAL_BANKROLL,
-                paper_bankroll=settings.INITIAL_BANKROLL,
-                total_trades=0,
-                winning_trades=0,
-                total_pnl=0.0,
-                is_running=True,
-            )
-            db.add(state)
-            db.commit()
-            logger.info(
-                f"Created new bot state with ${settings.INITIAL_BANKROLL:,.2f} bankroll"
-            )
-        else:
-            state.is_running = True
-            db.commit()
-            logger.info(
-                f"Loaded bot state: Bankroll ${state.bankroll:,.2f}, P&L ${state.total_pnl:+,.2f}, {state.total_trades} trades"
-            )
-    finally:
-        db.close()
-
-    logger.info("")
-    logger.info("Configuration:")
-    logger.info(f"  - Simulation mode: {settings.SIMULATION_MODE}")
-    logger.info(f"  - Min edge threshold: {settings.MIN_EDGE_THRESHOLD:.0%}")
-    logger.info(f"  - Kelly fraction: {settings.KELLY_FRACTION:.0%}")
-    logger.info(f"  - Scan interval: {settings.SCAN_INTERVAL_SECONDS}s")
-    logger.info(f"  - Settlement interval: {settings.SETTLEMENT_INTERVAL_SECONDS}s")
-    logger.info("")
-
-    # Load all strategies BEFORE starting scheduler
-    from backend.strategies.registry import load_all_strategies
-    logger.info("Loading trading strategies...")
-    load_all_strategies()
-    logger.info(f"  - Strategies loaded: {', '.join(sorted(__import__('backend.strategies.registry', fromlist=['STRATEGY_REGISTRY']).STRATEGY_REGISTRY.keys()))}")
-
-    from backend.core.scheduler import start_scheduler, log_event
-
-    start_scheduler()
-    log_event("success", "BTC 5-min trading bot initialized")
-
-    logger.info("Bot is now running!")
-    logger.info(
-        f"  - BTC scan: every {settings.SCAN_INTERVAL_SECONDS}s (edge >= {settings.MIN_EDGE_THRESHOLD:.0%})"
-    )
-    logger.info(f"  - Settlement check: every {settings.SETTLEMENT_INTERVAL_SECONDS}s")
-    if settings.WEATHER_ENABLED:
-        logger.info(
-            f"  - Weather scan: every {settings.WEATHER_SCAN_INTERVAL_SECONDS}s (edge >= {settings.WEATHER_MIN_EDGE_THRESHOLD:.0%})"
-        )
-        logger.info(f"  - Weather cities: {settings.WEATHER_CITIES}")
-    else:
-        logger.info("  - Weather trading: DISABLED")
-    logger.info("=" * 60)
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    from backend.core.scheduler import stop_scheduler, scheduler as _scheduler
-
-    logger.info("Shutdown initiated — stopping scheduler...")
-    app.state.shutting_down = True
-
-    # Stop APScheduler gracefully (sets running=False immediately, cancels worker task)
-    stop_scheduler()
-
-    # Give in-flight strategy jobs a grace period to complete before closing DB.
-    # scheduler.shutdown(wait=False) cancels the scheduler but doesn't await running
-    # coroutines. A 3-second grace period covers the typical strategy cycle duration.
-    await asyncio.sleep(3.0)
-
-    # Close database connections
-    try:
-        from backend.models.database import engine
-        engine.dispose()
-        logger.info("Database connections closed")
-    except Exception:
-        logger.exception("Error closing database connections")
-
-    logger.info("Shutdown complete")
-
-
 # Core endpoints
 @app.get("/")
 async def root():
@@ -394,11 +411,14 @@ async def metrics():
     Scrape this endpoint with Prometheus or other monitoring systems.
     """
     from backend.monitoring import get_metrics
+
     return get_metrics()
 
 
 @app.get("/api/dashboard", response_model=DashboardData)
-async def get_dashboard(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def get_dashboard(
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     """Get all dashboard data in one call."""
     stats = await get_stats(db)
 
@@ -428,7 +448,9 @@ async def get_dashboard(db: Session = Depends(get_db), _: None = Depends(require
                 last_updated=datetime.now(timezone.utc),
             )
     except Exception:
-        logger.warning("Failed to fetch BTC microstructure data, falling back to CoinGecko")
+        logger.warning(
+            "Failed to fetch BTC microstructure data, falling back to CoinGecko"
+        )
     if not btc_price_data:
         try:
             btc = await fetch_crypto_price("BTC")
@@ -482,7 +504,9 @@ async def get_dashboard(db: Session = Depends(get_db), _: None = Depends(require
     trade_ids = [t.id for t in trades]
     contexts = {}
     if trade_ids:
-        for ctx in db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all():
+        for ctx in (
+            db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
+        ):
             contexts[ctx.trade_id] = ctx
     recent_trades = [
         TradeResponse(
@@ -717,7 +741,10 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
                 last_event_count = len(current_events)
 
             await websocket.send_json(
-                {"type": "heartbeat", "timestamp": datetime.now(timezone.utc).isoformat()}
+                {
+                    "type": "heartbeat",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
             )
 
     except WebSocketDisconnect:
@@ -725,7 +752,6 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
     except Exception:
         logger.exception("Events WebSocket error")
         ws_manager.disconnect(websocket)
-
 
 
 if __name__ == "__main__":

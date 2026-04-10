@@ -4,8 +4,10 @@ PolyEdge exception hierarchy and error handling utilities.
 This module provides a structured exception hierarchy and a decorator
 for consistent error logging across API routes.
 """
+
 import logging
 import functools
+import inspect
 import traceback
 import asyncio
 from typing import Callable, Any
@@ -19,8 +21,10 @@ logger = logging.getLogger(__name__)
 # Exception Hierarchy
 # =============================================================================
 
+
 class PolyEdgeException(Exception):
     """Base exception for all PolyEdge errors."""
+
     def __init__(self, message: str, details: dict | None = None):
         self.message = message
         self.details = details or {}
@@ -29,31 +33,37 @@ class PolyEdgeException(Exception):
 
 class MarketDataError(PolyEdgeException):
     """Errors related to market data fetching or processing."""
+
     pass
 
 
 class TradingError(PolyEdgeException):
     """Errors related to trading operations."""
+
     pass
 
 
 class ConfigurationError(PolyEdgeException):
     """Errors related to configuration or settings."""
+
     pass
 
 
 class SignalGenerationError(PolyEdgeException):
     """Errors related to signal generation."""
+
     pass
 
 
 class SettlementError(PolyEdgeException):
     """Errors related to trade settlement."""
+
     pass
 
 
 class ExternalAPIError(PolyEdgeException):
     """Errors related to external API failures."""
+
     def __init__(
         self,
         message: str,
@@ -72,13 +82,17 @@ class ExternalAPIError(PolyEdgeException):
 
 class DataQualityError(PolyEdgeException):
     """Errors related to data validation failures."""
-    def __init__(self, message: str, details: dict | None = None, field_name: str | None = None):
+
+    def __init__(
+        self, message: str, details: dict | None = None, field_name: str | None = None
+    ):
         self.field_name = field_name
         super().__init__(message, details)
 
 
 class OrderExecutionError(TradingError):
     """Errors related to order placement failures."""
+
     def __init__(
         self,
         message: str,
@@ -93,6 +107,7 @@ class OrderExecutionError(TradingError):
 
 class RateLimitError(ExternalAPIError):
     """Errors related to rate limit responses."""
+
     def __init__(
         self,
         message: str,
@@ -113,6 +128,7 @@ class RateLimitError(ExternalAPIError):
 
 class CircuitOpenError(ExternalAPIError):
     """Errors related to circuit breaker open state."""
+
     def __init__(
         self,
         message: str,
@@ -137,6 +153,7 @@ class CircuitOpenError(ExternalAPIError):
 # Error Handling Decorator
 # =============================================================================
 
+
 def handle_errors(
     log_level: int = logging.ERROR,
     reraise: bool = True,
@@ -156,6 +173,7 @@ def handle_errors(
             # endpoint logic
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs) -> Any:
@@ -202,7 +220,7 @@ def handle_errors(
                 return default_response
 
         # Return appropriate wrapper based on whether function is async
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:
             return sync_wrapper

@@ -19,7 +19,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy import event
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect
 
@@ -61,7 +61,12 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id = Column(Integer, primary_key=True, index=True)
-    signal_id = Column(Integer, ForeignKey("signals.id", ondelete="SET NULL"), nullable=True, index=True)
+    signal_id = Column(
+        Integer,
+        ForeignKey("signals.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     market_ticker = Column(String, index=True)
     platform = Column(String)
     event_slug = Column(String, nullable=True)
@@ -94,14 +99,17 @@ class Trade(Base):
     confidence = Column(Float, nullable=True)
 
     # Partial fill tracking
-    filled_size = Column(Float, nullable=True)  # actual fill amount, None = assumed full fill
+    filled_size = Column(
+        Float, nullable=True
+    )  # actual fill amount, None = assumed full fill
 
     # On-chain order tracking (testnet / live modes)
     clob_order_id = Column(
         String, nullable=True
     )  # Order ID returned by Polymarket CLOB
-    clob_idempotency_key = Column(String, nullable=True)  # UUID idempotency key per order attempt
-
+    clob_idempotency_key = Column(
+        String, nullable=True
+    )  # UUID idempotency key per order attempt
 
 
 class BtcPriceSnapshot(Base):
@@ -165,8 +173,10 @@ class Signal(Base):
     reasoning = Column(String)
 
     # Edge discovery tracking
-    track_name = Column(String, nullable=True, default='legacy', index=True)  # Which edge track generated this signal
-    execution_mode = Column(String, nullable=True, default='paper')  # 'paper' or 'live'
+    track_name = Column(
+        String, nullable=True, default="legacy", index=True
+    )  # Which edge track generated this signal
+    execution_mode = Column(String, nullable=True, default="paper")  # 'paper' or 'live'
 
     executed = Column(Boolean, default=False)
 
@@ -268,7 +278,9 @@ class DecisionLog(Base):
     signal_data = Column(Text, nullable=True)  # JSON string
     reason = Column(Text, nullable=True)
     outcome = Column(String, nullable=True)  # WIN, LOSS, PUSH — filled at settlement
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), index=True
+    )
 
 
 class MarketWatch(Base):
@@ -280,7 +292,11 @@ class MarketWatch(Base):
     config = Column(Text, nullable=True)  # JSON string
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class WalletConfig(Base):
@@ -294,7 +310,9 @@ class WalletConfig(Base):
     notes = Column(Text, nullable=True)
     added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     whale_score = Column(Float, nullable=True)
-    balance_cache = Column(Text, nullable=True)  # JSON: {"usdc_balance", "last_updated"}
+    balance_cache = Column(
+        Text, nullable=True
+    )  # JSON: {"usdc_balance", "last_updated"}
 
 
 class StrategyConfig(Base):
@@ -304,7 +322,11 @@ class StrategyConfig(Base):
     enabled = Column(Boolean, default=False)
     params = Column(Text, nullable=True)  # JSON string
     interval_seconds = Column(Integer, default=60)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class TradeContext(Base):
@@ -354,7 +376,9 @@ class WhaleTransaction(Base):
     side = Column(String, nullable=True)  # buy/sell
     size_usd = Column(Float, nullable=False)
     block_number = Column(Integer, nullable=True)
-    observed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    observed_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
 
 class PendingApproval(Base):
@@ -456,7 +480,9 @@ def ensure_schema():
                                 )
                             )
                     except Exception as e:
-                        logger.warning(f"Schema migration: could not add bot_state column {col}: {e}")
+                        logger.warning(
+                            f"Schema migration: could not add bot_state column {col}: {e}"
+                        )
 
     # Add calibration columns to signals table
     try:
@@ -480,12 +506,17 @@ def ensure_schema():
                                 text(f"ALTER TABLE signals ADD COLUMN {col} {coltype}")
                             )
                     except Exception as e:
-                        logger.warning(f"Schema migration: could not add signals column {col}: {e}")
+                        logger.warning(
+                            f"Schema migration: could not add signals column {col}: {e}"
+                        )
 
     # Add edge discovery tracking columns to signals table
     with engine.connect() as conn:
         for col, coltype in [
-            ("track_name", "VARCHAR DEFAULT 'legacy'"),  # Which edge track generated this signal
+            (
+                "track_name",
+                "VARCHAR DEFAULT 'legacy'",
+            ),  # Which edge track generated this signal
             ("execution_mode", "VARCHAR DEFAULT 'paper'"),  # 'paper' or 'live'
         ]:
             if col not in signal_columns:
@@ -495,7 +526,9 @@ def ensure_schema():
                             text(f"ALTER TABLE signals ADD COLUMN {col} {coltype}")
                         )
                 except Exception as e:
-                    logger.warning(f"Schema migration: could not add signals edge-track column {col}: {e}")
+                    logger.warning(
+                        f"Schema migration: could not add signals edge-track column {col}: {e}"
+                    )
 
     # Add per-track bankroll and PNL tracking to bot_state
     try:
@@ -523,10 +556,14 @@ def ensure_schema():
                     try:
                         with conn.begin():
                             conn.execute(
-                                text(f"ALTER TABLE bot_state ADD COLUMN {col} {coltype}")
+                                text(
+                                    f"ALTER TABLE bot_state ADD COLUMN {col} {coltype}"
+                                )
                             )
                     except Exception as e:
-                        logger.warning(f"Schema migration: could not add bot_state per-track column {col}: {e}")
+                        logger.warning(
+                            f"Schema migration: could not add bot_state per-track column {col}: {e}"
+                        )
 
     # Ensure copy_trader_entries table exists
     try:
@@ -539,13 +576,21 @@ def ensure_schema():
     else:
         # Migrate: add pnl column if missing
         try:
-            copy_cols = {c["name"] for c in inspector.get_columns("copy_trader_entries")}
+            copy_cols = {
+                c["name"] for c in inspector.get_columns("copy_trader_entries")
+            }
             if "pnl" not in copy_cols:
                 with engine.connect() as conn:
                     with conn.begin():
-                        conn.execute(text("ALTER TABLE copy_trader_entries ADD COLUMN pnl REAL DEFAULT 0.0"))
+                        conn.execute(
+                            text(
+                                "ALTER TABLE copy_trader_entries ADD COLUMN pnl REAL DEFAULT 0.0"
+                            )
+                        )
         except Exception as e:
-            logger.warning(f"Schema migration: could not add copy_trader_entries pnl column: {e}")
+            logger.warning(
+                f"Schema migration: could not add copy_trader_entries pnl column: {e}"
+            )
 
     # Ensure settlement_events table exists
     if "settlement_events" not in copy_entry_tables:
@@ -564,9 +609,13 @@ def ensure_schema():
         if "whale_score" not in wallet_columns:
             with engine.connect() as conn:
                 with conn.begin():
-                    conn.execute(text("ALTER TABLE wallet_config ADD COLUMN whale_score FLOAT"))
+                    conn.execute(
+                        text("ALTER TABLE wallet_config ADD COLUMN whale_score FLOAT")
+                    )
     except Exception as e:
-        logger.warning(f"Schema migration: could not add wallet_config whale_score column: {e}")
+        logger.warning(
+            f"Schema migration: could not add wallet_config whale_score column: {e}"
+        )
 
     # Add new columns to trades table if missing
     inspector = inspect(engine)
@@ -589,22 +638,38 @@ def ensure_schema():
     try:
         with engine.connect() as conn:
             with conn.begin():
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trades_settled_mode ON trades(settled, trading_mode)"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trades_ticker_settled ON trades(market_ticker, settled)"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_trades_settled_mode ON trades(settled, trading_mode)"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_trades_ticker_settled ON trades(market_ticker, settled)"
+                    )
+                )
     except Exception as e:
         logger.warning(f"Could not create trades indexes: {e}")
 
     try:
         with engine.connect() as conn:
             with conn.begin():
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_pending_approvals_status ON pending_approvals(status)"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_pending_approvals_status ON pending_approvals(status)"
+                    )
+                )
     except Exception as e:
         logger.warning(f"Could not create pending_approvals index: {e}")
 
     try:
         with engine.connect() as conn:
             with conn.begin():
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_settlement_events_trade_id ON settlement_events(trade_id)"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_settlement_events_trade_id ON settlement_events(trade_id)"
+                    )
+                )
     except Exception as e:
         logger.warning(f"Could not create settlement_events index: {e}")
 

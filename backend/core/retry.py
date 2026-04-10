@@ -1,6 +1,8 @@
 """Retry decorator with exponential backoff for transient failures."""
+
 import asyncio
 import functools
+import inspect
 import logging
 import random
 import time
@@ -17,7 +19,8 @@ def retry(
     on_retry: Callable | None = None,
 ):
     def decorator(func: Callable) -> Callable:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 last_exc = None
@@ -28,17 +31,23 @@ def retry(
                         last_exc = exc
                         if attempt == max_attempts:
                             break
-                        delay = min(backoff_base ** attempt, max_delay) + random.random()
+                        delay = min(backoff_base**attempt, max_delay) + random.random()
                         logger.warning(
                             "Retry %d/%d for %s after %.1fs: %s",
-                            attempt, max_attempts, func.__name__, delay, exc,
+                            attempt,
+                            max_attempts,
+                            func.__name__,
+                            delay,
+                            exc,
                         )
                         if on_retry is not None:
                             on_retry(func.__name__, attempt, exc)
                         await asyncio.sleep(delay)
                 raise last_exc
+
             return async_wrapper
         else:
+
             @functools.wraps(func)
             def sync_wrapper(*args, **kwargs):
                 last_exc = None
@@ -49,15 +58,20 @@ def retry(
                         last_exc = exc
                         if attempt == max_attempts:
                             break
-                        delay = min(backoff_base ** attempt, max_delay) + random.random()
+                        delay = min(backoff_base**attempt, max_delay) + random.random()
                         logger.warning(
                             "Retry %d/%d for %s after %.1fs: %s",
-                            attempt, max_attempts, func.__name__, delay, exc,
+                            attempt,
+                            max_attempts,
+                            func.__name__,
+                            delay,
+                            exc,
                         )
                         if on_retry is not None:
                             on_retry(func.__name__, attempt, exc)
                         time.sleep(delay)
                 raise last_exc
+
             return sync_wrapper
 
     return decorator
