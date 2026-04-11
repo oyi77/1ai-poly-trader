@@ -200,7 +200,7 @@ class TestRiskRejection:
 class TestUpdatesBankroll:
     @pytest.mark.asyncio
     async def test_updates_paper_bankroll(self):
-        """Paper trade decrements paper_bankroll by the trade size."""
+        """Paper trade does NOT deduct bankroll at entry — settlement handles all PNL."""
         # Create fresh test engine for this test to ensure isolation
         test_engine = create_engine(
             "sqlite:///:memory:",
@@ -233,8 +233,8 @@ class TestUpdatesBankroll:
         check_db = TestSession()
         try:
             state = check_db.query(BotState).first()
-            # paper_bankroll should have decreased by the adjusted size
-            assert state.paper_bankroll < 500.0
+            # Bankroll should remain unchanged at entry — settlement handles PNL
+            assert state.paper_bankroll == 500.0
         finally:
             check_db.close()
 
