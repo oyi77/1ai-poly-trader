@@ -2,10 +2,7 @@ import { motion } from 'framer-motion'
 import { useStats } from '../hooks/useStats'
 
 export function StatsCards() {
-  const { pnl, wins, trades, bankroll, winRate, mode, isRunning } = useStats()
-
-  const costBasis = bankroll - pnl
-  const returnPercent = costBasis > 0 ? (pnl / costBasis * 100) : 0
+  const { pnl, wins, trades, bankroll, winRate, returnPercent, mode, isRunning } = useStats()
   const modeLabel = mode ? mode.toUpperCase() : ''
 
   return (
