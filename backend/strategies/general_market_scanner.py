@@ -64,13 +64,31 @@ class GeneralMarketScanner(BaseStrategy):
         "low_prob_threshold": 0.20,
         "edge_dampening": 0.5,
         "sports_edge_multiplier": 3.0,
-        # Max raw edge cap: reject if AI claims more than this edge over market.
-        # Relaxed to 0.40 — allows AI to disagree more with extreme-priced markets.
-        "max_raw_edge": 0.40,
+        # Max raw edge cap: reject if AI disagrees with market by more than this.
+        # Tightened to 0.25 — a small model claiming 25%+ edge is almost always wrong.
+        "max_raw_edge": 0.25,
         # Market anchor weight: blend AI prob toward market price.
         # final_prob = anchor_weight * market_price + (1-anchor_weight) * ai_prob
-        # 0.3 means AI opinion has 70% weight — trust AI more than pure market price.
-        "market_anchor_weight": 0.3,
+        # 0.7 = trust the market more than the AI.  An 8B model cannot reliably
+        # beat liquid prediction markets — use it for slight tilts, not overrides.
+        "market_anchor_weight": 0.7,
+        # --- Safe harvesting strategy ---
+        # Prefer NO bets on low-probability events.  Markets priced at YES 0.05-0.25
+        # resolve NO >80% of the time.  Instead of trying to pick YES winners among
+        # long-shots, harvest the NO side for steady 10-25% returns.
+        # When True: for markets where YES < harvest_yes_ceiling, force direction=NO
+        # unless AI strongly disagrees (raw_ai_prob > harvest_ai_override_threshold).
+        "safe_harvest_enabled": True,
+        "harvest_yes_ceiling": 0.25,  # Markets with YES below this → prefer NO
+        "harvest_ai_override_threshold": 0.50,  # AI must be >50% YES to override harvest
+        # --- Market-agree filter ---
+        # Only trade when AI direction agrees with market lean.
+        # If market says event is unlikely (YES < 0.40), only allow NO bets.
+        # If market says event is likely (YES > 0.60), only allow YES bets.
+        # In the 0.40-0.60 zone, allow either direction.
+        "market_agree_enabled": True,
+        "market_agree_low": 0.40,  # Below this: only NO trades allowed
+        "market_agree_high": 0.60,  # Above this: only YES trades allowed
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -94,8 +112,14 @@ class GeneralMarketScanner(BaseStrategy):
         low_prob_threshold = float(params.get("low_prob_threshold", 0.20))
         edge_dampening = float(params.get("edge_dampening", 0.5))
         sports_edge_multiplier = float(params.get("sports_edge_multiplier", 3.0))
-        max_raw_edge = float(params.get("max_raw_edge", 0.40))
-        market_anchor_weight = float(params.get("market_anchor_weight", 0.3))
+        max_raw_edge = float(params.get("max_raw_edge", 0.25))
+        market_anchor_weight = float(params.get("market_anchor_weight", 0.7))
+        safe_harvest_enabled = bool(params.get("safe_harvest_enabled", True))
+        harvest_yes_ceiling = float(params.get("harvest_yes_ceiling", 0.25))
+        harvest_ai_override = float(params.get("harvest_ai_override_threshold", 0.50))
+        market_agree_enabled = bool(params.get("market_agree_enabled", True))
+        market_agree_low = float(params.get("market_agree_low", 0.40))
+        market_agree_high = float(params.get("market_agree_high", 0.60))
         allowed_categories_raw = params.get("categories", "")
         allowed_categories = {
             c.strip().lower()
@@ -306,9 +330,41 @@ class GeneralMarketScanner(BaseStrategy):
                 edge = market_price - ai_prob
                 entry_price = no_price
 
-            # Reject if raw AI edge is absurdly large — the market is almost certainly
-            # right and the AI is hallucinating.
             raw_edge = abs(raw_ai_prob - market_price)
+
+            # Safe harvesting: for low-YES markets, force NO direction
+            # unless the AI is VERY confident it will resolve YES.
+            if safe_harvest_enabled and market_price < harvest_yes_ceiling:
+                if raw_ai_prob < harvest_ai_override:
+                    if direction == "yes":
+                        ctx.logger.info(
+                            f"[general_scanner] HARVEST: flipping {slug} from YES→NO "
+                            f"(mkt={market_price:.3f} < ceiling={harvest_yes_ceiling}, "
+                            f"ai_raw={raw_ai_prob:.3f} < override={harvest_ai_override})"
+                        )
+                        direction = "no"
+                        entry_price = no_price
+                        edge = market_price - ai_prob
+                        if edge <= 0:
+                            edge = (1.0 - market_price) * 0.05
+
+            # Market-agree filter: only trade in the direction the market leans.
+            if market_agree_enabled:
+                if market_price < market_agree_low and direction == "yes":
+                    ctx.logger.info(
+                        f"[general_scanner] FILTER:MARKET_AGREE {slug}: "
+                        f"market={market_price:.3f} < {market_agree_low} but AI says YES, rejecting"
+                    )
+                    rejected_edge_low += 1
+                    continue
+                if market_price > market_agree_high and direction == "no":
+                    ctx.logger.info(
+                        f"[general_scanner] FILTER:MARKET_AGREE {slug}: "
+                        f"market={market_price:.3f} > {market_agree_high} but AI says NO, rejecting"
+                    )
+                    rejected_edge_low += 1
+                    continue
+
             if raw_edge > max_raw_edge:
                 ctx.logger.info(
                     f"[general_scanner] FILTER:RAW_EDGE {slug}: raw_edge={raw_edge:.4f} > max={max_raw_edge} "
