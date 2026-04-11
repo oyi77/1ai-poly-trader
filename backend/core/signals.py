@@ -1,4 +1,5 @@
 """Signal generator for BTC 5-minute Up/Down markets."""
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -16,6 +17,7 @@ logger = logging.getLogger("trading_bot")
 @dataclass
 class TradingSignal:
     """A trading signal for a BTC 5-min market."""
+
     market: BtcMarket
 
     # Core signal data
@@ -45,10 +47,7 @@ class TradingSignal:
         return abs(self.edge) >= settings.MIN_EDGE_THRESHOLD
 
 
-def calculate_edge(
-    model_prob: float,
-    market_price: float
-) -> tuple[float, str]:
+def calculate_edge(model_prob: float, market_price: float) -> tuple[float, str]:
     """Calculate edge and direction ("up"/"down") for a BTC 5-min market."""
     up_edge = model_prob - market_price
     down_edge = (1 - model_prob) - (1 - market_price)
@@ -64,7 +63,7 @@ def calculate_kelly_size(
     probability: float,
     market_price: float,
     direction: str,
-    bankroll: float
+    bankroll: float,
 ) -> float:
     """Calculate position size using fractional Kelly criterion."""
     if direction == "up":
@@ -126,7 +125,9 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
     rsi_signal = max(-1.0, min(1.0, rsi_signal))
 
     # 2) Momentum: weighted blend of 1m, 5m, 15m changes
-    mom_blend = micro.momentum_1m * 0.5 + micro.momentum_5m * 0.35 + micro.momentum_15m * 0.15
+    mom_blend = (
+        micro.momentum_1m * 0.5 + micro.momentum_5m * 0.35 + micro.momentum_15m * 0.15
+    )
     momentum_signal = max(-1.0, min(1.0, mom_blend / 0.10))
 
     # 3) VWAP deviation
@@ -145,10 +146,16 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
         vwap_signal,
         sma_signal,
     ]
-    up_votes = sum(1 for s in indicator_signs if s > 0.05)
-    down_votes = sum(1 for s in indicator_signs if s < -0.05)
+    # Use a higher threshold (0.15) to avoid counting noise as a "vote"
+    up_votes = sum(1 for s in indicator_signs if s > 0.15)
+    down_votes = sum(1 for s in indicator_signs if s < -0.15)
 
-    has_convergence = up_votes >= 2 or down_votes >= 2
+    # STRICT: require 3 of 4 indicators to agree (was 2 of 4)
+    has_convergence = up_votes >= 3 or down_votes >= 3
+
+    # Volatility gate: skip signals during low-volatility (random walk) periods
+    # BTC 5-min vol < 0.02% means price is barely moving — no edge possible
+    has_sufficient_volatility = micro.volatility >= 0.02
 
     w = settings
     composite = (
@@ -159,8 +166,10 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
         + skew_signal * w.WEIGHT_MARKET_SKEW
     )
 
-    model_up_prob = 0.50 + composite * 0.15
-    model_up_prob = max(0.35, min(0.65, model_up_prob))
+    # Reduced multiplier: 0.10 instead of 0.15 — model should be LESS confident
+    # given its track record of claiming edge that doesn't exist
+    model_up_prob = 0.50 + composite * 0.10
+    model_up_prob = max(0.40, min(0.60, model_up_prob))
 
     edge, direction = calculate_edge(model_up_prob, market_up_prob)
 
@@ -174,9 +183,16 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
     if window_end.tzinfo is None:
         window_end = window_end.replace(tzinfo=timezone.utc)
     time_remaining = (window_end - now).total_seconds()
-    time_ok = settings.MIN_TIME_REMAINING <= time_remaining <= settings.MAX_TIME_REMAINING
+    time_ok = (
+        settings.MIN_TIME_REMAINING <= time_remaining <= settings.MAX_TIME_REMAINING
+    )
 
-    passes_filters = has_convergence and entry_price <= settings.MAX_ENTRY_PRICE and time_ok
+    passes_filters = (
+        has_convergence
+        and has_sufficient_volatility
+        and entry_price <= settings.MAX_ENTRY_PRICE
+        and time_ok
+    )
 
     if not passes_filters:
         edge = 0.0
@@ -191,7 +207,9 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
     else:
         vol_adjustment = 0.8
 
-    confidence = min(0.95, (base_confidence + edge_component + composite_component) * vol_adjustment)
+    confidence = min(
+        0.95, (base_confidence + edge_component + composite_component) * vol_adjustment
+    )
 
     bankroll = settings.INITIAL_BANKROLL
     suggested_size = calculate_kelly_size(
@@ -205,11 +223,17 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
     filter_status = "ACTIONABLE" if passes_filters else "FILTERED"
     filter_reasons = []
     if not has_convergence:
-        filter_reasons.append(f"convergence {max(up_votes, down_votes)}/4 < 2")
+        filter_reasons.append(f"convergence {max(up_votes, down_votes)}/4 < 3")
+    if not has_sufficient_volatility:
+        filter_reasons.append(f"vol {micro.volatility:.4f}% < 0.02%")
     if not time_ok:
-        filter_reasons.append(f"time {time_remaining:.0f}s not in [{settings.MIN_TIME_REMAINING},{settings.MAX_TIME_REMAINING}]")
+        filter_reasons.append(
+            f"time {time_remaining:.0f}s not in [{settings.MIN_TIME_REMAINING},{settings.MAX_TIME_REMAINING}]"
+        )
     if entry_price > settings.MAX_ENTRY_PRICE:
-        filter_reasons.append(f"entry {entry_price:.0%} > {settings.MAX_ENTRY_PRICE:.0%}")
+        filter_reasons.append(
+            f"entry {entry_price:.0%} > {settings.MAX_ENTRY_PRICE:.0%}"
+        )
     filter_note = f" [{', '.join(filter_reasons)}]" if filter_reasons else ""
 
     reasoning = (
@@ -278,7 +302,9 @@ async def scan_for_signals() -> List[TradingSignal]:
 
     for signal in actionable[:5]:
         logger.info(f"  {signal.market.slug}")
-        logger.info(f"    Edge: {signal.edge:+.1%} -> {signal.direction.upper()} @ ${signal.suggested_size:.2f}")
+        logger.info(
+            f"    Edge: {signal.edge:+.1%} -> {signal.direction.upper()} @ ${signal.suggested_size:.2f}"
+        )
 
     # Persist signals with non-zero edge to DB for calibration tracking
     _persist_signals(signals)
@@ -296,10 +322,15 @@ def _persist_signals(signals: list):
     try:
         for signal in to_save:
             # Dedup: skip if we already logged this signal for this market window
-            existing = db.query(Signal).filter(
-                Signal.market_ticker == signal.market.market_id,
-                Signal.timestamp >= signal.timestamp.replace(second=0, microsecond=0),
-            ).first()
+            existing = (
+                db.query(Signal)
+                .filter(
+                    Signal.market_ticker == signal.market.market_id,
+                    Signal.timestamp
+                    >= signal.timestamp.replace(second=0, microsecond=0),
+                )
+                .first()
+            )
             if existing:
                 continue
 
@@ -321,26 +352,47 @@ def _persist_signals(signals: list):
             db.add(db_signal)
             try:
                 from backend.core.event_bus import _broadcast_event
+
                 # Find the original signal to get full context
-                original_signal = next((s for s in signals if s.market.market_id == db_signal.market_ticker), None)
-                market_title = f"BTC {original_signal.market.window_start.strftime('%H:%M')} - {original_signal.market.window_end.strftime('%H:%M')} UTC" if original_signal else db_signal.market_ticker
-                _broadcast_event("signal_found", {
-                    "market_ticker": db_signal.market_ticker,
-                    "market_title": market_title,
-                    "direction": db_signal.direction,
-                    "model_probability": db_signal.model_probability,
-                    "market_probability": db_signal.market_price,
-                    "edge": db_signal.edge,
-                    "confidence": db_signal.confidence,
-                    "suggested_size": db_signal.suggested_size,
-                    "reasoning": db_signal.reasoning,
-                    "timestamp": db_signal.timestamp.isoformat(),
-                    "category": "trading",
-                    "btc_price": original_signal.btc_price if original_signal else None,
-                    "window_end": original_signal.market.window_end.isoformat() if original_signal and original_signal.market.window_end else None,
-                    "actionable": abs(db_signal.edge) >= 0.02,
-                    "event_slug": original_signal.market.slug if original_signal else None,
-                })
+                original_signal = next(
+                    (
+                        s
+                        for s in signals
+                        if s.market.market_id == db_signal.market_ticker
+                    ),
+                    None,
+                )
+                market_title = (
+                    f"BTC {original_signal.market.window_start.strftime('%H:%M')} - {original_signal.market.window_end.strftime('%H:%M')} UTC"
+                    if original_signal
+                    else db_signal.market_ticker
+                )
+                _broadcast_event(
+                    "signal_found",
+                    {
+                        "market_ticker": db_signal.market_ticker,
+                        "market_title": market_title,
+                        "direction": db_signal.direction,
+                        "model_probability": db_signal.model_probability,
+                        "market_probability": db_signal.market_price,
+                        "edge": db_signal.edge,
+                        "confidence": db_signal.confidence,
+                        "suggested_size": db_signal.suggested_size,
+                        "reasoning": db_signal.reasoning,
+                        "timestamp": db_signal.timestamp.isoformat(),
+                        "category": "trading",
+                        "btc_price": original_signal.btc_price
+                        if original_signal
+                        else None,
+                        "window_end": original_signal.market.window_end.isoformat()
+                        if original_signal and original_signal.market.window_end
+                        else None,
+                        "actionable": abs(db_signal.edge) >= 0.02,
+                        "event_slug": original_signal.market.slug
+                        if original_signal
+                        else None,
+                    },
+                )
             except Exception:
                 pass
 
@@ -359,18 +411,23 @@ async def get_actionable_signals() -> List[TradingSignal]:
 
 
 if __name__ == "__main__":
+
     async def test():
         print("Scanning BTC 5-min markets for signals...")
         signals = await scan_for_signals()
         print(f"\nFound {len(signals)} total signals")
 
         actionable = [s for s in signals if s.passes_threshold]
-        print(f"Actionable signals (>{settings.MIN_EDGE_THRESHOLD:.0%} edge): {len(actionable)}")
+        print(
+            f"Actionable signals (>{settings.MIN_EDGE_THRESHOLD:.0%} edge): {len(actionable)}"
+        )
 
         for signal in actionable[:5]:
             print(f"\n{signal.market.slug}")
             print(f"  BTC: ${signal.btc_price:,.0f} ({signal.btc_change_24h:+.2f}%)")
-            print(f"  Model UP: {signal.model_probability:.1%} vs Market UP: {signal.market_probability:.1%}")
+            print(
+                f"  Model UP: {signal.model_probability:.1%} vs Market UP: {signal.market_probability:.1%}"
+            )
             print(f"  Edge: {signal.edge:+.1%} -> {signal.direction.upper()}")
             print(f"  Size: ${signal.suggested_size:.2f}")
 

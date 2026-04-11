@@ -26,17 +26,24 @@ COINGECKO_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price"
 
 
 async def fetch_btc_price() -> float | None:
-    """Fetch current BTC/USD price from CoinGecko (free tier)."""
+    """Fetch current BTC/USD from multi-exchange klines (Binance/Coinbase/Kraken)."""
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                COINGECKO_PRICE_URL,
-                params={"ids": "bitcoin", "vs_currencies": "usd"},
-            )
-            if resp.status_code == 200:
-                return float(resp.json()["bitcoin"]["usd"])
+        from backend.data.crypto import compute_btc_microstructure
+
+        micro = await compute_btc_microstructure()
+        if micro and micro.price > 0:
+            return micro.price
     except Exception as e:
-        logger.warning(f"BtcOracleStrategy: could not fetch BTC price: {e}")
+        logger.warning(f"BtcOracleStrategy: microstructure fetch failed: {e}")
+
+    try:
+        from backend.data.crypto import fetch_crypto_price
+
+        result = await fetch_crypto_price("bitcoin")
+        if result and result.current_price > 0:
+            return result.current_price
+    except Exception as e:
+        logger.warning(f"BtcOracleStrategy: CoinGecko fallback failed: {e}")
     return None
 
 
@@ -62,14 +69,35 @@ def implied_direction(question: str, btc_price: float) -> str | None:
     import re
 
     q = question.lower()
-    # Extract threshold from question
-    match = re.search(r"\$?([\d,]+)", q)
+
+    # Extract threshold — handle $95,000 / $95000 / 95k / 95,000
+    match = re.search(r"\$?([\d,]+\.?\d*)\s*k?\b", q)
     if not match:
         return None
-    threshold = float(match.group(1).replace(",", ""))
+    raw = match.group(1).replace(",", "")
+    threshold = float(raw)
+    # Handle "95k" shorthand
+    if "k" in q[match.start() : match.end() + 2].lower() and threshold < 10000:
+        threshold *= 1000
 
-    is_above = "above" in q or "exceed" in q or "over" in q or "higher" in q
-    is_below = "below" in q or "under" in q or "lower" in q
+    is_above = any(
+        kw in q
+        for kw in (
+            "above",
+            "exceed",
+            "over",
+            "higher",
+            "more than",
+            "at least",
+            "reach",
+            "hit",
+            "top",
+        )
+    )
+    is_below = any(
+        kw in q
+        for kw in ("below", "under", "lower", "less than", "fall", "drop", "dip")
+    )
 
     if is_above:
         return "yes" if btc_price > threshold else "no"
@@ -86,8 +114,8 @@ class BtcOracleStrategy(BaseStrategy):
     )
     category = "arbitrage"
     default_params = {
-        "min_edge": 0.03,
-        "max_minutes_to_resolution": 10,
+        "min_edge": 0.05,
+        "max_minutes_to_resolution": 60,
         "interval_seconds": 30,
     }
 

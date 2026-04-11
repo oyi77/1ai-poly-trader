@@ -55,16 +55,16 @@ class Settings(BaseSettings):
 
     # Bot settings - BTC 5-MIN TRADING
     INITIAL_BANKROLL: float = 100.0
-    KELLY_FRACTION: float = 0.15  # Fractional Kelly
+    KELLY_FRACTION: float = 0.10  # Conservative fractional Kelly
 
     # BTC 5-min specific settings
     SCAN_INTERVAL_SECONDS: int = 60  # Scan every minute
     SETTLEMENT_INTERVAL_SECONDS: int = 120  # Check settlements every 2 min
     BTC_PRICE_SOURCE: str = "coinbase"
     MIN_EDGE_THRESHOLD: float = (
-        0.03  # 3% edge required — covers 0.5% fees + profit margin
+        0.08  # 8% edge required — dramatically reduces noise trades
     )
-    MAX_ENTRY_PRICE: float = 0.55  # Enter up to 55c
+    MAX_ENTRY_PRICE: float = 0.52  # Tighter: enter up to 52c only
     MAX_TRADES_PER_WINDOW: int = 1
     MAX_TOTAL_PENDING_TRADES: int = 20
     STALE_TRADE_HOURS: int = 2

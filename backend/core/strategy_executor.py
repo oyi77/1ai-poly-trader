@@ -40,17 +40,17 @@ async def execute_decision(
     try:
         async with _trade_execution_lock:
             event_slug = decision.get("slug") or decision.get("event_slug")
-            existing = (
-                db.query(Trade)
-                .filter(
+            filters = [Trade.settled == False]
+            if event_slug:
+                filters.append(
                     or_(
                         Trade.market_ticker == market_ticker,
                         Trade.event_slug == event_slug,
-                    ),
-                    Trade.settled == False,
+                    )
                 )
-                .first()
-            )
+            else:
+                filters.append(Trade.market_ticker == market_ticker)
+            existing = db.query(Trade).filter(*filters).first()
             if existing:
                 logger.info(
                     f"[{strategy_name}] Duplicate execution blocked for {market_ticker}/{event_slug}"
@@ -150,6 +150,11 @@ async def execute_decision(
 
             db.add(trade)
             db.flush()
+
+            if settings.TRADING_MODE == "paper" and state:
+                state.paper_bankroll = max(
+                    0.0, (state.paper_bankroll or 0.0) - adjusted_size
+                )
 
             signal_record = Signal(
                 market_ticker=market_ticker,

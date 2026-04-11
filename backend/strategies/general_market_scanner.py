@@ -1,4 +1,5 @@
 """General market scanner — finds edge across all Polymarket markets using AI analysis."""
+
 import logging
 from datetime import datetime, timezone
 
@@ -16,14 +17,14 @@ class GeneralMarketScanner(BaseStrategy):
     description = "AI-powered scanner across all Polymarket markets — politics, sports, crypto, events"
     category = "ai_driven"
     default_params = {
-        "min_volume": 50000,
-        "min_edge": 0.05,
+        "min_volume": 10000,
+        "min_edge": 0.08,
         "max_price": 0.75,
         "min_price": 0.15,
         "max_position_size": 8.0,
-        "scan_limit": 20,
+        "scan_limit": 40,
         "categories": "politics,sports,crypto,science,culture",
-        "max_ai_calls_per_cycle": 5,
+        "max_ai_calls_per_cycle": 8,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -46,7 +47,9 @@ class GeneralMarketScanner(BaseStrategy):
 
         # AI is required for this strategy to have any edge
         if not ctx.settings.AI_ENABLED:
-            ctx.logger.info("[general_scanner] AI disabled — skipping cycle (AI required for edge)")
+            ctx.logger.info(
+                "[general_scanner] AI disabled — skipping cycle (AI required for edge)"
+            )
             result.errors.append("AI disabled")
             return result
 
@@ -78,7 +81,9 @@ class GeneralMarketScanner(BaseStrategy):
         try:
             from backend.ai.market_analyzer import analyze_market
         except ImportError as e:
-            ctx.logger.warning(f"[general_scanner] AI market_analyzer not available: {e}")
+            ctx.logger.warning(
+                f"[general_scanner] AI market_analyzer not available: {e}"
+            )
             result.errors.append(f"AI module unavailable: {e}")
             return result
 
@@ -87,33 +92,51 @@ class GeneralMarketScanner(BaseStrategy):
         try:
             from backend.models.database import BotState
             from backend.config import settings as _settings
+
             state = ctx.db.query(BotState).first()
             if state:
-                bankroll = float(state.bankroll) if _settings.TRADING_MODE != "paper" else float(state.paper_bankroll or state.bankroll)
+                bankroll = (
+                    float(state.bankroll)
+                    if _settings.TRADING_MODE != "paper"
+                    else float(state.paper_bankroll or state.bankroll)
+                )
         except Exception:
             pass
 
         ai_calls_this_cycle = 0
+        existing_tickers: set = set()
+        try:
+            from backend.models.database import Trade
+
+            open_trades = ctx.db.query(Trade).filter(Trade.settled == False).all()
+            existing_tickers = {t.market_ticker for t in open_trades if t.market_ticker}
+        except Exception:
+            pass
+
         for market in markets:
             # Volume filter
             volume = float(market.get("volume", 0) or 0)
             if volume < min_volume:
                 continue
 
-            # Category filter
-            category_raw = (
-                market.get("category")
-                or market.get("tags")
-                or ""
-            )
+            # Category filter — skip when API returns null/empty categories
+            category_raw = market.get("category") or market.get("tags") or ""
             if isinstance(category_raw, list):
-                market_categories = {str(c).lower() for c in category_raw}
+                market_categories = {str(c).lower().strip() for c in category_raw if c}
             else:
-                market_categories = {str(category_raw).lower()}
+                cat_str = str(category_raw).lower().strip()
+                market_categories = {cat_str} if cat_str else set()
 
-            if allowed_categories and not (market_categories & allowed_categories):
-                # Try substring match for common cases
-                combined = " ".join(market_categories)
+            # Only apply category filter if the market actually HAS category data
+            # Gamma API often returns category=null, so pass those through to AI
+            if (
+                market_categories
+                and allowed_categories
+                and not (market_categories & allowed_categories)
+            ):
+                # Try substring match on question text as fallback
+                question = market.get("question", "").lower()
+                combined = " ".join(market_categories) + " " + question
                 if not any(cat in combined for cat in allowed_categories):
                     continue
 
@@ -121,6 +144,7 @@ class GeneralMarketScanner(BaseStrategy):
             outcome_prices_raw = market.get("outcomePrices") or []
             if isinstance(outcome_prices_raw, str):
                 import json as _json
+
                 try:
                     outcome_prices_raw = _json.loads(outcome_prices_raw)
                 except Exception:
@@ -143,6 +167,11 @@ class GeneralMarketScanner(BaseStrategy):
                     continue
 
             slug = market.get("slug") or market.get("conditionId") or ""
+
+            # Skip markets we already have an open trade on
+            if slug and slug in existing_tickers:
+                continue
+
             question = market.get("question") or market.get("title") or slug
 
             # AI analysis — enforce per-cycle call cap
@@ -160,7 +189,9 @@ class GeneralMarketScanner(BaseStrategy):
                     category=next(iter(market_categories), "general"),
                 )
             except Exception as e:
-                ctx.logger.debug(f"[general_scanner] AI analysis failed for {slug}: {e}")
+                ctx.logger.debug(
+                    f"[general_scanner] AI analysis failed for {slug}: {e}"
+                )
                 continue
 
             ai_calls_this_cycle += 1
@@ -226,12 +257,15 @@ class GeneralMarketScanner(BaseStrategy):
             try:
                 from backend.models.database import DecisionLog
                 import json as _json
+
                 log_row = DecisionLog(
                     strategy=self.name,
                     market_ticker=slug[:64] if slug else "unknown",
                     decision="BUY",
                     confidence=getattr(ai_result, "confidence", None),
-                    signal_data=_json.dumps({k: v for k, v in decision.items() if k != "reasoning"}),
+                    signal_data=_json.dumps(
+                        {k: v for k, v in decision.items() if k != "reasoning"}
+                    ),
                     reason=(
                         f"AI edge: {direction.upper()} @ {entry_price:.2%} | "
                         f"AI prob={ai_prob:.2%} market={market_price:.2%} edge={edge:.2%}"

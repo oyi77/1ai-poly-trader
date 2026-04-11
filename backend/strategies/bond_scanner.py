@@ -1,10 +1,16 @@
 """High-probability bond scanner — buy near-certain outcomes for guaranteed-ish returns."""
+
 import logging
 from datetime import datetime, timezone
 
 import httpx
 
-from backend.strategies.base import BaseStrategy, CycleResult, MarketInfo, StrategyContext
+from backend.strategies.base import (
+    BaseStrategy,
+    CycleResult,
+    MarketInfo,
+    StrategyContext,
+)
 
 logger = logging.getLogger("trading_bot.bonds")
 
@@ -13,24 +19,33 @@ GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
 
 class BondScannerStrategy(BaseStrategy):
     name = "bond_scanner"
-    description = "Buy high-probability outcomes (>92c) near resolution for low-risk returns"
+    description = (
+        "Buy high-probability outcomes (>85c) near resolution for low-risk returns"
+    )
     category = "value"
     default_params = {
-        "min_price": 0.92,
+        "min_price": 0.85,
         "max_price": 0.98,
-        "min_volume": 10000,
-        "max_days_to_resolution": 7,
-        "min_days_to_resolution": 0.5,
-        "max_position_size": 10.0,
+        "min_volume": 5000,
+        "max_days_to_resolution": 14,
+        "min_days_to_resolution": 0.25,
+        "max_position_size": 8.0,
         "max_concurrent_bonds": 5,
     }
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
         """Filter to bond-relevant markets (treasury, interest rate, fed, bond keywords)."""
-        bond_keywords = {"bond", "treasury", "interest rate", "fed", "yield", "debt ceiling", "t-bill"}
+        bond_keywords = {
+            "bond",
+            "treasury",
+            "interest rate",
+            "fed",
+            "yield",
+            "debt ceiling",
+            "t-bill",
+        }
         filtered = [
-            m for m in markets
-            if any(kw in m.question.lower() for kw in bond_keywords)
+            m for m in markets if any(kw in m.question.lower() for kw in bond_keywords)
         ]
         # If no keyword matches, fall back to base class DB-driven filter
         if not filtered:
@@ -79,6 +94,7 @@ class BondScannerStrategy(BaseStrategy):
         existing_slugs: set[str] = set()
         try:
             from backend.models.database import Trade
+
             open_trades = ctx.db.query(Trade).filter(Trade.settled == False).all()
             existing_slugs = {t.event_slug for t in open_trades if t.event_slug}
         except Exception as e:
@@ -86,7 +102,8 @@ class BondScannerStrategy(BaseStrategy):
 
         # Check concurrent bond count
         bond_count = sum(
-            1 for slug in existing_slugs
+            1
+            for slug in existing_slugs
             if slug  # rough proxy; all open trades count
         )
         if bond_count >= max_concurrent:
@@ -104,7 +121,11 @@ class BondScannerStrategy(BaseStrategy):
                 continue
 
             # Resolution date filter
-            end_date_str = market.get("endDate") or market.get("end_date_iso") or market.get("endDateIso")
+            end_date_str = (
+                market.get("endDate")
+                or market.get("end_date_iso")
+                or market.get("endDateIso")
+            )
             if not end_date_str:
                 continue
 
@@ -130,13 +151,22 @@ class BondScannerStrategy(BaseStrategy):
             outcome_prices_raw = market.get("outcomePrices") or []
             outcomes = market.get("outcomes") or []
 
-            # outcomePrices may be a JSON string or a list
+            # outcomePrices and outcomes may be JSON strings or lists
             if isinstance(outcome_prices_raw, str):
                 import json as _json
+
                 try:
                     outcome_prices_raw = _json.loads(outcome_prices_raw)
                 except Exception:
                     continue
+
+            if isinstance(outcomes, str):
+                import json as _json
+
+                try:
+                    outcomes = _json.loads(outcomes)
+                except Exception:
+                    outcomes = []
 
             if not outcome_prices_raw:
                 continue
@@ -163,9 +193,14 @@ class BondScannerStrategy(BaseStrategy):
             try:
                 from backend.models.database import BotState
                 from backend.config import settings as _settings
+
                 state = ctx.db.query(BotState).first()
                 if state:
-                    bankroll = float(state.bankroll) if _settings.TRADING_MODE != "paper" else float(state.paper_bankroll or state.bankroll)
+                    bankroll = (
+                        float(state.bankroll)
+                        if _settings.TRADING_MODE != "paper"
+                        else float(state.paper_bankroll or state.bankroll)
+                    )
             except Exception:
                 pass
 
@@ -177,14 +212,22 @@ class BondScannerStrategy(BaseStrategy):
             # expiry and high price (market already pricing in near-certainty,
             # but we believe the true probability is slightly higher).
             # Scale confidence boost by how close to 1.0 the price already is.
-            proximity_boost = (qualifying_price - 0.90) * 0.5  # e.g. 0.95 -> 0.025 boost
+            proximity_boost = (
+                qualifying_price - 0.80
+            ) * 0.3  # e.g. 0.90 -> 0.03, 0.95 -> 0.045 boost
             win_prob = min(qualifying_price + max(proximity_boost, 0.01), 0.99)
-            edge = round(win_prob * (1.0 - qualifying_price) - (1.0 - win_prob) * qualifying_price, 4)
+            edge = round(
+                win_prob * (1.0 - qualifying_price)
+                - (1.0 - win_prob) * qualifying_price,
+                4,
+            )
             confidence = win_prob
 
             decision = {
                 "market_ticker": slug,
-                "market_question": market.get("question") or market.get("title") or slug,
+                "market_question": market.get("question")
+                or market.get("title")
+                or slug,
                 "direction": str(qualifying_outcome).lower(),
                 "decision": "BUY",
                 "entry_price": qualifying_price,
@@ -209,6 +252,7 @@ class BondScannerStrategy(BaseStrategy):
             try:
                 from backend.models.database import DecisionLog
                 import json as _json
+
                 log_row = DecisionLog(
                     strategy=self.name,
                     market_ticker=slug[:64] if slug else "unknown",
