@@ -102,7 +102,9 @@ class WalletWatcher:
         finally:
             db.close()
 
-    async def _fetch_all_trades(self, wallet: str, page_size: int = 100, max_pages: int = 50) -> list[dict]:
+    async def _fetch_all_trades(
+        self, wallet: str, page_size: int = 100, max_pages: int = 50
+    ) -> list[dict]:
         """Fetch all trades for a wallet, paginating until no more results (max 50 pages = 5000 trades)."""
         all_trades: list[dict] = []
         offset = 0
@@ -121,7 +123,9 @@ class WalletWatcher:
                 resp.raise_for_status()
                 page = resp.json()
             except Exception as e:
-                logger.warning(f"Poll page (offset={offset}) failed for {wallet[:10]}...: {e}")
+                logger.warning(
+                    f"Poll page (offset={offset}) failed for {wallet[:10]}...: {e}"
+                )
                 break
             if not page:
                 break
@@ -139,13 +143,25 @@ class WalletWatcher:
         """
         Poll wallet trades. Returns (new_buys, new_exits).
         new_exits: trades where cumulative SELL >= 50% of original entry.
-        Fetches all pages, not just the first.
+
+        First call for a wallet: fetches ALL history to seed the seen set.
+        Subsequent calls: fetches only 2 pages (200 trades) for speed.
         """
-        trades_raw = await self._fetch_all_trades(wallet, page_size=limit)
-        if not trades_raw and wallet not in self._seen:
+        is_first_poll = wallet not in self._seen
+
+        if is_first_poll:
+            # Seed: fetch all history so we don't mirror old trades
+            trades_raw = await self._fetch_all_trades(wallet, page_size=limit)
+        else:
+            # Incremental: only fetch 2 recent pages (200 trades max, 2 API calls)
+            trades_raw = await self._fetch_all_trades(
+                wallet, page_size=limit, max_pages=2
+            )
+
+        if not trades_raw and is_first_poll:
             return [], []
 
-        if wallet not in self._seen:
+        if is_first_poll:
             self._seen[wallet] = set()
             self._sell_sizes[wallet] = {}
             # Seed with existing trades (don't mirror history)

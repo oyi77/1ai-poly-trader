@@ -11,6 +11,37 @@ logger = logging.getLogger("trading_bot.general")
 
 GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
 
+SPORTS_KEYWORDS = frozenset(
+    {
+        "nba",
+        "nfl",
+        "mlb",
+        "nhl",
+        "epl",
+        "ufc",
+        "mls",
+        "soccer",
+        "football",
+        "basketball",
+        "baseball",
+        "hockey",
+        "tennis",
+        "cricket",
+        "boxing",
+        "mma",
+        "la liga",
+        "serie a",
+        "bundesliga",
+        "ligue 1",
+        "champions league",
+        "copa",
+        "rugby",
+        "f1",
+        "formula 1",
+        "grand prix",
+    }
+)
+
 
 class GeneralMarketScanner(BaseStrategy):
     name = "general_scanner"
@@ -18,11 +49,11 @@ class GeneralMarketScanner(BaseStrategy):
     category = "ai_driven"
     default_params = {
         "min_volume": 2000,
-        "min_edge": 0.03,
+        "min_edge": 0.08,
         "max_price": 0.85,
         "min_price": 0.08,
-        "max_position_size": 4.0,
-        "min_position_size": 0.50,
+        "max_position_size": 2.0,
+        "min_position_size": 0.30,
         "scan_limit": 500,
         "categories": "politics,sports,crypto,science,culture",
         "max_ai_calls_per_cycle": 40,
@@ -31,6 +62,11 @@ class GeneralMarketScanner(BaseStrategy):
         "max_days_to_end": 30,
         "max_low_prob_size": 1.50,
         "low_prob_threshold": 0.20,
+        # Edge dampening: AI's claimed edge is multiplied by this factor.
+        # A value of 0.5 means we assume AI is only half as accurate as it claims.
+        "edge_dampening": 0.5,
+        # Sports markets are very efficient — require 2x the minimum edge.
+        "sports_edge_multiplier": 2.0,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -49,6 +85,8 @@ class GeneralMarketScanner(BaseStrategy):
         max_days_to_end = int(params.get("max_days_to_end", 30))
         max_low_prob_size = float(params.get("max_low_prob_size", 1.50))
         low_prob_threshold = float(params.get("low_prob_threshold", 0.20))
+        edge_dampening = float(params.get("edge_dampening", 0.5))
+        sports_edge_multiplier = float(params.get("sports_edge_multiplier", 2.0))
         allowed_categories_raw = params.get("categories", "")
         allowed_categories = {
             c.strip().lower()
@@ -251,8 +289,25 @@ class GeneralMarketScanner(BaseStrategy):
                 edge = market_price - ai_prob
                 entry_price = no_price
 
-            # Edge filter
-            if edge < min_edge:
+            # Dampen AI's claimed edge — LLM overestimates its accuracy
+            raw_edge = edge
+            edge = raw_edge * edge_dampening
+
+            # Sports markets are hyper-efficient; require higher edge to trade
+            q_lower = question.lower() if question else ""
+            cats_lower = " ".join(market_categories)
+            is_sports = (
+                "sports" in market_categories
+                or any(kw in q_lower for kw in SPORTS_KEYWORDS)
+                or any(kw in cats_lower for kw in SPORTS_KEYWORDS)
+            )
+            required_edge = min_edge * sports_edge_multiplier if is_sports else min_edge
+
+            if edge < required_edge:
+                ctx.logger.debug(
+                    f"[general_scanner] Skipping {slug}: dampened edge {edge:.4f} < required {required_edge:.4f}"
+                    f" (raw={raw_edge:.4f}, dampen={edge_dampening}, sports={is_sports})"
+                )
                 continue
 
             # R:R floor filter — reject trades where potential reward is too

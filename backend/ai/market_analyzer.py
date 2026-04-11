@@ -31,15 +31,18 @@ def _build_prompt(
 ) -> str:
     prompt = f"""You are a calibrated prediction market analyst. Estimate the TRUE probability this event resolves YES.
 
-KEY BIASES TO CORRECT FOR:
-- Crowds systematically OVERESTIMATE dramatic/exciting outcomes (YES bias)
-- Low-probability events (<20%) are often overpriced — the true probability is even lower
-- High-probability events (>80%) are often underpriced — resolution is more certain than the market reflects
-- "Will X happen by date Y" questions usually resolve NO unless strong evidence exists
-- Celebrity/meme markets are heavily YES-biased by fans
+CRITICAL RULES:
+- Prediction markets with >$50K volume are EFFICIENT. The market price is usually RIGHT.
+- You should ONLY disagree with the market when you have SPECIFIC, CONCRETE evidence.
+- DO NOT assume the market is biased without evidence. The crowd is usually smarter than you.
+- Sports markets are EXTREMELY efficient — bookmaker lines are priced by professionals.
+  For sports: your estimate should be VERY close to the market price (within ±5%) unless
+  you have strong reason (injury news, lineup changes, historical matchup data).
+- For politics/crypto/events: mild bias correction is OK, but stay within ±10% of market.
+- If you are UNSURE, return a probability EQUAL to the market price. Being wrong is costly.
 
 QUESTION: {question}
-CURRENT YES PRICE: {current_price:.4f} (this is what the market thinks)
+CURRENT YES PRICE: {current_price:.4f} (this is what the market thinks — respect it)
 24H VOLUME: ${volume:,.0f}"""
     if category:
         prompt += f"\nCATEGORY: {category}"
@@ -48,9 +51,9 @@ CURRENT YES PRICE: {current_price:.4f} (this is what the market thinks)
     prompt += """
 
 Think step by step:
-1. What is the BASE RATE for this type of event?
-2. Is there specific evidence that shifts probability away from the base rate?
-3. Is the market likely biased (fan enthusiasm, recency bias, anchoring)?
+1. Is this a sports/competition market? If yes, the market is likely correct. Stay close to market price.
+2. Do I have SPECIFIC evidence (not just intuition) that the market is wrong?
+3. How confident am I in my SPECIFIC evidence? If low, stay within ±3% of market price.
 
 You MUST respond with EXACTLY these three lines and nothing else:
 PROBABILITY: <number between 0.01 and 0.99>
