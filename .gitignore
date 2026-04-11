@@ -60,14 +60,18 @@ htmlcov/
 # Backup files
 *.backup
 *.bak
+*.backup.*
+*.corrupt.*
 
 # Tool state
 .omc/
 .playwright-mcp/
 .sisyphus/
+.claude/
 
 # Screenshots (dev only)
 screenshots/
+dashboard-overview.png
 
 # SQLite WAL/SHM files
 *.db-shm
@@ -77,3 +81,18 @@ screenshots/
 frontend/playwright-report/
 frontend/test-results/
 frontend/e2e/
+
+# Auto-generated agent docs (OMC)
+AGENTS.md
+**/AGENTS.md
+
+# Dev reports (session artifacts, not source)
+BACKTEST_TESTING_FINAL_REPORT.md
+E2E_TEST_RESULTS.md
+END_TO_END_TEST_RESULTS.md
+FEATURE_COMPARISON.md
+PLAYWRIGHT_TEST_RESULTS.md
+TERMINAL_UI.md
+
+# Dev design specs
+docs/superpowers/

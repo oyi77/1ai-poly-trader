@@ -1,0 +1,67 @@
+# Credentials and secrets
+.env
+.env.local
+.env.*.local
+
+# Version control
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.venv
+venv/
+env/
+
+# Database files (use volumes in production)
+tradingbot.db
+tradingbot.db-wal
+tradingbot.db-shm
+*.db-shm
+*.db-wal
+
+# Test and coverage
+htmlcov/
+.coverage
+.pytest_cache/
+.ruff_cache/
+
+# OMC/Claude tooling
+.omc/
+.claude/
+
+# Frontend build artifacts (built separately)
+frontend/node_modules/
+frontend/dist/
+frontend/.omc/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test results
+playwright-report/
+test-results/
