@@ -49,24 +49,28 @@ class GeneralMarketScanner(BaseStrategy):
     category = "ai_driven"
     default_params = {
         "min_volume": 2000,
-        "min_edge": 0.08,
+        "min_edge": 0.05,
         "max_price": 0.85,
         "min_price": 0.08,
         "max_position_size": 2.0,
         "min_position_size": 0.30,
         "scan_limit": 500,
-        "categories": "politics,sports,crypto,science,culture",
+        "categories": "politics,crypto,science,culture",
         "max_ai_calls_per_cycle": 40,
         "max_concurrent": 25,
         "min_reward_risk": 0.5,
         "max_days_to_end": 30,
         "max_low_prob_size": 1.50,
         "low_prob_threshold": 0.20,
-        # Edge dampening: AI's claimed edge is multiplied by this factor.
-        # A value of 0.5 means we assume AI is only half as accurate as it claims.
-        "edge_dampening": 0.5,
-        # Sports markets are very efficient — require 2x the minimum edge.
-        "sports_edge_multiplier": 2.0,
+        "edge_dampening": 0.7,
+        "sports_edge_multiplier": 3.0,
+        # Max raw edge cap: reject if AI claims more than this edge over market.
+        # An 8B LLM cannot have >25% edge over liquid prediction markets.
+        "max_raw_edge": 0.25,
+        # Market anchor weight: blend AI prob toward market price.
+        # final_prob = anchor_weight * market_price + (1-anchor_weight) * ai_prob
+        # 0.5 means AI can only move estimate 50% away from market consensus.
+        "market_anchor_weight": 0.5,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -87,6 +91,8 @@ class GeneralMarketScanner(BaseStrategy):
         low_prob_threshold = float(params.get("low_prob_threshold", 0.20))
         edge_dampening = float(params.get("edge_dampening", 0.5))
         sports_edge_multiplier = float(params.get("sports_edge_multiplier", 2.0))
+        max_raw_edge = float(params.get("max_raw_edge", 0.15))
+        market_anchor_weight = float(params.get("market_anchor_weight", 0.6))
         allowed_categories_raw = params.get("categories", "")
         allowed_categories = {
             c.strip().lower()
@@ -279,6 +285,14 @@ class GeneralMarketScanner(BaseStrategy):
             ai_prob = float(ai_result.probability)
             market_price = yes_price
 
+            # Market-anchor the AI probability: blend toward market consensus.
+            # An 8B model should NOT override liquid market pricing by large amounts.
+            raw_ai_prob = ai_prob
+            ai_prob = (
+                market_anchor_weight * market_price
+                + (1.0 - market_anchor_weight) * raw_ai_prob
+            )
+
             # Determine direction and edge
             if ai_prob > market_price:
                 direction = "yes"
@@ -289,9 +303,18 @@ class GeneralMarketScanner(BaseStrategy):
                 edge = market_price - ai_prob
                 entry_price = no_price
 
-            # Dampen AI's claimed edge — LLM overestimates its accuracy
-            raw_edge = edge
-            edge = raw_edge * edge_dampening
+            # Reject if raw AI edge is absurdly large — the market is almost certainly
+            # right and the AI is hallucinating.
+            raw_edge = abs(raw_ai_prob - market_price)
+            if raw_edge > max_raw_edge:
+                ctx.logger.debug(
+                    f"[general_scanner] Rejecting {slug}: raw AI edge {raw_edge:.4f} > max {max_raw_edge} "
+                    f"(ai_raw={raw_ai_prob:.3f}, market={market_price:.3f}) — AI likely wrong"
+                )
+                continue
+
+            # Dampen the anchored edge further
+            dampened_edge = edge * edge_dampening
 
             # Sports markets are hyper-efficient; require higher edge to trade
             q_lower = question.lower() if question else ""
@@ -303,10 +326,10 @@ class GeneralMarketScanner(BaseStrategy):
             )
             required_edge = min_edge * sports_edge_multiplier if is_sports else min_edge
 
-            if edge < required_edge:
+            if dampened_edge < required_edge:
                 ctx.logger.debug(
-                    f"[general_scanner] Skipping {slug}: dampened edge {edge:.4f} < required {required_edge:.4f}"
-                    f" (raw={raw_edge:.4f}, dampen={edge_dampening}, sports={is_sports})"
+                    f"[general_scanner] Skipping {slug}: dampened edge {dampened_edge:.4f} < required {required_edge:.4f}"
+                    f" (raw={raw_edge:.4f}, anchored={edge:.4f}, dampen={edge_dampening}, sports={is_sports})"
                 )
                 continue
 
@@ -359,9 +382,11 @@ class GeneralMarketScanner(BaseStrategy):
                 "entry_price": entry_price,
                 "size": size,
                 "suggested_size": size,
-                "edge": round(edge, 4),
+                "edge": round(dampened_edge, 4),
+                "raw_edge": round(raw_edge, 4),
                 "confidence": getattr(ai_result, "confidence", 0.0),
                 "model_probability": ai_prob,
+                "raw_ai_probability": raw_ai_prob,
                 "market_probability": market_price,
                 "platform": "polymarket",
                 "strategy_name": self.name,
@@ -388,7 +413,8 @@ class GeneralMarketScanner(BaseStrategy):
                     ),
                     reason=(
                         f"AI edge: {direction.upper()} @ {entry_price:.2%} | "
-                        f"AI prob={ai_prob:.2%} market={market_price:.2%} edge={edge:.2%}"
+                        f"AI raw={raw_ai_prob:.2%} anchored={ai_prob:.2%} market={market_price:.2%} "
+                        f"raw_edge={raw_edge:.2%} dampened={dampened_edge:.2%}"
                     ),
                 )
                 ctx.db.add(log_row)

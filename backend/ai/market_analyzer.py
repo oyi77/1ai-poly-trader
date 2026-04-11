@@ -190,8 +190,9 @@ async def _call_groq(prompt: str) -> Optional[str]:
                 {
                     "role": "system",
                     "content": (
-                        "You are a calibrated prediction market analyst who corrects for crowd biases. "
-                        "Crowds overestimate exciting/dramatic outcomes. Low-price events are often overpriced. "
+                        "You are a calibrated prediction market analyst. "
+                        "Prediction markets are usually efficient — the market price is your best starting point. "
+                        "Only deviate when you have SPECIFIC evidence. "
                         "Always respond with EXACTLY three lines:\n"
                         "PROBABILITY: <number>\nCONFIDENCE: <number>\nREASONING: <one sentence>\n"
                         "Never include any other text."
