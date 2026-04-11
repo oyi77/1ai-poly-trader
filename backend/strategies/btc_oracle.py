@@ -9,6 +9,7 @@ fire a trade.
 This strategy exploits the 2-5 second oracle latency window documented in research.
 Unlike BTC 5-min momentum (negative EV), this targets a structural market inefficiency.
 """
+
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
@@ -59,6 +60,7 @@ def implied_direction(question: str, btc_price: float) -> str | None:
     Returns "yes", "no", or None if cannot determine.
     """
     import re
+
     q = question.lower()
     # Extract threshold from question
     match = re.search(r"\$?([\d,]+)", q)
@@ -92,7 +94,8 @@ class BtcOracleStrategy(BaseStrategy):
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
         """Filter to active BTC binary markets resolving within max_minutes."""
         return [
-            m for m in markets
+            m
+            for m in markets
             if ("btc" in m.slug.lower() or "bitcoin" in m.question.lower())
             and m.end_date is not None
         ]
@@ -100,7 +103,10 @@ class BtcOracleStrategy(BaseStrategy):
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
         result = CycleResult(decisions_recorded=0, trades_attempted=0, trades_placed=0)
         min_edge = ctx.params.get("min_edge", self.default_params["min_edge"])
-        max_minutes = ctx.params.get("max_minutes_to_resolution", self.default_params["max_minutes_to_resolution"])
+        max_minutes = ctx.params.get(
+            "max_minutes_to_resolution",
+            self.default_params["max_minutes_to_resolution"],
+        )
 
         btc_price = await fetch_btc_price()
         if btc_price is None:
@@ -109,6 +115,7 @@ class BtcOracleStrategy(BaseStrategy):
 
         # Get candidate markets from MarketWatch (BTC-tagged) or scanner
         from backend.core.market_scanner import fetch_markets_by_keywords
+
         markets = await fetch_markets_by_keywords(["btc", "bitcoin"], limit=200)
         btc_markets = await self.market_filter(markets)
 
@@ -134,7 +141,10 @@ class BtcOracleStrategy(BaseStrategy):
 
             decision = "BUY" if edge > 0 else "SKIP"
             record_decision(
-                ctx.db, self.name, market.ticker, decision,
+                ctx.db,
+                self.name,
+                market.ticker,
+                decision,
                 confidence=min(1.0, max(0.0, edge + min_edge)),
                 signal_data={
                     "oracle_price": btc_price,
@@ -144,13 +154,33 @@ class BtcOracleStrategy(BaseStrategy):
                     "edge": edge,
                     "market_question": market.question,
                 },
-                reason=f"oracle_edge={edge:.3f} btc=${btc_price:,.0f} t={minutes_remaining:.1f}min"
+                reason=f"oracle_edge={edge:.3f} btc=${btc_price:,.0f} t={minutes_remaining:.1f}min",
             )
             result.decisions_recorded += 1
 
             if decision == "BUY":
                 result.trades_attempted += 1
-                # Actual order placement via CLOB (requires ctx.clob)
+                # Populate result.decisions so scan_and_trade_job() / strategy_cycle_job()
+                # can feed them into strategy_executor.execute_decisions() for paper + live mode.
+                result.decisions.append(
+                    {
+                        "decision": "BUY",
+                        "market_ticker": market.ticker,
+                        "direction": direction,
+                        "confidence": min(1.0, max(0.0, edge + min_edge)),
+                        "edge": edge,
+                        "size": ctx.params.get("max_position_usd", 50),
+                        "entry_price": market_mid,
+                        "suggested_size": ctx.params.get("max_position_usd", 50),
+                        "model_probability": 1.0 if direction == "yes" else 0.0,
+                        "market_probability": market_mid,
+                        "platform": "polymarket",
+                        "strategy_name": self.name,
+                        "reasoning": f"oracle_edge={edge:.3f} btc=${btc_price:,.0f} t={minutes_remaining:.1f}min",
+                        "slug": market.slug,
+                    }
+                )
+                # Also attempt direct CLOB placement for live/testnet mode
                 if ctx.clob and ctx.mode != "paper":
                     try:
                         order_result = await ctx.clob.place_limit_order(

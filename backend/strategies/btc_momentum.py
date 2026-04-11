@@ -8,9 +8,15 @@ without comprehensive re-validation.
 This wrapper preserves the existing logic for paper-mode research only.
 For production BTC trading, use btc_oracle strategy instead.
 """
+
 import logging
 
-from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+from backend.strategies.base import (
+    BaseStrategy,
+    StrategyContext,
+    CycleResult,
+    MarketInfo,
+)
 from backend.core.decisions import record_decision
 
 logger = logging.getLogger("trading_bot")
@@ -35,8 +41,7 @@ class BtcMomentumStrategy(BaseStrategy):
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
         """Filter to BTC 5-min binary markets."""
         return [
-            m for m in markets
-            if "btc" in m.slug.lower() and "5m" in m.slug.lower()
+            m for m in markets if "btc" in m.slug.lower() and "5m" in m.slug.lower()
         ]
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -52,17 +57,22 @@ class BtcMomentumStrategy(BaseStrategy):
         try:
             # Delegate to existing scan logic
             from backend.core.signals import scan_for_signals
+
             signals = await scan_for_signals()
             actionable = [s for s in signals if s.passes_threshold]
+
+            params = {**self.default_params, **(ctx.params or {})}
+            max_trade_fraction = params.get("max_trade_fraction", 0.03)
 
             for signal in actionable:
                 decision = "BUY" if signal.passes_threshold else "SKIP"
                 market_id = getattr(signal.market, "market_id", "unknown")
                 record_decision(
-                    ctx.db, self.name,
+                    ctx.db,
+                    self.name,
                     market_id,
                     decision,
-                    confidence=getattr(signal, "edge", 0.0),
+                    confidence=signal.confidence,
                     signal_data={
                         "direction": signal.direction,
                         "model_probability": signal.model_probability,
@@ -71,26 +81,51 @@ class BtcMomentumStrategy(BaseStrategy):
                         "btc_price": getattr(signal, "btc_price", None),
                         "experimental_warning": True,
                     },
-                    reason=f"btc_momentum edge={getattr(signal, 'edge', 0):.3f} [EXPERIMENTAL]"
+                    reason=f"btc_momentum edge={signal.edge:.3f} conf={signal.confidence:.2f} [EXPERIMENTAL]",
                 )
                 result.decisions_recorded += 1
                 if decision == "BUY":
                     result.trades_attempted += 1
-                    result.decisions.append({
-                        "decision": "BUY",
-                        "market_ticker": market_id,
-                        "direction": signal.direction,
-                        "confidence": getattr(signal, "edge", 0.0),
-                        "edge": signal.edge,
-                        "size": None,
-                        "entry_price": signal.market_probability,
-                        "suggested_size": None,
-                        "model_probability": signal.model_probability,
-                        "market_probability": signal.market_probability,
-                        "platform": "polymarket",
-                        "strategy_name": self.name,
-                        "experimental_warning": True,
-                    })
+
+                    # Compute proper trade size from Kelly or fraction of bankroll
+                    bankroll = (
+                        ctx.settings.INITIAL_BANKROLL if ctx.mode != "paper" else 100.0
+                    )
+                    trade_size = (
+                        signal.suggested_size
+                        if signal.suggested_size > 0
+                        else bankroll * max_trade_fraction
+                    )
+                    trade_size = max(trade_size, 10.0)  # $10 minimum
+
+                    # entry_price: use the token price for the chosen direction
+                    if signal.direction == "up":
+                        entry_price = getattr(
+                            signal.market, "up_price", signal.market_probability
+                        )
+                    else:
+                        entry_price = getattr(
+                            signal.market, "down_price", 1.0 - signal.market_probability
+                        )
+
+                    result.decisions.append(
+                        {
+                            "decision": "BUY",
+                            "market_ticker": market_id,
+                            "direction": signal.direction,
+                            "confidence": signal.confidence,
+                            "edge": signal.edge,
+                            "size": trade_size,
+                            "entry_price": entry_price,
+                            "suggested_size": trade_size,
+                            "model_probability": signal.model_probability,
+                            "market_probability": signal.market_probability,
+                            "platform": "polymarket",
+                            "strategy_name": self.name,
+                            "slug": getattr(signal.market, "slug", None),
+                            "market_type": "btc",
+                        }
+                    )
 
         except Exception as e:
             result.errors.append(str(e))

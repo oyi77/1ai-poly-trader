@@ -20,6 +20,7 @@ Track Configuration:
 - Loss limit: $100
 - Signal threshold: velocity > 0.15 (15% price change over 30s)
 """
+
 import asyncio
 import logging
 import time
@@ -27,7 +28,12 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
-from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+from backend.strategies.base import (
+    BaseStrategy,
+    StrategyContext,
+    CycleResult,
+    MarketInfo,
+)
 from backend.core.decisions import record_decision
 
 logger = logging.getLogger("trading_bot")
@@ -36,9 +42,12 @@ logger = logging.getLogger("trading_bot")
 @dataclass
 class PriceHistory:
     """Tracks price history for a single token_id."""
+
     token_id: str
     ticker: str
-    prices: deque = field(default_factory=lambda: deque(maxlen=100))  # (timestamp, mid_price)
+    prices: deque = field(
+        default_factory=lambda: deque(maxlen=100)
+    )  # (timestamp, mid_price)
     last_signal_time: float = 0.0
     last_signal_direction: Optional[str] = None
 
@@ -92,22 +101,18 @@ class RealtimeScannerStrategy(BaseStrategy):
     category = "edge_discovery"
     default_params = {
         # Velocity thresholds (0.15 = 15% price change over 30s)
-        "velocity_threshold_up": 0.15,      # Generate UP signal when velocity > 0.15
-        "velocity_threshold_down": -0.15,   # Generate DOWN signal when velocity < -0.15
-
+        "velocity_threshold_up": 0.15,  # Generate UP signal when velocity > 0.15
+        "velocity_threshold_down": -0.15,  # Generate DOWN signal when velocity < -0.15
         # Time windows for velocity calculation (seconds)
-        "velocity_window_fast": 5,   # Fast velocity (5s)
-        "velocity_window_med": 15,   # Medium velocity (15s)
+        "velocity_window_fast": 5,  # Fast velocity (5s)
+        "velocity_window_med": 15,  # Medium velocity (15s)
         "velocity_window_slow": 30,  # Slow velocity (30s)
-
         # Signal constraints
-        "min_signal_interval": 60,   # Minimum seconds between signals for same token
-        "min_history_points": 10,   # Minimum price points before calculating velocity
-
+        "min_signal_interval": 60,  # Minimum seconds between signals for same token
+        "min_history_points": 10,  # Minimum price points before calculating velocity
         # Market filter
-        "min_liquidity": 1000,       # Minimum liquidity in USDC
-        "min_volume": 5000,          # Minimum volume in USDC
-
+        "min_liquidity": 1000,  # Minimum liquidity in USDC
+        "min_volume": 5000,  # Minimum volume in USDC
         # Track configuration
         "track_name": "realtime",
         "execution_mode": "paper",
@@ -125,7 +130,8 @@ class RealtimeScannerStrategy(BaseStrategy):
         min_volume = self.default_params["min_volume"]
 
         return [
-            m for m in markets
+            m
+            for m in markets
             if m.liquidity >= min_liquidity and m.volume >= min_volume
         ]
 
@@ -150,29 +156,35 @@ class RealtimeScannerStrategy(BaseStrategy):
 
             # Fetch active markets
             markets = await fetch_markets(limit=100)
-            filtered = await self.market_filter([
-                MarketInfo(
-                    ticker=m.get("ticker", m.get("question", "")[:50]),
-                    slug=m.get("slug", ""),
-                    category=m.get("category", ""),
-                    end_date=m.get("end_date"),
-                    volume=m.get("volume", 0),
-                    liquidity=m.get("liquidity", 0),
-                    metadata=m,
-                )
-                for m in markets
-            ])
+            filtered = await self.market_filter(
+                [
+                    MarketInfo(
+                        ticker=m.get("ticker", m.get("question", "")[:50]),
+                        slug=m.get("slug", ""),
+                        category=m.get("category", ""),
+                        end_date=m.get("end_date"),
+                        volume=float(m.get("volume", 0) or 0),
+                        liquidity=float(m.get("liquidity", 0) or 0),
+                        metadata=m,
+                    )
+                    for m in markets
+                ]
+            )
 
             # Check for velocity signals in tracked tokens
             for token_id, history in list(self._price_history.items()):
-                if len(history.prices) < ctx.params.get("min_history_points", self.default_params["min_history_points"]):
+                if len(history.prices) < ctx.params.get(
+                    "min_history_points", self.default_params["min_history_points"]
+                ):
                     continue
 
                 # Calculate velocity across multiple time windows
                 velocities = {}
                 for window_name in ["fast", "med", "slow"]:
                     window_key = f"velocity_window_{window_name}"
-                    window_seconds = ctx.params.get(window_key, self.default_params[window_key])
+                    window_seconds = ctx.params.get(
+                        window_key, self.default_params[window_key]
+                    )
                     velocity = history.get_velocity(window_seconds)
                     if velocity is not None:
                         velocities[window_name] = velocity
@@ -182,8 +194,14 @@ class RealtimeScannerStrategy(BaseStrategy):
 
                 # Use slow velocity (30s) as primary signal
                 slow_velocity = velocities.get("slow", 0)
-                threshold_up = ctx.params.get("velocity_threshold_up", self.default_params["velocity_threshold_up"])
-                threshold_down = ctx.params.get("velocity_threshold_down", self.default_params["velocity_threshold_down"])
+                threshold_up = ctx.params.get(
+                    "velocity_threshold_up",
+                    self.default_params["velocity_threshold_up"],
+                )
+                threshold_down = ctx.params.get(
+                    "velocity_threshold_down",
+                    self.default_params["velocity_threshold_down"],
+                )
 
                 direction = None
                 confidence = 0.0
@@ -198,12 +216,16 @@ class RealtimeScannerStrategy(BaseStrategy):
                 if direction:
                     # Check minimum signal interval
                     now = time.time()
-                    min_interval = ctx.params.get("min_signal_interval", self.default_params["min_signal_interval"])
+                    min_interval = ctx.params.get(
+                        "min_signal_interval",
+                        self.default_params["min_signal_interval"],
+                    )
 
                     if now - history.last_signal_time >= min_interval:
                         # Record decision
                         record_decision(
-                            ctx.db, self.name,
+                            ctx.db,
+                            self.name,
                             history.ticker,
                             "BUY",
                             confidence=confidence,
@@ -215,12 +237,31 @@ class RealtimeScannerStrategy(BaseStrategy):
                                 "token_id": token_id,
                                 "track_name": ctx.params.get("track_name", "realtime"),
                             },
-                            reason=f"realtime_scanner velocity={slow_velocity:.3f} > {threshold_up if direction == 'UP' else threshold_down:.3f}"
+                            reason=f"realtime_scanner velocity={slow_velocity:.3f} > {threshold_up if direction == 'UP' else threshold_down:.3f}",
                         )
                         result.decisions_recorded += 1
                         result.trades_attempted += 1
 
-                        # Update last signal time
+                        current_price = history.prices[-1][1]
+                        result.decisions.append(
+                            {
+                                "decision": "BUY",
+                                "market_ticker": history.ticker,
+                                "direction": direction.lower(),
+                                "confidence": confidence,
+                                "edge": slow_velocity,
+                                "size": None,
+                                "entry_price": current_price,
+                                "suggested_size": None,
+                                "model_probability": confidence,
+                                "market_probability": current_price,
+                                "platform": "polymarket",
+                                "strategy_name": self.name,
+                                "token_id": token_id,
+                                "reasoning": f"realtime_scanner velocity={slow_velocity:.3f}",
+                            }
+                        )
+
                         history.last_signal_time = now
                         history.last_signal_direction = direction
 
@@ -275,7 +316,9 @@ class RealtimeScannerStrategy(BaseStrategy):
         Should be called during market_filter or strategy initialization.
         """
         if token_id not in self._price_history:
-            self._price_history[token_id] = PriceHistory(token_id=token_id, ticker=ticker)
+            self._price_history[token_id] = PriceHistory(
+                token_id=token_id, ticker=ticker
+            )
             if self._ws_client:
                 self._ws_client.subscribe(token_id)
                 logger.debug(f"[{self.name}] Now tracking: {ticker} ({token_id})")

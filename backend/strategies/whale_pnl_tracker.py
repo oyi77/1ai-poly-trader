@@ -22,13 +22,19 @@ Track Configuration:
 - Min whale score: 0.3 (on 0-1 scale)
 - Copy fraction: 10% of our bankroll per whale signal
 """
+
 import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 
-from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+from backend.strategies.base import (
+    BaseStrategy,
+    StrategyContext,
+    CycleResult,
+    MarketInfo,
+)
 from backend.core.decisions import record_decision
 from backend.core.whale_discovery import WhaleDiscovery
 from backend.models.database import SessionLocal, WalletConfig, CopyTraderEntry
@@ -39,6 +45,7 @@ logger = logging.getLogger("trading_bot")
 @dataclass
 class WhalePosition:
     """Represents a whale's open position."""
+
     wallet: str
     condition_id: str
     side: str  # "YES" or "NO"
@@ -60,16 +67,14 @@ class WhalePNLTrackerStrategy(BaseStrategy):
     category = "edge_discovery"
     default_params = {
         # Whale selection
-        "max_whales": 5,               # Maximum number of whales to follow
-        "min_whale_score": 0.3,        # Minimum whale score (0-1 scale)
-        "min_trades": 20,              # Minimum trades for whale ranking
-        "recency_days": 30,            # Only consider trades from last N days
-
+        "max_whales": 5,  # Maximum number of whales to follow
+        "min_whale_score": 0.3,  # Minimum whale score (0-1 scale)
+        "min_trades": 20,  # Minimum trades for whale ranking
+        "recency_days": 30,  # Only consider trades from last N days
         # Signal generation
-        "copy_fraction": 0.10,         # Fraction of bankroll per whale signal
-        "min_position_size": 100,      # Minimum position size to track (USD)
+        "copy_fraction": 0.10,  # Fraction of bankroll per whale signal
+        "min_position_size": 100,  # Minimum position size to track (USD)
         "signal_cooldown_minutes": 5,  # Cooldown between signals for same market
-
         # Track configuration
         "track_name": "whale",
         "execution_mode": "paper",
@@ -78,7 +83,9 @@ class WhalePNLTrackerStrategy(BaseStrategy):
     def __init__(self):
         super().__init__()
         self._whale_discovery = WhaleDiscovery()
-        self._tracked_positions: Dict[str, WhalePosition] = {}  # condition_id -> position
+        self._tracked_positions: Dict[
+            str, WhalePosition
+        ] = {}  # condition_id -> position
         self._last_signal_times: Dict[str, float] = {}  # ticker -> timestamp
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
@@ -107,11 +114,15 @@ class WhalePNLTrackerStrategy(BaseStrategy):
                 logger.debug(f"[{self.name}] No qualified whales found")
                 return result
 
-            logger.info(f"[{self.name}] Tracking {len(whales)} whales: {[w['wallet'][:8]+'...' for w in whales]}")
+            logger.info(
+                f"[{self.name}] Tracking {len(whales)} whales: {[w['wallet'][:8] + '...' for w in whales]}"
+            )
 
             # Step 2: Fetch positions from top whales
             all_positions = await self._fetch_whale_positions(whales, ctx)
-            logger.debug(f"[{self.name}] Found {len(all_positions)} positions from whales")
+            logger.debug(
+                f"[{self.name}] Found {len(all_positions)} positions from whales"
+            )
 
             # Step 3: Generate signals for new positions
             for position in all_positions:
@@ -121,9 +132,35 @@ class WhalePNLTrackerStrategy(BaseStrategy):
                         result.decisions_recorded += 1
                         result.trades_attempted += 1
 
-                        # Track this position to avoid duplicate signals
+                        whale_scores = {w["wallet"]: w["score"] for w in whales}
+                        whale_score = whale_scores.get(position.wallet, 0.0)
+                        copy_fraction = ctx.params.get(
+                            "copy_fraction", self.default_params["copy_fraction"]
+                        )
+                        direction = "up" if position.side == "YES" else "down"
+
+                        result.decisions.append(
+                            {
+                                "decision": "BUY",
+                                "market_ticker": position.condition_id,
+                                "direction": direction,
+                                "confidence": min(whale_score, 1.0),
+                                "edge": whale_score * 0.1,
+                                "size": position.size * copy_fraction,
+                                "entry_price": 0.5,
+                                "suggested_size": position.size * copy_fraction,
+                                "model_probability": min(whale_score, 1.0),
+                                "market_probability": 0.5,
+                                "platform": "polymarket",
+                                "strategy_name": self.name,
+                                "reasoning": f"whale {position.wallet[:8]}... score={whale_score:.2f} side={position.side}",
+                            }
+                        )
+
                         self._tracked_positions[position.condition_id] = position
-                        self._last_signal_times[position.ticker] = datetime.now(timezone.utc).timestamp()
+                        self._last_signal_times[position.ticker] = datetime.now(
+                            timezone.utc
+                        ).timestamp()
 
                         logger.info(
                             f"[{self.name}] {decision} signal: {position.ticker} "
@@ -143,24 +180,21 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         Returns list of {wallet, score, trade_count} dicts.
         """
         max_whales = ctx.params.get("max_whales", self.default_params["max_whales"])
-        min_score = ctx.params.get("min_whale_score", self.default_params["min_whale_score"])
+        min_score = ctx.params.get(
+            "min_whale_score", self.default_params["min_whale_score"]
+        )
         min_trades = ctx.params.get("min_trades", self.default_params["min_trades"])
 
         # Discover and rank whales
         discovered = await self._whale_discovery.discover(min_trades=min_trades)
 
         # Filter by minimum score and limit
-        qualified = [
-            w for w in discovered
-            if w["score"] >= min_score
-        ][:max_whales]
+        qualified = [w for w in discovered if w["score"] >= min_score][:max_whales]
 
         return qualified
 
     async def _fetch_whale_positions(
-        self,
-        whales: List[Dict],
-        ctx: StrategyContext
+        self, whales: List[Dict], ctx: StrategyContext
     ) -> List[WhalePosition]:
         """
         Fetch current positions from tracked whales.
@@ -168,7 +202,9 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         Returns list of WhalePosition objects.
         """
         positions = []
-        min_size = ctx.params.get("min_position_size", self.default_params["min_position_size"])
+        min_size = ctx.params.get(
+            "min_position_size", self.default_params["min_position_size"]
+        )
 
         for whale in whales:
             wallet = whale["wallet"]
@@ -210,9 +246,7 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         return positions
 
     async def _should_generate_signal(
-        self,
-        position: WhalePosition,
-        ctx: StrategyContext
+        self, position: WhalePosition, ctx: StrategyContext
     ) -> bool:
         """
         Check if we should generate a signal for this position.
@@ -227,7 +261,9 @@ class WhalePNLTrackerStrategy(BaseStrategy):
             return False
 
         # Check signal cooldown
-        cooldown_minutes = ctx.params.get("signal_cooldown_minutes", self.default_params["signal_cooldown_minutes"])
+        cooldown_minutes = ctx.params.get(
+            "signal_cooldown_minutes", self.default_params["signal_cooldown_minutes"]
+        )
         last_signal = self._last_signal_times.get(position.ticker, 0)
         cooldown_seconds = cooldown_minutes * 60
 
@@ -242,10 +278,7 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         return True
 
     async def _generate_whale_signal(
-        self,
-        position: WhalePosition,
-        whales: List[Dict],
-        ctx: StrategyContext
+        self, position: WhalePosition, whales: List[Dict], ctx: StrategyContext
     ) -> Optional[str]:
         """
         Generate a trading decision from a whale position.
@@ -262,11 +295,14 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         confidence = min(whale_score, 1.0)
 
         # Get copy fraction from params
-        copy_fraction = ctx.params.get("copy_fraction", self.default_params["copy_fraction"])
+        copy_fraction = ctx.params.get(
+            "copy_fraction", self.default_params["copy_fraction"]
+        )
 
         # Record decision
         record_decision(
-            ctx.db, self.name,
+            ctx.db,
+            self.name,
             position.ticker,
             "BUY",
             confidence=confidence,
@@ -280,7 +316,7 @@ class WhalePNLTrackerStrategy(BaseStrategy):
                 "condition_id": position.condition_id,
                 "track_name": ctx.params.get("track_name", "whale"),
             },
-            reason=f"whale_pnl_tracker: {position.wallet[:8]}... (score={whale_score:.2f}) opened {position.side}"
+            reason=f"whale_pnl_tracker: {position.wallet[:8]}... (score={whale_score:.2f}) opened {position.side}",
         )
 
         return "BUY"

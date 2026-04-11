@@ -523,6 +523,26 @@ class WeatherEMOSStrategy(BaseStrategy):
                 )
                 trade_size = max(trade_size, 10.0)
 
+                result.decisions.append(
+                    {
+                        "decision": "BUY",
+                        "market_ticker": market.ticker,
+                        "direction": trade_side.lower(),
+                        "confidence": min(1.0, abs(edge)),
+                        "edge": edge,
+                        "size": trade_size,
+                        "entry_price": entry_price,
+                        "suggested_size": trade_size,
+                        "model_probability": calibrated_p,
+                        "market_probability": market_mid,
+                        "platform": "polymarket",
+                        "strategy_name": self.name,
+                        "market_type": "weather",
+                        "reasoning": f"EMOS: calibrated_p={calibrated_p:.3f} market={market_mid:.3f} edge={edge:+.3f}",
+                        "slug": market.slug,
+                    }
+                )
+
                 if ctx.clob:
                     try:
                         order_result = await ctx.clob.place_limit_order(
