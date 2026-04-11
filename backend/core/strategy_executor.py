@@ -170,15 +170,6 @@ async def execute_decision(
             db.flush()
             trade.signal_id = signal_record.id
 
-            # Deduct actual dollar cost (shares × price), not just share count
-            trade_cost = adjusted_size * fill_price
-            if settings.TRADING_MODE == "paper":
-                state.paper_bankroll = max(
-                    0.0, (state.paper_bankroll or 0.0) - trade_cost
-                )
-            else:
-                state.bankroll = max(0.0, state.bankroll - trade_cost)
-
             db.commit()
 
             trade_dict = {
