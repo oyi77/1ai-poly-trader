@@ -185,16 +185,16 @@ def _parse_market_resolution(market: dict) -> Tuple[bool, Optional[float]]:
             return False, None
 
         # Gamma API endDate can reference a group/series date, not the
-        # actual market resolution — skip stale/zombie tiers if still trading.
-        market_active = market.get("active", False)
-        market_not_closed = not market.get("closed", False)
-        if market_active and market_not_closed and not has_ended_flag:
-            if hours_past_end >= 2.0:
-                logger.info(
-                    f"Market {market.get('id')} skipping stale/zombie resolution: "
-                    f"still active, endDate {hours_past_end:.0f}h ago (likely misleading)"
-                )
-                return False, None
+        # actual market resolution.  Only block the ZOMBIE tier (48h+)
+        # when the market is still actively trading — because the loose
+        # 0.55/0.45 thresholds can misfire on misleading endDates.
+        # Tiers 2-4 are fine because they require strong price signals
+        # (≥0.65 or ≤0.35) that only occur on genuinely finished markets.
+        market_still_open = (
+            market.get("active", False)
+            and not market.get("closed", False)
+            and not has_ended_flag
+        )
 
         # Select threshold based on strongest signal
         if has_ended_flag:
@@ -204,9 +204,15 @@ def _parse_market_resolution(market: dict) -> Tuple[bool, Optional[float]]:
             tier = "ended-flag"
         elif hours_past_end >= 48.0:
             # Tier 5: 48+ hours past endDate — extremely stale.
-            # If the market is 2+ days past endDate and price leans
-            # even slightly in one direction, the outcome is known.
-            # Polymarket just hasn't closed it yet.
+            if market_still_open:
+                # Guard: endDate may be misleading (group/series date).
+                # Don't resolve with the loosest thresholds when market
+                # is still actively trading.
+                logger.info(
+                    f"Market {market.get('id')} skipping zombie resolution: "
+                    f"still active, endDate {hours_past_end:.0f}h ago (likely misleading)"
+                )
+                return False, None
             early_threshold_high = 0.55
             early_threshold_low = 0.45
             tier = f"zombie-{hours_past_end:.0f}h"
