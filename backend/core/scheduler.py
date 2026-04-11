@@ -81,6 +81,9 @@ def schedule_strategy(strategy_name: str, interval_seconds: int) -> None:
 
     job_id = f"strategy_{strategy_name}"
     # functools.partial(async_fn) loses iscoroutinefunction → APScheduler won't await it
+    # misfire_grace_time must be generous for long-interval strategies (e.g. 300s, 600s)
+    # so that a small scheduler delay doesn't permanently skip the run.
+    grace = max(60, interval_seconds // 2)
     scheduler.add_job(
         strategy_cycle_job,
         IntervalTrigger(seconds=interval_seconds),
@@ -88,6 +91,7 @@ def schedule_strategy(strategy_name: str, interval_seconds: int) -> None:
         id=job_id,
         replace_existing=True,
         max_instances=1,
+        misfire_grace_time=grace,
     )
     logger.info(
         f"Scheduled strategy {strategy_name} every {interval_seconds}s (job_id={job_id})"

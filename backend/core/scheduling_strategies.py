@@ -328,6 +328,7 @@ async def scan_and_trade_job():
 async def weather_scan_and_trade_job():
     """Scan weather temperature markets and execute trades. Runs every 5 minutes."""
     from backend.core.scheduler import log_event
+    from backend.core.heartbeat import update_heartbeat as _update_hb
 
     log_event("info", "Scanning weather temperature markets...")
 
@@ -348,6 +349,12 @@ async def weather_scan_and_trade_job():
 
         if not actionable:
             log_event("info", "No actionable weather signals")
+            # Still update heartbeat so watchdog knows we ran
+            hb_db = SessionLocal()
+            try:
+                _update_hb(hb_db, "weather_emos")
+            finally:
+                hb_db.close()
             return
 
         db = SessionLocal()
@@ -460,6 +467,8 @@ async def weather_scan_and_trade_job():
                 log_event("success", f"Executed {trades_executed} weather trade(s)")
             else:
                 log_event("info", "No new weather trades executed")
+
+            _update_hb(db, "weather_emos")
 
         finally:
             db.close()
@@ -767,8 +776,6 @@ async def strategy_cycle_job(strategy_name: str) -> None:
 
         from backend.core.heartbeat import update_heartbeat
 
-        update_heartbeat(db, strategy_name)
-
         log_event(
             "info",
             f"Strategy {strategy_name} cycle done: decisions={result.decisions_recorded} trades={result.trades_placed} errors={len(result.errors)}",
@@ -779,3 +786,9 @@ async def strategy_cycle_job(strategy_name: str) -> None:
         logger.exception(f"strategy_cycle_job({strategy_name})")
     finally:
         db.close()
+
+    # Heartbeat AFTER db.close() so the pool connection is returned first
+    try:
+        update_heartbeat(None, strategy_name)
+    except Exception:
+        pass

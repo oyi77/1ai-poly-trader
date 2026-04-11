@@ -18,76 +18,95 @@ _recent_alerts: dict[str, datetime] = {}  # strategy_name -> last_alert_time
 ALERT_DEDUP_WINDOW = timedelta(minutes=5)
 
 
-def update_heartbeat(db, strategy_name: str) -> None:
-    """Update the heartbeat timestamp for a strategy. Called after each cycle.
-
-    Uses its own session to avoid interference with the caller's transaction
-    and retries once on failure (SQLite ``database is locked`` under concurrency).
-    """
-    import time
-    from sqlalchemy import event as sa_event, text
+def _heartbeat_session():
+    """Create an isolated SQLite session with busy_timeout for heartbeat writes."""
+    from sqlalchemy import text
     from backend.models.database import SessionLocal
 
-    local_db = SessionLocal()
-
-    # Set a generous busy_timeout so SQLite waits instead of raising "database is locked"
-    @sa_event.listens_for(local_db.bind, "connect", insert=True)
-    def _set_busy_timeout(dbapi_conn, connection_record):
-        dbapi_conn.execute("PRAGMA busy_timeout = 5000")
-
-    # For the current connection that's already established:
+    session = SessionLocal()
     try:
-        local_db.execute(text("PRAGMA busy_timeout = 5000"))
+        session.execute(text("PRAGMA busy_timeout = 5000"))
     except Exception:
         pass
+    return session
 
+
+def _do_heartbeat_write(session, strategy_name: str) -> None:
+    """Write heartbeat timestamp into BotState.misc_data JSON."""
+    state = session.query(BotState).first()
+    if not state:
+        return
+    data = {}
+    if state.misc_data:
+        try:
+            data = (
+                json.loads(state.misc_data)
+                if isinstance(state.misc_data, str)
+                else dict(state.misc_data)
+            )
+        except Exception:
+            data = {}
+    data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = datetime.now(timezone.utc).isoformat()
+    state.misc_data = json.dumps(data)
+    session.commit()
+
+
+def _do_heartbeat_write_raw(strategy_name: str) -> None:
+    """Write heartbeat via raw sqlite3 — bypasses SQLAlchemy pool entirely."""
+    import sqlite3
+    from backend.config import settings
+
+    db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path, timeout=5.0)
     try:
-        state = local_db.query(BotState).first()
-        if not state:
+        conn.execute("PRAGMA journal_mode=WAL")
+        row = conn.execute("SELECT misc_data FROM bot_state WHERE id=1").fetchone()
+        if not row:
             return
         data = {}
-        if state.misc_data:
+        if row[0]:
             try:
-                data = (
-                    json.loads(state.misc_data)
-                    if isinstance(state.misc_data, str)
-                    else dict(state.misc_data)
-                )
+                data = json.loads(row[0])
             except Exception:
-                logger.warning("Failed to parse misc_data JSON, resetting")
                 data = {}
         data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = datetime.now(
             timezone.utc
         ).isoformat()
-        state.misc_data = json.dumps(data)
-        local_db.commit()
-    except Exception as e:
-        logger.warning(f"update_heartbeat failed for {strategy_name}: {e}")
-        local_db.rollback()
-        time.sleep(0.2)
-        try:
-            state = local_db.query(BotState).first()
-            if state:
-                data = {}
-                if state.misc_data:
-                    try:
-                        data = (
-                            json.loads(state.misc_data)
-                            if isinstance(state.misc_data, str)
-                            else {}
-                        )
-                    except Exception:
-                        data = {}
-                data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = datetime.now(
-                    timezone.utc
-                ).isoformat()
-                state.misc_data = json.dumps(data)
-                local_db.commit()
-        except Exception as e2:
-            logger.error(f"update_heartbeat retry failed for {strategy_name}: {e2}")
-            local_db.rollback()
+        conn.execute("UPDATE bot_state SET misc_data=? WHERE id=1", (json.dumps(data),))
+        conn.commit()
     finally:
-        local_db.close()
+        conn.close()
+
+
+def update_heartbeat(db, strategy_name: str) -> None:
+    """Update heartbeat timestamp for a strategy.
+
+    Uses raw sqlite3 to bypass SQLAlchemy pool and avoid pool exhaustion.
+    Retries up to 5 times with exponential backoff + jitter.
+    """
+    import time
+    import random
+
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            _do_heartbeat_write_raw(strategy_name)
+            return
+        except Exception as e:
+            if attempt < max_retries - 1:
+                base_sleep = 0.3 * (2**attempt)  # 0.3, 0.6, 1.2, 2.4
+                jitter = random.uniform(0, base_sleep * 0.5)
+                sleep_time = base_sleep + jitter
+                logger.warning(
+                    f"update_heartbeat attempt {attempt + 1} failed for "
+                    f"{strategy_name}: {e} — retrying in {sleep_time:.1f}s"
+                )
+                time.sleep(sleep_time)
+            else:
+                logger.error(
+                    f"update_heartbeat failed for {strategy_name} after "
+                    f"{max_retries} attempts: {e}"
+                )
 
 
 def get_strategy_health(db) -> list[dict]:
