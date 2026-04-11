@@ -27,6 +27,7 @@ class GeneralMarketScanner(BaseStrategy):
         "categories": "politics,sports,crypto,science,culture",
         "max_ai_calls_per_cycle": 40,
         "max_concurrent": 40,
+        "min_reward_risk": 0.5,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -228,6 +229,19 @@ class GeneralMarketScanner(BaseStrategy):
             # Edge filter
             if edge < min_edge:
                 continue
+
+            # R:R floor filter — reject trades where potential reward is too
+            # low relative to risk.  For a binary bet the reward-to-risk is
+            # (1/entry_price) - 1.  A floor of 0.5 means we need at least 50%
+            # return potential (entry_price <= ~0.67).
+            min_rr = float(params.get("min_reward_risk", 0.5))
+            if entry_price > 0:
+                reward_risk = (1.0 / entry_price) - 1.0
+                if reward_risk < min_rr:
+                    ctx.logger.debug(
+                        f"[general_scanner] Skipping {slug}: R:R {reward_risk:.2f}x < {min_rr}x (entry={entry_price:.4f})"
+                    )
+                    continue
 
             # Kelly criterion sizing (fractional)
             kelly_fraction = ctx.settings.KELLY_FRACTION
