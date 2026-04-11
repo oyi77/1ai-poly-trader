@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 
@@ -114,11 +114,13 @@ def _parse_market_resolution(market: dict) -> Tuple[bool, Optional[float]]:
     Handles both Yes/No and Up/Down outcomes.
     - outcomePrices[0] > 0.99 -> first outcome won (Yes or Up)
     - outcomePrices[0] < 0.01 -> second outcome won (No or Down)
+
+    Also supports early resolution heuristic: if the market is not yet
+    officially closed but prices are extreme AND the event appears to have
+    concluded, treat it as resolved so we don't wait hours for Polymarket
+    to flip the closed flag.
     """
     is_closed = market.get("closed", False)
-
-    if not is_closed:
-        return False, None
 
     outcome_prices = market.get("outcomePrices", [])
     if not outcome_prices:
@@ -130,20 +132,77 @@ def _parse_market_resolution(market: dict) -> Tuple[bool, Optional[float]]:
 
         first_price = float(outcome_prices[0]) if outcome_prices else 0.5
 
-        if first_price > 0.99:
-            # First outcome won (Up or Yes)
-            logger.info(f"Market {market.get('id')} resolved: UP/YES won")
-            return True, 1.0
-        elif first_price < 0.01:
-            # Second outcome won (Down or No)
-            logger.info(f"Market {market.get('id')} resolved: DOWN/NO won")
-            return True, 0.0
-        else:
-            return False, None
+        # --- Officially closed: use tight thresholds (existing logic) ---
+        if is_closed:
+            if first_price > 0.99:
+                logger.info(f"Market {market.get('id')} resolved: UP/YES won")
+                return True, 1.0
+            elif first_price < 0.01:
+                logger.info(f"Market {market.get('id')} resolved: DOWN/NO won")
+                return True, 0.0
+            else:
+                return False, None
+
+        # --- Early resolution heuristic (market not yet closed) ---
+        # Only trigger when prices are very extreme (>0.97 or <0.03) AND
+        # there is external evidence that the event has concluded.
+        if first_price > 0.97 or first_price < 0.03:
+            event_concluded = _check_event_concluded(market)
+            if event_concluded:
+                if first_price > 0.97:
+                    logger.info(
+                        f"Market {market.get('id')} early-resolved (price={first_price:.3f}, "
+                        f"event concluded): UP/YES won"
+                    )
+                    return True, 1.0
+                else:
+                    logger.info(
+                        f"Market {market.get('id')} early-resolved (price={first_price:.3f}, "
+                        f"event concluded): DOWN/NO won"
+                    )
+                    return True, 0.0
+
+        return False, None
 
     except (ValueError, IndexError, TypeError) as e:
         logger.warning(f"Failed to parse outcome prices: {e}")
         return False, None
+
+
+def _check_event_concluded(market: dict) -> bool:
+    """
+    Determine whether the underlying event has concluded, even if Polymarket
+    hasn't set closed=True yet.
+
+    For sports markets: checks ``events[0].ended`` flag.
+    For non-sports:     checks whether ``endDate`` has passed by ≥2 hours.
+    """
+    now = datetime.now(timezone.utc)
+
+    # Sports markets: the Gamma API sets events[0].ended = True once the
+    # match finishes, well before the market is officially closed.
+    events = market.get("events", [])
+    if events and isinstance(events, list):
+        event = events[0] if isinstance(events[0], dict) else {}
+        if event.get("ended") is True:
+            return True
+        # If the game is still live, definitely not concluded.
+        if event.get("live") is True and event.get("ended") is not True:
+            return False
+
+    # Non-sports / fallback: use endDate.  For non-sports markets endDate is
+    # the resolution deadline.  We require it to have passed by ≥2 hours to
+    # avoid premature settlement on pre-event price spikes.
+    end_date_str = market.get("endDate")
+    if end_date_str:
+        try:
+            end_date = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+            if now >= end_date + timedelta(hours=2):
+                return True
+        except (ValueError, TypeError):
+            pass
+
+    return False
 
 
 async def _fetch_kalshi_resolution(ticker: str) -> Tuple[bool, Optional[float]]:
