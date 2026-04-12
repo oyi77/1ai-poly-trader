@@ -55,7 +55,7 @@ class Settings(BaseSettings):
 
     # Bot settings - BTC 5-MIN TRADING
     INITIAL_BANKROLL: float = 100.0
-    KELLY_FRACTION: float = 0.10  # Conservative fractional Kelly
+    KELLY_FRACTION: float = 0.05  # Ultra-conservative fractional Kelly for $100 bankroll
 
     # BTC 5-min specific settings
     SCAN_INTERVAL_SECONDS: int = 60  # Scan every minute
@@ -65,13 +65,13 @@ class Settings(BaseSettings):
         0.05  # 5% edge required — lower threshold to find more opportunities
     )
     MAX_ENTRY_PRICE: float = 0.80  # Allow entries up to 80c for bond-like trades
-    MAX_TRADES_PER_WINDOW: int = 3
-    MAX_TOTAL_PENDING_TRADES: int = 20
-    STALE_TRADE_HOURS: int = 48
+    MAX_TRADES_PER_WINDOW: int = 2
+    MAX_TOTAL_PENDING_TRADES: int = 12
+    STALE_TRADE_HOURS: int = 18
 
-    # Risk management
-    DAILY_LOSS_LIMIT: float = 300.0
-    MAX_TRADE_SIZE: float = 75.0
+    # Risk management — tuned for $100 bankroll
+    DAILY_LOSS_LIMIT: float = 5.0
+    MAX_TRADE_SIZE: float = 8.0
     MIN_TIME_REMAINING: int = 60  # Don't trade windows closing in < 60s
     MAX_TIME_REMAINING: int = 1800  # Trade windows up to 30min out
 
@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     WEATHER_SETTLEMENT_INTERVAL_SECONDS: int = 1800  # 30 min
     WEATHER_MIN_EDGE_THRESHOLD: float = 0.10  # 10% — weather has more signal
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
-    WEATHER_MAX_TRADE_SIZE: float = 100.0
+    WEATHER_MAX_TRADE_SIZE: float = 10.0
     WEATHER_CITIES: str = (
         "nyc,chicago,miami,dallas,seattle,atlanta,los_angeles,denver,london,seoul,tokyo"
     )
@@ -120,8 +120,8 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_JOBS: int = 1
     DB_EXECUTOR_MAX_WORKERS: int = 4
 
-    MAX_POSITION_FRACTION: float = 0.05
-    MAX_TOTAL_EXPOSURE_FRACTION: float = 0.50
+    MAX_POSITION_FRACTION: float = 0.08
+    MAX_TOTAL_EXPOSURE_FRACTION: float = 0.70
     SLIPPAGE_TOLERANCE: float = 0.02
     DAILY_DRAWDOWN_LIMIT_PCT: float = (
         0.10  # Pause trading if 24h loss > 10% of bankroll

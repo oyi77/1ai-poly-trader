@@ -48,36 +48,26 @@ class GeneralMarketScanner(BaseStrategy):
     description = "AI-powered scanner across all Polymarket markets — politics, sports, crypto, events"
     category = "ai_driven"
     default_params = {
-        "min_volume": 2000,
-        "min_edge": 0.02,
-        "max_price": 0.85,
-        "min_price": 0.08,
-        "max_position_size": 2.0,
+        "min_volume": 5000,
+        "min_edge": 0.04,
+        "max_price": 0.80,
+        "min_price": 0.10,
+        "max_position_size": 1.50,
         "min_position_size": 0.30,
-        "scan_limit": 500,
+        "scan_limit": 200,
         "categories": "politics,crypto,science,culture",
-        "max_ai_calls_per_cycle": 40,
-        "max_concurrent": 25,
-        "min_reward_risk": 0.3,
-        "max_days_to_end": 30,
-        "max_low_prob_size": 1.50,
+        "max_ai_calls_per_cycle": 20,
+        "max_concurrent": 10,
+        "min_reward_risk": 0.4,
+        "max_days_to_end": 21,
+        "max_low_prob_size": 0.40,
         "low_prob_threshold": 0.20,
-        # Edge dampening is now handled by market_anchor_weight.
-        # Anchor weight 0.7 already compresses AI edge by 70%.
-        # Setting dampening to 1.0 (no additional dampening) prevents
-        # double-penalizing.  Old 0.5 * 0.3(anchor) = 0.15 effective
-        # weight made it impossible for the scanner to place any trade.
-        "edge_dampening": 1.0,
-        "sports_edge_multiplier": 3.0,
-        # Max raw edge cap: reject if AI disagrees with market by more than this.
-        # Tightened to 0.25 — a small model claiming 25%+ edge is almost always wrong.
-        "max_raw_edge": 0.25,
-        # Market anchor weight: blend AI prob toward market price.
-        # final_prob = anchor_weight * market_price + (1-anchor_weight) * ai_prob
-        # 0.5 = equal weight.  Effective edge = raw_edge * 0.5, so AI needs
-        # ~4% raw disagreement to pass min_edge=0.02.  Balanced: trusts the
-        # market but still lets the AI contribute meaningful signal.
-        "market_anchor_weight": 0.5,
+        "edge_dampening": 0.5,
+        "sports_edge_multiplier": 5.0,
+        "max_raw_edge": 0.12,
+        "market_anchor_weight": 0.55,
+        "min_ai_confidence": 0.70,
+        "skip_hours": [2, 3, 4, 5, 6, 7, 8],
         # --- Safe harvesting strategy ---
         # Prefer NO bets on low-probability events.  Markets priced at YES 0.05-0.25
         # resolve NO >80% of the time.  Instead of trying to pick YES winners among
@@ -85,17 +75,12 @@ class GeneralMarketScanner(BaseStrategy):
         # When True: for markets where YES < harvest_yes_ceiling, force direction=NO
         # unless AI strongly disagrees (raw_ai_prob > harvest_ai_override_threshold).
         "safe_harvest_enabled": True,
-        "harvest_yes_ceiling": 0.25,  # Markets with YES below this → prefer NO
-        "harvest_ai_override_threshold": 0.50,  # AI must be >50% YES to override harvest
-        # --- Market-agree filter ---
-        # Only trade when AI direction agrees with market lean.
-        # If market says event is unlikely (YES < 0.40), only allow NO bets.
-        # If market says event is likely (YES > 0.60), only allow YES bets.
-        # In the 0.40-0.60 zone, allow either direction.
+        "harvest_yes_ceiling": 0.20,
+        "harvest_ai_override_threshold": 0.65,
         "market_agree_enabled": True,
-        "market_agree_low": 0.40,  # Below this: only NO trades allowed
-        "market_agree_high": 0.60,
-        "min_expected_profit": 0.30,
+        "market_agree_low": 0.25,
+        "market_agree_high": 0.75,
+        "min_expected_profit": 0.15,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -113,20 +98,20 @@ class GeneralMarketScanner(BaseStrategy):
         min_position_size = float(params.get("min_position_size", 0.50))
         scan_limit = int(params["scan_limit"])
         max_ai_calls_per_cycle = int(params.get("max_ai_calls_per_cycle", 40))
-        max_concurrent = int(params.get("max_concurrent", 12))
+        max_concurrent = int(params.get("max_concurrent", 25))
         max_days_to_end = int(params.get("max_days_to_end", 30))
-        max_low_prob_size = float(params.get("max_low_prob_size", 1.50))
+        max_low_prob_size = float(params.get("max_low_prob_size", 0.50))
         low_prob_threshold = float(params.get("low_prob_threshold", 0.20))
         edge_dampening = float(params.get("edge_dampening", 0.5))
         sports_edge_multiplier = float(params.get("sports_edge_multiplier", 3.0))
-        max_raw_edge = float(params.get("max_raw_edge", 0.25))
-        market_anchor_weight = float(params.get("market_anchor_weight", 0.7))
+        max_raw_edge = float(params.get("max_raw_edge", 0.12))
+        market_anchor_weight = float(params.get("market_anchor_weight", 0.45))
         safe_harvest_enabled = bool(params.get("safe_harvest_enabled", True))
         harvest_yes_ceiling = float(params.get("harvest_yes_ceiling", 0.25))
-        harvest_ai_override = float(params.get("harvest_ai_override_threshold", 0.50))
+        harvest_ai_override = float(params.get("harvest_ai_override_threshold", 0.55))
         market_agree_enabled = bool(params.get("market_agree_enabled", True))
-        market_agree_low = float(params.get("market_agree_low", 0.40))
-        market_agree_high = float(params.get("market_agree_high", 0.60))
+        market_agree_low = float(params.get("market_agree_low", 0.30))
+        market_agree_high = float(params.get("market_agree_high", 0.70))
         allowed_categories_raw = params.get("categories", "")
         allowed_categories = {
             c.strip().lower()
@@ -140,6 +125,15 @@ class GeneralMarketScanner(BaseStrategy):
                 "[general_scanner] AI disabled — skipping cycle (AI required for edge)"
             )
             result.errors.append("AI disabled")
+            return result
+
+        # Time-of-day filter: skip hours where historical losses cluster
+        skip_hours = params.get("skip_hours", [2, 4, 7, 8])
+        current_hour = datetime.now(timezone.utc).hour
+        if current_hour in skip_hours:
+            ctx.logger.info(
+                f"[general_scanner] Skipping cycle — hour {current_hour} UTC in skip_hours {skip_hours}"
+            )
             return result
 
         # Fetch top markets by volume
@@ -316,6 +310,14 @@ class GeneralMarketScanner(BaseStrategy):
             if not ai_result:
                 continue
 
+            ai_confidence = float(getattr(ai_result, "confidence", 0.0))
+            min_ai_confidence = float(params.get("min_ai_confidence", 0.6))
+            if ai_confidence < min_ai_confidence:
+                ctx.logger.debug(
+                    f"[general_scanner] FILTER:CONFIDENCE {slug}: conf={ai_confidence:.2f} < min={min_ai_confidence}"
+                )
+                continue
+
             ai_prob = float(ai_result.probability)
             market_price = yes_price
 
@@ -435,6 +437,21 @@ class GeneralMarketScanner(BaseStrategy):
             if entry_price < low_prob_threshold:
                 size = min(size, max_low_prob_size)
 
+            # --- Asymmetric risk/reward sizing adjustment ---
+            # High-entry NO bets (harvest) need bigger size to generate meaningful
+            # profit per trade.  Low-entry YES bets need smaller size because full
+            # stake is lost on failure.
+            profit_per_dollar = (1.0 / entry_price) - 1.0 if entry_price > 0 else 0
+            min_profit = float(params.get("min_expected_profit", 0.10))
+            if profit_per_dollar > 0:
+                # Scale size up so expected profit >= min_profit (if we win)
+                min_size_for_profit = min_profit / profit_per_dollar
+                if size < min_size_for_profit:
+                    size = min(min_size_for_profit, max_position_size)
+            # For YES bets at low probability, aggressively cap size
+            if direction == "yes" and entry_price < 0.40:
+                size = min(size, 0.30)  # max $0.30 on risky YES long-shots
+
             category_caps = {
                 "sports": 0.75,
                 "politics": 1.50,
@@ -445,13 +462,13 @@ class GeneralMarketScanner(BaseStrategy):
                     size = min(size, cap)
                     break
 
-            min_profit = float(params.get("min_expected_profit", 0.30))
+            min_profit_filter = float(params.get("min_expected_profit", 0.10))
             if entry_price > 0:
                 expected_profit = (size / entry_price) - size
-                if expected_profit < min_profit:
+                if expected_profit < min_profit_filter:
                     ctx.logger.info(
                         f"[general_scanner] FILTER:PROFIT_LOW {slug}: "
-                        f"expected_profit=${expected_profit:.2f} < min=${min_profit:.2f} "
+                        f"expected_profit=${expected_profit:.2f} < min=${min_profit_filter:.2f} "
                         f"(size=${size:.2f}, entry={entry_price:.4f})"
                     )
                     rejected_rr += 1

@@ -68,19 +68,19 @@ class TestBondScannerFilters:
         low_market = _make_market(outcome_prices=["0.80", "0.20"])
         prices = [float(p) for p in low_market["outcomePrices"]]
         qualifies = any(params["min_price"] <= p <= params["max_price"] for p in prices)
-        assert not qualifies, "0.80 should not qualify (below min_price 0.92)"
+        assert not qualifies, "0.80 should not qualify (below min_price)"
 
         # Price too high — should NOT qualify
         high_market = _make_market(outcome_prices=["0.99", "0.01"])
         prices = [float(p) for p in high_market["outcomePrices"]]
         qualifies = any(params["min_price"] <= p <= params["max_price"] for p in prices)
-        assert not qualifies, "0.99 should not qualify (above max_price 0.98)"
+        assert not qualifies, "0.99 should not qualify (above max_price)"
 
         # Price in range — SHOULD qualify
         good_market = _make_market(outcome_prices=["0.95", "0.05"])
         prices = [float(p) for p in good_market["outcomePrices"]]
         qualifies = any(params["min_price"] <= p <= params["max_price"] for p in prices)
-        assert qualifies, "0.95 should qualify (within [0.92, 0.98])"
+        assert qualifies, "0.95 should qualify (within price range)"
 
     def test_filters_by_volume(self):
         """Markets below min_volume should be rejected."""
@@ -89,11 +89,11 @@ class TestBondScannerFilters:
         strategy = BondScannerStrategy()
         min_volume = strategy.default_params["min_volume"]
 
-        low_vol = _make_market(volume=5000)
-        assert low_vol["volume"] < min_volume, "5000 is below min_volume threshold"
+        low_vol = _make_market(volume=500)
+        assert low_vol["volume"] < min_volume, "500 is below min_volume threshold"
 
-        high_vol = _make_market(volume=50000)
-        assert high_vol["volume"] >= min_volume, "50000 meets min_volume threshold"
+        high_vol = _make_market(volume=5000)
+        assert high_vol["volume"] >= min_volume, "5000 meets min_volume threshold"
 
     def test_edge_calculation(self):
         """Edge should equal 1.0 - price."""

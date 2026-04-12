@@ -24,13 +24,13 @@ class BondScannerStrategy(BaseStrategy):
     )
     category = "value"
     default_params = {
-        "min_price": 0.82,
-        "max_price": 0.92,
-        "min_volume": 10000,
-        "max_days_to_resolution": 10,
-        "min_days_to_resolution": 1.0,
-        "max_position_size": 5.0,
-        "max_concurrent_bonds": 4,
+        "min_price": 0.88,
+        "max_price": 0.97,
+        "min_volume": 1000,
+        "max_days_to_resolution": 14,
+        "min_days_to_resolution": 0.5,
+        "max_position_size": 8.0,
+        "max_concurrent_bonds": 8,
     }
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
@@ -214,9 +214,9 @@ class BondScannerStrategy(BaseStrategy):
             # Require: win_prob * (1-P) - (1-win_prob) * P > 0
             # i.e. win_prob > P  (we need to believe the TRUE prob exceeds market)
             #
-            # Conservative boost: 1% for markets 0.82-0.88, tapering to 0.5% at 0.92
-            taper = max(0.0, (qualifying_price - 0.82) / 0.10)  # 0 at 0.82, 1 at 0.92
-            proximity_boost = 0.01 * (1.0 - 0.5 * taper)  # 1% at 0.82, 0.5% at 0.92
+            # Conservative boost: 1% for markets at 0.92, tapering to 0.5% at 0.98
+            taper = max(0.0, (qualifying_price - 0.92) / 0.06)  # 0 at 0.92, 1 at 0.98
+            proximity_boost = 0.01 * (1.0 - 0.5 * taper)  # 1% at 0.92, 0.5% at 0.98
             win_prob = min(qualifying_price + proximity_boost, 0.97)
             edge = round(
                 win_prob * (1.0 - qualifying_price)
@@ -231,14 +231,25 @@ class BondScannerStrategy(BaseStrategy):
             kelly = edge / (1.0 - qualifying_price) if qualifying_price < 1.0 else 0.0
             size = min(max_position_size, bankroll * 0.08, bankroll * kelly * 0.25)
 
+            trade_direction = str(qualifying_outcome).strip().strip("'\"").lower()
+            if trade_direction not in ("yes", "no", "up", "down"):
+                trade_direction = "yes"
+            # entry_price must reflect the cost of the share we're buying.
+            # qualifying_price is the YES outcome price.
+            # If betting NO, the share cost is (1 - qualifying_price).
+            if trade_direction in ("no", "down"):
+                trade_entry_price = round(1.0 - qualifying_price, 6)
+            else:
+                trade_entry_price = qualifying_price
+
             decision = {
                 "market_ticker": slug,
                 "market_question": market.get("question")
                 or market.get("title")
                 or slug,
-                "direction": str(qualifying_outcome).lower(),
+                "direction": trade_direction,
                 "decision": "BUY",
-                "entry_price": qualifying_price,
+                "entry_price": trade_entry_price,
                 "size": size,
                 "suggested_size": size,
                 "edge": edge,

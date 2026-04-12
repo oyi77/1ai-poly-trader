@@ -1,4 +1,5 @@
 """Backtesting engine — simulate strategy execution against historical market data."""
+
 import logging
 import statistics
 from dataclasses import dataclass, field
@@ -98,9 +99,7 @@ class BacktestEngine:
             .order_by(Signal.timestamp.asc())
         )
         if self.config.strategy_name:
-            query = query.filter(
-                Signal.reasoning.contains(self.config.strategy_name)
-            )
+            query = query.filter(Signal.reasoning.contains(self.config.strategy_name))
         return query.all()
 
     def _simulate_from_signals(
@@ -143,22 +142,40 @@ class BacktestEngine:
             if (total_exposure + size) / bankroll > self.config.max_total_exposure:
                 continue
 
-            entry_price = sig.market_price if getattr(sig, "market_price", None) is not None else 0.5
+            entry_price = (
+                sig.market_price
+                if getattr(sig, "market_price", None) is not None
+                else 0.5
+            )
             settlement_value = sig.settlement_value
 
             # Determine PnL from settlement
+            # size = dollars spent, entry_price = price per share
+            # WIN: shares = size/entry_price, payout = shares * $1, pnl = payout - size
+            # LOSS: pnl = -size (lose entire investment)
             pnl: Optional[float] = None
             settled = False
             if settlement_value is not None:
                 settled = True
-                if sig.direction == "up":
-                    pnl = size * (1.0 - entry_price) if settlement_value == 1.0 else -size
+                bt_direction = sig.direction
+                if bt_direction in ("up", "yes"):
+                    pnl = (
+                        (size / entry_price) - size
+                        if settlement_value == 1.0
+                        else -size
+                    )
                 else:
-                    pnl = size * (1.0 - entry_price) if settlement_value == 0.0 else -size
+                    pnl = (
+                        (size / entry_price) - size
+                        if settlement_value == 0.0
+                        else -size
+                    )
             elif sig.outcome_correct is not None:
                 settled = True
                 if sig.outcome_correct:
-                    pnl = size * sig.edge
+                    # Correct PnL: shares pay $1 each on win
+                    # pnl = (size / entry_price) - size
+                    pnl = (size / entry_price) - size if entry_price > 0 else 0.0
                 else:
                     pnl = -size
 
@@ -189,7 +206,9 @@ class BacktestEngine:
                 }
             )
 
-        metrics = self._calculate_metrics(bt_trades, equity_curve, self.config.initial_bankroll)
+        metrics = self._calculate_metrics(
+            bt_trades, equity_curve, self.config.initial_bankroll
+        )
         return BacktestResult(
             config=self.config,
             trades=bt_trades,
@@ -218,10 +237,7 @@ class BacktestEngine:
             )
 
             if self.config.strategy_name:
-                trades = [
-                    t for t in trades
-                    if t.strategy == self.config.strategy_name
-                ]
+                trades = [t for t in trades if t.strategy == self.config.strategy_name]
 
             logger.info(f"[backtester] Replaying {len(trades)} settled trades")
 
@@ -253,10 +269,19 @@ class BacktestEngine:
 
                 pnl: Optional[float] = None
                 if settlement_value is not None:
-                    if trade.direction == "up":
-                        pnl = size * (1.0 - entry_price) if settlement_value == 1.0 else -size
+                    bt_dir = trade.direction
+                    if bt_dir in ("up", "yes"):
+                        pnl = (
+                            (size / entry_price) - size
+                            if settlement_value == 1.0
+                            else -size
+                        )
                     else:
-                        pnl = size * (1.0 - entry_price) if settlement_value == 0.0 else -size
+                        pnl = (
+                            (size / entry_price) - size
+                            if settlement_value == 0.0
+                            else -size
+                        )
                 elif trade.pnl is not None:
                     # Scale original pnl proportionally
                     orig_size = trade.size or size
@@ -287,7 +312,9 @@ class BacktestEngine:
                     }
                 )
 
-            metrics = self._calculate_metrics(bt_trades, equity_curve, self.config.initial_bankroll)
+            metrics = self._calculate_metrics(
+                bt_trades, equity_curve, self.config.initial_bankroll
+            )
             return BacktestResult(
                 config=self.config,
                 trades=bt_trades,
@@ -315,12 +342,8 @@ class BacktestEngine:
         final_bankroll = initial_bankroll + total_pnl
         win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
-        avg_edge = (
-            sum(t.edge for t in trades) / len(trades) if trades else 0.0
-        )
-        avg_trade_size = (
-            sum(t.size for t in trades) / len(trades) if trades else 0.0
-        )
+        avg_edge = sum(t.edge for t in trades) / len(trades) if trades else 0.0
+        avg_trade_size = sum(t.size for t in trades) / len(trades) if trades else 0.0
         return_pct = (
             (final_bankroll - initial_bankroll) / initial_bankroll * 100
             if initial_bankroll > 0
@@ -346,7 +369,7 @@ class BacktestEngine:
             mean_r = statistics.mean(pnls)
             std_r = statistics.stdev(pnls)
             if std_r > 0:
-                sharpe_ratio = (mean_r / std_r) * (252 ** 0.5)
+                sharpe_ratio = (mean_r / std_r) * (252**0.5)
 
         return {
             "total_pnl": round(total_pnl, 4),
