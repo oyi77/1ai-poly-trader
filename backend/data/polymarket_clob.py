@@ -175,7 +175,8 @@ class PolymarketCLOB:
                 )
             except Exception as e:
                 logger.warning(
-                    f"[polymarket_clob.__init__] {type(e).__name__}: Failed to initialise ClobClient: {e}"
+                    f"[polymarket_clob.__init__] {type(e).__name__}: Failed to initialise ClobClient: {e}",
+                    exc_info=True,
                 )
 
     @property
@@ -286,7 +287,8 @@ class PolymarketCLOB:
             return float(resp.json().get("mid", 0.5))
         except Exception as e:
             logger.debug(
-                f"[polymarket_clob.get_mid_price] {type(e).__name__}: midpoint endpoint failed, falling back to order book: {e}"
+                f"[polymarket_clob.get_mid_price] {type(e).__name__}: midpoint endpoint failed, falling back to order book: {e}",
+                exc_info=True,
             )
             book = await self.get_order_book(token_id)
             return book.mid_price
@@ -302,7 +304,8 @@ class PolymarketCLOB:
             return data[0] if data else None
         except Exception as e:
             logger.warning(
-                f"[polymarket_clob.get_market] {type(e).__name__}: Failed to fetch market {condition_id}: {e}"
+                f"[polymarket_clob.get_market] {type(e).__name__}: Failed to fetch market {condition_id}: {e}",
+                exc_info=True,
             )
             return None
 
@@ -363,7 +366,8 @@ class PolymarketCLOB:
             return creds
         except Exception as e:
             logger.error(
-                f"[polymarket_clob.create_or_derive_api_creds] {type(e).__name__}: Failed to derive API credentials: {e}"
+                f"[polymarket_clob.create_or_derive_api_creds] {type(e).__name__}: Failed to derive API credentials: {e}",
+                exc_info=True,
             )
             return None
 
@@ -428,7 +432,8 @@ class PolymarketCLOB:
                 mid = await self.get_mid_price(token_id)
             except Exception as e:
                 logger.debug(
-                    f"[polymarket_clob.place_limit_order] {type(e).__name__}: mid-price fetch failed, using limit price: {e}"
+                    f"[polymarket_clob.place_limit_order] {type(e).__name__}: mid-price fetch failed, using limit price: {e}",
+                    exc_info=True,
                 )
                 mid = price
             logger.info(
@@ -499,7 +504,8 @@ class PolymarketCLOB:
         except Exception as e:
             error_msg = str(e)
             logger.error(
-                f"[polymarket_clob.place_limit_order] {type(e).__name__}: Order failed: {error_msg}"
+                f"[polymarket_clob.place_limit_order] {type(e).__name__}: Order failed: {error_msg}",
+                exc_info=True,
             )
             await clob_breaker._on_failure()
             return OrderResult(success=False, error=error_msg)
@@ -520,7 +526,8 @@ class PolymarketCLOB:
             return resp.get("success", False) if isinstance(resp, dict) else bool(resp)
         except Exception as e:
             logger.error(
-                f"[polymarket_clob.cancel_order] {type(e).__name__}: Cancel failed: {e}"
+                f"[polymarket_clob.cancel_order] {type(e).__name__}: Cancel failed: {e}",
+                exc_info=True,
             )
             return False
 
@@ -532,7 +539,8 @@ class PolymarketCLOB:
             return await asyncio.to_thread(self._clob_client.get_orders)
         except Exception as e:
             logger.error(
-                f"[polymarket_clob.get_open_orders] {type(e).__name__}: Failed to get open orders: {e}"
+                f"[polymarket_clob.get_open_orders] {type(e).__name__}: Failed to get open orders: {e}",
+                exc_info=True,
             )
             return []
 
@@ -549,7 +557,8 @@ class PolymarketCLOB:
             return True
         except Exception as e:
             logger.error(
-                f"[polymarket_clob.cancel_all_orders] {type(e).__name__}: Failed to cancel all orders: {e}"
+                f"[polymarket_clob.cancel_all_orders] {type(e).__name__}: Failed to cancel all orders: {e}",
+                exc_info=True,
             )
             return False
 
@@ -595,7 +604,8 @@ class PolymarketCLOB:
                 }
         except Exception as e:
             logger.error(
-                f"[polymarket_clob.get_wallet_balance] {type(e).__name__}: Failed to fetch wallet balance: {e}"
+                f"[polymarket_clob.get_wallet_balance] {type(e).__name__}: Failed to fetch wallet balance: {e}",
+                exc_info=True,
             )
             return {"usdc_balance": 0.0, "token_balances": {}, "error": str(e)}
 

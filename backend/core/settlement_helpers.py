@@ -497,7 +497,10 @@ async def _resolve_markets(
     resolutions = {}
     for item in gathered:
         if isinstance(item, Exception):
-            logger.error(f"Market resolution error: {item}")
+            logger.warning(
+                f"[settlement_helpers._resolve_markets] {type(item).__name__}: partial settlement: {item}",
+                exc_info=item,
+            )
             continue
         ticker, result = item
         resolutions[ticker] = result
