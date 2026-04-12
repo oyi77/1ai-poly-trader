@@ -34,12 +34,30 @@ class AIAnalysis:
     cost_usd: float
 
 
+def _format_research_context(research_items: list) -> str:
+    """Format ResearchItem list into an LLM prompt section (max 5 items, 200-char snippets)."""
+    if not research_items:
+        return ""
+    lines = []
+    for item in research_items[:5]:
+        score = getattr(item, "relevance_score", 0.0)
+        title = getattr(item, "title", "")
+        content = getattr(item, "content", "")
+        source = getattr(item, "source", "")
+        snippet = content[:200].strip()
+        if len(content) > 200:
+            snippet += "..."
+        lines.append(f"- [{score:.2f}] {title} ({source}): {snippet}")
+    return "\n".join(lines)
+
+
 def _build_prompt(
     question: str,
     current_price: float,
     volume: float,
     category: str = "",
     context: str = "",
+    research_context: str = "",
 ) -> str:
     prompt = f"""You are a prediction market analyst evaluating whether a market is mispriced.
 
@@ -68,6 +86,8 @@ CURRENT YES PRICE: {current_price:.4f}
         prompt += f"\nCATEGORY: {category}"
     if context:
         prompt += f"\nCONTEXT: {context}"
+    if research_context:
+        prompt += f"\n\nRESEARCH CONTEXT (recent relevant news/facts — use these to inform your estimate):\n{research_context}"
     prompt += """
 
 Respond with EXACTLY these three lines:
@@ -308,6 +328,7 @@ async def analyze_market(
     volume: float,
     category: str = "",
     context: str = "",
+    research_items: list | None = None,
 ) -> Optional[AIAnalysis]:
     """Analyze a market: screen with Groq, escalate to Claude if edge > 5%."""
     budget = await check_ai_budget()
@@ -317,7 +338,29 @@ async def analyze_market(
         )
         return None
 
-    prompt = _build_prompt(question, current_price, volume, category, context)
+    research_text = ""
+    if research_items is None:
+        try:
+            from backend.research.storage import ResearchStorage
+
+            storage = ResearchStorage()
+            fetched = await storage.get_for_market(question, limit=5)
+            research_text = _format_research_context(fetched)
+        except Exception as e:
+            logger.debug(
+                f"[market_analyzer.analyze_market] {type(e).__name__}: research fetch failed: {e}"
+            )
+    else:
+        research_text = _format_research_context(research_items)
+
+    prompt = _build_prompt(
+        question,
+        current_price,
+        volume,
+        category,
+        context,
+        research_context=research_text,
+    )
 
     groq_response = await _call_groq(prompt)
     if groq_response is None:
