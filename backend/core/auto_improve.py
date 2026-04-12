@@ -98,6 +98,22 @@ async def auto_improve_job():
             )
 
         await _write_market_insights(db, bigbrain)
+
+        # AGI pattern: run strategy evolution cycle (logs proposals, never auto-applies)
+        try:
+            from backend.agents.autoresearch.evolver import StrategyEvolver
+
+            evolver = StrategyEvolver()
+            proposals = await evolver.run_evolution_cycle(db)
+            if proposals:
+                log_event(
+                    "info",
+                    f"Evolution: {len(proposals)} proposal(s) generated — "
+                    "approve via POST /api/agents/experiments/{id}/approve",
+                )
+        except Exception as _e:
+            logger.debug(f"[auto_improve] StrategyEvolver skipped: {_e}")
+
         log_event("success", "Auto-improvement cycle complete")
 
     except Exception as e:

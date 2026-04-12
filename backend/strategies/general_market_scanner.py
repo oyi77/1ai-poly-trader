@@ -49,38 +49,32 @@ class GeneralMarketScanner(BaseStrategy):
     category = "ai_driven"
     default_params = {
         "min_volume": 5000,
-        "min_edge": 0.04,
+        "min_edge": 0.02,
         "max_price": 0.80,
         "min_price": 0.10,
-        "max_position_size": 1.50,
+        "max_position_size": 2.00,
         "min_position_size": 0.30,
-        "scan_limit": 200,
+        "scan_limit": 500,
         "categories": "politics,crypto,science,culture",
-        "max_ai_calls_per_cycle": 20,
-        "max_concurrent": 10,
-        "min_reward_risk": 0.4,
-        "max_days_to_end": 21,
-        "max_low_prob_size": 0.40,
+        "max_ai_calls_per_cycle": 40,
+        "max_concurrent": 25,
+        "min_reward_risk": 0.3,
+        "max_days_to_end": 45,
+        "max_low_prob_size": 0.25,
         "low_prob_threshold": 0.20,
-        "edge_dampening": 0.5,
-        "sports_edge_multiplier": 5.0,
-        "max_raw_edge": 0.12,
-        "market_anchor_weight": 0.55,
-        "min_ai_confidence": 0.70,
-        "skip_hours": [2, 3, 4, 5, 6, 7, 8],
-        # --- Safe harvesting strategy ---
-        # Prefer NO bets on low-probability events.  Markets priced at YES 0.05-0.25
-        # resolve NO >80% of the time.  Instead of trying to pick YES winners among
-        # long-shots, harvest the NO side for steady 10-25% returns.
-        # When True: for markets where YES < harvest_yes_ceiling, force direction=NO
-        # unless AI strongly disagrees (raw_ai_prob > harvest_ai_override_threshold).
+        "edge_dampening": 0.6,
+        "sports_edge_multiplier": 1.5,
+        "max_raw_edge": 0.25,
+        "market_anchor_weight": 0.35,
+        "min_ai_confidence": 0.60,
+        "skip_hours": [2, 4],
         "safe_harvest_enabled": True,
-        "harvest_yes_ceiling": 0.20,
+        "harvest_yes_ceiling": 0.35,
         "harvest_ai_override_threshold": 0.65,
         "market_agree_enabled": True,
-        "market_agree_low": 0.25,
-        "market_agree_high": 0.75,
-        "min_expected_profit": 0.15,
+        "market_agree_low": 0.50,
+        "market_agree_high": 0.65,
+        "min_expected_profit": 0.08,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
@@ -104,14 +98,14 @@ class GeneralMarketScanner(BaseStrategy):
         low_prob_threshold = float(params.get("low_prob_threshold", 0.20))
         edge_dampening = float(params.get("edge_dampening", 0.5))
         sports_edge_multiplier = float(params.get("sports_edge_multiplier", 3.0))
-        max_raw_edge = float(params.get("max_raw_edge", 0.12))
+        max_raw_edge = float(params.get("max_raw_edge", 0.15))
         market_anchor_weight = float(params.get("market_anchor_weight", 0.45))
         safe_harvest_enabled = bool(params.get("safe_harvest_enabled", True))
-        harvest_yes_ceiling = float(params.get("harvest_yes_ceiling", 0.25))
-        harvest_ai_override = float(params.get("harvest_ai_override_threshold", 0.55))
+        harvest_yes_ceiling = float(params.get("harvest_yes_ceiling", 0.35))
+        harvest_ai_override = float(params.get("harvest_ai_override_threshold", 0.65))
         market_agree_enabled = bool(params.get("market_agree_enabled", True))
-        market_agree_low = float(params.get("market_agree_low", 0.30))
-        market_agree_high = float(params.get("market_agree_high", 0.70))
+        market_agree_low = float(params.get("market_agree_low", 0.50))
+        market_agree_high = float(params.get("market_agree_high", 0.65))
         allowed_categories_raw = params.get("categories", "")
         allowed_categories = {
             c.strip().lower()
@@ -128,7 +122,7 @@ class GeneralMarketScanner(BaseStrategy):
             return result
 
         # Time-of-day filter: skip hours where historical losses cluster
-        skip_hours = params.get("skip_hours", [2, 4, 7, 8])
+        skip_hours = params.get("skip_hours", [2, 4])
         current_hour = datetime.now(timezone.utc).hour
         if current_hour in skip_hours:
             ctx.logger.info(
@@ -285,6 +279,104 @@ class GeneralMarketScanner(BaseStrategy):
 
             question = market.get("question") or market.get("title") or slug
 
+            # ============================================================
+            # DATA ENRICHMENT: Build context from available market data
+            # ============================================================
+
+            # --- 1. Gamma API top-of-book data (free, always available) ---
+            best_bid = market.get("bestBid")
+            best_ask = market.get("bestAsk")
+            gamma_spread = market.get("spread")
+            context_parts = []
+
+            if best_bid is not None and best_ask is not None:
+                try:
+                    bb = float(best_bid)
+                    ba = float(best_ask)
+                    if ba > bb > 0:
+                        ob_imbalance = (
+                            bb / ba - 1.0
+                        ) * 10  # rough imbalance [-1,1] scale
+                        context_parts.append(
+                            f"ORDER_BOOK: best_bid={bb:.4f}, best_ask={ba:.4f}, "
+                            f"spread={gamma_spread:.4f if gamma_spread else (ba-bb):.4f}, "
+                            f"imbalance={ob_imbalance:+.2f}"
+                        )
+                except (ValueError, TypeError):
+                    pass
+
+            # --- 2. CLOB REST order book (one call per candidate, only for AI markets) ---
+            clob_token_id = None
+            clob_token_ids = market.get("clobTokenIds") or []
+            if isinstance(clob_token_ids, str):
+                import json as _json
+
+                try:
+                    clob_token_ids = _json.loads(clob_token_ids)
+                except Exception:
+                    clob_token_ids = []
+            if clob_token_ids:
+                clob_token_id = str(clob_token_ids[0])
+
+            if clob_token_id:
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as clob_client:
+                        book_resp = await clob_client.get(
+                            "https://clob.polymarket.com/book",
+                            params={"token_id": clob_token_id},
+                        )
+                        if book_resp.status_code == 200:
+                            book_data = book_resp.json()
+                            bids_raw = book_data.get("bids", [])
+                            asks_raw = book_data.get("asks", [])
+                            # Parse bids [[price, size], ...]
+                            bids = [
+                                [float(b["price"]), float(b["size"])]
+                                for b in bids_raw
+                                if b.get("price") and b.get("size")
+                            ]
+                            asks = [
+                                [float(a["price"]), float(a["size"])]
+                                for a in asks_raw
+                                if a.get("price") and a.get("size")
+                            ]
+                            bid_depth = sum(s for _, s in bids)
+                            ask_depth = sum(s for _, s in asks)
+                            total_depth = bid_depth + ask_depth
+                            imbalance = (
+                                (bid_depth - ask_depth) / total_depth
+                                if total_depth > 0
+                                else 0.0
+                            )
+                            # Top-of-book
+                            top_bid = bids[0][0] if bids else 0.0
+                            top_ask = asks[0][0] if asks else 0.0
+                            book_spread = (
+                                top_ask - top_bid if top_bid and top_ask else 0.0
+                            )
+                            # Large orders (>5x avg size)
+                            avg_bid_size = bid_depth / len(bids) if bids else 1.0
+                            avg_ask_size = ask_depth / len(asks) if asks else 1.0
+                            large_bids = sum(1 for _, s in bids if s > 5 * avg_bid_size)
+                            large_asks = sum(1 for _, s in asks if s > 5 * avg_ask_size)
+                            context_parts.append(
+                                f"CLOB_ORDER_BOOK: spread={book_spread:.4f}, "
+                                f"bid_depth=${bid_depth:.0f}, ask_depth=${ask_depth:.0f}, "
+                                f"imbalance={imbalance:+.2f}, "
+                                f"large_bids={large_bids}, large_asks={large_asks}"
+                            )
+                except Exception:
+                    pass  # Non-fatal: if CLOB fetch fails, continue without OB data
+
+            # --- 3. Whale pressure from WalletConfig (top whales per market, if available) ---
+            # We skip per-market whale API calls (too slow). Whale discovery runs independently.
+            # Just pass a note that whale context is available in the signal data.
+            context_parts.append(
+                f"MARKET_DATA: volume=${volume:,.0f}, liquidity=${float(market.get('liquidity') or 0):,.0f}"
+            )
+
+            enriched_context = " | ".join(context_parts)
+
             # AI analysis — enforce per-cycle call cap
             if ai_calls_this_cycle >= max_ai_calls_per_cycle:
                 ctx.logger.debug(
@@ -298,6 +390,7 @@ class GeneralMarketScanner(BaseStrategy):
                     current_price=yes_price,
                     volume=volume,
                     category=next(iter(market_categories), "general"),
+                    context=enriched_context,
                 )
             except Exception as e:
                 ctx.logger.debug(
@@ -322,12 +415,44 @@ class GeneralMarketScanner(BaseStrategy):
             market_price = yes_price
 
             # Market-anchor the AI probability: blend toward market consensus.
-            # An 8B model should NOT override liquid market pricing by large amounts.
             raw_ai_prob = ai_prob
             ai_prob = (
                 market_anchor_weight * market_price
                 + (1.0 - market_anchor_weight) * raw_ai_prob
             )
+
+            # ============================================================
+            # PREDICTION ENGINE: Ensemble layer combining LLM signal with
+            # quantitative features via logistic regression.
+            # ============================================================
+            try:
+                from backend.ai.prediction_engine import PredictionEngine
+                import math
+
+                vol_capped = min(max(volume, 0.0), 1000.0)
+                signal_data = {
+                    "edge": float(abs(raw_ai_prob - market_price)),
+                    "model_probability": float(raw_ai_prob),
+                    "market_probability": float(market_price),
+                    "whale_pressure": 0.0,
+                    "sentiment": 0.0,
+                    "volume_log": math.log1p(vol_capped),
+                }
+                engine = PredictionEngine()
+                engine_pred = engine.predict(signal_data)
+                engine_prob = float(engine_pred.probability_yes)
+                # Blend: weight by engine confidence vs anchor weight
+                engine_weight = min(engine_pred.confidence, 0.4)
+                ai_prob = (1.0 - engine_weight) * ai_prob + engine_weight * engine_prob
+                ctx.logger.debug(
+                    f"[general_scanner] PRED_ENGINE {slug}: "
+                    f"engine_prob={engine_prob:.4f} engine_conf={engine_pred.confidence:.3f} "
+                    f"blended={ai_prob:.4f}"
+                )
+            except Exception as e:
+                ctx.logger.debug(
+                    f"[general_scanner] Prediction engine failed for {slug}: {e}"
+                )
 
             # Determine direction and edge
             if ai_prob > market_price:
@@ -356,6 +481,17 @@ class GeneralMarketScanner(BaseStrategy):
                         edge = market_price - ai_prob
                         if edge <= 0:
                             edge = (1.0 - market_price) * 0.05
+
+            # Hard block: NO yes bets below 50¢ market price.
+            # Research: YES on <50¢ = systematic losses (49.7% win at best in 20-40¢ range,
+            # worse below 20¢). Only NO harvesting is profitable in this range.
+            if direction == "yes" and market_price < 0.50:
+                ctx.logger.info(
+                    f"[general_scanner] FILTER:YES_BLOCK {slug}: "
+                    f"market={market_price:.3f} < 0.50, blocking YES bet"
+                )
+                rejected_edge_low += 1
+                continue
 
             # Market-agree filter: only trade in the direction the market leans.
             if market_agree_enabled:
@@ -449,8 +585,8 @@ class GeneralMarketScanner(BaseStrategy):
                 if size < min_size_for_profit:
                     size = min(min_size_for_profit, max_position_size)
             # For YES bets at low probability, aggressively cap size
-            if direction == "yes" and entry_price < 0.40:
-                size = min(size, 0.30)  # max $0.30 on risky YES long-shots
+            if direction == "yes" and entry_price < 0.50:
+                size = min(size, 0.25)
 
             category_caps = {
                 "sports": 0.75,
@@ -528,7 +664,11 @@ class GeneralMarketScanner(BaseStrategy):
                 from backend.core.calibration_tracker import calibration_tracker
 
                 calibration_tracker.record_prediction(
-                    ctx.db, self.name, slug, ai_prob, direction,
+                    ctx.db,
+                    self.name,
+                    slug,
+                    ai_prob,
+                    direction,
                 )
             except Exception as e:
                 ctx.logger.debug(f"[general_scanner] Calibration record failed: {e}")

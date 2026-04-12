@@ -213,48 +213,36 @@ def _parse_market_resolution(market: dict) -> Tuple[bool, Optional[float]]:
                 f"hours_past_end={hours_past_end:.0f}, first_price={first_price:.4f}"
             )
             if market_still_open:
-                # Market is still actively trading — never use thresholds
-                # below 0.70/0.30. A market at 0.55 is a coin flip, not
-                # a resolved outcome. For truly stale open markets, expire
-                # the trade rather than guessing the outcome.
-                if hours_past_end >= 200.0:
-                    # 200h+ (>8 days): even for open markets, 0.70 is safe
-                    early_threshold_high = 0.70
-                    early_threshold_low = 0.30
-                    tier = f"deep-zombie-{hours_past_end:.0f}h"
-                elif hours_past_end >= 100.0:
-                    # 100-200h (4-8 days): require strong signal
-                    early_threshold_high = 0.75
-                    early_threshold_low = 0.25
-                    tier = f"stale-zombie-{hours_past_end:.0f}h"
-                else:
-                    # 48-100h (2-4 days): conservative
-                    early_threshold_high = 0.80
-                    early_threshold_low = 0.20
-                    tier = f"zombie-open-{hours_past_end:.0f}h"
+                # Market is still actively trading — the Gamma API endDate
+                # is misleading (often refers to a group/series date, NOT
+                # the actual market resolution date).  NEVER early-resolve
+                # an actively-trading market based on a stale endDate.
+                # Let the stale-trade expiration handle cleanup instead.
                 logger.info(
-                    f"Market {market.get('id')} zombie resolution: "
-                    f"{hours_past_end:.0f}h past end, price={first_price:.4f}, "
-                    f"resolving with {early_threshold_high}/{early_threshold_low}"
+                    f"Market {market.get('id')} skipping zombie resolution: "
+                    f"still active, endDate {hours_past_end:.0f}h ago (likely misleading)"
                 )
+                return False, None
             else:
                 # Market not actively open but still not officially closed
                 early_threshold_high = 0.70
                 early_threshold_low = 0.30
                 tier = f"zombie-{hours_past_end:.0f}h"
         elif hours_past_end >= 12.0:
-            # Tier 5: 12-48 hours past endDate — stale but require clear signal
+            if market_still_open:
+                return False, None
             early_threshold_high = 0.70
             early_threshold_low = 0.30
             tier = f"very-stale-{hours_past_end:.1f}h"
         elif hours_past_end >= 6.0:
-            # Tier 4: 6-12 hours past endDate — require clear price signal
+            if market_still_open:
+                return False, None
             early_threshold_high = 0.75
             early_threshold_low = 0.25
             tier = f"stale-{hours_past_end:.1f}h"
         elif hours_past_end >= 2.0:
-            # Tier 3: 2-6 hours past endDate — lowered to 0.70/0.30 because
-            # sports markets often settle in the 0.74-0.76 price range.
+            if market_still_open:
+                return False, None
             early_threshold_high = 0.70
             early_threshold_low = 0.30
             tier = f"overdue-{hours_past_end:.1f}h"

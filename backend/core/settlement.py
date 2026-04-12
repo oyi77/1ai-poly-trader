@@ -197,6 +197,18 @@ async def update_bot_state_with_settlements(
                         state.bankroll or settings.INITIAL_BANKROLL
                     ) + trade.size
 
+        # AGI hook: update Bayesian Kelly posterior on trade outcome
+        try:
+            if is_real_trade:
+                from backend.agents.pipeline import AGITradingPipeline
+                _agi = AGITradingPipeline()
+                _agi.record_outcome(
+                    market_ticker=trade.market_ticker,
+                    won=(trade.result == "win"),
+                )
+        except Exception as _e:
+            logger.debug(f"[settlement] AGI record_outcome skipped: {_e}")
+
         try:
             db.commit()
         except Exception as e:

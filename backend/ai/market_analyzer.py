@@ -10,6 +10,18 @@ from typing import Optional
 
 from backend.ai.logger import get_ai_logger
 
+from backend.ai.llm_router import LLMRouter as _LLMRouter
+
+_router: _LLMRouter | None = None
+
+
+def _get_router() -> _LLMRouter:
+    global _router
+    if _router is None:
+        _router = _LLMRouter()
+    return _router
+
+
 logger = logging.getLogger("trading_bot.ai")
 
 
@@ -168,58 +180,34 @@ async def _call_groq(prompt: str) -> Optional[str]:
     start_time = time.time()
     try:
         from backend.config import settings
-        from groq import Groq
 
-        api_key = settings.GROQ_API_KEY
-        if not api_key:
-            logger.warning("GROQ_API_KEY not configured")
-            return None
-
-        model = settings.GROQ_MODEL
-        client = Groq(api_key=api_key)
-        response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a prediction market analyst. "
-                        "Estimate the TRUE probability based on facts, not the market price. "
-                        "If you have strong factual evidence the market is wrong, give your honest estimate. "
-                        "If you are unsure, return the market price with low confidence. "
-                        "Always respond with EXACTLY three lines:\n"
-                        "PROBABILITY: <number>\nCONFIDENCE: <number>\nREASONING: <one sentence>\n"
-                        "Never include any other text."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=250,
-            temperature=0.2,
+        router = _get_router()
+        system = (
+            "You are a prediction market analyst. "
+            "Estimate the TRUE probability based on facts, not the market price. "
+            "If you have strong factual evidence the market is wrong, give your honest estimate. "
+            "If you are unsure, return the market price with low confidence. "
+            "Always respond with EXACTLY three lines:\n"
+            "PROBABILITY: <number>\nCONFIDENCE: <number>\nREASONING: <one sentence>\n"
+            "Never include any other text."
         )
-
-        result = response.choices[0].message.content.strip()
+        result = await router.complete(prompt, role="default", system=system)
         latency_ms = (time.time() - start_time) * 1000
-        tokens_used = response.usage.total_tokens if response.usage else 0
 
         ai_logger = get_ai_logger()
         ai_logger.log_call(
             provider="groq",
-            model=model,
+            model=settings.GROQ_MODEL,
             prompt=prompt,
-            response=result,
+            response=result or "",
             latency_ms=latency_ms,
-            tokens_used=tokens_used,
+            tokens_used=0,
             call_type="market_analysis",
-            success=True,
+            success=bool(result),
         )
 
-        return result
+        return result or None
 
-    except ImportError:
-        logger.error("groq package not installed")
-        return None
     except Exception as e:
         logger.error(f"Groq market analysis failed: {e}")
         latency_ms = (time.time() - start_time) * 1000
@@ -245,53 +233,40 @@ async def _call_groq(prompt: str) -> Optional[str]:
 
 async def _call_claude(prompt: str) -> Optional[str]:
     start_time = time.time()
-    model = "claude-sonnet-4-20250514"
     try:
         from backend.config import settings
-        import anthropic
 
-        api_key = (
-            settings.ANTHROPIC_API_KEY
-            if hasattr(settings, "ANTHROPIC_API_KEY")
-            else None
-        )
-        if not api_key:
+        router = _get_router()
+        model = getattr(settings, "ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+
+        if "claude" not in router.providers:
             logger.warning("ANTHROPIC_API_KEY not configured")
             return None
 
-        client = anthropic.Anthropic(api_key=api_key)
-        message = await asyncio.to_thread(
-            client.messages.create,
-            model=model,
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        result = message.content[0].text
+        result = await router.complete(prompt, role="claude_escalation")
         latency_ms = (time.time() - start_time) * 1000
-        tokens_used = message.usage.input_tokens + message.usage.output_tokens
 
         ai_logger = get_ai_logger()
         ai_logger.log_call(
             provider="claude",
             model=model,
             prompt=prompt,
-            response=result,
+            response=result or "",
             latency_ms=latency_ms,
-            tokens_used=tokens_used,
+            tokens_used=0,
             call_type="market_analysis",
-            success=True,
+            success=bool(result),
         )
 
-        return result
+        return result or None
 
-    except ImportError:
-        logger.error("anthropic package not installed")
-        return None
     except Exception as e:
         logger.error(f"Claude market analysis failed: {e}")
         latency_ms = (time.time() - start_time) * 1000
         try:
+            from backend.config import settings
+
+            model = getattr(settings, "ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
             ai_logger = get_ai_logger()
             ai_logger.log_call(
                 provider="claude",

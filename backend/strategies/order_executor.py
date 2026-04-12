@@ -166,7 +166,7 @@ class LeaderboardScorer:
                     )
             except Exception as scrape_err:
                 logger.warning(
-                    f"[order_executor] Scraper fallback also failed: {scrape_err}"
+                    f"[order_executor] {type(scrape_err).__name__}: Scraper fallback also failed: {scrape_err}"
                 )
 
         if not entries:

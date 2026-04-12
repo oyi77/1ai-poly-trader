@@ -27,12 +27,19 @@ class Settings(BaseSettings):
 
     # AI API Keys
     GROQ_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
 
     # AI Model Configuration
     GROQ_MODEL: str = "llama-3.1-8b-instant"
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
 
     # AI Provider Selection: groq, claude, omniroute, custom
     AI_PROVIDER: str = "groq"
+
+    # LLM Router — role-based provider routing
+    LLM_DEFAULT_PROVIDER: str = "groq"
+    LLM_DEBATE_PROVIDER: str = "groq"
+    LLM_JUDGE_PROVIDER: str = "groq"
 
     # Custom / OmniRoute provider settings (OpenAI-compatible API)
     AI_BASE_URL: Optional[str] = None  # e.g. https://api.omniroute.ai/v1
@@ -55,7 +62,9 @@ class Settings(BaseSettings):
 
     # Bot settings - BTC 5-MIN TRADING
     INITIAL_BANKROLL: float = 100.0
-    KELLY_FRACTION: float = 0.05  # Ultra-conservative fractional Kelly for $100 bankroll
+    KELLY_FRACTION: float = (
+        0.05  # Ultra-conservative fractional Kelly for $100 bankroll
+    )
 
     # BTC 5-min specific settings
     SCAN_INTERVAL_SECONDS: int = 60  # Scan every minute

@@ -201,8 +201,9 @@ async def execute_decision(
                     },
                 )
             except Exception as e:
-                logger.debug(
-                    f"[strategy_executor.execute_decision] {type(e).__name__}: event broadcast failed (non-fatal): {e}"
+                logger.warning(
+                    f"[strategy_executor.execute_decision] {type(e).__name__}: event broadcast failed (non-fatal): {e}",
+                    exc_info=True,
                 )
 
             logger.info(
@@ -218,8 +219,9 @@ async def execute_decision(
         try:
             db.rollback()
         except Exception as e:
-            logger.debug(
-                f"[strategy_executor.execute_decision] {type(e).__name__}: db.rollback failed (non-fatal): {e}"
+            logger.warning(
+                f"[strategy_executor.execute_decision] {type(e).__name__}: db.rollback failed (non-fatal): {e}",
+                exc_info=True,
             )
         return None
     finally:

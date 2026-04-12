@@ -1,9 +1,12 @@
 """BigBrain client for PolyEdge - unified memory across all apps."""
 
 import httpx
+import logging
 import os
 from dataclasses import dataclass
 from typing import Optional, List
+
+logger = logging.getLogger(__name__)
 
 BRAIN_BASE_URL = "http://localhost:9099"  # berkahkarya-hub API
 
@@ -174,3 +177,217 @@ async def close_bigbrain():
             _bigbrain_instance._client.aclose()
         ) if _bigbrain_instance._client else None
         _bigbrain_instance = None
+
+
+class BigBrainClient(BigBrain):
+    """
+    Extended BigBrain client with full berkahkarya-hub capabilities.
+
+    Adds: brain search (search_context, quick_search), Knowledge Graph
+    (add_kg_triple, query_kg, kg_timeline), Agent Diary (write_diary,
+    read_diary), alerts (send_alert), and health checks.
+
+    Inherits all existing BigBrain methods unchanged.
+    """
+
+    # ── Compatibility aliases ──────────────────────────────────────────
+
+    async def store_trade_outcome(self, trade_data: dict) -> Optional[str]:
+        """Alias for write_trade_outcome (backward-compatible name)."""
+        return await self.write_trade_outcome(trade_data)
+
+    async def search_memories(
+        self, query: str, wing: Optional[str] = None, limit: int = 10
+    ) -> List[BrainMemory]:
+        """Alias for search (backward-compatible name)."""
+        return await self.search(query=query, wing=wing, limit=limit)
+
+    # ── Brain Search ───────────────────────────────────────────────────
+
+    async def search_context(self, query: str, limit: int = 5) -> list[dict]:
+        """
+        Search brain for contextual memories.
+
+        GET /brain/search?q={query}&limit={limit}
+        Returns list of result dicts with text, wing, room, similarity.
+        """
+        client = await self._get_client()
+        try:
+            resp = await client.get(
+                f"{self.base_url}/brain/search",
+                params={"q": query, "limit": limit},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("results", [])
+        except Exception as e:
+            logger.warning("search_context failed: %s", e)
+            return []
+
+    async def quick_search(self, query: str) -> dict:
+        """
+        Quick single-result brain search.
+
+        GET /brain/quick?q={query}
+        Returns the nested result dict or empty dict on failure.
+        """
+        client = await self._get_client()
+        try:
+            resp = await client.get(
+                f"{self.base_url}/brain/quick",
+                params={"q": query},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("result", {})
+        except Exception as e:
+            logger.warning("quick_search failed: %s", e)
+            return {}
+
+    # ── Knowledge Graph ────────────────────────────────────────────────
+
+    async def add_kg_triple(
+        self, subject: str, predicate: str, obj: str, confidence: float = 1.0
+    ) -> dict:
+        """
+        Add a knowledge graph triple.
+
+        POST /brain/kg/add
+        Body: {"subject", "predicate", "object", "confidence"}
+        Returns response dict with success, triple_id, fact.
+        """
+        client = await self._get_client()
+        payload = {
+            "subject": subject,
+            "predicate": predicate,
+            "object": obj,
+            "confidence": confidence,
+        }
+        try:
+            resp = await client.post(f"{self.base_url}/brain/kg/add", json=payload)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning("add_kg_triple failed: %s", e)
+            return {"success": False, "error": str(e)}
+
+    async def query_kg(self, entity: str) -> dict:
+        """
+        Query knowledge graph for an entity's facts.
+
+        GET /brain/kg/query?entity={entity}
+        Returns dict with entity, facts list, count.
+        """
+        client = await self._get_client()
+        try:
+            resp = await client.get(
+                f"{self.base_url}/brain/kg/query",
+                params={"entity": entity},
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning("query_kg failed: %s", e)
+            return {"entity": entity, "facts": [], "count": 0}
+
+    async def kg_timeline(self, entity: str) -> list:
+        """
+        Get temporal knowledge graph timeline for an entity.
+
+        GET /brain/kg/timeline?entity={entity}
+        Returns list of timeline facts.
+        """
+        client = await self._get_client()
+        try:
+            resp = await client.get(
+                f"{self.base_url}/brain/kg/timeline",
+                params={"entity": entity},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("timeline", [])
+        except Exception as e:
+            logger.warning("kg_timeline failed: %s", e)
+            return []
+
+    # ── Agent Diary ────────────────────────────────────────────────────
+
+    async def write_diary(self, entry: str, topic: str = "trading") -> dict:
+        """
+        Write an agent diary entry.
+
+        POST /brain/diary/write
+        Body: {"agent_name": "polyedge", "entry", "topic"}
+        Returns dict with success, entry_id, agent, topic, timestamp.
+        """
+        client = await self._get_client()
+        payload = {
+            "agent_name": "polyedge",
+            "entry": entry,
+            "topic": topic,
+        }
+        try:
+            resp = await client.post(f"{self.base_url}/brain/diary/write", json=payload)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning("write_diary failed: %s", e)
+            return {"success": False, "error": str(e)}
+
+    async def read_diary(self, last_n: int = 10) -> list[dict]:
+        """
+        Read recent agent diary entries.
+
+        GET /brain/diary/read?agent_name=polyedge&last_n={last_n}
+        Returns list of diary entry dicts.
+        """
+        client = await self._get_client()
+        try:
+            resp = await client.get(
+                f"{self.base_url}/brain/diary/read",
+                params={"agent_name": "polyedge", "last_n": last_n},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("entries", [])
+        except Exception as e:
+            logger.warning("read_diary failed: %s", e)
+            return []
+
+    # ── Alerts ─────────────────────────────────────────────────────────
+
+    async def send_alert(self, message: str, level: str = "info") -> dict:
+        """
+        Send an alert via berkahkarya-hub (Telegram/WhatsApp).
+
+        POST /alert
+        Body: {"message", "level"}
+        Returns dict with alert_sent, results, preview.
+        Falls back to local logging if hub is unreachable.
+        """
+        client = await self._get_client()
+        payload = {"message": message, "level": level}
+        try:
+            resp = await client.post(f"{self.base_url}/alert", json=payload)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning("send_alert failed, logging locally: %s", e)
+            logger.info("[ALERT:%s] %s", level.upper(), message)
+            return {"alert_sent": False, "error": str(e), "logged_locally": True}
+
+    # ── Health ─────────────────────────────────────────────────────────
+
+    async def health(self) -> bool:
+        """
+        Check if berkahkarya-hub is reachable.
+
+        GET /health
+        Returns True if hub responds with HTTP 200.
+        """
+        client = await self._get_client()
+        try:
+            resp = await client.get(f"{self.base_url}/health")
+            return resp.status_code == 200
+        except Exception:
+            return False

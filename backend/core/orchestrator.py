@@ -441,7 +441,7 @@ def init_phase2_modules() -> dict:
             from backend.data.polygon_listener import PolygonListener
 
             active["whale_listener"] = PolygonListener()
-        except (ImportError, Exception) as e:
+        except Exception as e:
             logger.warning(
                 f"[orchestrator.init_phase2] {type(e).__name__}: PolygonListener init failed: {e}"
             )
@@ -451,7 +451,7 @@ def init_phase2_modules() -> dict:
             from backend.data.feed_aggregator import FeedAggregator
 
             active["news_feed"] = FeedAggregator()
-        except (ImportError, Exception) as e:
+        except Exception as e:
             logger.warning(
                 f"[orchestrator.init_phase2] {type(e).__name__}: FeedAggregator init failed: {e}"
             )
@@ -462,7 +462,7 @@ def init_phase2_modules() -> dict:
             from backend.core.risk_manager import RiskManager
 
             active["auto_trader"] = AutoTrader(RiskManager())
-        except (ImportError, Exception) as e:
+        except Exception as e:
             logger.warning(
                 f"[orchestrator.init_phase2] {type(e).__name__}: AutoTrader init failed: {e}"
             )
@@ -472,9 +472,22 @@ def init_phase2_modules() -> dict:
             from backend.core.arbitrage_detector import ArbitrageDetector
 
             active["arbitrage"] = ArbitrageDetector()
-        except (ImportError, Exception) as e:
+        except Exception as e:
             logger.warning(
                 f"[orchestrator.init_phase2] {type(e).__name__}: ArbitrageDetector init failed: {e}"
+            )
+
+    if getattr(settings, "AGI_PIPELINE_ENABLED", False):
+        try:
+            from backend.research.pipeline import AutonomousResearchPipeline
+            import asyncio as _asyncio
+
+            _research = AutonomousResearchPipeline()
+            _asyncio.ensure_future(_research.run_continuous())
+            active["agi_research"] = _research
+        except Exception as e:
+            logger.warning(
+                f"[orchestrator.init_phase2] {type(e).__name__}: AGI research pipeline init failed: {e}"
             )
 
     return active

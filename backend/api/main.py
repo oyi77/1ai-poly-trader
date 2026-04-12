@@ -71,6 +71,7 @@ from backend.api.system import router as system_router, get_stats, BotStats
 from backend.api.backtest import router as backtest_router
 from backend.api.wallets import router as wallets_router
 from backend.api.analytics import router as analytics_router
+from backend.api.agents import router as agents_router
 
 from pydantic import BaseModel
 import logging
@@ -248,7 +249,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Database connections closed")
     except Exception as e:
         logger.exception(
-            f"[api.lifespan] {type(e).__name__}: Error closing database connections"
+            f"[api.main.lifespan] {type(e).__name__}: Error closing database connections: {str(e)}"
         )
 
     logger.info("Shutdown complete")
@@ -286,6 +287,7 @@ app.include_router(system_router)
 app.include_router(backtest_router)
 app.include_router(wallets_router)
 app.include_router(analytics_router)
+app.include_router(agents_router)
 
 
 # Add metrics middleware for automatic tracking
@@ -315,7 +317,7 @@ class ConnectionManager:
                 await connection.send_json(message)
             except Exception as e:
                 logger.exception(
-                    f"[api.ConnectionManager.broadcast] {type(e).__name__}: Failed to broadcast message to WebSocket connection"
+                    f"[api.main.ConnectionManager.broadcast] {type(e).__name__}: Failed to broadcast message to WebSocket connection: {str(e)}"
                 )
 
 
@@ -477,7 +479,9 @@ async def health_check(db: Session = Depends(get_db)):
             "bot_running": bot_state.is_running if bot_state else False,
         }
     except Exception as e:
-        logger.error(f"Health check error: {e}")
+        logger.error(
+            f"[api.main.health_check] {type(e).__name__}: Health check error: {str(e)}"
+        )
         return {
             "status": "error",
             "error": str(e),
@@ -533,7 +537,7 @@ async def get_dashboard(
             )
     except Exception as e:
         logger.warning(
-            f"[api.get_dashboard] {type(e).__name__}: Failed to fetch BTC microstructure data, falling back to CoinGecko"
+            f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch BTC microstructure data, falling back to CoinGecko: {str(e)}"
         )
     if not btc_price_data:
         try:
@@ -549,7 +553,7 @@ async def get_dashboard(
                 )
         except Exception as e:
             logger.warning(
-                f"[api.get_dashboard] {type(e).__name__}: Failed to fetch BTC price from CoinGecko"
+                f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch BTC price from CoinGecko: {str(e)}"
             )
 
     # Fetch windows
@@ -574,7 +578,7 @@ async def get_dashboard(
         ]
     except Exception as e:
         logger.warning(
-            f"[api.get_dashboard] {type(e).__name__}: Failed to fetch active BTC markets"
+            f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch active BTC markets: {str(e)}"
         )
 
     # Signals — return ALL signals, mark which are actionable
@@ -586,7 +590,7 @@ async def get_dashboard(
         ]
     except Exception as e:
         logger.warning(
-            f"[api.get_dashboard] {type(e).__name__}: Failed to scan for trading signals"
+            f"[api.main.get_dashboard] {type(e).__name__}: Failed to scan for trading signals: {str(e)}"
         )
 
     # Recent trades (with TradeContext enrichment)
@@ -672,7 +676,7 @@ async def get_dashboard(
                     )
         except Exception as e:
             logger.warning(
-                f"[api.get_dashboard] {type(e).__name__}: Failed to fetch weather forecasts data"
+                f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch weather forecasts data: {str(e)}"
             )
 
     return DashboardData(
@@ -778,7 +782,9 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
     except WebSocketDisconnect:
         market_ws.disconnect(websocket)
     except Exception as e:
-        logger.exception(f"[api.ws_markets] {type(e).__name__}: Market WebSocket error")
+        logger.exception(
+            f"[api.main.ws_markets] {type(e).__name__}: Market WebSocket error: {str(e)}"
+        )
         market_ws.disconnect(websocket)
 
 
@@ -796,7 +802,9 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
     except WebSocketDisconnect:
         whale_ws.disconnect(websocket)
     except Exception as e:
-        logger.exception(f"[api.ws_whales] {type(e).__name__}: Whale WebSocket error")
+        logger.exception(
+            f"[api.main.ws_whales] {type(e).__name__}: Whale WebSocket error: {str(e)}"
+        )
         whale_ws.disconnect(websocket)
 
 
@@ -843,7 +851,7 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
         ws_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(
-            f"[api.websocket_events] {type(e).__name__}: Events WebSocket error"
+            f"[api.main.websocket_events] {type(e).__name__}: Events WebSocket error: {str(e)}"
         )
         ws_manager.disconnect(websocket)
 
