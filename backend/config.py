@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     AI_DAILY_BUDGET_USD: float = 1.0
     AI_SIGNAL_WEIGHT: float = 0.30  # Weight of AI in ensemble (0 = disabled, max 0.50)
 
+    # Debate engine gate — only invoke Bull/Bear/Judge debate when initial
+    # single-pass edge exceeds this threshold.  Lower values mean more debates
+    # (more LLM calls, better accuracy); higher values skip debate for
+    # borderline signals and save tokens.
+    MIN_DEBATE_EDGE: float = 0.04
+
     # Trading mode: "paper", "testnet", or "live"
     TRADING_MODE: str = "paper"
 

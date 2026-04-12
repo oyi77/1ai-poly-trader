@@ -2,12 +2,65 @@
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 import httpx
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
 
 logger = logging.getLogger("trading_bot.general")
+
+
+async def _fetch_brain_context(question: str) -> str:
+    """Retrieve memories from BigBrainClient; returns empty string on failure."""
+    try:
+        from backend.clients.bigbrain import BigBrainClient
+
+        brain = BigBrainClient()
+        results = await brain.search_context(question, limit=5)
+        if not results:
+            return ""
+        parts = []
+        for item in results[:5]:
+            text = item.get("text") or item.get("content") or ""
+            if text:
+                parts.append(text[:200])
+        return " | ".join(parts) if parts else ""
+    except Exception as exc:
+        logger.debug(
+            "[general_scanner._fetch_brain_context] %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return ""
+
+
+async def _run_debate_gate(
+    question: str,
+    market_price: float,
+    volume: float,
+    category: str,
+    context: str,
+) -> Optional[object]:
+    """Run debate engine; returns DebateResult or None on failure."""
+    try:
+        from backend.ai.debate_engine import run_debate
+
+        return await run_debate(
+            question=question,
+            market_price=market_price,
+            volume=volume,
+            category=category,
+            context=context,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[general_scanner._run_debate_gate] %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
 
 GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
 
@@ -163,6 +216,8 @@ class GeneralMarketScanner(BaseStrategy):
             )
             result.errors.append(f"AI module unavailable: {e}")
             return result
+
+        min_debate_edge = float(getattr(ctx.settings, "MIN_DEBATE_EDGE", 0.04))
 
         # Fetch current bankroll
         bankroll = 100.0
@@ -377,6 +432,10 @@ class GeneralMarketScanner(BaseStrategy):
 
             enriched_context = " | ".join(context_parts)
 
+            brain_context = await _fetch_brain_context(question)
+            if brain_context:
+                enriched_context = f"{enriched_context} | BRAIN: {brain_context}"
+
             # AI analysis — enforce per-cycle call cap
             if ai_calls_this_cycle >= max_ai_calls_per_cycle:
                 ctx.logger.debug(
@@ -465,6 +524,38 @@ class GeneralMarketScanner(BaseStrategy):
                 entry_price = no_price
 
             raw_edge = abs(raw_ai_prob - market_price)
+
+            if raw_edge > min_debate_edge:
+                debate_result = await _run_debate_gate(
+                    question=question,
+                    market_price=market_price,
+                    volume=volume,
+                    category=next(iter(market_categories), "general"),
+                    context=enriched_context,
+                )
+                if debate_result is not None:
+                    debate_prob = float(debate_result.consensus_probability)
+                    debate_conf = float(debate_result.confidence)
+                    ctx.logger.info(
+                        f"[general_scanner] DEBATE {slug}: "
+                        f"single_pass={ai_prob:.4f} debate={debate_prob:.4f} "
+                        f"conf={debate_conf:.2f} rounds={debate_result.rounds_completed}"
+                    )
+                    ai_prob = debate_prob
+                    raw_ai_prob = debate_prob
+                    if ai_prob > market_price:
+                        direction = "yes"
+                        edge = ai_prob - market_price
+                        entry_price = yes_price
+                    else:
+                        direction = "no"
+                        edge = market_price - ai_prob
+                        entry_price = no_price
+                else:
+                    ctx.logger.debug(
+                        f"[general_scanner] DEBATE_FALLBACK {slug}: "
+                        f"debate failed, using single-pass result"
+                    )
 
             # Safe harvesting: for low-YES markets, force NO direction
             # unless the AI is VERY confident it will resolve YES.
