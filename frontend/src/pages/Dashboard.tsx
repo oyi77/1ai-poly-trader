@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
-  fetchDashboard, runScan, simulateTrade, startBot, stopBot,
+  fetchDashboard, runScan, simulateTrade, startBot, stopBot, getWsUrl,
 } from '../api'
 import { StatsCards } from '../components/StatsCards'
 import { LoginModal } from '../components/LoginModal'
@@ -64,7 +64,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('Overview')
 
   const unifiedStats = useStats()
-  const { status: wsStatus } = useWebSocket('/ws/markets')
+  const { status: wsStatus } = useWebSocket(getWsUrl('/ws/markets'))
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],

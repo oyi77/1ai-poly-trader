@@ -22,6 +22,42 @@ import httpx
 
 logger = logging.getLogger("trading_bot")
 
+GAMMA_HOST = "https://gamma-api.polymarket.com"
+
+
+async def _fetch_token_id(
+    condition_id: str, http: Optional[httpx.AsyncClient] = None
+) -> Optional[str]:
+    """Fetch clobTokenIds[0] for a condition_id from Gamma API."""
+    close_client = False
+    if http is None:
+        http = httpx.AsyncClient(timeout=10.0)
+        close_client = True
+    try:
+        resp = await http.get(
+            f"{GAMMA_HOST}/markets",
+            params={"condition_id": condition_id},
+        )
+        if resp.status_code == 200:
+            markets = resp.json()
+            if markets and isinstance(markets, list) and len(markets) > 0:
+                clob_token_ids = markets[0].get("clobTokenIds") or []
+                if isinstance(clob_token_ids, str):
+                    try:
+                        clob_token_ids = json.loads(clob_token_ids)
+                    except Exception:
+                        clob_token_ids = []
+                if clob_token_ids:
+                    return str(clob_token_ids[0])
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to fetch token_id for {condition_id[:20]}...: {e}")
+        return None
+    finally:
+        if close_client:
+            await http.aclose()
+
+
 # Import from extracted modules
 from backend.strategies.wallet_sync import WalletWatcher, WalletTrade
 from backend.strategies.order_executor import (
@@ -288,8 +324,22 @@ class CopyTraderStrategy(BaseStrategy):
             result.decisions_recorded = len(wallet_pool)
             result.trades_attempted = len(signals) if signals else 0
 
+            # Fetch token_ids in parallel for all signals
+            token_id_tasks = [
+                _fetch_token_id(s.source_trade.condition_id, self._engine._http)
+                for s in (signals or [])
+            ]
+            token_ids = await asyncio.gather(*token_id_tasks) if token_id_tasks else []
+
             # Populate result.decisions so strategy_executor can place trades
-            for signal in signals or []:
+            for i, signal in enumerate(signals or []):
+                token_id = token_ids[i] if i < len(token_ids) else None
+                if not token_id:
+                    ctx.logger.warning(
+                        f"CopyTrader: skipping signal for {signal.source_trade.condition_id[:20]}... — no token_id"
+                    )
+                    continue
+
                 confidence = signal.trader_score / 100.0 if signal.trader_score else 0.5
                 edge = abs(signal.market_price - 0.5) if signal.market_price else 0.0
                 copy_direction = signal.our_side.lower()
@@ -300,6 +350,7 @@ class CopyTraderStrategy(BaseStrategy):
                     {
                         "decision": "BUY",
                         "market_ticker": signal.source_trade.condition_id,
+                        "token_id": token_id,
                         "direction": copy_direction,
                         "confidence": confidence,
                         "edge": edge,

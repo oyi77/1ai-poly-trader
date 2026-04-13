@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Play, Pause, RefreshCw } from 'lucide-react'
+import { getWsUrl } from '../api'
 
 interface LogEntry {
   timestamp: string
@@ -21,9 +22,7 @@ interface Props {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || ''
-const WS_URL = (import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/^http/, 'ws')
-  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`) + '/ws/events'
+const WS_URL = getWsUrl('/ws/events')
 
 export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { getWsUrl } from '../api';
 
 interface MarketTick {
   market_id: string;
@@ -9,8 +10,9 @@ interface MarketTick {
 }
 
 const TICK_BUFFER = 10;
+const DEFAULT_WS_URL = getWsUrl('/ws/markets');
 
-export default function LiveMarketView({ url = '/ws/markets' }: { url?: string }) {
+export default function LiveMarketView({ url = DEFAULT_WS_URL }: { url?: string }) {
   const { data, status } = useWebSocket<MarketTick>(url);
   const [ticks, setTicks] = useState<MarketTick[]>([]);
   const prevRef = useRef<MarketTick | null>(null);
