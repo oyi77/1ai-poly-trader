@@ -55,6 +55,21 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+/**
+ * Redirect component for /docs* paths.
+ * Docusaurus is a separate static site at /docs/ — we need a full page
+ * navigation (not client-side) so the browser fetches the Docusaurus HTML.
+ */
+function DocsRedirect() {
+  React.useEffect(() => {
+    const { pathname, search, hash } = window.location
+    // Ensure trailing slash for the base /docs path
+    const target = pathname === '/docs' ? '/docs/' + search + hash : pathname + search + hash
+    window.location.replace(target)
+  }, [])
+  return <PageLoader />
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -71,6 +86,8 @@ export default function App() {
           <Route path="/trading-terminal" element={<Suspense fallback={<PageLoader />}><TradingTerminal /></Suspense>} />
           <Route path="/pending-approvals" element={<Suspense fallback={<PageLoader />}><PendingApprovals /></Suspense>} />
           <Route path="/edge-tracker" element={<Suspense fallback={<PageLoader />}><EdgeTracker /></Suspense>} />
+          <Route path="/docs/*" element={<DocsRedirect />} />
+          <Route path="/docs" element={<DocsRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

@@ -93,6 +93,12 @@ export function NavBar({ title }: { title: string }) {
             </span>
           )}
         </Link>
+        <a
+          href="/docs/"
+          className="text-[10px] uppercase tracking-wider transition-colors text-neutral-500 hover:text-green-500"
+        >
+          Docs
+        </a>
       </div>
     </nav>
   )

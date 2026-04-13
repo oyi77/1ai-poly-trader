@@ -17,6 +17,7 @@ const SECTION_LABELS: Record<string, string> = {
   ai: 'AI / LLM',
   api_keys: 'API Keys',
   telegram: 'Telegram',
+  web_search: 'Web Search Settings',
   security: 'Security',
   system: 'System',
 }

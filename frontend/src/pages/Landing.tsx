@@ -133,6 +133,7 @@ const navLinks = [
   { to: '/decisions', label: 'Decisions' },
   { to: '/settlements', label: 'Settlements' },
   { to: '/admin', label: 'Admin' },
+  { to: '/docs/', label: 'Docs', external: true },
 ]
 
 export default function Landing() {
@@ -143,13 +144,23 @@ export default function Landing() {
         <span className="text-xs font-bold text-neutral-100 uppercase tracking-[0.3em]">PolyEdge</span>
         <div className="flex items-center gap-4">
           {navLinks.map(l => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors"
-            >
-              {l.label}
-            </Link>
+            l.external ? (
+              <a
+                key={l.to}
+                href={l.to}
+                className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors"
+              >
+                {l.label}
+              </Link>
+            )
           ))}
         </div>
       </nav>
@@ -352,9 +363,15 @@ export default function Landing() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             {navLinks.map(l => (
-              <Link key={l.to} to={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors">
-                {l.label}
-              </Link>
+              l.external ? (
+                <a key={l.to} href={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors">
+                  {l.label}
+                </a>
+              ) : (
+                <Link key={l.to} to={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors">
+                  {l.label}
+                </Link>
+              )
             ))}
           </div>
           <div className="flex items-center gap-1">
