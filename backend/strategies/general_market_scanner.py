@@ -12,6 +12,23 @@ from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
 logger = logging.getLogger("trading_bot.general")
 
 
+async def _fetch_web_context(question: str) -> str:
+    try:
+        from backend.clients.websearch import get_websearch
+
+        client = get_websearch()
+        if not client.is_enabled:
+            return ""
+        return await client.search_for_market(question, max_results=3)
+    except Exception as exc:
+        logger.debug(
+            "[general_scanner._fetch_web_context] %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return ""
+
+
 async def _fetch_brain_context(question: str) -> str:
     """Retrieve memories from BigBrainClient; returns empty string on failure."""
     try:
@@ -439,7 +456,10 @@ class GeneralMarketScanner(BaseStrategy):
             if brain_context:
                 enriched_context = f"{enriched_context} | BRAIN: {brain_context}"
 
-            # Build data_sources labels from context_parts for debate transcript
+            web_context = await _fetch_web_context(question)
+            if web_context:
+                enriched_context = f"{enriched_context} | WEB: {web_context}"
+
             data_sources = [
                 part.split(":")[0].strip().lower()
                 for part in context_parts
@@ -447,6 +467,8 @@ class GeneralMarketScanner(BaseStrategy):
             ]
             if brain_context:
                 data_sources.append("bigbrain_memory")
+            if web_context:
+                data_sources.append("web_search")
 
             # AI analysis — enforce per-cycle call cap
             if ai_calls_this_cycle >= max_ai_calls_per_cycle:
