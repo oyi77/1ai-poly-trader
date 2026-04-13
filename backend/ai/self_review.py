@@ -412,7 +412,14 @@ class SelfReview:
             # 3. Degradation detection
             degradation_alerts = self.detect_degradation(db=session)
 
-            # 4. Agent diary integration — do NOT fail the cycle if this errors
+            # 4. Send alerts for critical issues
+            brain = self._get_brain()
+            try:
+                await self._send_critical_alerts(postmortems, degradation_alerts, brain)
+            except Exception as e:
+                logger.debug(f"Failed to send critical alerts: {e}")
+
+            # 5. Agent diary integration — do NOT fail the cycle if this errors
             diary_posted = False
             try:
                 diary_posted = await self._post_diary(
@@ -430,6 +437,36 @@ class SelfReview:
         finally:
             if close:
                 session.close()
+
+    async def _send_critical_alerts(
+        self,
+        postmortems: list[Postmortem],
+        degradation_alerts: list[DegradationAlert],
+        brain: BigBrainClient,
+    ) -> None:
+        """Send alerts for critical issues: postmortems and degradation."""
+        if postmortems:
+            for pm in postmortems:
+                msg = (
+                    f"⚠️ POSTMORTEM: {pm.cluster_key} - {pm.trade_count} trades, "
+                    f"PnL={pm.total_pnl:.2f}. Key insight: {pm.llm_analysis[:100]}"
+                )
+                try:
+                    await brain.send_alert(msg, level="warning")
+                except Exception as e:
+                    logger.debug(f"Failed to send postmortem alert: {e}")
+
+        if degradation_alerts:
+            for alert in degradation_alerts:
+                msg = (
+                    f"📉 DEGRADATION: {alert.signal_key} - "
+                    f"win rate {alert.baseline_win_rate:.1%} → {alert.recent_win_rate:.1%} "
+                    f"(dropped {alert.drop:.1%})"
+                )
+                try:
+                    await brain.send_alert(msg, level="warning")
+                except Exception as e:
+                    logger.debug(f"Failed to send degradation alert: {e}")
 
     async def _post_diary(
         self,

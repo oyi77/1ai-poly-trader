@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -89,8 +89,18 @@ class ExperimentTracker:
 
         return {
             "winner": winner,
-            "exp_a": {"id": exp_a_id, "sharpe": sharpe_a, "pnl": pnl_a, "metrics": metrics_a},
-            "exp_b": {"id": exp_b_id, "sharpe": sharpe_b, "pnl": pnl_b, "metrics": metrics_b},
+            "exp_a": {
+                "id": exp_a_id,
+                "sharpe": sharpe_a,
+                "pnl": pnl_a,
+                "metrics": metrics_a,
+            },
+            "exp_b": {
+                "id": exp_b_id,
+                "sharpe": sharpe_b,
+                "pnl": pnl_b,
+                "metrics": metrics_b,
+            },
             "sharpe_diff": round(abs(sharpe_a - sharpe_b), 4),
         }
 
@@ -129,9 +139,7 @@ class ExperimentTracker:
             config.params = exp.params_json
 
         db.commit()
-        logger.info(
-            f"Promoted experiment #{experiment_id} for {exp.strategy_name}"
-        )
+        logger.info(f"Promoted experiment #{experiment_id} for {exp.strategy_name}")
         return True
 
     def rollback(self, db: Session, strategy_name: str) -> bool:
@@ -181,6 +189,104 @@ class ExperimentTracker:
         db.commit()
         logger.info(f"Rolled back {strategy_name} to experiment #{prev.id}")
         return True
+
+    def auto_promote(
+        self,
+        db: Session,
+        min_trades: int = 30,
+        min_sharpe_diff: float = 0.5,
+        rollback_window_hours: int = 24,
+        rollback_sharpe_floor: float = -0.5,
+    ) -> list[int]:
+        """Auto-promote candidates that significantly beat the active baseline.
+
+        For each strategy with an active experiment, compare every candidate
+        against the baseline.  Promote if:
+          1. Candidate has >= ``min_trades`` recorded trades.
+          2. Candidate Sharpe exceeds active Sharpe by >= ``min_sharpe_diff``.
+
+        Additionally, check recently promoted experiments: if an experiment was
+        promoted within ``rollback_window_hours`` and its Sharpe has dropped
+        below ``rollback_sharpe_floor``, automatically roll it back.
+
+        Returns the list of experiment IDs that were promoted.
+        """
+        from backend.models.database import Experiment
+
+        promoted_ids: list[int] = []
+
+        # --- Phase 1: rollback recently promoted experiments that went bad ---
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=rollback_window_hours)
+        recent_active = (
+            db.query(Experiment)
+            .filter(
+                Experiment.status == "active",
+                Experiment.promoted_at.isnot(None),
+                Experiment.promoted_at >= cutoff,
+            )
+            .all()
+        )
+        for exp in recent_active:
+            metrics = json.loads(exp.metrics_json) if exp.metrics_json else {}
+            sharpe = metrics.get("sharpe", 0.0)
+            if sharpe < rollback_sharpe_floor:
+                logger.warning(
+                    f"Auto-rollback experiment #{exp.id} for {exp.strategy_name}: "
+                    f"sharpe {sharpe} < floor {rollback_sharpe_floor}"
+                )
+                self.rollback(db, exp.strategy_name)
+
+        # --- Phase 2: promote qualifying candidates ---
+        candidates = db.query(Experiment).filter(Experiment.status == "candidate").all()
+
+        by_strategy: dict[str, list] = {}
+        for c in candidates:
+            by_strategy.setdefault(c.strategy_name, []).append(c)
+
+        for strategy_name, strategy_candidates in by_strategy.items():
+            active = (
+                db.query(Experiment)
+                .filter(
+                    Experiment.strategy_name == strategy_name,
+                    Experiment.status == "active",
+                )
+                .first()
+            )
+
+            active_sharpe = 0.0
+            if active and active.metrics_json:
+                active_metrics = json.loads(active.metrics_json)
+                active_sharpe = active_metrics.get("sharpe", 0.0)
+
+            best_candidate = None
+            best_sharpe = active_sharpe
+
+            for candidate in strategy_candidates:
+                metrics = (
+                    json.loads(candidate.metrics_json) if candidate.metrics_json else {}
+                )
+                num_trades = metrics.get("num_trades", 0)
+                candidate_sharpe = metrics.get("sharpe", 0.0)
+
+                if num_trades < min_trades:
+                    continue
+                if candidate_sharpe - active_sharpe < min_sharpe_diff:
+                    continue
+
+                if candidate_sharpe > best_sharpe:
+                    best_sharpe = candidate_sharpe
+                    best_candidate = candidate
+
+            if best_candidate is not None:
+                logger.info(
+                    f"Auto-promoting experiment #{best_candidate.id} for "
+                    f"{strategy_name}: sharpe {best_sharpe:.4f} vs "
+                    f"active {active_sharpe:.4f} (diff {best_sharpe - active_sharpe:.4f})"
+                )
+                if self.promote(db, best_candidate.id):
+                    promoted_ids.append(best_candidate.id)
+
+        return promoted_ids
 
     def get_history(
         self,

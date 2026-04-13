@@ -101,7 +101,7 @@ def _get_current_params(target_settings=None) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def check_rollback_needed(db, target_settings=None) -> bool:
+def check_rollback_needed(db, target_settings=None, bigbrain=None) -> bool:
     global _last_param_change
     if _last_param_change is None:
         return False
@@ -141,6 +141,17 @@ def check_rollback_needed(db, target_settings=None) -> bool:
             f"(>{ROLLBACK_PERF_DEGRADATION_THRESHOLD:.0%} degradation)"
         )
         rollback_params(_last_param_change["previous_values"], target_settings)
+
+        if bigbrain:
+            rollback_msg = (
+                f"⚠️ AUTO-IMPROVE ROLLBACK: Performance degraded from "
+                f"{pre_win_rate:.1%} to {post_win_rate:.1%}. "
+                f"Restored: {json.dumps(_last_param_change['previous_values'])}"
+            )
+            try:
+                asyncio.create_task(bigbrain.send_alert(rollback_msg, level="warning"))
+            except Exception as e:
+                logger.debug(f"Failed to send rollback alert: {e}")
 
         # Audit trail
         try:
@@ -198,7 +209,7 @@ async def auto_improve_job():
     try:
         # ── Step 0: Rollback check for previous parameter change ────────
         if _last_param_change is not None:
-            rolled_back = check_rollback_needed(db)
+            rolled_back = check_rollback_needed(db, bigbrain=bigbrain)
             if rolled_back:
                 log_event(
                     "warning",
@@ -329,6 +340,15 @@ async def auto_improve_job():
                         )
                     except Exception as e:
                         logger.debug(f"Audit log for apply failed: {e}")
+
+                    apply_msg = (
+                        f"✅ AUTO-IMPROVE APPLIED: {json.dumps(clamped)} "
+                        f"(confidence={conf_float:.2f}, reason={reasoning[:150]})"
+                    )
+                    try:
+                        await bigbrain.send_alert(apply_msg, level="info")
+                    except Exception as e:
+                        logger.debug(f"Failed to send apply alert: {e}")
 
                     log_event(
                         "success",
