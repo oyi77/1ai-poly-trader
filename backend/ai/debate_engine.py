@@ -23,7 +23,6 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 from backend.ai.llm_router import LLMRouter as _LLMRouter
 
@@ -236,7 +235,7 @@ def _build_judge_prompt(
 # --- Response Parsing ---
 
 
-def _extract_number(text: str, keywords: list[str]) -> Optional[float]:
+def _extract_number(text: str, keywords: list[str]) -> float | None:
     """Extract a float value associated with any keyword."""
     for kw in keywords:
         pattern = (
@@ -309,7 +308,7 @@ async def _call_agent(
     prompt: str,
     system: str,
     role: str,
-) -> Optional[str]:
+) -> str | None:
     """Call an LLM agent via the router."""
     try:
         router = _get_router()
@@ -330,7 +329,7 @@ async def run_debate(
     category: str = "",
     context: str = "",
     max_rounds: int = MAX_DEBATE_ROUNDS,
-) -> Optional[DebateResult]:
+) -> DebateResult | None:
     """
     Run a Bull/Bear/Judge debate on a prediction market question.
 

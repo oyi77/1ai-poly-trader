@@ -9,7 +9,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -56,7 +56,7 @@ class WinRateBreakdown:
     """Win rates grouped by a single factor."""
 
     factor: str  # e.g. "strategy", "market_type", "edge_bucket", "confidence_bucket"
-    groups: dict = field(default_factory=dict)
+    groups: dict[str, dict[str, Any]] = field(default_factory=dict)
     # groups[key] = {"wins": int, "losses": int, "total": int, "win_rate": float}
 
 
@@ -108,7 +108,7 @@ def _bucket_confidence(conf: Optional[float]) -> str:
     return "unknown"
 
 
-def _settled_trades(db: Session) -> list:
+def _settled_trades(db: Session) -> list[Trade]:
     """Return all settled (non-pending) trades from the database."""
     return (
         db.query(Trade)
@@ -188,7 +188,7 @@ class SelfReview:
             if close:
                 session.close()
 
-    def _compute_breakdowns(self, trades: list) -> list[WinRateBreakdown]:
+    def _compute_breakdowns(self, trades: list[Trade]) -> list[WinRateBreakdown]:
         """Pure computation — group trades by four factors and tally results."""
         factors = {
             "strategy": lambda t: t.strategy or "unknown",
@@ -417,7 +417,7 @@ class SelfReview:
             try:
                 await self._send_critical_alerts(postmortems, degradation_alerts, brain)
             except Exception as e:
-                logger.debug(f"Failed to send critical alerts: {e}")
+                logger.debug("Failed to send critical alerts: %s", e)
 
             # 5. Agent diary integration — do NOT fail the cycle if this errors
             diary_posted = False
@@ -454,7 +454,7 @@ class SelfReview:
                 try:
                     await brain.send_alert(msg, level="warning")
                 except Exception as e:
-                    logger.debug(f"Failed to send postmortem alert: {e}")
+                    logger.debug("Failed to send postmortem alert: %s", e)
 
         if degradation_alerts:
             for alert in degradation_alerts:
@@ -466,7 +466,7 @@ class SelfReview:
                 try:
                     await brain.send_alert(msg, level="warning")
                 except Exception as e:
-                    logger.debug(f"Failed to send degradation alert: {e}")
+                    logger.debug("Failed to send degradation alert: %s", e)
 
     async def _post_diary(
         self,

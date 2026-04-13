@@ -1,16 +1,21 @@
 """Auto-improvement job for PolyEdge — learns from trade outcomes and
 auto-applies optimizer suggestions with guardrails and rollback."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from backend.config import settings
-from backend.models.database import SessionLocal, Trade, DecisionLog, BotState
+from backend.models.database import SessionLocal, Trade, DecisionLog
 from backend.ai.optimizer import ParameterOptimizer
-from backend.clients.bigbrain import get_bigbrain
+from backend.clients.bigbrain import BigBrainClient, get_bigbrain
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger("trading_bot")
 
@@ -42,7 +47,7 @@ _last_param_change: Optional[dict] = None
 # ---------------------------------------------------------------------------
 
 
-def _confidence_to_float(confidence) -> float:
+def _confidence_to_float(confidence: object) -> float:
     if isinstance(confidence, (int, float)):
         return float(confidence)
     mapping = {"low": 0.3, "medium": 0.6, "high": 0.9}
@@ -101,7 +106,7 @@ def _get_current_params(target_settings=None) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def check_rollback_needed(db, target_settings=None, bigbrain=None) -> bool:
+def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> bool:
     global _last_param_change
     if _last_param_change is None:
         return False
@@ -151,7 +156,7 @@ def check_rollback_needed(db, target_settings=None, bigbrain=None) -> bool:
             try:
                 asyncio.create_task(bigbrain.send_alert(rollback_msg, level="warning"))
             except Exception as e:
-                logger.debug(f"Failed to send rollback alert: {e}")
+                logger.debug("Failed to send rollback alert: %s", e)
 
         # Audit trail
         try:
@@ -168,7 +173,7 @@ def check_rollback_needed(db, target_settings=None, bigbrain=None) -> bool:
                 },
             )
         except Exception as e:
-            logger.debug(f"Audit log for rollback failed: {e}")
+            logger.debug("Audit log for rollback failed: %s", e)
 
         _last_param_change = None
         return True
@@ -269,7 +274,7 @@ async def auto_improve_job():
                     },
                 )
             except Exception as e:
-                logger.debug(f"Experiment tracking failed: {e}")
+                logger.debug("Experiment tracking failed: %s", e)
 
             await bigbrain.write_strategy_insight(
                 strategy="parameter_optimizer",
@@ -310,8 +315,9 @@ async def auto_improve_job():
                     total_settled = (
                         db.query(Trade)
                         .filter(
-                            Trade.settled == True, Trade.result.in_(("win", "loss"))
-                        )  # noqa: E712
+                            Trade.settled == True,  # noqa: E712
+                            Trade.result.in_(("win", "loss")),
+                        )
                         .count()
                     )
 
@@ -339,7 +345,7 @@ async def auto_improve_job():
                             },
                         )
                     except Exception as e:
-                        logger.debug(f"Audit log for apply failed: {e}")
+                        logger.debug("Audit log for apply failed: %s", e)
 
                     apply_msg = (
                         f"✅ AUTO-IMPROVE APPLIED: {json.dumps(clamped)} "
@@ -348,7 +354,7 @@ async def auto_improve_job():
                     try:
                         await bigbrain.send_alert(apply_msg, level="info")
                     except Exception as e:
-                        logger.debug(f"Failed to send apply alert: {e}")
+                        logger.debug("Failed to send apply alert: %s", e)
 
                     log_event(
                         "success",
@@ -365,7 +371,7 @@ async def auto_improve_job():
                 if _last_param_change is not None:
                     log_event(
                         "info",
-                        f"Auto-improve: skipping apply — previous change still pending rollback evaluation",
+                        "Auto-improve: skipping apply — previous change still pending rollback evaluation",
                     )
                 else:
                     log_event(
@@ -393,7 +399,7 @@ async def auto_improve_job():
                     "approve via POST /api/agents/experiments/{id}/approve",
                 )
         except Exception as _e:
-            logger.debug(f"[auto_improve] StrategyEvolver skipped: {_e}")
+            logger.debug("[auto_improve] StrategyEvolver skipped: %s", _e)
 
         log_event("success", "Auto-improvement cycle complete")
 
@@ -405,7 +411,7 @@ async def auto_improve_job():
         await bigbrain.close()
 
 
-async def _write_outcomes_to_brain(db, bigbrain):
+async def _write_outcomes_to_brain(db: Session, bigbrain: BigBrainClient) -> None:
     """Write recent trade outcomes to BigBrain."""
     try:
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
@@ -413,7 +419,7 @@ async def _write_outcomes_to_brain(db, bigbrain):
         trades = (
             db.query(Trade)
             .filter(
-                Trade.settled == True,
+                Trade.settled == True,  # noqa: E712
                 Trade.settlement_time >= week_ago,
             )
             .limit(50)
@@ -434,10 +440,10 @@ async def _write_outcomes_to_brain(db, bigbrain):
                 else None,
             )
     except Exception as e:
-        logger.warning(f"Failed to write outcomes to brain: {e}")
+        logger.warning("Failed to write outcomes to brain: %s", e)
 
 
-async def _write_market_insights(db, bigbrain):
+async def _write_market_insights(db: Session, bigbrain: BigBrainClient) -> None:
     """Write market analysis insights to BigBrain."""
     try:
         recent_signals = (
@@ -472,4 +478,4 @@ async def _write_market_insights(db, bigbrain):
                 except Exception:
                     pass
     except Exception as e:
-        logger.warning(f"Failed to write market insights: {e}")
+        logger.warning("Failed to write market insights: %s", e)
