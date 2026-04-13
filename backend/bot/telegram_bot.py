@@ -12,6 +12,7 @@ Execution modes:
   User must press COPY TRADE to execute (confirm mode)
 - Copy trade signals: auto-executes within risk limits, sends notification after
 """
+
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -33,6 +34,7 @@ try:
         ContextTypes,
     )
     from telegram.constants import ParseMode
+
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
@@ -189,22 +191,30 @@ class PolyEdgeBot:
             f"Expires: {market.target_date}"
         )
 
-        keyboard = InlineKeyboardMarkup([
+        keyboard = InlineKeyboardMarkup(
             [
-                InlineKeyboardButton("✅ COPY TRADE", callback_data=f"copy:{condition_id}"),
-                InlineKeyboardButton("❌ SKIP", callback_data=f"skip:{condition_id}"),
-            ],
-            [
-                InlineKeyboardButton(
-                    "📊 View Market",
-                    url=f"https://polymarket.com/event/{market.slug or condition_id}"
-                ),
-            ],
-        ])
+                [
+                    InlineKeyboardButton(
+                        "✅ COPY TRADE", callback_data=f"copy:{condition_id}"
+                    ),
+                    InlineKeyboardButton(
+                        "❌ SKIP", callback_data=f"skip:{condition_id}"
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        "📊 View Market",
+                        url=f"https://polymarket.com/event/{market.slug or condition_id}",
+                    ),
+                ],
+            ]
+        )
 
         await self.alert_all_admins(text, reply_markup=keyboard)
 
-    async def send_copy_alert(self, signal, executed: bool = True, order_id: str = "") -> None:
+    async def send_copy_alert(
+        self, signal, executed: bool = True, order_id: str = ""
+    ) -> None:
         """
         Send a post-execution copy trade notification (no keyboard — already executed).
         """
@@ -249,10 +259,21 @@ class PolyEdgeBot:
             return
         try:
             from backend.config import settings
+
             edge_pct = abs(signal.edge) * 100
             direction = signal.direction.upper()
-            entry = signal.entry_price if hasattr(signal, 'entry_price') else getattr(signal, 'market_probability', 0)
-            size_str = f"${trade.size:.2f}" if trade else f"${signal.suggested_size:.2f}" if hasattr(signal, 'suggested_size') else "—"
+            entry = (
+                signal.entry_price
+                if hasattr(signal, "entry_price")
+                else getattr(signal, "market_probability", 0)
+            )
+            size_str = (
+                f"${trade.size:.2f}"
+                if trade
+                else f"${signal.suggested_size:.2f}"
+                if hasattr(signal, "suggested_size")
+                else "—"
+            )
             mode = settings.TRADING_MODE.upper()
             mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(mode, "⚪")
             executed = "✅ TRADE PLACED" if trade else "📊 SIGNAL (no trade)"
@@ -268,7 +289,11 @@ class PolyEdgeBot:
                 f"Market:     {getattr(signal, 'market_probability', 0):.1%}\n"
                 f"<b>Edge:       +{edge_pct:.1f}%</b>\n"
                 f"Size:       <b>{size_str}</b>\n"
-                + (f"Order ID:   <code>{trade.clob_order_id}</code>\n" if trade and getattr(trade, 'clob_order_id', None) else "")
+                + (
+                    f"Order ID:   <code>{trade.clob_order_id}</code>\n"
+                    if trade and getattr(trade, "clob_order_id", None)
+                    else ""
+                )
             )
             await self.alert_all_admins(text)
         except Exception as e:
@@ -280,6 +305,7 @@ class PolyEdgeBot:
             return
         try:
             from backend.config import settings
+
             mode = settings.TRADING_MODE.upper()
             mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(mode, "⚪")
             text = (
@@ -290,7 +316,11 @@ class PolyEdgeBot:
                 f"Entry:      {trade.entry_price:.3f}\n"
                 f"Size:       <b>${trade.size:.2f}</b>\n"
                 f"Strategy:   {trade.strategy or 'manual'}\n"
-                + (f"Order:      <code>{trade.clob_order_id}</code>\n" if getattr(trade, 'clob_order_id', None) else "")
+                + (
+                    f"Order:      <code>{trade.clob_order_id}</code>\n"
+                    if getattr(trade, "clob_order_id", None)
+                    else ""
+                )
             )
             await self.alert_all_admins(text)
         except Exception as e:
@@ -301,15 +331,21 @@ class PolyEdgeBot:
         if not self._bot:
             return
         try:
-            result = getattr(trade, 'result', None) or 'unknown'
-            pnl = getattr(trade, 'pnl', None)
-            if result == 'win':
+            result = getattr(trade, "result", None) or "unknown"
+            pnl = getattr(trade, "pnl", None)
+            if result == "win":
                 emoji = "✅ WIN"
-            elif result == 'loss':
+            elif result == "loss":
                 emoji = "❌ LOSS"
             else:
                 emoji = "⏳ SETTLED"
-            pnl_str = f"+${pnl:.2f}" if pnl and pnl > 0 else f"-${abs(pnl):.2f}" if pnl else "—"
+            pnl_str = (
+                f"+${pnl:.2f}"
+                if pnl and pnl > 0
+                else f"-${abs(pnl):.2f}"
+                if pnl
+                else "—"
+            )
             text = (
                 f"<b>{emoji}</b>\n"
                 f"\n"
@@ -338,11 +374,55 @@ class PolyEdgeBot:
         except Exception as e:
             logger.error(f"send_scan_summary error: {e}")
 
+    async def send_high_confidence_signal(
+        self,
+        strategy: str,
+        market_title: str,
+        direction: str,
+        confidence: float,
+        edge: float,
+        reasoning: str,
+        market_url: str = "",
+    ) -> None:
+        """Alert admins about high-confidence trading opportunities."""
+        if not self._bot or self._paused:
+            return
+        try:
+            confidence_bar = "🟢" * int(confidence * 5) + "⚪" * (
+                5 - int(confidence * 5)
+            )
+            edge_pct = edge * 100
+            text = (
+                f"<b>🎯 HIGH CONFIDENCE SIGNAL</b>\n"
+                f"\n"
+                f"Strategy:   <b>{strategy}</b>\n"
+                f"Market:     <i>{market_title[:80]}</i>\n"
+                f"\n"
+                f"Direction:  <b>{direction.upper()}</b>\n"
+                f"Confidence: {confidence_bar} {confidence:.0%}\n"
+                f"Edge:       <b>+{edge_pct:.1f}%</b>\n"
+                f"\n"
+                f"<i>{reasoning[:200]}</i>"
+            )
+            if market_url:
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+                keyboard = InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("📊 View Market", url=market_url)]]
+                )
+                await self.alert_all_admins(text, reply_markup=keyboard)
+            else:
+                await self.alert_all_admins(text)
+        except Exception as e:
+            logger.error(f"send_high_confidence_signal error: {e}")
+
     # =========================================================================
     # Callback handler (inline keyboard buttons)
     # =========================================================================
 
-    async def _handle_callback(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
+    async def _handle_callback(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ):
         query = update.callback_query
         await query.answer()
 
@@ -371,7 +451,9 @@ class PolyEdgeBot:
                 except Exception as e:
                     await query.edit_message_text(f"❌ Execution failed: {e}")
             else:
-                await query.edit_message_text("✅ Signal acknowledged (no executor configured).")
+                await query.edit_message_text(
+                    "✅ Signal acknowledged (no executor configured)."
+                )
 
         elif data.startswith("skip:"):
             condition_id = data[5:]
@@ -405,6 +487,7 @@ class PolyEdgeBot:
 
     async def _cmd_status(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
         from backend.config import settings
+
         mode_emoji = {"paper": "🟠 PAPER", "testnet": "🟡 TESTNET", "live": "🔴 LIVE"}
         mode = mode_emoji.get(settings.TRADING_MODE, "🟠 PAPER")
         paused = "⏸ PAUSED" if self._paused else "🟢 RUNNING"
@@ -418,12 +501,20 @@ class PolyEdgeBot:
             parse_mode=ParseMode.HTML,
         )
 
-    async def _cmd_positions(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
+    async def _cmd_positions(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ):
         try:
             from backend.models.database import SessionLocal, Trade
+
             db = SessionLocal()
             try:
-                pending = db.query(Trade).filter(Trade.settled == False).order_by(Trade.timestamp.desc()).all()
+                pending = (
+                    db.query(Trade)
+                    .filter(Trade.settled == False)
+                    .order_by(Trade.timestamp.desc())
+                    .all()
+                )
             finally:
                 db.close()
 
@@ -437,7 +528,9 @@ class PolyEdgeBot:
             lines = ["📊 <b>Open Positions</b>\n"]
             total_size = 0.0
             for t in pending[:15]:
-                mode_tag = f"[{(getattr(t, 'trading_mode', None) or 'paper').upper()[:1]}]"
+                mode_tag = (
+                    f"[{(getattr(t, 'trading_mode', None) or 'paper').upper()[:1]}]"
+                )
                 lines.append(
                     f"{mode_tag} <b>{t.direction.upper()}</b> {t.market_type} "
                     f"${t.size:.0f} @ {t.entry_price:.0%} "
@@ -448,12 +541,16 @@ class PolyEdgeBot:
             if len(pending) > 15:
                 lines.append(f"\n... and {len(pending) - 15} more")
 
-            lines.append(f"\n<b>Total exposure: ${total_size:.0f}</b> across {len(pending)} positions")
+            lines.append(
+                f"\n<b>Total exposure: ${total_size:.0f}</b> across {len(pending)} positions"
+            )
             await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
         except Exception as e:
             await update.message.reply_text(f"Error loading positions: {e}")
 
-    async def _cmd_leaderboard(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
+    async def _cmd_leaderboard(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ):
         await update.message.reply_text(
             "🏆 <b>Leaderboard</b>\n\n"
             "Copy trader leaderboard data loads on next poll cycle.\n"
@@ -479,8 +576,11 @@ class PolyEdgeBot:
             await self.on_resume()
         await update.message.reply_text("🟢 Scanning resumed.")
 
-    async def _cmd_settings(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
+    async def _cmd_settings(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ):
         from backend.config import settings
+
         await update.message.reply_text(
             f"<b>PolyEdge Settings</b>\n\n"
             f"Trading mode:      {settings.TRADING_MODE}\n"
@@ -499,6 +599,7 @@ class PolyEdgeBot:
         args = context.args
         if not args or args[0] not in ("paper", "testnet", "live"):
             from backend.config import settings
+
             current = settings.TRADING_MODE
             await update.message.reply_text(
                 f"Current mode: <b>{current.upper()}</b>\n\nUsage: /mode paper|testnet|live",
@@ -516,11 +617,16 @@ class PolyEdgeBot:
             parse_mode=ParseMode.HTML,
         )
 
-    async def _cmd_calibration(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
+    async def _cmd_calibration(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ):
         try:
             from backend.core.calibration import get_calibration_report
+
             report = get_calibration_report()
-            await update.message.reply_text(f"<pre>{report}</pre>", parse_mode=ParseMode.HTML)
+            await update.message.reply_text(
+                f"<pre>{report}</pre>", parse_mode=ParseMode.HTML
+            )
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
 
@@ -532,8 +638,11 @@ class PolyEdgeBot:
         await update.message.reply_text("🔍 Running BTC scan...")
         try:
             from backend.core.scheduler import scan_and_trade_job
+
             await scan_and_trade_job()
-            await update.message.reply_text("✅ Scan complete. Check /positions for results.")
+            await update.message.reply_text(
+                "✅ Scan complete. Check /positions for results."
+            )
         except Exception as e:
             await update.message.reply_text(f"❌ Scan error: {e}")
 
@@ -547,13 +656,17 @@ class PolyEdgeBot:
                 except ValueError:
                     pass
             from backend.models.database import SessionLocal, Trade
+
             db = SessionLocal()
             try:
                 trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(n).all()
             finally:
                 db.close()
             if not trades:
-                await update.message.reply_text("📊 <b>Recent Trades</b>\n\nNo trades found.", parse_mode=ParseMode.HTML)
+                await update.message.reply_text(
+                    "📊 <b>Recent Trades</b>\n\nNo trades found.",
+                    parse_mode=ParseMode.HTML,
+                )
                 return
             lines = [f"📊 <b>Recent Trades (last {len(trades)})</b>\n"]
             total_pnl = 0.0
@@ -567,16 +680,21 @@ class PolyEdgeBot:
                     f"${t.size:.0f} @ {t.entry_price:.2%}"
                     f"{pnl_str}"
                 )
-            lines.append(f"\n<b>Total PnL: {'+' if total_pnl >= 0 else ''}{total_pnl:.2f}</b>")
+            lines.append(
+                f"\n<b>Total PnL: {'+' if total_pnl >= 0 else ''}{total_pnl:.2f}</b>"
+            )
             await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
 
-    async def _cmd_bankroll(self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"):
+    async def _cmd_bankroll(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ):
         """Show current bankroll and equity."""
         try:
             from backend.models.database import SessionLocal, Trade
             from backend.config import settings
+
             db = SessionLocal()
             try:
                 pending = db.query(Trade).filter(Trade.settled == False).all()
@@ -611,6 +729,7 @@ class PolyEdgeBot:
         await update.message.reply_text("⚙️ Running settlement check...")
         try:
             from backend.core.scheduler import settlement_job
+
             await settlement_job()
             await update.message.reply_text("✅ Settlement check complete.")
         except Exception as e:
@@ -620,6 +739,7 @@ class PolyEdgeBot:
         """Show P&L breakdown."""
         try:
             from backend.models.database import SessionLocal, Trade
+
             db = SessionLocal()
             try:
                 all_trades = db.query(Trade).filter(Trade.settled == True).all()
@@ -628,8 +748,8 @@ class PolyEdgeBot:
             if not all_trades:
                 await update.message.reply_text("📊 No settled trades yet.")
                 return
-            wins = [t for t in all_trades if t.result == 'win']
-            losses = [t for t in all_trades if t.result == 'loss']
+            wins = [t for t in all_trades if t.result == "win"]
+            losses = [t for t in all_trades if t.result == "loss"]
             total_pnl = sum(t.pnl or 0.0 for t in all_trades)
             win_pnl = sum(t.pnl or 0.0 for t in wins)
             loss_pnl = sum(t.pnl or 0.0 for t in losses)
