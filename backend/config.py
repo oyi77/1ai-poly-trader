@@ -183,19 +183,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _validate_live_trading_credentials(self) -> "Settings":
         if self.TRADING_MODE == "live":
-            missing = [
-                name
-                for name, value in [
-                    ("POLYMARKET_PRIVATE_KEY", self.POLYMARKET_PRIVATE_KEY),
-                    ("POLYMARKET_API_SECRET", self.POLYMARKET_API_SECRET),
-                    ("POLYMARKET_API_PASSPHRASE", self.POLYMARKET_API_PASSPHRASE),
-                ]
-                if not value
-            ]
-            if missing:
+            # Only POLYMARKET_PRIVATE_KEY is required — API credentials are
+            # auto-derived at startup via create_or_derive_api_creds().
+            if not self.POLYMARKET_PRIVATE_KEY:
                 raise ValueError(
-                    "TRADING_MODE=live requires POLYMARKET_PRIVATE_KEY, "
-                    "POLYMARKET_API_SECRET, and POLYMARKET_API_PASSPHRASE to be set"
+                    "TRADING_MODE=live requires POLYMARKET_PRIVATE_KEY to be set. "
+                    "API credentials (api_key, api_secret, api_passphrase) are "
+                    "auto-derived from the private key at startup."
                 )
         return self
 

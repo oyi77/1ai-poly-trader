@@ -32,6 +32,16 @@ class Orchestrator:
         self._clob = clob_from_settings()
         await self._clob.__aenter__()
 
+        if settings.TRADING_MODE == "live":
+            logger.info("Live mode: deriving API credentials from private key...")
+            creds = await self._clob.create_or_derive_api_creds()
+            if not creds:
+                raise RuntimeError(
+                    "Failed to derive Polymarket API credentials from private key. "
+                    "Check POLYMARKET_PRIVATE_KEY in .env."
+                )
+            logger.info("API credentials derived successfully.")
+
         if settings.TELEGRAM_BOT_TOKEN:
             from backend.bot.telegram_bot import bot_from_settings
 
