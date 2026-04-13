@@ -62,6 +62,7 @@ htmlcov/
 *.bak
 *.backup.*
 *.corrupt.*
+backups/
 
 # Tool state
 .omc/

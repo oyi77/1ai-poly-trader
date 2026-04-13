@@ -28,6 +28,7 @@ from backend.core.scheduling_strategies import (
 from backend.core.auto_improve import auto_improve_job
 from backend.core.strategy_ranker import strategy_ranking_job
 from backend.core.agi_jobs import self_review_job, research_pipeline_job
+from backend.core.db_backup import backup_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trading_bot")
@@ -289,6 +290,17 @@ def start_scheduler():
             "Scheduled research pipeline job every %d hour(s)",
             settings.RESEARCH_PIPELINE_INTERVAL_HOURS,
         )
+
+    backup_interval = getattr(settings, "DB_BACKUP_INTERVAL_HOURS", 6)
+    if backup_interval > 0:
+        scheduler.add_job(
+            backup_job,
+            IntervalTrigger(hours=backup_interval),
+            id="db_backup",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info(f"Scheduled database backup job every {backup_interval} hour(s)")
 
     # Initialize queue worker if enabled
     if settings.JOB_WORKER_ENABLED:

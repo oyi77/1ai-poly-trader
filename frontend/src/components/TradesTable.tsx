@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Trade } from '../types'
@@ -11,10 +11,12 @@ interface Props {
 
 type SortKey = 'timestamp' | 'size' | 'pnl' | 'result'
 type SortDir = 'asc' | 'desc'
+type FilterType = 'all' | 'settled' | 'wins' | 'losses' | 'pending'
 
 export function TradesTable({ trades }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('timestamp')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [filter, setFilter] = useState<FilterType>('all')
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -25,8 +27,23 @@ export function TradesTable({ trades }: Props) {
     }
   }
 
+  const filteredTrades = useMemo(() => {
+    switch (filter) {
+      case 'settled':
+        return trades.filter(t => t.settled && t.result !== 'expired')
+      case 'wins':
+        return trades.filter(t => t.result === 'win')
+      case 'losses':
+        return trades.filter(t => t.result === 'loss')
+      case 'pending':
+        return trades.filter(t => t.result === 'pending')
+      default:
+        return trades
+    }
+  }, [trades, filter])
+
   const sortedTrades = useMemo(() => {
-    return [...trades].sort((a, b) => {
+    return [...filteredTrades].sort((a, b) => {
       let aVal: number | string, bVal: number | string
       switch (sortKey) {
         case 'timestamp':
@@ -48,7 +65,7 @@ export function TradesTable({ trades }: Props) {
       }
       return sortDir === 'asc' ? aVal - (bVal as number) : (bVal as number) - aVal
     })
-  }, [trades, sortKey, sortDir])
+  }, [filteredTrades, sortKey, sortDir])
 
   const SortIcon = ({ column }: { column: SortKey }) => {
     if (sortKey !== column) return <ArrowUpDown className="w-2.5 h-2.5 text-neutral-600" />
@@ -66,8 +83,36 @@ export function TradesTable({ trades }: Props) {
     )
   }
 
+  const filterButtons: { key: FilterType; label: string; count: number }[] = [
+    { key: 'all', label: 'All', count: trades.length },
+    { key: 'wins', label: 'Wins', count: trades.filter(t => t.result === 'win').length },
+    { key: 'losses', label: 'Losses', count: trades.filter(t => t.result === 'loss').length },
+    { key: 'pending', label: 'Pending', count: trades.filter(t => t.result === 'pending').length },
+    { key: 'settled', label: 'Settled', count: trades.filter(t => t.settled && t.result !== 'expired').length },
+  ]
+
   return (
-    <table className="w-full">
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-neutral-800 bg-[#0a0a0a]">
+        <Filter className="w-3 h-3 text-neutral-600" />
+        {filterButtons.map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+              filter === key
+                ? key === 'wins' ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                : key === 'losses' ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                : 'text-neutral-500 hover:text-neutral-300 border border-transparent'
+            }`}
+          >
+            {label} ({count})
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-auto">
+        <table className="w-full">
       <thead className="sticky top-0 bg-[#0a0a0a] z-10">
         <tr className="text-neutral-600 text-left text-[10px] border-b border-neutral-800">
           <th className="py-1.5 px-1.5 font-medium w-5"></th>
@@ -114,8 +159,16 @@ export function TradesTable({ trades }: Props) {
           {sortedTrades.map((trade, i) => {
             const isPending = trade.result === 'pending'
             const isWin = trade.result === 'win'
+            const isLoss = trade.result === 'loss'
+            const isExpired = trade.result === 'expired'
             const isUp = trade.direction === 'up'
             const style = platformStyles[trade.platform?.toLowerCase()]
+
+            const rowBg = isWin 
+              ? 'bg-green-500/10 hover:bg-green-500/20 border-l-2 border-l-green-500' 
+              : isLoss 
+              ? 'bg-red-500/10 hover:bg-red-500/20 border-l-2 border-l-red-500'
+              : 'hover:bg-neutral-800/30'
 
             return (
               <motion.tr
@@ -123,7 +176,7 @@ export function TradesTable({ trades }: Props) {
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.02 }}
-                className="border-b border-neutral-800/50 hover:bg-neutral-800/30 text-[11px]"
+                className={`border-b border-neutral-800/50 text-[11px] ${rowBg}`}
               >
                 <td className="py-1 px-1.5">
                   {style && (
@@ -134,9 +187,13 @@ export function TradesTable({ trades }: Props) {
                 </td>
                 <td className="py-1 px-1.5">
                   <span className={`text-[9px] font-medium uppercase ${
-                    isPending ? 'text-amber-500' : isWin ? 'text-green-500' : 'text-red-500'
+                    isPending ? 'text-amber-500' 
+                    : isWin ? 'text-green-500' 
+                    : isLoss ? 'text-red-500'
+                    : isExpired ? 'text-neutral-500'
+                    : 'text-neutral-500'
                   }`}>
-                    {isPending ? 'PND' : isWin ? 'WIN' : 'LOSS'}
+                    {isPending ? 'PND' : isWin ? 'WIN' : isLoss ? 'LOSS' : isExpired ? 'EXP' : trade.result?.toUpperCase() || '-'}
                   </span>
                 </td>
                 <td className="py-1 px-1.5">
@@ -170,7 +227,7 @@ export function TradesTable({ trades }: Props) {
                     <span className={`font-semibold tabular-nums ${
                       trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'
                     }`}>
-                      {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(0)}
+                      {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
                     </span>
                   ) : (
                     <span className="text-neutral-600">-</span>
@@ -184,6 +241,8 @@ export function TradesTable({ trades }: Props) {
           })}
         </AnimatePresence>
       </tbody>
-    </table>
+        </table>
+      </div>
+    </div>
   )
 }

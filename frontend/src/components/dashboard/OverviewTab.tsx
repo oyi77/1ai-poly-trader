@@ -207,9 +207,9 @@ export function OverviewTab({
           <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Equity</span>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] tabular-nums text-neutral-200">${stats.totalEquity.toFixed(0)}</span>
+              <span className="text-[10px] tabular-nums text-neutral-200">${stats.totalEquity.toFixed(2)}</span>
               <span className={`text-[10px] tabular-nums ${stats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(0)}
+                {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(2)}
               </span>
             </div>
           </div>
@@ -229,7 +229,7 @@ export function OverviewTab({
                     <span className={`text-[9px] uppercase tracking-wider font-bold ${isActive ? modeKey === 'live' ? 'text-red-400' : 'text-amber-400' : 'text-neutral-600'}`}>{modeKey === 'live' ? 'Live' : 'Paper'}</span>
                     {isActive && <span className={`text-[8px] uppercase px-1 py-0.5 border ${modeKey === 'live' ? 'text-red-400 border-red-500/30 bg-red-500/10' : 'text-amber-400 border-amber-500/30 bg-amber-500/10'}`}>Active</span>}
                   </div>
-                  <div className={`text-xs font-semibold tabular-nums ${modeData.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>{modeData.pnl >= 0 ? '+' : ''}${modeData.pnl.toFixed(0)}</div>
+                  <div className={`text-xs font-semibold tabular-nums ${modeData.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>{modeData.pnl >= 0 ? '+' : ''}${modeData.pnl.toFixed(2)}</div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[9px] text-neutral-600 tabular-nums">{modeData.trades}t</span>
                     <span className="text-[9px] text-neutral-600 tabular-nums">{(modeData.win_rate * 100).toFixed(0)}%w</span>

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
+from sqlalchemy import not_
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
 
@@ -114,7 +115,7 @@ class GeneralMarketScanner(BaseStrategy):
         "max_ai_calls_per_cycle": 40,
         "max_concurrent": 25,
         "min_reward_risk": 0.3,
-        "max_days_to_end": 45,
+        "max_days_to_end": 2,  # Align with STALE_TRADE_HOURS (48h) to prevent premature expiration
         "max_low_prob_size": 0.25,
         "low_prob_threshold": 0.20,
         "edge_dampening": 0.6,
@@ -243,7 +244,7 @@ class GeneralMarketScanner(BaseStrategy):
         try:
             from backend.models.database import Trade
 
-            open_trades = ctx.db.query(Trade).filter(Trade.settled == False).all()
+            open_trades = ctx.db.query(Trade).filter(not_(Trade.settled)).all()
             existing_tickers = {t.market_ticker for t in open_trades if t.market_ticker}
             open_trade_count = len(open_trades)
         except Exception:

@@ -170,6 +170,11 @@ class Settings(BaseSettings):
     RESEARCH_PIPELINE_ENABLED: bool = True
     RESEARCH_PIPELINE_INTERVAL_HOURS: int = 4  # Run every 4 hours
 
+    # Database backup settings
+    DB_BACKUP_INTERVAL_HOURS: int = 6  # Run every 6 hours (0 to disable)
+    DB_BACKUP_DIR: str = "backups"
+    DB_BACKUP_RETENTION_DAYS: int = 30
+
     # Phase 2 feature flags
     NEWS_FEED_ENABLED: bool = False
     ARBITRAGE_DETECTOR_ENABLED: bool = False
