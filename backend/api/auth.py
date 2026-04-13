@@ -106,6 +106,7 @@ def _get_grouped_settings() -> dict:
     telegram = {}
     security = {}
     system = {}
+    web_search = {}
 
     signals = {}
 
@@ -166,6 +167,11 @@ def _get_grouped_settings() -> dict:
         "KALSHI_PRIVATE_KEY_PATH": api_keys,
         "TELEGRAM_BOT_TOKEN": telegram,
         "TELEGRAM_ADMIN_CHAT_IDS": telegram,
+        "TELEGRAM_HIGH_CONFIDENCE_ALERTS": telegram,
+        "TAVILY_API_KEY": api_keys,
+        "EXA_API_KEY": api_keys,
+        "SERPER_API_KEY": api_keys,
+        "CRW_API_KEY": api_keys,
         "ADMIN_API_KEY": security,
         "CORS_ORIGINS": security,
         "DATABASE_URL": system,
@@ -175,6 +181,11 @@ def _get_grouped_settings() -> dict:
         "POLYGON_AMOY_RPC": system,
         "POLYGON_AMOY_CHAIN_ID": system,
         "POLYMARKET_TESTNET_CLOB_HOST": system,
+        "WEBSEARCH_PROVIDER": web_search,
+        "WEBSEARCH_FALLBACK_PROVIDER": web_search,
+        "WEBSEARCH_ENABLED": web_search,
+        "WEBSEARCH_MAX_RESULTS": web_search,
+        "WEBSEARCH_TIMEOUT_SECONDS": web_search,
     }
 
     for field_name, group in field_groups.items():
@@ -193,6 +204,7 @@ def _get_grouped_settings() -> dict:
         "telegram": telegram,
         "security": security,
         "system": system,
+        "web_search": web_search,
     }
 
 

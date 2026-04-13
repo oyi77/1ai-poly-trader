@@ -121,6 +121,9 @@ class Settings(BaseSettings):
     # Telegram bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_ADMIN_CHAT_IDS: str = ""  # comma-separated chat IDs
+    TELEGRAM_HIGH_CONFIDENCE_ALERTS: bool = (
+        True  # Send alerts for high-confidence signals (>=75%)
+    )
 
     # Polygon blockchain listener
     POLYGON_WS_URL: str = "wss://polygon-rpc.com"

@@ -273,7 +273,7 @@ class LineMovementDetectorStrategy(BaseStrategy):
             f"confidence={confidence:.2f}"
         )
 
-        if confidence >= 0.75:
+        if confidence >= 0.75 and ctx.settings.TELEGRAM_HIGH_CONFIDENCE_ALERTS:
             from backend.bot.notifier import notify_high_confidence_signal
 
             notify_high_confidence_signal(
