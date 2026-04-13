@@ -672,7 +672,34 @@ class GeneralMarketScanner(BaseStrategy):
             else:
                 kelly_size = max_position_size
 
-            size = min(max_position_size, kelly_size)
+            # ============================================================
+            # DYNAMIC POSITION SIZING: Scale max based on AI confidence
+            # Higher confidence = larger allowed position (up to bankroll %)
+            # ============================================================
+            base_max = max_position_size  # Default $2
+            if ai_confidence >= 0.90:
+                # Very high confidence: up to 20% of bankroll or $16
+                dynamic_max = min(bankroll * 0.20, 16.0)
+            elif ai_confidence >= 0.85:
+                # High confidence: up to 15% of bankroll or $12
+                dynamic_max = min(bankroll * 0.15, 12.0)
+            elif ai_confidence >= 0.75:
+                # Medium-high confidence: up to 10% of bankroll or $8
+                dynamic_max = min(bankroll * 0.10, 8.0)
+            elif ai_confidence >= 0.65:
+                # Medium confidence: up to 6% of bankroll or $5
+                dynamic_max = min(bankroll * 0.06, 5.0)
+            else:
+                # Low confidence: stick to base max
+                dynamic_max = base_max
+
+            ctx.logger.debug(
+                f"[general_scanner] DYNAMIC_SIZE {slug}: "
+                f"confidence={ai_confidence:.2f} base_max=${base_max:.2f} "
+                f"dynamic_max=${dynamic_max:.2f} bankroll=${bankroll:.2f}"
+            )
+
+            size = min(dynamic_max, kelly_size)
             size = max(min_position_size, size)
 
             if entry_price < low_prob_threshold:
