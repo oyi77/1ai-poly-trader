@@ -1,9 +1,11 @@
+import { useQuery } from '@tanstack/react-query'
 import type { WeatherForecast, WeatherSignal } from '../types'
 import { platformStyles } from '../utils'
+import { fetchWeatherForecasts, fetchWeatherSignals } from '../api'
 
 interface Props {
-  forecasts: WeatherForecast[]
-  signals: WeatherSignal[]
+  forecasts?: WeatherForecast[]
+  signals?: WeatherSignal[]
 }
 
 function AgreementBar({ value }: { value: number }) {
@@ -17,7 +19,23 @@ function AgreementBar({ value }: { value: number }) {
 }
 
 export function WeatherPanel({ forecasts, signals }: Props) {
-  if (forecasts.length === 0 && signals.length === 0) {
+  const { data: forecastData } = useQuery({
+    queryKey: ['weather-forecasts'],
+    queryFn: fetchWeatherForecasts,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+  const { data: signalData } = useQuery({
+    queryKey: ['weather-signals'],
+    queryFn: fetchWeatherSignals,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+
+  const resolvedForecasts = (forecasts && forecasts.length > 0) ? forecasts : (forecastData ?? [])
+  const resolvedSignals = (signals && signals.length > 0) ? signals : (signalData ?? [])
+
+  if (resolvedForecasts.length === 0 && resolvedSignals.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-center px-4">
         <div className="text-neutral-600 text-[10px] leading-relaxed">
@@ -29,7 +47,7 @@ export function WeatherPanel({ forecasts, signals }: Props) {
   }
 
   const signalsByCity = new Map<string, WeatherSignal[]>()
-  signals.forEach(s => {
+  resolvedSignals.forEach(s => {
     const existing = signalsByCity.get(s.city_key) || []
     existing.push(s)
     signalsByCity.set(s.city_key, existing)
@@ -37,7 +55,7 @@ export function WeatherPanel({ forecasts, signals }: Props) {
 
   return (
     <div className="space-y-1 overflow-y-auto max-h-full">
-      {forecasts.map(f => {
+      {resolvedForecasts.map(f => {
         const citySignals = signalsByCity.get(f.city_key) || []
         const actionable = citySignals.filter(s => s.actionable)
         const bestEdge = citySignals.length > 0

@@ -1,12 +1,14 @@
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine
+  ReferenceLine,
+  Brush,
 } from 'recharts'
 import { motion } from 'framer-motion'
 import type { EquityPoint } from '../types'
@@ -18,15 +20,31 @@ interface Props {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload.length) return null
-  const value = payload[0].value
-  const isPositive = value >= 0
+
+  const pnlEntry = payload.find((p: any) => p.dataKey === 'pnl')
+  const bankrollEntry = payload.find((p: any) => p.dataKey === 'bankroll')
+
+  const pnl = pnlEntry?.value ?? 0
+  const bankroll = bankrollEntry?.value ?? 0
+  const isPnlPositive = pnl >= 0
 
   return (
-    <div className="bg-[#0a0a0a] border border-neutral-800 px-2 py-1.5">
-      <p className="text-[10px] text-neutral-500 mb-0.5">{label}</p>
-      <p className={`text-sm font-semibold tabular-nums ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-        {isPositive ? '+' : ''}${value.toFixed(2)}
-      </p>
+    <div className="bg-[#0a0a0a] border border-neutral-800 px-2 py-1.5 min-w-[110px]">
+      <p className="text-[9px] text-neutral-600 mb-1 truncate max-w-[140px]">{label}</p>
+      <div className="space-y-0.5">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[9px] text-neutral-500">Balance</span>
+          <span className="text-[10px] font-semibold tabular-nums text-neutral-200">
+            ${bankroll.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[9px] text-neutral-500">P&L</span>
+          <span className={`text-[10px] font-semibold tabular-nums ${isPnlPositive ? 'text-green-500' : 'text-red-500'}`}>
+            {isPnlPositive ? '+' : ''}${pnl.toFixed(2)}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -45,15 +63,29 @@ export function EquityChart({ data, initialBankroll }: Props) {
     { timestamp: 'Start', pnl: 0, bankroll: initialBankroll },
     ...data.map(d => ({
       ...d,
-      timestamp: new Date(d.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-    }))
+      timestamp: new Date(d.timestamp).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }),
+    })),
   ]
 
-  const currentPnl = data.length > 0 ? data[data.length - 1].pnl : 0
+  const currentPnl = data[data.length - 1].pnl
   const isPositive = currentPnl >= 0
+
   const minPnl = Math.min(0, ...data.map(d => d.pnl))
   const maxPnl = Math.max(0, ...data.map(d => d.pnl))
-  const padding = Math.max(Math.abs(minPnl), Math.abs(maxPnl)) * 0.2
+  const pnlPadding = Math.max(Math.abs(minPnl), Math.abs(maxPnl)) * 0.2 || 1
+
+  const allBankrolls = [initialBankroll, ...data.map(d => d.bankroll)]
+  const minBankroll = Math.min(...allBankrolls)
+  const maxBankroll = Math.max(...allBankrolls)
+  const bkPadding = (maxBankroll - minBankroll) * 0.15 || 2
+
+  const brushStart = Math.max(0, chartData.length - 20)
 
   const gradientId = `equityGradient-${isPositive ? 'green' : 'red'}`
 
@@ -65,19 +97,11 @@ export function EquityChart({ data, initialBankroll }: Props) {
       transition={{ duration: 0.5 }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 5, right: 8, left: -15, bottom: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="5%"
-                stopColor={isPositive ? '#22c55e' : '#ef4444'}
-                stopOpacity={0.25}
-              />
-              <stop
-                offset="95%"
-                stopColor={isPositive ? '#22c55e' : '#ef4444'}
-                stopOpacity={0}
-              />
+              <stop offset="5%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity={0.2} />
+              <stop offset="95%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity={0} />
             </linearGradient>
           </defs>
 
@@ -89,34 +113,74 @@ export function EquityChart({ data, initialBankroll }: Props) {
             fontSize={9}
             tickLine={false}
             axisLine={false}
-            dy={5}
+            dy={4}
             fontFamily="JetBrains Mono"
+            interval="preserveStartEnd"
           />
 
           <YAxis
+            yAxisId="pnl"
+            orientation="left"
             stroke="#525252"
             fontSize={9}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => `$${value}`}
-            domain={[minPnl - padding, maxPnl + padding]}
+            tickFormatter={(v) => `$${v}`}
+            domain={[minPnl - pnlPadding, maxPnl + pnlPadding]}
             dx={-5}
             fontFamily="JetBrains Mono"
           />
 
+          <YAxis
+            yAxisId="bankroll"
+            orientation="right"
+            stroke="#404040"
+            fontSize={9}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v) => `$${v.toFixed(0)}`}
+            domain={[minBankroll - bkPadding, maxBankroll + bkPadding]}
+            dx={5}
+            fontFamily="JetBrains Mono"
+            width={45}
+          />
+
           <Tooltip content={<CustomTooltip />} />
 
-          <ReferenceLine y={0} stroke="#262626" strokeDasharray="3 3" />
+          <ReferenceLine yAxisId="pnl" y={0} stroke="#262626" strokeDasharray="3 3" />
 
           <Area
+            yAxisId="pnl"
             type="monotone"
             dataKey="pnl"
             stroke={isPositive ? '#22c55e' : '#ef4444'}
             strokeWidth={1.5}
             fill={`url(#${gradientId})`}
             animationDuration={800}
+            dot={false}
           />
-        </AreaChart>
+
+          <Line
+            yAxisId="bankroll"
+            type="monotone"
+            dataKey="bankroll"
+            stroke="#6366f1"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+            dot={false}
+            animationDuration={800}
+          />
+
+          <Brush
+            dataKey="timestamp"
+            height={16}
+            stroke="#262626"
+            fill="#0a0a0a"
+            travellerWidth={5}
+            startIndex={brushStart}
+            style={{ fontSize: 8 }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </motion.div>
   )

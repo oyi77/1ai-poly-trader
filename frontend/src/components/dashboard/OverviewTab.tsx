@@ -203,12 +203,15 @@ export function OverviewTab({
             <MicrostructurePanel micro={micro} />
           </motion.div>
         )}
-        <div className="border-b border-neutral-800" style={{ height: '25%', minHeight: '150px' }}>
+        <div className="border-b border-neutral-800" style={{ height: '35%', minHeight: '180px' }}>
           <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Equity</span>
-            <span className={`text-[10px] tabular-nums ${stats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(0)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] tabular-nums text-neutral-200">${stats.totalEquity.toFixed(0)}</span>
+              <span className={`text-[10px] tabular-nums ${stats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(0)}
+              </span>
+            </div>
           </div>
           <div className="h-[calc(100%-24px)] p-1">
             <EquityChart data={equityCurve} initialBankroll={stats.bankroll - stats.pnl} />

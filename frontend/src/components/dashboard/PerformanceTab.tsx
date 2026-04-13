@@ -1,11 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import { useStats } from '../../hooks/useStats'
-import { fetchHealth, fetchTrades, fetchStrategyStats, fetchStrategies } from '../../api'
+import { fetchHealth, fetchTrades, fetchStrategyStats, fetchStrategies, fetchDashboard } from '../../api'
 import type { StrategyHealth, StrategyPnL } from '../../api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { EquityChart } from '../EquityChart'
 
 export function PerformanceTab() {
   const { pnl, bankroll, winRate, trades } = useStats()
+
+  const { data: dashboardData } = useQuery({
+    queryKey: ['dashboard-equity-perf'],
+    queryFn: fetchDashboard,
+    refetchInterval: 30_000,
+  })
+
+  const equityCurve = dashboardData?.equity_curve ?? []
+  const initialBankroll = dashboardData?.stats?.initial_bankroll ?? 10000
 
   const { data: health } = useQuery({
     queryKey: ['health-perf'],
@@ -65,6 +75,14 @@ export function PerformanceTab() {
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
+      {/* Equity Chart */}
+      <div>
+        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Equity Curve</div>
+        <div className="border border-neutral-800 bg-neutral-900/20" style={{ height: '200px' }}>
+          <EquityChart data={equityCurve} initialBankroll={initialBankroll} />
+        </div>
+      </div>
+
       {/* Key Metrics Grid */}
       <div>
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Key Metrics</div>

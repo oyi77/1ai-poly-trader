@@ -61,6 +61,9 @@ export function useStats() {
     isRunning: stats.is_running,
     lastRun: stats.last_run,
     mode: stats.mode,
+    openExposure: stats.open_exposure ?? 0,
+    openTrades: stats.open_trades ?? 0,
+    totalEquity: bankroll + (stats.open_exposure ?? 0),
 
     // Paper/Live specific
     paperStats: stats.paper,

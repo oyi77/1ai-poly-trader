@@ -93,6 +93,8 @@ export interface BotStats {
   live?: PnlModeStats
   mode?: string
   pnl_source?: string
+  open_exposure?: number
+  open_trades?: number
 }
 
 export interface EquityPoint {
