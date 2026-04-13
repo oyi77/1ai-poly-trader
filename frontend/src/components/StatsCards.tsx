@@ -8,14 +8,14 @@ export function StatsCards() {
   const { pnl, wins, trades, bankroll, winRate, returnPercent, mode, isRunning, openExposure, openTrades, totalEquity } = useStats()
   const modeLabel = mode ? mode.toUpperCase() : ''
 
-  const { data } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboard,
     refetchInterval: 10000,
     staleTime: 5000
   })
 
-  const equityCurve = data?.equity_curve ?? []
+  const equityCurve = (isLoading || isError) ? [] : (data?.equity_curve ?? [])
 
   return (
     <div className="flex items-center gap-3">

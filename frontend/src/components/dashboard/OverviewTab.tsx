@@ -51,14 +51,14 @@ interface SignalsPanelProps {
 function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimulating }: SignalsPanelProps) {
   const [tab, setTab] = useState<'live' | 'history'>('live')
 
-  const { data: historyData } = useQuery({
+  const { data: historyData, isLoading, isError } = useQuery({
     queryKey: ['signals-history'],
     queryFn: () => fetchSignalHistory({ limit: 100 }),
     enabled: tab === 'history',
     refetchInterval: tab === 'history' ? 30_000 : false,
   })
 
-  const history: SignalHistoryRow[] = historyData?.items ?? []
+  const history: SignalHistoryRow[] = (isLoading || isError) ? [] : (historyData?.items ?? [])
 
   return (
     <div className="flex flex-col min-h-0" style={{ height: '50%' }}>

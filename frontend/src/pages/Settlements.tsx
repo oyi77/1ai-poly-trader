@@ -15,7 +15,7 @@ interface SettlementRow extends Record<string, unknown> {
 }
 
 export default function Settlements() {
-  const { data: settlements } = useQuery({
+  const { data: settlements, isLoading, isError } = useQuery({
     queryKey: ['settlements'],
     queryFn: () => fetchSettlements(100, 0),
     refetchInterval: 30000,
@@ -75,19 +75,25 @@ export default function Settlements() {
           <div className="px-3 py-2 border-b border-neutral-800 flex items-center justify-between">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Settlement History</span>
             <span className="text-[10px] text-neutral-600 tabular-nums">
-              {settlements?.length ?? 0} records
+              {isLoading || isError ? 0 : (settlements?.length ?? 0)} records
             </span>
           </div>
 
           <div className="px-3 py-2">
-            <DataTable<SettlementRow>
-              columns={columns}
-              rows={(settlements as SettlementRow[]) ?? []}
-              total={settlements?.length ?? 0}
-              loading={false}
-              emptyMessage="No settlements yet — trades settle after market resolution"
-              keyField="id"
-            />
+            {isLoading ? (
+              <div className="flex items-center justify-center h-32 text-[10px] text-neutral-500">Loading...</div>
+            ) : isError ? (
+              <div className="flex items-center justify-center h-32 text-[10px] text-red-500/60">Failed to load settlements</div>
+            ) : (
+              <DataTable<SettlementRow>
+                columns={columns}
+                rows={(settlements as SettlementRow[]) ?? []}
+                total={settlements?.length ?? 0}
+                loading={false}
+                emptyMessage="No settlements yet — trades settle after market resolution"
+                keyField="id"
+              />
+            )}
           </div>
         </div>
       </div>

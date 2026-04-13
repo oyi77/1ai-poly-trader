@@ -328,7 +328,7 @@ export function AITab() {
               <tbody>
                 {paramRows.map(r => {
                   const current = parseFloat(pval(r.settingsKey, '0'))
-                  const suggested = (result.suggestions as any)[r.key]
+                  const suggested = result.suggestions[r.key]
                   return (
                     <tr key={r.key} className="border-b border-neutral-800/50">
                       <td className="px-2 py-1 text-neutral-400">{r.label}</td>

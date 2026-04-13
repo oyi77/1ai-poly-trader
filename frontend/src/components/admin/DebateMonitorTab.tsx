@@ -79,12 +79,19 @@ function DebateTranscriptView({ id }: { id: number }) {
   }
 
   // The structure returned by to_transcript_dict()
-  const tWrapper = signalData.debate_transcript as any
+  interface DebateTranscript {
+    debate_transcript?: DebateTranscript
+    bull_arguments?: Array<{ round: number; probability?: number; reasoning?: string; raw_response?: string }>
+    bear_arguments?: Array<{ round: number; probability?: number; reasoning?: string; raw_response?: string }>
+    judge?: { reasoning?: string; raw_response?: string; consensus_probability?: number; confidence?: number }
+    data_sources?: Array<string | { title?: string; name?: string; url?: string }>
+  }
+  const tWrapper = signalData.debate_transcript as DebateTranscript | undefined
   const transcript = tWrapper?.debate_transcript || tWrapper
   const bulls = transcript?.bull_arguments || []
   const bears = transcript?.bear_arguments || []
   const judge = transcript?.judge
-  const dataSources = tWrapper?.data_sources || signalData.data_sources || []
+  const dataSources = tWrapper?.data_sources || (signalData.data_sources as Array<string | { title?: string; name?: string; url?: string }>) || []
 
   return (
     <div className="p-4 space-y-6 bg-black text-[10px]">

@@ -9,11 +9,14 @@ export function TradesTab() {
   const [strategyFilter, setStrategyFilter] = useState<string>('all')
   const PER_PAGE = 50
 
-  const { data: trades = [] } = useQuery({
+  const { data: trades = [], isLoading, error } = useQuery({
     queryKey: ['trades-full'],
     queryFn: () => fetchTrades(),
     refetchInterval: 15_000,
   })
+
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading...</div>
+  if (error) return <div className="flex items-center justify-center h-64 text-red-500/60 text-sm">Failed to load data</div>
 
   const filtered = trades.filter((t: any) => {
     if (modeFilter !== 'all' && t.trading_mode !== modeFilter) return false

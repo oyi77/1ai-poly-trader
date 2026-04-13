@@ -7,11 +7,14 @@ export function DecisionsTab() {
   const [stratFilter, setStratFilter] = useState<string>('all')
   const [decisionFilter, setDecisionFilter] = useState<string>('all')
 
-  const { data } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['decisions-tab'],
     queryFn: () => fetchDecisions({ limit: 100 }),
     refetchInterval: 20_000,
   })
+
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading...</div>
+  if (error) return <div className="flex items-center justify-center h-64 text-red-500/60 text-sm">Failed to load data</div>
 
   const rows: DecisionLogRow[] = data?.items ?? []
   const strategies = Array.from(new Set(rows.map(r => r.strategy).filter(Boolean)))

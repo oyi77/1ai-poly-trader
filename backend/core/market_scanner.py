@@ -59,13 +59,35 @@ async def fetch_all_active_markets(
 
             for m in page:
                 try:
-                    tokens = m.get("tokens", [])
-                    yes_price = float(tokens[0].get("price", 0.5)) if tokens else 0.5
-                    no_price = (
-                        float(tokens[1].get("price", 0.5))
-                        if len(tokens) > 1
-                        else 1.0 - yes_price
-                    )
+                    # Use outcomePrices (string list) — Gamma API's canonical price field.
+                    # tokens[] is often empty; outcomePrices is always populated.
+                    outcome_prices_raw = m.get("outcomePrices") or []
+                    if isinstance(outcome_prices_raw, str):
+                        import json as _json
+
+                        try:
+                            outcome_prices_raw = _json.loads(outcome_prices_raw)
+                        except Exception:
+                            outcome_prices_raw = []
+
+                    if outcome_prices_raw:
+                        yes_price = float(outcome_prices_raw[0])
+                        no_price = (
+                            float(outcome_prices_raw[1])
+                            if len(outcome_prices_raw) > 1
+                            else 1.0 - yes_price
+                        )
+                    else:
+                        # Fallback to tokens if outcomePrices missing
+                        tokens = m.get("tokens", [])
+                        yes_price = (
+                            float(tokens[0].get("price", 0.5)) if tokens else 0.5
+                        )
+                        no_price = (
+                            float(tokens[1].get("price", 0.5))
+                            if len(tokens) > 1
+                            else 1.0 - yes_price
+                        )
                     # Clamp to valid prediction market range — API can return 0 or values >1
                     yes_price = max(0.01, min(0.99, yes_price))
                     no_price = max(0.01, min(0.99, no_price))

@@ -541,7 +541,7 @@ export async function fetchSignalConfig(): Promise<SignalConfig> {
 
 export async function fetchAISuggest(): Promise<{
   status: string
-  suggestions: Record<string, unknown>
+  suggestions: Record<string, number | null>
   analysis: Record<string, unknown>
   ai_provider: string
   raw_response?: string

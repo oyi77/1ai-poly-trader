@@ -6,13 +6,13 @@ export function NavBar({ title }: { title: string }) {
   const location = useLocation()
 
   // Fetch pending approvals count to show badge — only when authenticated
-  const { data: pendingApprovals } = useQuery({
+  const { data: pendingApprovals, isLoading, isError } = useQuery({
     queryKey: ['pending-approvals-nav'],
     queryFn: fetchPendingApprovals,
     refetchInterval: 10000, // Refresh every 10s
     enabled: !!getAdminApiKey(),
   })
-  const pendingCount = pendingApprovals?.length || 0
+  const pendingCount = isLoading || isError ? 0 : pendingApprovals?.length || 0
 
   return (
     <nav className="shrink-0 border-b border-neutral-800 px-4 py-2 flex items-center justify-between bg-black">

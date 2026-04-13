@@ -19,18 +19,25 @@ function AgreementBar({ value }: { value: number }) {
 }
 
 export function WeatherPanel({ forecasts, signals }: Props) {
-  const { data: forecastData } = useQuery({
+  const { data: forecastData, isLoading: forecastsLoading, isError: forecastsError } = useQuery({
     queryKey: ['weather-forecasts'],
     queryFn: fetchWeatherForecasts,
     refetchInterval: 60_000,
     staleTime: 30_000,
   })
-  const { data: signalData } = useQuery({
+  const { data: signalData, isLoading: signalsLoading, isError: signalsError } = useQuery({
     queryKey: ['weather-signals'],
     queryFn: fetchWeatherSignals,
     refetchInterval: 60_000,
     staleTime: 30_000,
   })
+
+  if (forecastsLoading || signalsLoading) {
+    return <div className="text-[10px] text-neutral-500 p-2 text-center h-full flex items-center justify-center">Loading...</div>
+  }
+  if (forecastsError || signalsError) {
+    return <div className="text-[10px] text-red-500/60 p-2 text-center h-full flex items-center justify-center">Weather unavailable</div>
+  }
 
   const resolvedForecasts = (forecasts && forecasts.length > 0) ? forecasts : (forecastData ?? [])
   const resolvedSignals = (signals && signals.length > 0) ? signals : (signalData ?? [])

@@ -8,11 +8,14 @@ export function SignalsTab() {
   const [execFilter, setExecFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
 
-  const { data } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['signal-history-tab'],
     queryFn: () => fetchSignalHistory({ limit: 200 }),
     refetchInterval: 30_000,
   })
+
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading...</div>
+  if (error) return <div className="flex items-center justify-center h-64 text-red-500/60 text-sm">Failed to load data</div>
 
   const rows: SignalHistoryRow[] = data?.items ?? []
   const filtered = rows.filter(r => {
