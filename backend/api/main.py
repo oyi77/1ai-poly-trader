@@ -613,9 +613,12 @@ async def get_dashboard(
             settled=t.settled,
             result=t.result,
             pnl=t.pnl,
-            strategy=contexts[t.id].strategy if t.id in contexts else None,
-            signal_source=contexts[t.id].signal_source if t.id in contexts else None,
-            confidence=contexts[t.id].confidence if t.id in contexts else None,
+            strategy=(contexts[t.id].strategy if t.id in contexts else None)
+            or getattr(t, "strategy", None),
+            signal_source=(contexts[t.id].signal_source if t.id in contexts else None)
+            or getattr(t, "signal_source", None),
+            confidence=(contexts[t.id].confidence if t.id in contexts else None)
+            or getattr(t, "confidence", None),
         )
         for t in trades
     ]
