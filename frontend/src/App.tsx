@@ -1,18 +1,10 @@
-import React, { lazy, Suspense } from 'react'
+import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Admin from './pages/Admin'
 import { TradeNotifications } from './components/TradeNotifications'
 import { PageLoader } from './components/PageLoader'
-
-const WhaleTracker = lazy(() => import('./pages/WhaleTracker'))
-const Settlements = lazy(() => import('./pages/Settlements'))
-const MarketIntel = lazy(() => import('./pages/MarketIntel'))
-const DecisionLog = lazy(() => import('./pages/DecisionLog'))
-const TradingTerminal = lazy(() => import('./pages/TradingTerminal'))
-const PendingApprovals = lazy(() => import('./pages/PendingApprovals'))
-const EdgeTracker = lazy(() => import('./pages/EdgeTracker'))
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -79,13 +71,14 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<Admin />} />
-          <Route path="/whale-tracker" element={<Suspense fallback={<PageLoader />}><WhaleTracker /></Suspense>} />
-          <Route path="/settlements" element={<Suspense fallback={<PageLoader />}><Settlements /></Suspense>} />
-          <Route path="/market-intel" element={<Suspense fallback={<PageLoader />}><MarketIntel /></Suspense>} />
-          <Route path="/decisions" element={<Suspense fallback={<PageLoader />}><DecisionLog /></Suspense>} />
-          <Route path="/trading-terminal" element={<Suspense fallback={<PageLoader />}><TradingTerminal /></Suspense>} />
-          <Route path="/pending-approvals" element={<Suspense fallback={<PageLoader />}><PendingApprovals /></Suspense>} />
-          <Route path="/edge-tracker" element={<Suspense fallback={<PageLoader />}><EdgeTracker /></Suspense>} />
+          {/* Legacy standalone routes → redirect to Dashboard tabs */}
+          <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/market-intel" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/decisions" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/trading-terminal" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/pending-approvals" element={<Navigate to="/admin" replace />} />
+          <Route path="/edge-tracker" element={<Navigate to="/dashboard" replace />} />
           <Route path="/docs/*" element={<DocsRedirect />} />
           <Route path="/docs" element={<DocsRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />

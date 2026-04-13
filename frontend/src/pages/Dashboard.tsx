@@ -19,6 +19,12 @@ import { MarketsTab } from '../components/dashboard/MarketsTab'
 import { LeaderboardTab } from '../components/dashboard/LeaderboardTab'
 import { DecisionsTab } from '../components/dashboard/DecisionsTab'
 import { PerformanceTab } from '../components/dashboard/PerformanceTab'
+import { WhaleTrackerTab } from '../components/dashboard/WhaleTrackerTab'
+import { TradingTerminalTab } from '../components/dashboard/TradingTerminalTab'
+import { MarketIntelTab } from '../components/dashboard/MarketIntelTab'
+import { DecisionLogTab } from '../components/dashboard/DecisionLogTab'
+import { EdgeTrackerTab } from '../components/dashboard/EdgeTrackerTab'
+import { SettlementsTab } from '../components/dashboard/SettlementsTab'
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
 
@@ -54,7 +60,7 @@ function RefreshBar({ interval }: { interval: number }) {
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 
-const DASHBOARD_TABS = ['Overview', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance'] as const
+const DASHBOARD_TABS = ['Overview', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance', 'Whale Tracker', 'Trading Terminal', 'Market Intel', 'Decision Log', 'Edge Tracker', 'Settlements'] as const
 type DashboardTab = typeof DASHBOARD_TABS[number]
 
 export default function Dashboard() {
@@ -242,6 +248,12 @@ export default function Dashboard() {
         {activeTab === 'Leaderboard' && <LeaderboardTab />}
         {activeTab === 'Decisions' && <DecisionsTab />}
         {activeTab === 'Performance' && <PerformanceTab />}
+        {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
+        {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
+        {activeTab === 'Market Intel' && <MarketIntelTab />}
+        {activeTab === 'Decision Log' && <DecisionLogTab />}
+        {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
+        {activeTab === 'Settlements' && <SettlementsTab />}
       </div>
 
       {/* FOOTER */}
