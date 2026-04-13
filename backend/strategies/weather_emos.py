@@ -497,6 +497,19 @@ class WeatherEMOSStrategy(BaseStrategy):
                 trade_side = signal_data.get("trade_side", "YES")
                 entry_price = market_mid if trade_side == "YES" else (1.0 - market_mid)
 
+                # Extract token_id from market metadata
+                clob_token_id = None
+                clob_token_ids = market.metadata.get("clobTokenIds") or []
+                if isinstance(clob_token_ids, str):
+                    import json as _json
+
+                    try:
+                        clob_token_ids = _json.loads(clob_token_ids)
+                    except Exception:
+                        clob_token_ids = []
+                if clob_token_ids:
+                    clob_token_id = str(clob_token_ids[0])
+
                 bankroll = 100.0
                 try:
                     from backend.models.database import BotState
@@ -527,6 +540,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                     {
                         "decision": "BUY",
                         "market_ticker": market.ticker,
+                        "token_id": clob_token_id,
                         "direction": trade_side.lower(),
                         "confidence": min(1.0, abs(edge)),
                         "edge": edge,

@@ -188,6 +188,20 @@ class BtcOracleStrategy(BaseStrategy):
 
             if decision == "BUY":
                 result.trades_attempted += 1
+
+                # Extract token_id from market metadata (clobTokenIds)
+                clob_token_id = None
+                clob_token_ids = market.metadata.get("clobTokenIds") or []
+                if isinstance(clob_token_ids, str):
+                    import json as _json
+
+                    try:
+                        clob_token_ids = _json.loads(clob_token_ids)
+                    except Exception:
+                        clob_token_ids = []
+                if clob_token_ids:
+                    clob_token_id = str(clob_token_ids[0])
+
                 # Populate result.decisions so scan_and_trade_job() / strategy_cycle_job()
                 # can feed them into strategy_executor.execute_decisions() for paper + live mode.
                 oracle_entry_price = (
@@ -199,6 +213,7 @@ class BtcOracleStrategy(BaseStrategy):
                     {
                         "decision": "BUY",
                         "market_ticker": market.ticker,
+                        "token_id": clob_token_id,
                         "direction": direction,
                         "confidence": min(1.0, max(0.0, edge + min_edge)),
                         "edge": edge,

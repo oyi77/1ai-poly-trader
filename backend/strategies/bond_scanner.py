@@ -145,6 +145,19 @@ class BondScannerStrategy(BaseStrategy):
             if slug in existing_tickers:
                 continue
 
+            # Extract token_id from clobTokenIds
+            clob_token_id = None
+            clob_token_ids = market.get("clobTokenIds") or []
+            if isinstance(clob_token_ids, str):
+                import json as _json
+
+                try:
+                    clob_token_ids = _json.loads(clob_token_ids)
+                except Exception:
+                    clob_token_ids = []
+            if clob_token_ids:
+                clob_token_id = str(clob_token_ids[0])
+
             # Price filter — check outcomePrices
             outcome_prices_raw = market.get("outcomePrices") or []
             outcomes = market.get("outcomes") or []
@@ -244,6 +257,7 @@ class BondScannerStrategy(BaseStrategy):
 
             decision = {
                 "market_ticker": slug,
+                "token_id": clob_token_id,
                 "market_question": market.get("question")
                 or market.get("title")
                 or slug,
