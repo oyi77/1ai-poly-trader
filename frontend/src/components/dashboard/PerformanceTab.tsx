@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { EquityChart } from '../EquityChart'
 
 export function PerformanceTab() {
-  const { pnl, bankroll, winRate, trades } = useStats()
+  const { pnl, bankroll, winRate } = useStats()
 
   const { data: dashboardData } = useQuery({
     queryKey: ['dashboard-equity-perf'],
@@ -44,12 +44,12 @@ export function PerformanceTab() {
   const strategies: StrategyHealth[] = health?.strategies ?? []
   const strategyPnL: StrategyPnL[] = strategyStatsData?.strategies ?? []
 
-  const paperTrades = allTrades.filter((t: any) => t.trading_mode === 'paper')
-  const liveTrades = allTrades.filter((t: any) => t.trading_mode === 'live')
-  const paperWins = paperTrades.filter((t: any) => t.result === 'win').length
-  const paperSettled = paperTrades.filter((t: any) => t.result === 'win' || t.result === 'loss').length
-  const liveWins = liveTrades.filter((t: any) => t.result === 'win').length
-  const liveSettled = liveTrades.filter((t: any) => t.result === 'win' || t.result === 'loss').length
+  const paperTrades = allTrades.filter((t) => t.trading_mode === 'paper')
+  const liveTrades = allTrades.filter((t) => t.trading_mode === 'live')
+  const paperWins = paperTrades.filter((t) => t.result === 'win').length
+  const paperSettled = paperTrades.filter((t) => t.result === 'win' || t.result === 'loss').length
+  const liveWins = liveTrades.filter((t) => t.result === 'win').length
+  const liveSettled = liveTrades.filter((t) => t.result === 'win' || t.result === 'loss').length
 
   const chartData = [
     { name: 'Paper', winRate: paperSettled > 0 ? (paperWins / paperSettled) * 100 : 0 },
@@ -58,11 +58,11 @@ export function PerformanceTab() {
 
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
   const dailyPnl = allTrades
-    .filter((t: any) => t.timestamp && new Date(t.timestamp) >= todayStart)
-    .reduce((s: number, t: any) => s + (t.pnl ?? 0), 0)
+    .filter((t) => t.timestamp && new Date(t.timestamp) >= todayStart)
+    .reduce((s: number, t) => s + (t.pnl ?? 0), 0)
 
   const avgTradeSize = allTrades.length > 0
-    ? allTrades.reduce((s: number, t: any) => s + (t.size ?? 0), 0) / allTrades.length
+    ? allTrades.reduce((s: number, t) => s + (t.size ?? 0), 0) / allTrades.length
     : 0
 
   // Strategy P&L totals row
@@ -91,7 +91,7 @@ export function PerformanceTab() {
             { label: 'Bankroll', value: `$${bankroll.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, color: 'text-neutral-200' },
             { label: 'Total PNL', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, color: pnl >= 0 ? 'text-green-500' : 'text-red-500' },
             { label: 'Win Rate', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? 'text-green-500' : 'text-amber-400' },
-            { label: 'Total Trades', value: String(trades), color: 'text-neutral-300' },
+            { label: 'Total Trades', value: String(allTrades.length), color: 'text-neutral-300' },
             { label: 'Avg Trade Size', value: `$${avgTradeSize.toFixed(0)}`, color: 'text-neutral-300' },
             { label: 'Daily PNL', value: `${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`, color: dailyPnl >= 0 ? 'text-green-500' : 'text-red-500' },
           ].map(m => (
