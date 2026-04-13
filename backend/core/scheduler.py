@@ -27,6 +27,7 @@ from backend.core.scheduling_strategies import (
 )
 from backend.core.auto_improve import auto_improve_job
 from backend.core.strategy_ranker import strategy_ranking_job
+from backend.core.agi_jobs import self_review_job, research_pipeline_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trading_bot")
@@ -259,6 +260,34 @@ def start_scheduler():
             id="auto_improve",
             replace_existing=True,
             max_instances=1,
+        )
+
+    # Self-review job - daily attribution, postmortems, degradation detection
+    if settings.SELF_REVIEW_ENABLED:
+        scheduler.add_job(
+            self_review_job,
+            IntervalTrigger(days=settings.SELF_REVIEW_INTERVAL_DAYS),
+            id="self_review",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info(
+            "Scheduled self-review job every %d day(s)",
+            settings.SELF_REVIEW_INTERVAL_DAYS,
+        )
+
+    # Research pipeline job - autonomous market research
+    if settings.RESEARCH_PIPELINE_ENABLED:
+        scheduler.add_job(
+            research_pipeline_job,
+            IntervalTrigger(hours=settings.RESEARCH_PIPELINE_INTERVAL_HOURS),
+            id="research_pipeline",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info(
+            "Scheduled research pipeline job every %d hour(s)",
+            settings.RESEARCH_PIPELINE_INTERVAL_HOURS,
         )
 
     # Initialize queue worker if enabled

@@ -162,6 +162,14 @@ class Settings(BaseSettings):
     AUTO_IMPROVE_INTERVAL_DAYS: int = 7  # Run weekly
     AUTO_IMPROVE_TRADE_LIMIT: int = 100  # Analyze last N trades
 
+    # Self-review job (daily attribution, postmortems, degradation detection)
+    SELF_REVIEW_ENABLED: bool = True
+    SELF_REVIEW_INTERVAL_DAYS: int = 1  # Run daily
+
+    # Research pipeline job (continuous market research)
+    RESEARCH_PIPELINE_ENABLED: bool = True
+    RESEARCH_PIPELINE_INTERVAL_HOURS: int = 4  # Run every 4 hours
+
     # Phase 2 feature flags
     NEWS_FEED_ENABLED: bool = False
     ARBITRAGE_DETECTOR_ENABLED: bool = False
