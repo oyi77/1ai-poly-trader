@@ -66,11 +66,12 @@ async def execute_decision(
                 )
                 return None
 
-            bankroll = (
-                state.bankroll
-                if settings.TRADING_MODE != "paper"
-                else state.paper_bankroll
-            )
+            if settings.TRADING_MODE == "paper":
+                bankroll = state.paper_bankroll or 0.0
+            elif settings.TRADING_MODE == "testnet":
+                bankroll = state.testnet_bankroll or 0.0
+            else:
+                bankroll = state.bankroll or settings.INITIAL_BANKROLL
             current_exposure = _get_current_exposure(db)
 
             risk = risk_manager.validate_trade(
@@ -166,6 +167,10 @@ async def execute_decision(
             if settings.TRADING_MODE == "paper" and state:
                 state.paper_bankroll = max(
                     0.0, (state.paper_bankroll or 0.0) - adjusted_size
+                )
+            elif settings.TRADING_MODE == "testnet" and state:
+                state.testnet_bankroll = max(
+                    0.0, (state.testnet_bankroll or 0.0) - adjusted_size
                 )
 
             signal_record = Signal(

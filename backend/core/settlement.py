@@ -220,11 +220,26 @@ async def update_bot_state_with_settlements(
                         state.paper_bankroll or settings.INITIAL_BANKROLL
                     ) + trade.size
                     logger.info(
-                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to bankroll"
+                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to paper bankroll"
                     )
-            else:
+            elif trading_mode == "testnet":
                 if is_real_trade:
-                    # Same fix for live mode: return stake + net PNL
+                    state.testnet_pnl = (state.testnet_pnl or 0.0) + trade.pnl
+                    state.testnet_bankroll = (
+                        (state.testnet_bankroll or 0.0) + trade.size + trade.pnl
+                    )
+                    state.testnet_trades = (state.testnet_trades or 0) + 1
+                    if trade.result == "win":
+                        state.testnet_wins = (state.testnet_wins or 0) + 1
+                elif is_expired_or_push:
+                    state.testnet_bankroll = (
+                        state.testnet_bankroll or 0.0
+                    ) + trade.size
+                    logger.info(
+                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to testnet bankroll"
+                    )
+            else:  # live mode — isolated from testnet
+                if is_real_trade:
                     state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
                     state.bankroll = (
                         (state.bankroll or settings.INITIAL_BANKROLL)
@@ -263,6 +278,11 @@ async def update_bot_state_with_settlements(
             logger.info(
                 f"Updated bot state (paper): Bankroll ${state.paper_bankroll:.2f}, "
                 f"P&L ${state.paper_pnl:+.2f}, {state.paper_trades} trades"
+            )
+        elif settings.TRADING_MODE == "testnet":
+            logger.info(
+                f"Updated bot state (testnet): Bankroll ${state.testnet_bankroll:.2f}, "
+                f"P&L ${state.testnet_pnl:+.2f}, {state.testnet_trades} trades"
             )
         else:
             logger.info(

@@ -149,6 +149,12 @@ class BotState(Base):
     paper_trades = Column(Integer, default=0)
     paper_wins = Column(Integer, default=0)
 
+    # Testnet trading tracking (isolated from live)
+    testnet_bankroll = Column(Float, default=100.0)
+    testnet_pnl = Column(Float, default=0.0)
+    testnet_trades = Column(Integer, default=0)
+    testnet_wins = Column(Integer, default=0)
+
     # Generic JSON blob for strategy heartbeats and ad-hoc state
     misc_data = Column(Text, nullable=True)
 
