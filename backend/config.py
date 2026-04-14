@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     POLYMARKET_API_SECRET: Optional[str] = None
     POLYMARKET_API_PASSPHRASE: Optional[str] = None
 
+    # Polymarket Builder Program credentials (for testnet/live gasless trading)
+    POLYMARKET_BUILDER_API_KEY: Optional[str] = None
+    POLYMARKET_BUILDER_SECRET: Optional[str] = None
+    POLYMARKET_BUILDER_PASSPHRASE: Optional[str] = None
+
+    # Polymarket Relayer API (gasless on-chain operations)
+    POLYMARKET_RELAYER_API_KEY: Optional[str] = None
+    POLYMARKET_RELAYER_API_KEY_ADDRESS: Optional[str] = None
+
     # Kalshi API
     KALSHI_API_KEY_ID: Optional[str] = None
     KALSHI_PRIVATE_KEY_PATH: Optional[str] = None
@@ -64,7 +73,7 @@ class Settings(BaseSettings):
     # Testnet / network config
     POLYGON_AMOY_RPC: str = "https://rpc-amoy.polygon.technology"
     POLYGON_AMOY_CHAIN_ID: int = 80002
-    POLYMARKET_TESTNET_CLOB_HOST: str = "https://clob.polymarket.com"
+    POLYMARKET_TESTNET_CLOB_HOST: str = "https://clob-staging.polymarket.com"
 
     # Bot settings - BTC 5-MIN TRADING
     INITIAL_BANKROLL: float = 100.0
@@ -203,15 +212,27 @@ class Settings(BaseSettings):
     WEBSEARCH_TIMEOUT_SECONDS: float = 15.0
 
     @model_validator(mode="after")
-    def _validate_live_trading_credentials(self) -> "Settings":
+    def _validate_trading_credentials(self) -> "Settings":
+        import logging
+
+        _logger = logging.getLogger("trading_bot.config")
         if self.TRADING_MODE == "live":
-            # Only POLYMARKET_PRIVATE_KEY is required — API credentials are
-            # auto-derived at startup via create_or_derive_api_creds().
             if not self.POLYMARKET_PRIVATE_KEY:
                 raise ValueError(
                     "TRADING_MODE=live requires POLYMARKET_PRIVATE_KEY to be set. "
                     "API credentials (api_key, api_secret, api_passphrase) are "
                     "auto-derived from the private key at startup."
+                )
+        if self.TRADING_MODE == "testnet":
+            if not self.POLYMARKET_PRIVATE_KEY:
+                raise ValueError(
+                    "TRADING_MODE=testnet requires POLYMARKET_PRIVATE_KEY to be set."
+                )
+            if not self.POLYMARKET_BUILDER_API_KEY:
+                _logger.warning(
+                    "TRADING_MODE=testnet without POLYMARKET_BUILDER_API_KEY — "
+                    "CLOB order placement will use standard auth. Set Builder "
+                    "credentials for gasless trading."
                 )
         return self
 
