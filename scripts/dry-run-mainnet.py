@@ -482,6 +482,7 @@ async def main():
         builder_api_key=settings.POLYMARKET_BUILDER_API_KEY,
         builder_secret=settings.POLYMARKET_BUILDER_SECRET,
         builder_passphrase=settings.POLYMARKET_BUILDER_PASSPHRASE,
+        signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
     ) as clob:
         await test_clob_connectivity(clob)
 
@@ -496,6 +497,7 @@ async def main():
         builder_api_key=settings.POLYMARKET_BUILDER_API_KEY,
         builder_secret=settings.POLYMARKET_BUILDER_SECRET,
         builder_passphrase=settings.POLYMARKET_BUILDER_PASSPHRASE,
+        signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
     ) as clob2:
         # Derive L2 creds first
         await clob2.create_or_derive_api_creds()

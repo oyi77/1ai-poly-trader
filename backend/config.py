@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     POLYMARKET_PRIVATE_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
     POLYMARKET_API_PASSPHRASE: Optional[str] = None
+    POLYMARKET_SIGNATURE_TYPE: int = 0  # 0=EOA, 1=Poly-Proxy (email login), 2=Poly-EOA
 
     # Polymarket Builder Program credentials (for testnet/live gasless trading)
     POLYMARKET_BUILDER_API_KEY: Optional[str] = None

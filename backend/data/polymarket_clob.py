@@ -139,6 +139,7 @@ class PolymarketCLOB:
         builder_api_key: Optional[str] = None,
         builder_secret: Optional[str] = None,
         builder_passphrase: Optional[str] = None,
+        signature_type: int = 0,
     ):
         # Backward-compat: if simulation kwarg passed, map to mode
         if simulation is not None:
@@ -152,6 +153,7 @@ class PolymarketCLOB:
         self.builder_api_key = builder_api_key
         self.builder_secret = builder_secret
         self.builder_passphrase = builder_passphrase
+        self.signature_type = signature_type
 
         self._account: Optional[LocalAccount] = None
         if private_key:
@@ -200,6 +202,7 @@ class PolymarketCLOB:
                     chain_id=self._chain_id,
                     key=private_key,
                     creds=creds,
+                    signature_type=signature_type,
                     builder_config=builder_config,
                 )
             except Exception as e:
@@ -607,8 +610,11 @@ class PolymarketCLOB:
             }
 
         try:
-            # Fetch collateral balance (USDC)
-            params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+            # Fetch collateral balance (USDC) with correct signature_type for proxy wallets
+            params = BalanceAllowanceParams(
+                asset_type=AssetType.COLLATERAL,
+                signature_type=self.signature_type if self.signature_type else None,
+            )
             resp = await asyncio.to_thread(
                 self._clob_client.get_balance_allowance, params
             )
@@ -654,4 +660,5 @@ def clob_from_settings() -> PolymarketCLOB:
         builder_api_key=settings.POLYMARKET_BUILDER_API_KEY,
         builder_secret=settings.POLYMARKET_BUILDER_SECRET,
         builder_passphrase=settings.POLYMARKET_BUILDER_PASSPHRASE,
+        signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
     )

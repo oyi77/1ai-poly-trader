@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.data.polymarket_clob import PolymarketCLOB
+from backend.config import settings
 
 
 async def test_testnet():
@@ -44,6 +45,7 @@ async def test_testnet():
         builder_api_key=builder_key,
         builder_secret=builder_secret,
         builder_passphrase=builder_pass,
+        signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
     ) as clob:
         print(f"  Account:    {clob._account.address if clob._account else 'N/A'}")
         print(f"  Mode:       {clob.mode}")

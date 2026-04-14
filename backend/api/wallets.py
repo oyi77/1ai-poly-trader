@@ -1,4 +1,5 @@
 """Wallet management routes - CRUD, active wallet, balances."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -88,9 +89,13 @@ async def create_wallet_config(
     _: None = Depends(require_admin),
 ):
     """Add a wallet to the config."""
-    existing = db.query(WalletConfig).filter(WalletConfig.address == body.address).first()
+    existing = (
+        db.query(WalletConfig).filter(WalletConfig.address == body.address).first()
+    )
     if existing:
-        raise HTTPException(status_code=409, detail=f"Wallet {body.address} already configured")
+        raise HTTPException(
+            status_code=409, detail=f"Wallet {body.address} already configured"
+        )
 
     row = WalletConfig(
         address=body.address,
@@ -157,13 +162,17 @@ async def create_wallet(_: None = Depends(require_admin)):
     """Generate a new wallet keypair."""
     try:
         from eth_account import Account
+
         acct = Account.create()
         return {
             "address": acct.address,
             "message": "Wallet created. Store your private key securely — it cannot be retrieved from this API.",
         }
     except ImportError:
-        raise HTTPException(status_code=501, detail="eth_account not installed — wallet creation disabled")
+        raise HTTPException(
+            status_code=501,
+            detail="eth_account not installed — wallet creation disabled",
+        )
 
 
 # ============================================================================
@@ -191,7 +200,9 @@ async def set_active_wallet(
     # Verify the wallet exists in config
     wallet = db.query(WalletConfig).filter(WalletConfig.address == body.address).first()
     if not wallet:
-        raise HTTPException(status_code=404, detail=f"Wallet {body.address} not configured")
+        raise HTTPException(
+            status_code=404, detail=f"Wallet {body.address} not configured"
+        )
 
     state = db.query(BotState).first()
     if not state:
@@ -233,7 +244,10 @@ async def get_wallet_balance(
             last_updated = cached.get("last_updated")
             if last_updated:
                 from datetime import timedelta
-                cache_age = datetime.now(timezone.utc) - datetime.fromisoformat(last_updated)
+
+                cache_age = datetime.now(timezone.utc) - datetime.fromisoformat(
+                    last_updated
+                )
                 if cache_age < timedelta(minutes=5):
                     return {
                         "address": address,
@@ -252,11 +266,18 @@ async def get_wallet_balance(
     if settings.POLYMARKET_PRIVATE_KEY:
         try:
             from eth_account import Account as _Acct
-            bot_address = _Acct.from_key(settings.POLYMARKET_PRIVATE_KEY).address.lower()
+
+            bot_address = _Acct.from_key(
+                settings.POLYMARKET_PRIVATE_KEY
+            ).address.lower()
         except Exception:
             pass
 
-    if settings.POLYMARKET_PRIVATE_KEY and bot_address and address.lower() == bot_address:
+    if (
+        settings.POLYMARKET_PRIVATE_KEY
+        and bot_address
+        and address.lower() == bot_address
+    ):
         try:
             async with PolymarketCLOB(
                 private_key=settings.POLYMARKET_PRIVATE_KEY,
@@ -264,6 +285,7 @@ async def get_wallet_balance(
                 api_secret=settings.POLYMARKET_API_SECRET,
                 api_passphrase=settings.POLYMARKET_API_PASSPHRASE,
                 mode=settings.TRADING_MODE,
+                signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
             ) as clob:
                 balance_data = await clob.get_wallet_balance()
 
@@ -272,10 +294,12 @@ async def get_wallet_balance(
                     last_updated = datetime.now(timezone.utc).isoformat()
 
                     # Update cache in DB
-                    row.balance_cache = _json.dumps({
-                        "usdc_balance": usdc_balance,
-                        "last_updated": last_updated,
-                    })
+                    row.balance_cache = _json.dumps(
+                        {
+                            "usdc_balance": usdc_balance,
+                            "last_updated": last_updated,
+                        }
+                    )
                     db.commit()
 
                     return {
@@ -320,10 +344,12 @@ async def update_wallet_balance(
     if not row:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
-    row.balance_cache = _json.dumps({
-        "usdc_balance": body.usdc_balance,
-        "last_updated": datetime.now(timezone.utc).isoformat(),
-    })
+    row.balance_cache = _json.dumps(
+        {
+            "usdc_balance": body.usdc_balance,
+            "last_updated": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     db.commit()
 
     return {
