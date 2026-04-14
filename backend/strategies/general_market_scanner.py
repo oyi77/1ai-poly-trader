@@ -326,8 +326,7 @@ class GeneralMarketScanner(BaseStrategy):
         except Exception:
             pass
 
-        # Check concurrent trade limit
-        if open_trade_count >= max_concurrent:
+        if max_concurrent > 0 and open_trade_count >= max_concurrent:
             ctx.logger.info(
                 f"[general_scanner] At max concurrent trades ({open_trade_count}/{max_concurrent}), skipping cycle"
             )
@@ -405,7 +404,10 @@ class GeneralMarketScanner(BaseStrategy):
 
             # In-loop concurrent check: stop placing if we hit the limit
             trades_placed_this_cycle = result.trades_placed
-            if open_trade_count + trades_placed_this_cycle >= max_concurrent:
+            if (
+                max_concurrent > 0
+                and open_trade_count + trades_placed_this_cycle >= max_concurrent
+            ):
                 ctx.logger.info(
                     f"[general_scanner] Hit max concurrent during cycle ({open_trade_count + trades_placed_this_cycle}/{max_concurrent}), stopping"
                 )
