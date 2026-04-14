@@ -166,6 +166,16 @@ class Orchestrator:
 
         start_scheduler()
 
+        # Start real-time settlement WebSocket handler
+        if settings.TRADING_MODE in ("paper", "live"):
+            try:
+                from backend.core.settlement_ws import get_settlement_handler
+
+                self._settlement_handler = await get_settlement_handler()
+                logger.info("Settlement WebSocket handler started")
+            except Exception as e:
+                logger.warning(f"Could not start settlement WebSocket handler: {e}")
+
         self._phase2 = init_phase2_modules()
         if self._phase2:
             logger.info(f"Phase 2 modules active: {list(self._phase2.keys())}")
@@ -188,6 +198,11 @@ class Orchestrator:
         from backend.core.scheduler import stop_scheduler
 
         stop_scheduler()
+
+        if hasattr(self, "_settlement_handler") and self._settlement_handler:
+            from backend.core.settlement_ws import stop_settlement_handler
+
+            await stop_settlement_handler()
 
         logger.info("Orchestrator stopped.")
 

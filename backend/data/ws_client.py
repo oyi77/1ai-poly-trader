@@ -6,6 +6,7 @@ Uses exponential back-off on disconnection, deduplicates subscriptions.
 
 Protocol: wss://ws-subscriptions-clob.polymarket.com/ws/market
 Message format: {"assets_ids": [...], "type": "market"}
+Requires custom_feature_enabled: true to receive market_resolved events.
 """
 
 import asyncio
@@ -37,6 +38,14 @@ class PriceUpdate:
         return 1.0
 
 
+@dataclass
+class SettlementEvent:
+    token_id: str
+    market_address: str
+    outcome: str
+    timestamp: float = field(default_factory=time.time)
+
+
 class CLOBWebSocket:
     """
     Auto-reconnecting WebSocket client for Polymarket CLOB price feeds.
@@ -53,10 +62,12 @@ class CLOBWebSocket:
     def __init__(
         self,
         on_price: Optional[Callable[[PriceUpdate], None]] = None,
+        on_settlement: Optional[Callable[[SettlementEvent], None]] = None,
         max_consecutive_failures: int = 20,
         on_failure: Optional[Callable] = None,
     ):
         self._on_price = on_price
+        self._on_settlement = on_settlement
         self.max_consecutive_failures = max_consecutive_failures
         self._on_failure = on_failure
         self._subscribed: set[str] = set()
@@ -175,15 +186,23 @@ class CLOBWebSocket:
     async def _send_subscribe(self, token_ids: set[str]) -> None:
         if not self._ws or not token_ids:
             return
-        msg = json.dumps({"assets_ids": list(token_ids), "type": "market"})
+        msg = json.dumps(
+            {
+                "assets_ids": list(token_ids),
+                "type": "market",
+                "custom_feature_enabled": True,
+            }
+        )
         try:
             await self._ws.send(msg)
-            logger.debug(f"Subscribed to {len(token_ids)} tokens")
+            logger.debug(
+                f"Subscribed to {len(token_ids)} tokens with custom_feature_enabled"
+            )
         except Exception as e:
             logger.warning(f"Subscribe send failed: {e}")
 
     def _handle_message(self, raw: str) -> None:
-        """Parse a WebSocket message and dispatch to on_price callback."""
+        """Parse a WebSocket message and dispatch to on_price or on_settlement callback."""
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
@@ -193,6 +212,22 @@ class CLOBWebSocket:
         events = data if isinstance(data, list) else [data]
 
         for event in events:
+            event_type = event.get("event_type", "")
+
+            # Handle market_resolved events (requires custom_feature_enabled: true)
+            if event_type == "market_resolved" and self._on_settlement:
+                token_id = event.get("asset_id") or event.get("token_id", "")
+                market_address = event.get("market", "")
+                outcome = event.get("outcome", "")
+                if token_id and outcome:
+                    settlement = SettlementEvent(
+                        token_id=token_id,
+                        market_address=market_address,
+                        outcome=outcome,
+                    )
+                    self._on_settlement(settlement)
+                continue
+
             token_id = event.get("asset_id") or event.get("token_id", "")
             if not token_id:
                 continue
