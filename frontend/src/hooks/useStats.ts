@@ -27,13 +27,16 @@ export function useStats() {
     initial_bankroll: 10000,
     mode: 'paper',
     paper: { pnl: 0, bankroll: 10000, trades: 0, wins: 0, win_rate: 0 },
+    testnet: { pnl: 0, bankroll: 0, trades: 0, wins: 0, win_rate: 0 },
     live: { pnl: 0, bankroll: 0, trades: 0, wins: 0, win_rate: 0 },
   } as BotStats)
 
-  // Use mode-specific stats when available (paper/live split)
+  // Use mode-specific stats when available (paper/testnet/live split)
   const active = stats.mode === 'live' && stats.live
     ? stats.live
-    : stats.paper || null
+    : stats.mode === 'testnet' && stats.testnet
+      ? stats.testnet
+      : stats.paper || null
 
   // Derived values (computed once, used everywhere)
   const pnl = active ? active.pnl : stats.total_pnl
@@ -68,8 +71,9 @@ export function useStats() {
     positionMarketValue: stats.position_market_value ?? 0,
     totalEquity: bankroll + (stats.position_market_value ?? 0),
 
-    // Paper/Live specific
+    // Paper/Testnet/Live specific
     paperStats: stats.paper,
+    testnetStats: stats.testnet,
     liveStats: stats.live,
   }
 }

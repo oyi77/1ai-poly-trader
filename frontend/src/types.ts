@@ -90,6 +90,7 @@ export interface BotStats {
   initial_bankroll: number
   trading_mode?: string
   paper?: PnlModeStats
+  testnet?: PnlModeStats
   live?: PnlModeStats
   mode?: string
   pnl_source?: string
