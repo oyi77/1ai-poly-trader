@@ -268,6 +268,12 @@ export async function updateCredentials(creds: {
   api_key?: string
   api_secret?: string
   api_passphrase?: string
+  signature_type?: number
+  builder_api_key?: string
+  builder_secret?: string
+  builder_passphrase?: string
+  relayer_api_key?: string
+  relayer_api_key_address?: string
 }): Promise<{
   status: string
   updated: string[]
@@ -276,6 +282,8 @@ export async function updateCredentials(creds: {
   creds_live: boolean
   missing_for_testnet: string[]
   missing_for_live: string[]
+  builder_configured: boolean
+  signature_type: number
 }> {
   const { data } = await adminApi.post('/admin/credentials', creds)
   return data
@@ -296,6 +304,9 @@ export async function fetchSystemStatus(): Promise<{
   creds_live: boolean
   missing_for_testnet: string[]
   missing_for_live: string[]
+  builder_configured: boolean
+  signature_type: number
+  signature_type_label: string
 }> {
   const { data } = await adminApi.get('/admin/system')
   return data

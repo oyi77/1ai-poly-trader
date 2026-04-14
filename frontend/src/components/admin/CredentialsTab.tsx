@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 
 const MODE_META = {
   paper:   { label: 'Paper',   color: 'text-amber-400',  border: 'border-amber-500/30',  desc: 'Simulated orders, no credentials needed' },
-  testnet: { label: 'Testnet', color: 'text-yellow-400', border: 'border-yellow-500/30', desc: 'Real orders on Amoy testnet (chain 80002)' },
+  testnet: { label: 'Testnet', color: 'text-yellow-400', border: 'border-yellow-500/30', desc: 'Mainnet CLOB with Builder auth (gasless)' },
   live:    { label: 'Live',    color: 'text-red-400',    border: 'border-red-500/30',    desc: 'Real money on Polygon mainnet' },
 } as const
 
@@ -85,6 +85,12 @@ export function CredentialsTab() {
   const [apiKey, setApiKey] = useState('')
   const [apiSecret, setApiSecret] = useState('')
   const [apiPassphrase, setApiPassphrase] = useState('')
+  const [signatureType, setSignatureType] = useState<number>(0)
+  const [builderApiKey, setBuilderApiKey] = useState('')
+  const [builderSecret, setBuilderSecret] = useState('')
+  const [builderPassphrase, setBuilderPassphrase] = useState('')
+  const [relayerApiKey, setRelayerApiKey] = useState('')
+  const [relayerAddress, setRelayerAddress] = useState('')
   const [saveStatus, setSaveStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [switchingMode, setSwitchingMode] = useState(false)
@@ -96,11 +102,17 @@ export function CredentialsTab() {
   })
 
   const handleSave = async () => {
-    const payload: Record<string, string> = {}
+    const payload: Record<string, string | number> = {}
     if (privateKey.trim()) payload.private_key = privateKey.trim()
     if (apiKey.trim()) payload.api_key = apiKey.trim()
     if (apiSecret.trim()) payload.api_secret = apiSecret.trim()
     if (apiPassphrase.trim()) payload.api_passphrase = apiPassphrase.trim()
+    if (signatureType !== (sysStatus?.signature_type ?? 0)) payload.signature_type = signatureType
+    if (builderApiKey.trim()) payload.builder_api_key = builderApiKey.trim()
+    if (builderSecret.trim()) payload.builder_secret = builderSecret.trim()
+    if (builderPassphrase.trim()) payload.builder_passphrase = builderPassphrase.trim()
+    if (relayerApiKey.trim()) payload.relayer_api_key = relayerApiKey.trim()
+    if (relayerAddress.trim()) payload.relayer_api_key_address = relayerAddress.trim()
     if (!Object.keys(payload).length) return
 
     setSaving(true)
@@ -112,8 +124,14 @@ export function CredentialsTab() {
       setApiKey('')
       setApiSecret('')
       setApiPassphrase('')
+      setBuilderApiKey('')
+      setBuilderSecret('')
+      setBuilderPassphrase('')
+      setRelayerApiKey('')
+      setRelayerAddress('')
       refetchStatus()
       qc.invalidateQueries({ queryKey: ['admin-system'] })
+      qc.invalidateQueries({ queryKey: ['admin-settings'] })
     } catch {
       setSaveStatus({ ok: false, message: 'Failed to save credentials' })
     } finally {
@@ -132,14 +150,27 @@ export function CredentialsTab() {
     }
   }
 
-  const fields = [
+  const authFields = [
     { label: 'Private Key',    hint: '0x hex — required for testnet + live', value: privateKey,    setter: setPrivateKey,    badge: 'testnet + live' },
     { label: 'API Key',        hint: 'CLOB API key — required for live only', value: apiKey,        setter: setApiKey,        badge: 'live' },
     { label: 'API Secret',     hint: 'CLOB API secret',                       value: apiSecret,     setter: setApiSecret,     badge: 'live' },
     { label: 'API Passphrase', hint: 'CLOB API passphrase',                   value: apiPassphrase, setter: setApiPassphrase, badge: 'live' },
   ]
 
+  const builderFields = [
+    { label: 'Builder API Key',   hint: 'Polymarket Builder Program key', value: builderApiKey,    setter: setBuilderApiKey },
+    { label: 'Builder Secret',    hint: 'Builder Program secret',          value: builderSecret,    setter: setBuilderSecret },
+    { label: 'Builder Passphrase',hint: 'Builder Program passphrase',      value: builderPassphrase, setter: setBuilderPassphrase },
+  ]
+
+  const relayerFields = [
+    { label: 'Relayer API Key',  hint: 'Gasless relayer API key',     value: relayerApiKey, setter: setRelayerApiKey },
+    { label: 'Relayer Address',   hint: '0x address for relayer auth', value: relayerAddress, setter: setRelayerAddress },
+  ]
+
   const currentMode = sysStatus?.trading_mode ?? 'paper'
+  const sigTypeLabel = sysStatus?.signature_type_label ?? 'EOA (direct wallet)'
+  const builderConfigured = sysStatus?.builder_configured ?? false
   const credsReady = {
     paper:   true,
     testnet: sysStatus?.creds_testnet ?? false,
@@ -148,6 +179,11 @@ export function CredentialsTab() {
   const missing = {
     testnet: sysStatus?.missing_for_testnet ?? [],
     live:    sysStatus?.missing_for_live ?? [],
+  }
+
+  // Initialize signature type from server once loaded
+  if (sysStatus && signatureType === 0 && sysStatus.signature_type !== 0 && !builderApiKey) {
+    setSignatureType(sysStatus.signature_type)
   }
 
   return (
@@ -196,17 +232,17 @@ export function CredentialsTab() {
 
       {/* Credential form */}
       <div className="border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Polymarket Credentials</div>
+        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Polymarket Auth</div>
         <p className="text-[11px] text-neutral-600 mb-4 leading-relaxed">
           Persisted to <span className="text-neutral-400 font-mono">.env</span> and hot-reloaded — no restart needed.
           Only fill fields you want to update.
         </p>
         <div className="space-y-3">
-          {fields.map(({ label, hint, value, setter, badge }) => (
+          {authFields.map(({ label, hint, value, setter, badge }) => (
             <div key={label}>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[10px] text-neutral-400 uppercase tracking-wider w-36">{label}</span>
-                <span className="text-[9px] text-neutral-600">({badge})</span>
+                {badge && <span className="text-[9px] text-neutral-600">({badge})</span>}
               </div>
               <input
                 type="password"
@@ -218,13 +254,86 @@ export function CredentialsTab() {
             </div>
           ))}
         </div>
-        <div className="mt-4 flex items-center gap-3">
+      </div>
+
+      {/* Signature Type */}
+      <div className="border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Signature Type</div>
+        <p className="text-[11px] text-neutral-600 mb-3 leading-relaxed">
+          Required for proxy wallets (email login). <span className="text-neutral-400 font-mono">sig_type=1</span> returns balance for Polymarket proxy wallets.
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={signatureType}
+            onChange={e => setSignatureType(parseInt(e.target.value, 10))}
+            className="bg-neutral-950 border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none"
+          >
+            <option value={0}>0 — EOA (direct wallet)</option>
+            <option value={1}>1 — Poly-Proxy (email login)</option>
+            <option value={2}>2 — Poly-EOA (PK → proxy)</option>
+          </select>
+          <span className="text-[9px] text-neutral-600">Current: {sigTypeLabel}</span>
+        </div>
+      </div>
+
+      {/* Builder Program */}
+      <div className="border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Builder Program</div>
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${builderConfigured ? 'bg-green-500' : 'bg-neutral-700'}`} />
+        </div>
+        <p className="text-[11px] text-neutral-600 mb-4 leading-relaxed">
+          Gasless trading via Polymarket Builder Program. Enables testnet mode (mainnet CLOB + Builder auth).
+        </p>
+        <div className="space-y-3">
+          {builderFields.map(({ label, hint, value, setter }) => (
+            <div key={label}>
+              <div className="text-[10px] text-neutral-400 uppercase tracking-wider mb-1">{label}</div>
+              <input
+                type="password"
+                value={value}
+                onChange={e => setter(e.target.value)}
+                placeholder={hint}
+                className="w-full bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none placeholder:text-neutral-700"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Relayer API */}
+      <div className="border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Relayer API</div>
+        <p className="text-[11px] text-neutral-600 mb-4 leading-relaxed">
+          Gasless on-chain operations via Polymarket Relayer.
+        </p>
+        <div className="space-y-3">
+          {relayerFields.map(({ label, hint, value, setter }) => (
+            <div key={label}>
+              <div className="text-[10px] text-neutral-400 uppercase tracking-wider mb-1">{label}</div>
+              <input
+                type="password"
+                value={value}
+                onChange={e => setter(e.target.value)}
+                placeholder={hint}
+                className="w-full bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none placeholder:text-neutral-700"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <AdminPasswordSection />
+
+      {/* Save all credentials */}
+      <div className="border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="flex items-center gap-3">
           <button
             onClick={handleSave}
             disabled={saving}
             className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] uppercase tracking-wider hover:border-neutral-500 transition-colors disabled:opacity-40"
           >
-            {saving ? 'Saving...' : 'Save Credentials'}
+            {saving ? 'Saving...' : 'Save All Credentials'}
           </button>
           {saveStatus && (
             <span className={`text-[10px] font-mono ${saveStatus.ok ? 'text-green-500' : 'text-red-500'}`}>
@@ -233,8 +342,6 @@ export function CredentialsTab() {
           )}
         </div>
       </div>
-
-      <AdminPasswordSection />
     </div>
   )
 }

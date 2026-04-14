@@ -15,11 +15,15 @@ const SECTION_LABELS: Record<string, string> = {
   risk: 'Risk Management',
   indicators: 'Signal Weights',
   ai: 'AI / LLM',
+  polymarket: 'Polymarket',
+  kalshi: 'Kalshi',
   api_keys: 'API Keys',
   telegram: 'Telegram',
-  web_search: 'Web Search Settings',
   security: 'Security',
   system: 'System',
+  web_search: 'Web Search Settings',
+  self_improve: 'Self-Improve',
+  phase2: 'Phase 2 Features',
 }
 
 function FieldInput({
@@ -54,6 +58,65 @@ function FieldInput({
         <option value="manual">Always Ask</option>
         <option value="auto_approve">Auto Approve</option>
         <option value="auto_deny">Auto Deny</option>
+      </select>
+    )
+  }
+
+  if (fieldName === 'POLYMARKET_SIGNATURE_TYPE') {
+    return (
+      <select
+        value={String(value)}
+        onChange={e => onChange(parseInt(e.target.value, 10))}
+        className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs px-2 py-1.5 font-mono focus:border-green-500 focus:outline-none w-full"
+      >
+        <option value={0}>0 — EOA (direct wallet)</option>
+        <option value={1}>1 — Poly-Proxy (email login)</option>
+        <option value={2}>2 — Poly-EOA (PK → proxy)</option>
+      </select>
+    )
+  }
+
+  if (fieldName === 'AI_PROVIDER') {
+    return (
+      <select
+        value={String(value)}
+        onChange={e => onChange(e.target.value)}
+        className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs px-2 py-1.5 font-mono focus:border-green-500 focus:outline-none w-full"
+      >
+        <option value="groq">Groq</option>
+        <option value="claude">Claude</option>
+        <option value="omniroute">OmniRoute</option>
+        <option value="custom">Custom</option>
+      </select>
+    )
+  }
+
+  if (fieldName === 'BTC_PRICE_SOURCE') {
+    return (
+      <select
+        value={String(value)}
+        onChange={e => onChange(e.target.value)}
+        className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs px-2 py-1.5 font-mono focus:border-green-500 focus:outline-none w-full"
+      >
+        <option value="coinbase">Coinbase</option>
+        <option value="binance">Binance</option>
+        <option value="kraken">Kraken</option>
+      </select>
+    )
+  }
+
+  if (fieldName === 'WEBSEARCH_PROVIDER') {
+    return (
+      <select
+        value={String(value)}
+        onChange={e => onChange(e.target.value)}
+        className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs px-2 py-1.5 font-mono focus:border-green-500 focus:outline-none w-full"
+      >
+        <option value="tavily">Tavily</option>
+        <option value="crw">CRW</option>
+        <option value="duckduckgo">DuckDuckGo</option>
+        <option value="exa">Exa</option>
+        <option value="serper">Serper</option>
       </select>
     )
   }

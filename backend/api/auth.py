@@ -107,10 +107,14 @@ def _get_grouped_settings() -> dict:
     security = {}
     system = {}
     web_search = {}
-
+    polymarket = {}
+    kalshi = {}
+    self_improve = {}
     signals = {}
+    phase2 = {}
 
     field_groups = {
+        # ── Trading ──
         "TRADING_MODE": trading,
         "INITIAL_BANKROLL": trading,
         "KELLY_FRACTION": trading,
@@ -120,11 +124,16 @@ def _get_grouped_settings() -> dict:
         "MAX_ENTRY_PRICE": trading,
         "MAX_TRADES_PER_WINDOW": trading,
         "MAX_TOTAL_PENDING_TRADES": trading,
+        "STALE_TRADE_HOURS": trading,
         "BTC_PRICE_SOURCE": trading,
+        "SCAN_INTERVAL_SECONDS": trading,
+        "SETTLEMENT_INTERVAL_SECONDS": trading,
+        # ── Signal Approval ──
         "SIGNAL_APPROVAL_MODE": signals,
         "AUTO_APPROVE_MIN_CONFIDENCE": signals,
         "SIGNAL_NOTIFICATION_DURATION_MS": signals,
         "AUTO_TRADER_ENABLED": signals,
+        # ── Weather ──
         "WEATHER_ENABLED": weather,
         "WEATHER_CITIES": weather,
         "WEATHER_MIN_EDGE_THRESHOLD": weather,
@@ -132,6 +141,7 @@ def _get_grouped_settings() -> dict:
         "WEATHER_MAX_TRADE_SIZE": weather,
         "WEATHER_SCAN_INTERVAL_SECONDS": weather,
         "WEATHER_SETTLEMENT_INTERVAL_SECONDS": weather,
+        # ── Risk Management ──
         "MAX_POSITION_FRACTION": risk,
         "MAX_TOTAL_EXPOSURE_FRACTION": risk,
         "SLIPPAGE_TOLERANCE": risk,
@@ -140,52 +150,98 @@ def _get_grouped_settings() -> dict:
         "MIN_TIME_REMAINING": risk,
         "MAX_TIME_REMAINING": risk,
         "MIN_MARKET_VOLUME": risk,
+        # ── Indicator Weights ──
         "WEIGHT_RSI": indicators,
         "WEIGHT_MOMENTUM": indicators,
         "WEIGHT_VWAP": indicators,
         "WEIGHT_SMA": indicators,
         "WEIGHT_MARKET_SKEW": indicators,
-        "GROQ_MODEL": ai,
+        # ── AI / LLM ──
         "AI_PROVIDER": ai,
-        "AI_BASE_URL": ai,
-        "AI_MODEL": ai,
         "AI_ENABLED": ai,
         "AI_LOG_ALL_CALLS": ai,
         "AI_DAILY_BUDGET_USD": ai,
         "AI_SIGNAL_WEIGHT": ai,
-        "AUTO_IMPROVE_INTERVAL_DAYS": ai,
-        "SELF_REVIEW_INTERVAL_DAYS": ai,
-        "RESEARCH_PIPELINE_INTERVAL_HOURS": ai,
-        "JOB_WORKER_ENABLED": system,
-        "GROQ_API_KEY": api_keys,
-        "AI_API_KEY": api_keys,
+        "MIN_DEBATE_EDGE": ai,
+        "GROQ_MODEL": ai,
+        "ANTHROPIC_MODEL": ai,
+        "LLM_DEFAULT_PROVIDER": ai,
+        "LLM_DEBATE_PROVIDER": ai,
+        "LLM_JUDGE_PROVIDER": ai,
+        "AI_BASE_URL": ai,
+        "AI_MODEL": ai,
+        # ── Polymarket ──
+        "POLYMARKET_SIGNATURE_TYPE": polymarket,
+        "POLYMARKET_BUILDER_API_KEY": polymarket,
+        "POLYMARKET_BUILDER_SECRET": polymarket,
+        "POLYMARKET_BUILDER_PASSPHRASE": polymarket,
+        "POLYMARKET_RELAYER_API_KEY": polymarket,
+        "POLYMARKET_RELAYER_API_KEY_ADDRESS": polymarket,
+        # ── Polymarket Auth (secrets) ──
         "POLYMARKET_API_KEY": api_keys,
         "POLYMARKET_PRIVATE_KEY": api_keys,
         "POLYMARKET_API_SECRET": api_keys,
         "POLYMARKET_API_PASSPHRASE": api_keys,
+        # ── Kalshi ──
+        "KALSHI_ENABLED": kalshi,
         "KALSHI_API_KEY_ID": api_keys,
         "KALSHI_PRIVATE_KEY_PATH": api_keys,
-        "TELEGRAM_BOT_TOKEN": telegram,
-        "TELEGRAM_ADMIN_CHAT_IDS": telegram,
-        "TELEGRAM_HIGH_CONFIDENCE_ALERTS": telegram,
+        # ── Other API Keys ──
+        "GROQ_API_KEY": api_keys,
+        "ANTHROPIC_API_KEY": api_keys,
+        "AI_API_KEY": api_keys,
         "TAVILY_API_KEY": api_keys,
         "EXA_API_KEY": api_keys,
         "SERPER_API_KEY": api_keys,
         "CRW_API_KEY": api_keys,
+        "CRW_API_URL": api_keys,
+        # ── Telegram ──
+        "TELEGRAM_BOT_TOKEN": telegram,
+        "TELEGRAM_ADMIN_CHAT_IDS": telegram,
+        "TELEGRAM_HIGH_CONFIDENCE_ALERTS": telegram,
+        # ── Security ──
         "ADMIN_API_KEY": security,
         "CORS_ORIGINS": security,
+        # ── System ──
         "DATABASE_URL": system,
-        "SCAN_INTERVAL_SECONDS": system,
-        "SETTLEMENT_INTERVAL_SECONDS": system,
-        "KALSHI_ENABLED": system,
+        "JOB_WORKER_ENABLED": system,
+        "JOB_QUEUE_URL": system,
+        "JOB_TIMEOUT_SECONDS": system,
+        "MAX_CONCURRENT_JOBS": system,
+        "DB_EXECUTOR_MAX_WORKERS": system,
+        "DATA_AGGREGATOR_MAX_STALE_AGE": system,
+        "POLYGON_WS_URL": system,
+        "CONDITIONAL_TOKENS_ADDRESS": system,
+        "MIN_WHALE_TRADE_USD": system,
+        "WHALE_LISTENER_ENABLED": system,
         "POLYGON_AMOY_RPC": system,
         "POLYGON_AMOY_CHAIN_ID": system,
-        "POLYMARKET_TESTNET_CLOB_HOST": system,
+        # ── Web Search ──
         "WEBSEARCH_PROVIDER": web_search,
         "WEBSEARCH_FALLBACK_PROVIDER": web_search,
         "WEBSEARCH_ENABLED": web_search,
         "WEBSEARCH_MAX_RESULTS": web_search,
         "WEBSEARCH_TIMEOUT_SECONDS": web_search,
+        # ── Self-Improve ──
+        "AUTO_IMPROVE_ENABLED": self_improve,
+        "AUTO_IMPROVE_INTERVAL_DAYS": self_improve,
+        "AUTO_IMPROVE_TRADE_LIMIT": self_improve,
+        "SELF_REVIEW_ENABLED": self_improve,
+        "SELF_REVIEW_INTERVAL_DAYS": self_improve,
+        "RESEARCH_PIPELINE_ENABLED": self_improve,
+        "RESEARCH_PIPELINE_INTERVAL_HOURS": self_improve,
+        # ── Phase 2 Features ──
+        "NEWS_FEED_ENABLED": phase2,
+        "ARBITRAGE_DETECTOR_ENABLED": phase2,
+        "NEWS_FEED_INTERVAL_SECONDS": phase2,
+        "ARBITRAGE_SCAN_INTERVAL_SECONDS": phase2,
+        # ── Cache ──
+        "CACHE_URL": system,
+        "CACHE_TTL_SECONDS": system,
+        # ── Backup ──
+        "DB_BACKUP_INTERVAL_HOURS": system,
+        "DB_BACKUP_DIR": system,
+        "DB_BACKUP_RETENTION_DAYS": system,
     }
 
     for field_name, group in field_groups.items():
@@ -200,11 +256,15 @@ def _get_grouped_settings() -> dict:
         "risk": risk,
         "indicators": indicators,
         "ai": ai,
+        "polymarket": polymarket,
+        "kalshi": kalshi,
         "api_keys": api_keys,
         "telegram": telegram,
         "security": security,
         "system": system,
         "web_search": web_search,
+        "self_improve": self_improve,
+        "phase2": phase2,
     }
 
 
@@ -314,6 +374,12 @@ class CredentialsUpdate(BaseModel):
     api_key: str | None = None
     api_secret: str | None = None
     api_passphrase: str | None = None
+    signature_type: int | None = None
+    builder_api_key: str | None = None
+    builder_secret: str | None = None
+    builder_passphrase: str | None = None
+    relayer_api_key: str | None = None
+    relayer_api_key_address: str | None = None
 
 
 @router.post("/mode")
@@ -360,16 +426,21 @@ async def switch_mode(body: ModeSwitch, _: None = Depends(require_admin)):
 @router.post("/credentials")
 async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_admin)):
     """Update Polymarket trading credentials, persist to .env, and hot-reload settings."""
-    env_updates = {
-        k: v.strip()
-        for k, v in {
-            "POLYMARKET_PRIVATE_KEY": body.private_key,
-            "POLYMARKET_API_KEY": body.api_key,
-            "POLYMARKET_API_SECRET": body.api_secret,
-            "POLYMARKET_API_PASSPHRASE": body.api_passphrase,
-        }.items()
-        if v and v.strip()
+    all_fields = {
+        "POLYMARKET_PRIVATE_KEY": body.private_key,
+        "POLYMARKET_API_KEY": body.api_key,
+        "POLYMARKET_API_SECRET": body.api_secret,
+        "POLYMARKET_API_PASSPHRASE": body.api_passphrase,
+        "POLYMARKET_SIGNATURE_TYPE": str(body.signature_type)
+        if body.signature_type is not None
+        else None,
+        "POLYMARKET_BUILDER_API_KEY": body.builder_api_key,
+        "POLYMARKET_BUILDER_SECRET": body.builder_secret,
+        "POLYMARKET_BUILDER_PASSPHRASE": body.builder_passphrase,
+        "POLYMARKET_RELAYER_API_KEY": body.relayer_api_key,
+        "POLYMARKET_RELAYER_API_KEY_ADDRESS": body.relayer_api_key_address,
     }
+    env_updates = {k: v.strip() for k, v in all_fields.items() if v and v.strip()}
 
     _persist_env_updates(env_updates)
 
@@ -382,11 +453,26 @@ async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_
         settings.POLYMARKET_API_SECRET = body.api_secret.strip()
     if body.api_passphrase and body.api_passphrase.strip():
         settings.POLYMARKET_API_PASSPHRASE = body.api_passphrase.strip()
+    if body.signature_type is not None:
+        settings.POLYMARKET_SIGNATURE_TYPE = body.signature_type
+    if body.builder_api_key and body.builder_api_key.strip():
+        settings.POLYMARKET_BUILDER_API_KEY = body.builder_api_key.strip()
+    if body.builder_secret and body.builder_secret.strip():
+        settings.POLYMARKET_BUILDER_SECRET = body.builder_secret.strip()
+    if body.builder_passphrase and body.builder_passphrase.strip():
+        settings.POLYMARKET_BUILDER_PASSPHRASE = body.builder_passphrase.strip()
+    if body.relayer_api_key and body.relayer_api_key.strip():
+        settings.POLYMARKET_RELAYER_API_KEY = body.relayer_api_key.strip()
+    if body.relayer_api_key_address and body.relayer_api_key_address.strip():
+        settings.POLYMARKET_RELAYER_API_KEY_ADDRESS = (
+            body.relayer_api_key_address.strip()
+        )
 
     has_private_key = bool(settings.POLYMARKET_PRIVATE_KEY)
     has_api_key = bool(settings.POLYMARKET_API_KEY)
     has_api_secret = bool(settings.POLYMARKET_API_SECRET)
     has_api_passphrase = bool(settings.POLYMARKET_API_PASSPHRASE)
+    has_builder_key = bool(settings.POLYMARKET_BUILDER_API_KEY)
 
     logger.info(f"Credentials updated: {list(env_updates.keys())}")
 
@@ -428,6 +514,8 @@ async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_
             }.items()
             if not v
         ],
+        "builder_configured": has_builder_key,
+        "signature_type": settings.POLYMARKET_SIGNATURE_TYPE,
     }
 
 
@@ -454,6 +542,7 @@ async def get_admin_system(
     has_api_key = bool(settings.POLYMARKET_API_KEY)
     has_api_secret = bool(settings.POLYMARKET_API_SECRET)
     has_api_passphrase = bool(settings.POLYMARKET_API_PASSPHRASE)
+    has_builder_key = bool(settings.POLYMARKET_BUILDER_API_KEY)
 
     return {
         "trading_mode": settings.TRADING_MODE,
@@ -483,6 +572,14 @@ async def get_admin_system(
             }.items()
             if not v
         ],
+        # Builder Program & Signature Type
+        "builder_configured": has_builder_key,
+        "signature_type": settings.POLYMARKET_SIGNATURE_TYPE,
+        "signature_type_label": {
+            0: "EOA (direct wallet)",
+            1: "Poly-Proxy (email login)",
+            2: "Poly-EOA (PK maps to proxy)",
+        }.get(settings.POLYMARKET_SIGNATURE_TYPE, "Unknown"),
     }
 
 
