@@ -112,7 +112,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
                 await clob.create_or_derive_api_creds()
                 balance_data = await clob.get_wallet_balance()
                 clob_balance = balance_data.get("usdc_balance", 0.0)
-                if clob_balance > 0:
+                if clob_balance >= 0:
                     live_bankroll = clob_balance
                     if state.bankroll != clob_balance:
                         state.bankroll = clob_balance
