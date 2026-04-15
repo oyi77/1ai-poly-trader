@@ -664,7 +664,10 @@ async def auto_trader_job():
 
             signals = (
                 db.query(Signal)
-                .filter(Signal.executed == False)
+                .filter(
+                    Signal.executed == False,
+                    Signal.execution_mode == settings.TRADING_MODE,
+                )
                 .order_by(Signal.timestamp.desc())
                 .limit(10)
                 .all()
