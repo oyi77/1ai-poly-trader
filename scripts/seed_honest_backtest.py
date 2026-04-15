@@ -333,6 +333,8 @@ async def seed_honest_backtest(
                     btc_at_creation, threshold, hours_to_resolution
                 )
 
+            model_prob = market_price
+
             slug = m.get("slug", f"btc-{threshold:.0f}")
             volume = float(m.get("volume", 0) or 0)
 
@@ -347,23 +349,19 @@ async def seed_honest_backtest(
             if existing:
                 continue
 
-            btc_above = btc_price >= threshold
-            direction = "up"
-            settlement_value = 1.0 if yes_won else 0.0
-            outcome_correct = direction == "up" and yes_won
-
-            model_bias = random.uniform(0.01, 0.06)
-            if btc_above and not yes_won:
-                model_prob = max(0.03, min(0.97, market_price - model_bias))
-            elif not btc_above and yes_won:
-                model_prob = max(0.03, min(0.97, market_price + model_bias))
+            if model_prob > 0.5:
+                direction = "up"
             else:
-                model_prob = max(
-                    0.03, min(0.97, market_price + random.uniform(-0.03, 0.06))
-                )
+                direction = "down"
 
-            edge = abs(model_prob - market_price)
-            confidence = min(abs(edge) * 2.0, 0.95)
+            settlement_value = 1.0 if yes_won else 0.0
+            if direction == "up":
+                outcome_correct = yes_won
+            else:
+                outcome_correct = not yes_won
+
+            edge = abs(model_prob - 0.5)
+            confidence = min(edge * 2.0, 0.95)
             size = round(min(10.0, max(2.0, volume / 10000)), 2) if volume > 0 else 5.0
 
             sig = Signal(
@@ -373,7 +371,7 @@ async def seed_honest_backtest(
                 timestamp=creation_time,
                 direction=direction,
                 model_probability=round(model_prob, 4),
-                market_price=round(market_price, 4),
+                market_price=0.5,
                 edge=round(edge, 4),
                 confidence=round(confidence, 4),
                 kelly_fraction=0.0625,
@@ -395,12 +393,21 @@ async def seed_honest_backtest(
             db.add(sig)
             db.flush()
 
-            entry_price = round(market_price, 4)
-            pnl = (
-                round((size / entry_price - size) if outcome_correct else -size, 4)
-                if entry_price > 0
-                else 0.0
-            )
+            if direction == "up":
+                entry_price = round(market_price, 4)
+                payout = settlement_value
+            else:
+                entry_price = round(1.0 - market_price, 4)
+                payout = 1.0 - settlement_value
+
+            if outcome_correct:
+                pnl = (
+                    round(size * (payout / entry_price - 1), 4)
+                    if entry_price > 0
+                    else 0.0
+                )
+            else:
+                pnl = -size
 
             trade = Trade(
                 signal_id=sig.id,
