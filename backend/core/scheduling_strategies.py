@@ -834,13 +834,17 @@ async def strategy_cycle_job(strategy_name: str) -> None:
         from backend.strategies.base import StrategyContext
         from backend.config import settings as _settings
 
+        effective_mode = (
+            config.trading_mode if config.trading_mode else _settings.TRADING_MODE
+        )
+
         ctx = StrategyContext(
             db=db,
             clob=None,
             settings=_settings,
             logger=logger,
             params=params,
-            mode=_settings.TRADING_MODE,
+            mode=effective_mode,
         )
 
         strategy = strategy_cls()
@@ -855,6 +859,9 @@ async def strategy_cycle_job(strategy_name: str) -> None:
             and d.get("decision") == "BUY"
             and d.get("market_ticker")
         ]
+        for d in buy_decisions:
+            d["trading_mode"] = effective_mode
+
         if buy_decisions:
             trade_results = await _exec_decisions(buy_decisions, strategy_name, db=db)
             logger.info(

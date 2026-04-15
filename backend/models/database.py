@@ -333,6 +333,9 @@ class StrategyConfig(Base):
     enabled = Column(Boolean, default=False)
     params = Column(Text, nullable=True)  # JSON string
     interval_seconds = Column(Integer, default=60)
+    trading_mode = Column(
+        String, nullable=True
+    )  # "paper", "testnet", "live" - overrides global TRADING_MODE
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

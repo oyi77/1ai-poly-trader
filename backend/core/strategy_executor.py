@@ -41,10 +41,13 @@ async def execute_decision(
         db = SessionLocal()
     try:
         async with _trade_execution_lock:
+            # Use mode from decision if provided (per-strategy override), otherwise use global
+            effective_mode = decision.get("trading_mode") or settings.TRADING_MODE
+
             event_slug = decision.get("slug") or decision.get("event_slug")
             filters = [
                 Trade.settled.is_(False),
-                Trade.trading_mode == settings.TRADING_MODE,
+                Trade.trading_mode == effective_mode,
             ]
             if event_slug:
                 filters.append(
@@ -69,11 +72,11 @@ async def execute_decision(
                 )
                 return None
 
-            if settings.TRADING_MODE == "paper":
+            if effective_mode == "paper":
                 bankroll = (
                     state.paper_bankroll if state.paper_bankroll is not None else 0.0
                 )
-            elif settings.TRADING_MODE == "testnet":
+            elif effective_mode == "testnet":
                 bankroll = (
                     state.testnet_bankroll
                     if state.testnet_bankroll is not None
@@ -116,7 +119,7 @@ async def execute_decision(
             fill_price = entry_price
             filled_size = None
 
-            if settings.TRADING_MODE in ("testnet", "live"):
+            if effective_mode in ("testnet", "live"):
                 if token_id:
                     try:
                         from backend.data.polymarket_clob import clob_from_settings
@@ -139,11 +142,11 @@ async def execute_decision(
                             ):
                                 filled_size = result.filled_size
                             logger.info(
-                                f"[{settings.TRADING_MODE.upper()}][{strategy_name}] Order placed: {clob_order_id}"
+                                f"[{effective_mode.upper()}][{strategy_name}] Order placed: {clob_order_id}"
                             )
                         else:
                             logger.warning(
-                                f"[{settings.TRADING_MODE.upper()}][{strategy_name}] Order rejected for {market_ticker}: {result.error}"
+                                f"[{effective_mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: {result.error}"
                             )
                             return None
                     except Exception as clob_err:
@@ -175,7 +178,7 @@ async def execute_decision(
                 model_probability=model_probability,
                 market_price_at_entry=entry_price,
                 edge_at_entry=edge,
-                trading_mode=settings.TRADING_MODE,
+                trading_mode=effective_mode,
                 strategy=strategy_name,
                 confidence=confidence,
                 clob_order_id=clob_order_id,
@@ -187,11 +190,11 @@ async def execute_decision(
             db.add(trade)
             db.flush()
 
-            if settings.TRADING_MODE == "paper" and state:
+            if effective_mode == "paper" and state:
                 state.paper_bankroll = max(
                     0.0, (state.paper_bankroll or 0.0) - adjusted_size
                 )
-            elif settings.TRADING_MODE == "testnet" and state:
+            elif effective_mode == "testnet" and state:
                 state.testnet_bankroll = max(
                     0.0, (state.testnet_bankroll or 0.0) - adjusted_size
                 )
@@ -208,7 +211,7 @@ async def execute_decision(
                 suggested_size=adjusted_size,
                 reasoning=reasoning,
                 track_name=strategy_name,
-                execution_mode=settings.TRADING_MODE,
+                execution_mode=effective_mode,
                 token_id=token_id,
                 executed=True,
             )
