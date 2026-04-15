@@ -284,7 +284,7 @@ async def get_equity_curve(
 ):
     trades = (
         db.query(Trade)
-        .filter(Trade.settled == True, Trade.trading_mode == settings.TRADING_MODE)
+        .filter(Trade.settled.is_(True), Trade.trading_mode == settings.TRADING_MODE)
         .order_by(Trade.timestamp)
         .all()
     )

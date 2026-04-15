@@ -137,7 +137,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     else:
         _mode_filter = Trade.trading_mode == "live"
     open_trades_rows = (
-        db.query(Trade).filter(Trade.settled == False, _mode_filter).all()
+        db.query(Trade).filter(Trade.settled.is_(False), _mode_filter).all()
     )
     open_trades_count = len(open_trades_rows)
     open_exposure_amount = sum((t.size or 0.0) for t in open_trades_rows)
@@ -147,7 +147,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     position_market_value = 0.0
     paper_open_trades = (
         db.query(Trade)
-        .filter(Trade.settled == False, Trade.trading_mode == "paper")
+        .filter(Trade.settled.is_(False), Trade.trading_mode == "paper")
         .all()
     )
     if paper_open_trades:
@@ -208,7 +208,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     if mode == "paper" and paper_pnl == 0 and paper_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
-            .filter(Trade.settled == True, Trade.trading_mode == "paper")
+            .filter(Trade.settled.is_(True), Trade.trading_mode == "paper")
             .scalar()
             or 0.0
         )
@@ -218,7 +218,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     elif mode == "testnet" and testnet_pnl == 0 and testnet_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
-            .filter(Trade.settled == True, Trade.trading_mode == "testnet")
+            .filter(Trade.settled.is_(True), Trade.trading_mode == "testnet")
             .scalar()
             or 0.0
         )
@@ -228,7 +228,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     elif mode == "live" and live_pnl == 0 and live_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
-            .filter(Trade.settled == True, Trade.trading_mode == "live")
+            .filter(Trade.settled.is_(True), Trade.trading_mode == "live")
             .scalar()
             or 0.0
         )

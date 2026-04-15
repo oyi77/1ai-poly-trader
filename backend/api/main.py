@@ -632,7 +632,7 @@ async def get_dashboard(
     # Equity curve: track equity at each settled trade
     equity_trades = (
         db.query(Trade)
-        .filter(Trade.settled == True, Trade.trading_mode == settings.TRADING_MODE)
+        .filter(Trade.settled.is_(True), Trade.trading_mode == settings.TRADING_MODE)
         .order_by(Trade.timestamp)
         .all()
     )
@@ -672,7 +672,9 @@ async def get_dashboard(
             )
         open_trades = (
             db.query(Trade)
-            .filter(Trade.settled == False, Trade.trading_mode == settings.TRADING_MODE)
+            .filter(
+                Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
+            )
             .all()
         )
         unrealized = (
