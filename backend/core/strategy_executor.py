@@ -103,6 +103,15 @@ async def execute_decision(
 
             adjusted_size = risk.adjusted_size
 
+            # Enforce minimum order size for live/testnet trading
+            MIN_ORDER_SIZE = 1.0
+            if adjusted_size < MIN_ORDER_SIZE:
+                logger.info(
+                    f"[{settings.TRADING_MODE.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
+                    f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE}"
+                )
+                return None
+
             clob_order_id = None
             fill_price = entry_price
             filled_size = None
