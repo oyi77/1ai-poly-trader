@@ -10,6 +10,11 @@ export function RiskTab() {
   const RISK_FIELDS = [
     { key: 'INITIAL_BANKROLL',          label: 'Initial Bankroll ($)',         hint: 'Starting capital (used on reset)',       type: 'number', section: 'Capital' },
     { key: 'DAILY_LOSS_LIMIT',          label: 'Daily Loss Limit ($)',         hint: 'Stop trading if daily PNL drops below', type: 'number', section: 'Capital' },
+    { key: 'MAX_POSITION_FRACTION',     label: 'Max Position Fraction',       hint: 'e.g. 0.08 = 8% of bankroll per trade',  type: 'number', section: 'Capital' },
+    { key: 'MAX_TOTAL_EXPOSURE_FRACTION', label: 'Max Exposure Fraction',     hint: 'e.g. 0.70 = 70% total portfolio',       type: 'number', section: 'Capital' },
+    { key: 'SLIPPAGE_TOLERANCE',        label: 'Slippage Tolerance',          hint: 'e.g. 0.02 = 2% max slippage',           type: 'number', section: 'Capital' },
+    { key: 'DAILY_DRAWDOWN_LIMIT_PCT',  label: 'Daily Drawdown Limit (%)',    hint: 'e.g. 0.10 = 10% max daily loss',        type: 'number', section: 'Capital' },
+    { key: 'WEEKLY_DRAWDOWN_LIMIT_PCT', label: 'Weekly Drawdown Limit (%)',  hint: 'e.g. 0.20 = 20% max weekly loss',       type: 'number', section: 'Capital' },
     { key: 'MAX_TRADE_SIZE',            label: 'Max Trade Size ($)',           hint: 'Single trade cap in USDC',              type: 'number', section: 'BTC' },
     { key: 'MIN_EDGE_THRESHOLD',        label: 'Min Edge Threshold',           hint: 'e.g. 0.02 = 2% edge required',         type: 'number', section: 'BTC' },
     { key: 'KELLY_FRACTION',            label: 'Kelly Fraction',               hint: 'e.g. 0.15 = 15% fractional Kelly',     type: 'number', section: 'BTC' },
