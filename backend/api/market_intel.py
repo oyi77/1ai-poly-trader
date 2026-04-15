@@ -84,8 +84,8 @@ async def get_edge_performance(
         )
 
         pnl_result = pnl_query.first()
-        total_pnl = pnl_result.total_pnl or 0.0
-        trade_count = pnl_result.trade_count or 0
+        total_pnl = pnl_result.total_pnl if pnl_result else 0.0
+        trade_count = pnl_result.trade_count if pnl_result else 0
 
         track_metrics.append(
             {
