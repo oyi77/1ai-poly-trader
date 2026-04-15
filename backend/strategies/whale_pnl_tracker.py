@@ -58,7 +58,7 @@ async def _fetch_token_id(
     try:
         resp = await http.get(
             f"{GAMMA_HOST}/markets",
-            params={"condition_id": condition_id},
+            params={"conditionId": condition_id},
         )
         if resp.status_code == 200:
             markets = resp.json()
@@ -90,7 +90,7 @@ async def _fetch_market_prob(
     try:
         resp = await http.get(
             f"{GAMMA_HOST}/markets",
-            params={"condition_id": condition_id},
+            params={"conditionId": condition_id},
         )
         if resp.status_code == 200:
             markets = resp.json()

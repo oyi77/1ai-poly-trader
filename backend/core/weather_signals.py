@@ -132,19 +132,24 @@ async def generate_weather_signal(
         try:
             _state = _db.query(BotState).first()
             if _state:
-                bankroll = (
-                    float(
+                if settings.TRADING_MODE == "paper":
+                    bankroll = float(
                         _state.paper_bankroll
                         if _state.paper_bankroll is not None
                         else settings.INITIAL_BANKROLL
                     )
-                    if settings.TRADING_MODE == "paper"
-                    else float(
+                elif settings.TRADING_MODE == "testnet":
+                    bankroll = float(
+                        _state.testnet_bankroll
+                        if _state.testnet_bankroll is not None
+                        else settings.INITIAL_BANKROLL
+                    )
+                else:
+                    bankroll = float(
                         _state.bankroll
                         if _state.bankroll is not None
                         else settings.INITIAL_BANKROLL
                     )
-                )
         finally:
             _db.close()
     except Exception:

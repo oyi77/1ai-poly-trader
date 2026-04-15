@@ -18,39 +18,6 @@ _recent_alerts: dict[str, datetime] = {}  # strategy_name -> last_alert_time
 ALERT_DEDUP_WINDOW = timedelta(minutes=5)
 
 
-def _heartbeat_session():
-    """Create an isolated SQLite session with busy_timeout for heartbeat writes."""
-    from sqlalchemy import text
-    from backend.models.database import SessionLocal
-
-    session = SessionLocal()
-    try:
-        session.execute(text("PRAGMA busy_timeout = 5000"))
-    except Exception:
-        pass
-    return session
-
-
-def _do_heartbeat_write(session, strategy_name: str) -> None:
-    """Write heartbeat timestamp into BotState.misc_data JSON."""
-    state = session.query(BotState).first()
-    if not state:
-        return
-    data = {}
-    if state.misc_data:
-        try:
-            data = (
-                json.loads(state.misc_data)
-                if isinstance(state.misc_data, str)
-                else dict(state.misc_data)
-            )
-        except Exception:
-            data = {}
-    data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = datetime.now(timezone.utc).isoformat()
-    state.misc_data = json.dumps(data)
-    session.commit()
-
-
 def _do_heartbeat_write_raw(strategy_name: str) -> None:
     """Write heartbeat via raw sqlite3 — bypasses SQLAlchemy pool entirely."""
     import sqlite3
