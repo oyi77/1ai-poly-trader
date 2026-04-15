@@ -328,18 +328,19 @@ class WhalePNLTrackerStrategy(BaseStrategy):
                     if not condition_id:
                         continue
 
+                    ts = trade.get("timestamp", 0)
+                    opened_at = (
+                        datetime.fromtimestamp(ts, tz=timezone.utc)
+                        if ts > 0
+                        else datetime.now(timezone.utc)
+                    )
                     position = WhalePosition(
                         wallet=wallet,
                         condition_id=condition_id,
                         side=side,
                         size=trade.get("size", 0),
                         ticker=ticker,
-                        ts = trade.get("timestamp", 0)
-                    opened_at = (
-                        datetime.fromtimestamp(ts, tz=timezone.utc)
-                        if ts > 0
-                        else datetime.now(timezone.utc)
-                    )
+                        opened_at=opened_at,
                     )
 
                     positions.append(position)

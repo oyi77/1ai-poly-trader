@@ -306,8 +306,8 @@ class RealtimeScannerStrategy(BaseStrategy):
         self._ws_client = CLOBWebSocket(on_price=on_price)
         self._running = True
 
-        # Start WebSocket in background
-        asyncio.create_task(self._ws_client.run())
+        # Start WebSocket in background (store task reference for cleanup)
+        self._ws_task = asyncio.create_task(self._ws_client.run())
 
         logger.info(f"[{self.name}] WebSocket tracking started")
 
@@ -315,8 +315,10 @@ class RealtimeScannerStrategy(BaseStrategy):
         """Stop WebSocket client."""
         if self._ws_client:
             await self._ws_client.stop()
-            self._running = False
-            logger.info(f"[{self.name}] WebSocket tracking stopped")
+        if getattr(self, "_ws_task", None) and not self._ws_task.done():
+            self._ws_task.cancel()
+        self._running = False
+        logger.info(f"[{self.name}] WebSocket tracking stopped")
 
     def track_token(self, token_id: str, ticker: str) -> None:
         """

@@ -87,18 +87,28 @@ class MarketMakerStrategy(BaseStrategy):
             ask_size=quote_size,
         )
 
-    def market_filter(self) -> dict:
+    async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
         """
-        Return filter criteria for markets suitable for market making.
+        Filter markets suitable for market making.
 
         High-volume markets with tight existing spreads are preferred —
         they have sufficient activity to fill quotes on both sides.
         """
-        return {
-            "min_volume": 10_000.0,  # at least $10k daily volume
-            "max_spread": 0.10,  # existing spread under 10%
-            "min_liquidity": 1_000.0,  # at least $1k liquidity on each side
-        }
+        filtered = []
+        for m in markets:
+            if m.volume < 10_000.0:
+                continue
+            if m.liquidity < 1_000.0:
+                continue
+            meta = m.metadata or {}
+            best_bid = float(meta.get("bestBid", 0))
+            best_ask = float(meta.get("bestAsk", 0))
+            if best_bid > 0 and best_ask > 0:
+                spread = best_ask - best_bid
+                if spread > 0.10:
+                    continue
+            filtered.append(m)
+        return filtered
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
         """
