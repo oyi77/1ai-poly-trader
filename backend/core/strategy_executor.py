@@ -88,7 +88,7 @@ async def execute_decision(
                     if state.bankroll is not None
                     else settings.INITIAL_BANKROLL
                 )
-            current_exposure = _get_current_exposure(db)
+            current_exposure = _get_current_exposure(db, trading_mode=effective_mode)
 
             risk = risk_manager.validate_trade(
                 size=size,
@@ -97,6 +97,7 @@ async def execute_decision(
                 confidence=confidence,
                 market_ticker=market_ticker,
                 db=db,
+                trading_mode=effective_mode,
             )
             if not risk.allowed:
                 logger.info(
@@ -110,7 +111,7 @@ async def execute_decision(
             MIN_ORDER_SIZE = 1.0
             if adjusted_size < MIN_ORDER_SIZE:
                 logger.info(
-                    f"[{settings.TRADING_MODE.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
+                    f"[{effective_mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
                     f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE}"
                 )
                 return None
@@ -157,7 +158,7 @@ async def execute_decision(
                         return None
                 else:
                     logger.warning(
-                        f"[{settings.TRADING_MODE.upper()}][{strategy_name}] No token_id for {market_ticker}, skipping order"
+                        f"[{effective_mode.upper()}][{strategy_name}] No token_id for {market_ticker}, skipping order"
                     )
                     return None
             market_end_date = None
@@ -229,7 +230,7 @@ async def execute_decision(
                 "size": adjusted_size,
                 "edge": edge,
                 "confidence": confidence,
-                "trading_mode": settings.TRADING_MODE,
+                "trading_mode": effective_mode,
                 "clob_order_id": clob_order_id,
                 "strategy": strategy_name,
             }
@@ -241,7 +242,7 @@ async def execute_decision(
                         **trade_dict,
                         "trade_id": trade.id,
                         "entry_price": fill_price,
-                        "mode": settings.TRADING_MODE,
+                        "mode": effective_mode,
                     },
                 )
             except Exception as e:
@@ -252,7 +253,7 @@ async def execute_decision(
 
             logger.info(
                 f"[{strategy_name}] Trade created: {direction.upper()} {market_ticker} "
-                f"${adjusted_size:.2f} @ {fill_price:.3f} (mode={settings.TRADING_MODE})"
+                f"${adjusted_size:.2f} @ {fill_price:.3f} (mode={effective_mode})"
             )
             return trade_dict
 
@@ -273,13 +274,15 @@ async def execute_decision(
             db.close()
 
 
-def _get_current_exposure(db) -> float:
+def _get_current_exposure(db, trading_mode: str = None) -> float:
     """Sum of open (unsettled) trade sizes for current trading mode."""
     from sqlalchemy import func
 
+    mode = trading_mode or settings.TRADING_MODE
+
     result = (
         db.query(func.coalesce(func.sum(Trade.size), 0.0))
-        .filter(Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE)
+        .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
         .scalar()
     )
     return float(result or 0.0)

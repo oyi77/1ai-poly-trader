@@ -42,20 +42,25 @@ class RiskManager:
         market_ticker: Optional[str] = None,
         slippage: Optional[float] = None,
         db=None,
+        trading_mode: Optional[str] = None,
     ) -> RiskDecision:
+        mode = trading_mode or self.s.TRADING_MODE
+
         if confidence < 0.5:
             return RiskDecision(False, f"confidence {confidence:.2f} below 0.5", 0.0)
 
-        if self._daily_loss_exceeded(db=db):
+        if self._daily_loss_exceeded(db=db, trading_mode=mode):
             return RiskDecision(False, "daily loss limit hit", 0.0)
 
-        drawdown = self.check_drawdown(bankroll, db=db)
+        drawdown = self.check_drawdown(bankroll, db=db, trading_mode=mode)
         if drawdown.is_breached:
             return RiskDecision(
                 False, f"drawdown breaker: {drawdown.breach_reason}", 0.0
             )
 
-        if market_ticker and self._has_unsettled_trade(market_ticker, db=db):
+        if market_ticker and self._has_unsettled_trade(
+            market_ticker, db=db, trading_mode=mode
+        ):
             return RiskDecision(
                 False, f"unsettled trade exists for {market_ticker}", 0.0
             )
@@ -74,11 +79,14 @@ class RiskManager:
 
         return RiskDecision(True, "ok", adjusted)
 
-    def check_drawdown(self, bankroll: float, db=None) -> DrawdownStatus:
+    def check_drawdown(
+        self, bankroll: float, db=None, trading_mode: str = None
+    ) -> DrawdownStatus:
         owns_db = db is None
         if owns_db:
             db = SessionLocal()
         try:
+            mode = trading_mode or self.s.TRADING_MODE
             now = datetime.now(timezone.utc)
             day_start = now - timedelta(hours=24)
             week_start = now - timedelta(days=7)
@@ -88,7 +96,7 @@ class RiskManager:
                 .filter(
                     Trade.settled.is_(True),
                     Trade.settlement_time >= day_start,
-                    Trade.trading_mode == self.s.TRADING_MODE,
+                    Trade.trading_mode == mode,
                 )
                 .scalar()
                 or 0.0
@@ -99,7 +107,7 @@ class RiskManager:
                 .filter(
                     Trade.settled.is_(True),
                     Trade.settlement_time >= week_start,
-                    Trade.trading_mode == self.s.TRADING_MODE,
+                    Trade.trading_mode == mode,
                 )
                 .scalar()
                 or 0.0
@@ -145,20 +153,20 @@ class RiskManager:
             if owns_db:
                 db.close()
 
-    def _daily_loss_exceeded(self, db=None) -> bool:
+    def _daily_loss_exceeded(self, db=None, trading_mode: str = None) -> bool:
         owns_db = db is None
         if owns_db:
             db = SessionLocal()
         try:
-            today_start = datetime.now(timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            mode = trading_mode or self.s.TRADING_MODE
+            now = datetime.now(timezone.utc)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             daily_pnl = (
                 db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
                 .filter(
                     Trade.settled.is_(True),
                     Trade.settlement_time >= today_start,
-                    Trade.trading_mode == self.s.TRADING_MODE,
+                    Trade.trading_mode == mode,
                 )
                 .scalar()
                 or 0.0
@@ -173,17 +181,20 @@ class RiskManager:
             if owns_db:
                 db.close()
 
-    def _has_unsettled_trade(self, market_ticker: str, db=None) -> bool:
+    def _has_unsettled_trade(
+        self, market_ticker: str, db=None, trading_mode: str = None
+    ) -> bool:
         owns_db = db is None
         if owns_db:
             db = SessionLocal()
         try:
+            mode = trading_mode or self.s.TRADING_MODE
             count = (
                 db.query(func.count(Trade.id))
                 .filter(
                     Trade.market_ticker == market_ticker,
                     Trade.settled.is_(False),
-                    Trade.trading_mode == self.s.TRADING_MODE,
+                    Trade.trading_mode == mode,
                 )
                 .scalar()
                 or 0
