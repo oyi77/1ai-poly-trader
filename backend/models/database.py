@@ -533,6 +533,10 @@ def ensure_schema():
                 ("paper_pnl", "FLOAT DEFAULT 0.0"),
                 ("paper_trades", "INTEGER DEFAULT 0"),
                 ("paper_wins", "INTEGER DEFAULT 0"),
+                ("testnet_bankroll", "FLOAT DEFAULT 100.0"),
+                ("testnet_pnl", "FLOAT DEFAULT 0.0"),
+                ("testnet_trades", "INTEGER DEFAULT 0"),
+                ("testnet_wins", "INTEGER DEFAULT 0"),
                 ("misc_data", "TEXT"),
                 ("active_wallet", "TEXT"),
             ]:
