@@ -859,14 +859,26 @@ async def strategy_cycle_job(strategy_name: str) -> None:
             and d.get("decision") == "BUY"
             and d.get("market_ticker")
         ]
-        for d in buy_decisions:
-            d["trading_mode"] = effective_mode
 
-        if buy_decisions:
-            trade_results = await _exec_decisions(buy_decisions, strategy_name, db=db)
-            logger.info(
-                f"Strategy {strategy_name}: executed {len(trade_results)} trades"
-            )
+        execution_modes = []
+        if _settings.TRADING_MODE == "live":
+            execution_modes = ["paper", "live"]
+        elif _settings.TRADING_MODE == "paper":
+            execution_modes = ["paper"]
+        elif _settings.TRADING_MODE == "testnet":
+            execution_modes = ["testnet"]
+
+        for mode in execution_modes:
+            if buy_decisions:
+                decisions_copy = [d.copy() for d in buy_decisions]
+                for d in decisions_copy:
+                    d["trading_mode"] = mode
+                trade_results = await _exec_decisions(
+                    decisions_copy, strategy_name, db=db
+                )
+                logger.info(
+                    f"Strategy {strategy_name}: executed {len(trade_results)} trades in {mode} mode"
+                )
 
         from backend.core.heartbeat import update_heartbeat
 
