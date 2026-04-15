@@ -149,19 +149,24 @@ def get_allocations(
     state = db.query(BotState).first()
     bankroll = settings.INITIAL_BANKROLL
     if state:
-        bankroll = (
-            float(
+        if settings.TRADING_MODE == "paper":
+            bankroll = float(
                 state.paper_bankroll
                 if state.paper_bankroll is not None
                 else settings.INITIAL_BANKROLL
             )
-            if settings.TRADING_MODE == "paper"
-            else float(
+        elif settings.TRADING_MODE == "testnet":
+            bankroll = float(
+                state.testnet_bankroll
+                if state.testnet_bankroll is not None
+                else settings.INITIAL_BANKROLL
+            )
+        else:
+            bankroll = float(
                 state.bankroll
                 if state.bankroll is not None
                 else settings.INITIAL_BANKROLL
             )
-        )
 
     allocations = strategy_ranker.auto_allocate(db, bankroll, lookback_days)
     return {

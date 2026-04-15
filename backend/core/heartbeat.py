@@ -255,7 +255,7 @@ async def wallet_sync_job() -> None:
             usdc_balance = balance_data.get("usdc_balance", 0.0)
             error = balance_data.get("error")
 
-            if usdc_balance > 0 and not error:
+            if usdc_balance >= 0 and not error:
                 _sync_balance_to_db(usdc_balance, settings.TRADING_MODE)
                 logger.info(
                     f"wallet_sync: {settings.TRADING_MODE} balance = ${usdc_balance:.2f}"
@@ -275,6 +275,10 @@ def _sync_balance_to_db(balance: float, mode: str) -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         if mode == "live":
             conn.execute("UPDATE bot_state SET bankroll=? WHERE id=1", (balance,))
+        elif mode == "testnet":
+            conn.execute(
+                "UPDATE bot_state SET testnet_bankroll=? WHERE id=1", (balance,)
+            )
         conn.commit()
         logger.debug(f"wallet_sync: {mode} balance updated to ${balance:.2f}")
     finally:

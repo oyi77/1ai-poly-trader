@@ -217,17 +217,20 @@ class CopyTraderStrategy(BaseStrategy):
                         return float(
                             state.paper_bankroll
                             if state.paper_bankroll is not None
-                            else (
-                                state.bankroll
-                                if state.bankroll is not None
-                                else _settings.INITIAL_BANKROLL
-                            )
+                            else _settings.INITIAL_BANKROLL
                         )
-                    return float(
-                        state.bankroll
-                        if state.bankroll is not None
-                        else _settings.INITIAL_BANKROLL
-                    )
+                    elif _settings.TRADING_MODE == "testnet":
+                        return float(
+                            state.testnet_bankroll
+                            if state.testnet_bankroll is not None
+                            else _settings.INITIAL_BANKROLL
+                        )
+                    else:
+                        return float(
+                            state.bankroll
+                            if state.bankroll is not None
+                            else _settings.INITIAL_BANKROLL
+                        )
             finally:
                 db.close()
         except Exception:

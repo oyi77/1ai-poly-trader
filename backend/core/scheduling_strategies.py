@@ -70,17 +70,22 @@ async def _process_signal_with_approval(
 
     MAX_TRADE_FRACTION = 0.03
     MIN_TRADE_SIZE = 10
-    bankroll = (
-        state.bankroll
-        if state.bankroll is not None
-        else settings.INITIAL_BANKROLL
-        if settings.TRADING_MODE != "paper"
-        else (
+    if settings.TRADING_MODE == "paper":
+        bankroll = (
             state.paper_bankroll
             if state.paper_bankroll is not None
             else settings.INITIAL_BANKROLL
         )
-    )
+    elif settings.TRADING_MODE == "testnet":
+        bankroll = (
+            state.testnet_bankroll
+            if state.testnet_bankroll is not None
+            else settings.INITIAL_BANKROLL
+        )
+    else:
+        bankroll = (
+            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+        )
     trade_size = min(signal.suggested_size, bankroll * MAX_TRADE_FRACTION)
     trade_size = max(trade_size, MIN_TRADE_SIZE)
 
@@ -417,17 +422,24 @@ async def weather_scan_and_trade_job():
                 trade_size = min(signal.suggested_size, settings.WEATHER_MAX_TRADE_SIZE)
                 trade_size = max(trade_size, MIN_TRADE_SIZE)
 
-                bankroll = (
-                    state.bankroll
-                    if state.bankroll is not None
-                    else settings.INITIAL_BANKROLL
-                    if settings.TRADING_MODE != "paper"
-                    else (
+                if settings.TRADING_MODE == "paper":
+                    bankroll = (
                         state.paper_bankroll
                         if state.paper_bankroll is not None
                         else settings.INITIAL_BANKROLL
                     )
-                )
+                elif settings.TRADING_MODE == "testnet":
+                    bankroll = (
+                        state.testnet_bankroll
+                        if state.testnet_bankroll is not None
+                        else settings.INITIAL_BANKROLL
+                    )
+                else:
+                    bankroll = (
+                        state.bankroll
+                        if state.bankroll is not None
+                        else settings.INITIAL_BANKROLL
+                    )
                 if bankroll < MIN_TRADE_SIZE:
                     log_event("warning", f"Bankroll too low: ${bankroll:.2f}")
                     break
@@ -631,17 +643,24 @@ async def auto_trader_job():
             if not state or not state.is_running:
                 return
 
-            bankroll = (
-                state.bankroll
-                if state.bankroll is not None
-                else settings.INITIAL_BANKROLL
-                if settings.TRADING_MODE != "paper"
-                else (
+            if settings.TRADING_MODE == "paper":
+                bankroll = (
                     state.paper_bankroll
                     if state.paper_bankroll is not None
                     else settings.INITIAL_BANKROLL
                 )
-            )
+            elif settings.TRADING_MODE == "testnet":
+                bankroll = (
+                    state.testnet_bankroll
+                    if state.testnet_bankroll is not None
+                    else settings.INITIAL_BANKROLL
+                )
+            else:
+                bankroll = (
+                    state.bankroll
+                    if state.bankroll is not None
+                    else settings.INITIAL_BANKROLL
+                )
 
             signals = (
                 db.query(Signal)
