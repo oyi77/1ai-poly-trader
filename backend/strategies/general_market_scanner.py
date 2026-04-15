@@ -309,7 +309,11 @@ class GeneralMarketScanner(BaseStrategy):
                 bankroll = (
                     float(state.bankroll)
                     if _settings.TRADING_MODE != "paper"
-                    else float(state.paper_bankroll or state.bankroll)
+                    else float(
+                        state.paper_bankroll
+                        if state.paper_bankroll is not None
+                        else state.bankroll
+                    )
                 )
         except Exception:
             pass

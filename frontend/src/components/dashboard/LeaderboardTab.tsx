@@ -214,7 +214,7 @@ export function LeaderboardTab() {
                   <td className={`px-3 py-1.5 text-right tabular-nums ${t.win_rate >= 0.6 ? 'text-green-400' : t.win_rate >= 0.5 ? 'text-neutral-300' : 'text-red-400'}`}>
                     {(t.win_rate * 100).toFixed(1)}%
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{t.total_trades.toLocaleString()}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{(t.total_trades ?? 0).toLocaleString()}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{t.unique_markets}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-amber-400 font-semibold">{t.score.toFixed(2)}</td>
                   <td className="px-3 py-1.5 text-center">

@@ -214,7 +214,11 @@ class CopyTraderStrategy(BaseStrategy):
                 state = db.query(BotState).first()
                 if state:
                     if _settings.TRADING_MODE == "paper":
-                        return float(state.paper_bankroll or state.bankroll)
+                        return float(
+                            state.paper_bankroll
+                            if state.paper_bankroll is not None
+                            else state.bankroll
+                        )
                     return float(state.bankroll)
             finally:
                 db.close()

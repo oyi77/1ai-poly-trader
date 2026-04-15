@@ -517,7 +517,11 @@ class WeatherEMOSStrategy(BaseStrategy):
                     state = ctx.db.query(BotState).first()
                     if state:
                         bankroll = (
-                            (state.paper_bankroll or state.bankroll)
+                            (
+                                state.paper_bankroll
+                                if state.paper_bankroll is not None
+                                else state.bankroll
+                            )
                             if ctx.settings.TRADING_MODE == "paper"
                             else state.bankroll
                         )

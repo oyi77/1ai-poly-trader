@@ -241,18 +241,14 @@ async def update_bot_state_with_settlements(
             else:  # live mode — isolated from testnet
                 if is_real_trade:
                     state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
-                    state.bankroll = (
-                        (state.bankroll or settings.INITIAL_BANKROLL)
-                        + trade.size
-                        + trade.pnl
-                    )
+                    # Do NOT modify state.bankroll for live mode —
+                    # wallet_sync_job updates it from the real CLOB balance.
                     state.total_trades = (state.total_trades or 0) + 1
                     if trade.result == "win":
                         state.winning_trades = (state.winning_trades or 0) + 1
                 elif is_expired_or_push:
-                    state.bankroll = (
-                        state.bankroll or settings.INITIAL_BANKROLL
-                    ) + trade.size
+                    # No bankroll modification — CLOB balance is authoritative for live mode.
+                    pass
 
         # AGI hook: update Bayesian Kelly posterior on trade outcome
         try:

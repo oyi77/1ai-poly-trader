@@ -69,7 +69,9 @@ async def _process_signal_with_approval(
     bankroll = (
         state.bankroll
         if settings.TRADING_MODE != "paper"
-        else (state.paper_bankroll or state.bankroll)
+        else (
+            state.paper_bankroll if state.paper_bankroll is not None else state.bankroll
+        )
     )
     trade_size = min(signal.suggested_size, bankroll * MAX_TRADE_FRACTION)
     trade_size = max(trade_size, MIN_TRADE_SIZE)
@@ -408,7 +410,11 @@ async def weather_scan_and_trade_job():
                 bankroll = (
                     state.bankroll
                     if settings.TRADING_MODE != "paper"
-                    else (state.paper_bankroll or state.bankroll)
+                    else (
+                        state.paper_bankroll
+                        if state.paper_bankroll is not None
+                        else state.bankroll
+                    )
                 )
                 if bankroll < MIN_TRADE_SIZE:
                     log_event("warning", f"Bankroll too low: ${bankroll:.2f}")
@@ -610,7 +616,11 @@ async def auto_trader_job():
             bankroll = (
                 state.bankroll
                 if settings.TRADING_MODE != "paper"
-                else (state.paper_bankroll or state.bankroll)
+                else (
+                    state.paper_bankroll
+                    if state.paper_bankroll is not None
+                    else state.bankroll
+                )
             )
 
             signals = (

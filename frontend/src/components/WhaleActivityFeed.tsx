@@ -80,7 +80,7 @@ export default function WhaleActivityFeed() {
               {it.market_id && (
                 <span className="text-neutral-500 truncate max-w-[30%]">{it.market_id}</span>
               )}
-              <span className="text-green-400 font-semibold">${it.size_usd.toLocaleString()}</span>
+              <span className="text-green-400 font-semibold">${(it.size_usd ?? 0).toLocaleString()}</span>
               {it.observed_at && (
                 <span className="text-neutral-600">
                   {new Date(it.observed_at).toLocaleTimeString()}

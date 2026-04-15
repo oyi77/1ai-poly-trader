@@ -58,7 +58,7 @@ export default function LiveMarketView({ url = DEFAULT_WS_URL }: { url?: string 
               <span className="text-neutral-200 font-medium truncate max-w-[40%]">{tick.market_id}</span>
               <span className="text-green-400">YES {(tick.yes_price * 100).toFixed(1)}¢</span>
               <span className="text-red-400">NO {(tick.no_price * 100).toFixed(1)}¢</span>
-              <span className="text-neutral-500">${tick.volume.toLocaleString()}</span>
+              <span className="text-neutral-500">${(tick.volume ?? 0).toLocaleString()}</span>
             </li>
           ))}
         </ul>
