@@ -8,6 +8,7 @@ All strategies must subclass BaseStrategy and implement:
 
 Subclasses are auto-registered in the strategy registry on class creation.
 """
+
 import asyncio
 import logging
 import time
@@ -94,23 +95,34 @@ class BaseStrategy(ABC):
         """
         try:
             from backend.models.database import SessionLocal, MarketWatch
+
             db = SessionLocal()
             try:
-                watch_rows = db.query(MarketWatch).filter(
-                    MarketWatch.enabled == True,
-                    MarketWatch.source == self.name,
-                ).all()
+                watch_rows = (
+                    db.query(MarketWatch)
+                    .filter(
+                        MarketWatch.enabled.is_(True),
+                        MarketWatch.source == self.name,
+                    )
+                    .all()
+                )
 
                 if not watch_rows:
                     return markets  # no config = pass-through
 
                 watched_tickers = {row.ticker for row in watch_rows}
-                return [m for m in markets if m.ticker in watched_tickers or m.slug in watched_tickers]
+                return [
+                    m
+                    for m in markets
+                    if m.ticker in watched_tickers or m.slug in watched_tickers
+                ]
             finally:
                 db.close()
         except Exception as e:
             # If DB fails, don't crash the strategy — return all markets
-            logging.getLogger("trading_bot").warning(f"market_filter DB lookup failed: {e}")
+            logging.getLogger("trading_bot").warning(
+                f"market_filter DB lookup failed: {e}"
+            )
             return markets
 
     @abstractmethod
@@ -147,6 +159,7 @@ class BaseStrategy(ABC):
         # Heartbeat: update strategy last-seen timestamp in DB (best effort)
         try:
             from backend.core.heartbeat import update_heartbeat
+
             update_heartbeat(ctx.db, self.name)
         except Exception:
             pass
@@ -163,6 +176,7 @@ class BaseStrategy(ABC):
             # lazy import to avoid circular
             try:
                 from backend.strategies.registry import _auto_register
+
                 _auto_register(cls)
             except ImportError:
                 pass

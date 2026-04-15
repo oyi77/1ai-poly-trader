@@ -83,7 +83,9 @@ def get_strategy_health(db) -> list[dict]:
     """
     result = []
     try:
-        configs = db.query(StrategyConfig).filter(StrategyConfig.enabled == True).all()
+        configs = (
+            db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
+        )
         state = db.query(BotState).first()
         data = {}
         if state and state.misc_data:

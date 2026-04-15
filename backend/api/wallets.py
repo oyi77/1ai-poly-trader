@@ -166,6 +166,7 @@ async def create_wallet(_: None = Depends(require_admin)):
         acct = Account.create()
         return {
             "address": acct.address,
+            "private_key": acct.key.hex(),
             "message": "Wallet created. Store your private key securely — it cannot be retrieved from this API.",
         }
     except ImportError:

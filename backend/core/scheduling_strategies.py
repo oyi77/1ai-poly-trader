@@ -90,7 +90,7 @@ async def _process_signal_with_approval(
     trade_size = max(trade_size, MIN_TRADE_SIZE)
 
     if bankroll < MIN_TRADE_SIZE:
-        log_event("warning", f"Bankroll too low: ${state.bankroll:.2f}")
+        log_event("warning", f"Bankroll too low: ${bankroll:.2f}")
         return trades_executed
 
     approval_signal = {
@@ -526,7 +526,8 @@ async def settlement_job():
             pending_count = (
                 db.query(Trade)
                 .filter(
-                    Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
+                    Trade.settled.is_(False),
+                    Trade.trading_mode == settings.TRADING_MODE,
                 )
                 .count()
             )
@@ -679,7 +680,8 @@ async def auto_trader_job():
             current_exposure = float(
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
-                    Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
+                    Trade.settled.is_(False),
+                    Trade.trading_mode == settings.TRADING_MODE,
                 )
                 .scalar()
                 or 0.0
@@ -760,7 +762,9 @@ async def heartbeat_job():
         state = db.query(BotState).first()
         pending = (
             db.query(Trade)
-            .filter(Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE)
+            .filter(
+                Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
+            )
             .count()
         )
 
@@ -798,7 +802,7 @@ async def strategy_cycle_job(strategy_name: str) -> None:
             db.query(StrategyConfig)
             .filter(
                 StrategyConfig.strategy_name == strategy_name,
-                StrategyConfig.enabled == True,
+                StrategyConfig.enabled.is_(True),
             )
             .first()
         )

@@ -3,6 +3,7 @@ Auto-discover profitable Polymarket wallets from leaderboard.
 
 Scans leaderboard, ranks by P&L, and suggests wallets to copy.
 """
+
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
@@ -45,14 +46,16 @@ async def scan_leaderboard_for_profitable_wallets(
         if trader.get("profit_30d", 0) < min_pnl:
             continue
 
-        profitable_wallets.append({
-            "address": trader.get("wallet", ""),
-            "pnl": trader.get("profit_30d", 0),
-            "win_rate": trader.get("score", 0),  # Using score as proxy for win rate
-            "total_trades": trader.get("total_trades", 0),
-            "last_active": datetime.now(timezone.utc),  # Leaderboard is current
-            "markets": ["BTC", "Politics", "Sports"],  # Default tags
-        })
+        profitable_wallets.append(
+            {
+                "address": trader.get("wallet", ""),
+                "pnl": trader.get("profit_30d", 0),
+                "win_rate": trader.get("score", 0),  # Using score as proxy for win rate
+                "total_trades": trader.get("total_trades", 0),
+                "last_active": datetime.now(timezone.utc),  # Leaderboard is current
+                "markets": ["BTC", "Politics", "Sports"],  # Default tags
+            }
+        )
 
     return profitable_wallets
 
@@ -70,10 +73,7 @@ async def auto_suggest_wallets_to_copy(
     profitable_wallets = await scan_leaderboard_for_profitable_wallets(limit=limit * 2)
 
     # Filter out already configured wallets
-    new_wallets = [
-        w for w in profitable_wallets
-        if w["address"] not in current_wallets
-    ]
+    new_wallets = [w for w in profitable_wallets if w["address"] not in current_wallets]
 
     # Rank by combined score (P&L * win_rate)
     ranked = sorted(
@@ -98,6 +98,7 @@ def calculate_wallet_edge_score(wallet: Dict[str, Any]) -> float:
 
     # Normalize P&L (log scale)
     import math
+
     pnl_score = math.log(max(wallet["pnl"], 1)) / 10
 
     # Win rate (0-1)
@@ -111,10 +112,10 @@ def calculate_wallet_edge_score(wallet: Dict[str, Any]) -> float:
     recency_score = max(0, 1 - days_since_active / 30)
 
     edge_score = (
-        pnl_score * pnl_weight +
-        win_rate_score * win_rate_weight +
-        trade_score * trade_count_weight +
-        recency_score * recency_weight
+        pnl_score * pnl_weight
+        + win_rate_score * win_rate_weight
+        + trade_score * trade_count_weight
+        + recency_score * recency_weight
     )
 
     return edge_score
@@ -139,7 +140,7 @@ async def auto_add_profitable_wallets(
     from backend.models.database import WalletConfig
 
     # Get currently configured wallets
-    current = db.query(WalletConfig).filter(WalletConfig.enabled == True).all()
+    current = db.query(WalletConfig).filter(WalletConfig.enabled.is_(True)).all()
     current_addresses = [w.address for w in current]
 
     # Get suggestions
@@ -152,9 +153,11 @@ async def auto_add_profitable_wallets(
     # Add to database
     added = []
     for wallet in suggested:
-        existing = db.query(WalletConfig).filter(
-            WalletConfig.address == wallet["address"]
-        ).first()
+        existing = (
+            db.query(WalletConfig)
+            .filter(WalletConfig.address == wallet["address"])
+            .first()
+        )
 
         if not existing:
             new_wallet = WalletConfig(

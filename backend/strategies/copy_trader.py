@@ -254,7 +254,7 @@ class CopyTraderStrategy(BaseStrategy):
         user_wallets = [
             w.address
             for w in ctx.db.query(WalletConfig)
-            .filter(WalletConfig.enabled == True)
+            .filter(WalletConfig.enabled.is_(True))
             .all()
         ]
 

@@ -135,7 +135,9 @@ def _load_strategy_jobs() -> None:
 
     db = SessionLocal()
     try:
-        configs = db.query(StrategyConfig).filter(StrategyConfig.enabled == True).all()
+        configs = (
+            db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
+        )
         for cfg in configs:
             schedule_strategy(cfg.strategy_name, cfg.interval_seconds or 60)
     finally:
