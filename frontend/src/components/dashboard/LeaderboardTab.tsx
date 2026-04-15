@@ -208,15 +208,15 @@ export function LeaderboardTab() {
                   <td className="px-3 py-1.5 text-neutral-300">
                     {t.pseudonym || `${t.wallet.slice(0, 6)}...${t.wallet.slice(-4)}`}
                   </td>
-                  <td className={`px-3 py-1.5 text-right tabular-nums font-semibold ${t.profit_30d >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {t.profit_30d >= 0 ? '+' : ''}${Math.abs(t.profit_30d) >= 1000 ? `${(t.profit_30d / 1000).toFixed(1)}k` : t.profit_30d.toFixed(0)}
+                  <td className={`px-3 py-1.5 text-right tabular-nums font-semibold ${(t.profit_30d ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {(t.profit_30d ?? 0) >= 0 ? '+' : ''}${Math.abs(t.profit_30d ?? 0) >= 1000 ? `${((t.profit_30d ?? 0) / 1000).toFixed(1)}k` : (t.profit_30d ?? 0).toFixed(0)}
                   </td>
-                  <td className={`px-3 py-1.5 text-right tabular-nums ${t.win_rate >= 0.6 ? 'text-green-400' : t.win_rate >= 0.5 ? 'text-neutral-300' : 'text-red-400'}`}>
-                    {(t.win_rate * 100).toFixed(1)}%
+                  <td className={`px-3 py-1.5 text-right tabular-nums ${(t.win_rate ?? 0) >= 0.6 ? 'text-green-400' : (t.win_rate ?? 0) >= 0.5 ? 'text-neutral-300' : 'text-red-400'}`}>
+                    {((t.win_rate ?? 0) * 100).toFixed(1)}%
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{(t.total_trades ?? 0).toLocaleString()}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{t.unique_markets}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-amber-400 font-semibold">{t.score.toFixed(2)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-amber-400 font-semibold">{(t.score ?? 0).toFixed(2)}</td>
                   <td className="px-3 py-1.5 text-center">
                     {copySuccess === t.wallet ? (
                       <span className="text-[9px] text-green-500">Added</span>
@@ -247,9 +247,9 @@ export function LeaderboardTab() {
       {/* Footer summary */}
       {filtered.length > 0 && (
         <div className="shrink-0 px-3 py-1.5 border-t border-neutral-800 flex items-center gap-4 text-[9px] text-neutral-600">
-          <span>Avg profit: <span className="text-neutral-400 tabular-nums">${(filtered.reduce((s, t) => s + t.profit_30d, 0) / filtered.length).toFixed(0)}</span></span>
-          <span>Avg WR: <span className="text-neutral-400 tabular-nums">{(filtered.reduce((s, t) => s + t.win_rate, 0) / filtered.length * 100).toFixed(1)}%</span></span>
-          <span>Top score: <span className="text-amber-400 tabular-nums">{Math.max(...filtered.map(t => t.score)).toFixed(2)}</span></span>
+          <span>Avg profit: <span className="text-neutral-400 tabular-nums">${(filtered.reduce((s, t) => s + (t.profit_30d ?? 0), 0) / filtered.length).toFixed(0)}</span></span>
+          <span>Avg WR: <span className="text-neutral-400 tabular-nums">{(filtered.reduce((s, t) => s + (t.win_rate ?? 0), 0) / filtered.length * 100).toFixed(1)}%</span></span>
+          <span>Top score: <span className="text-amber-400 tabular-nums">{Math.max(...filtered.map(t => t.score ?? 0)).toFixed(2)}</span></span>
         </div>
       )}
     </div>

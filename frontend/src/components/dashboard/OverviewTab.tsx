@@ -52,9 +52,9 @@ export function WindowPill({ window: w }: { window: BtcWindow }) {
     <div className={`flex items-center gap-2 px-2 py-1 border shrink-0 ${w.is_active ? 'border-amber-500/30 bg-amber-500/5' : 'border-neutral-800 bg-neutral-900/50'}`}>
       {w.is_active && <span className="text-[9px] font-bold text-amber-400 uppercase">Live</span>}
       {w.is_upcoming && <span className="text-[9px] font-medium text-blue-400 uppercase">Next</span>}
-      <span className="text-[10px] tabular-nums text-green-400">{(w.up_price * 100).toFixed(0)}c</span>
+      <span className="text-[10px] tabular-nums text-green-400">{((w.up_price ?? 0) * 100).toFixed(0)}c</span>
       <span className="text-neutral-600 text-[10px]">/</span>
-      <span className="text-[10px] tabular-nums text-red-400">{(w.down_price * 100).toFixed(0)}c</span>
+      <span className="text-[10px] tabular-nums text-red-400">{((w.down_price ?? 0) * 100).toFixed(0)}c</span>
       <span className="text-[10px] tabular-nums text-neutral-500">{formatCountdown(countdown)}</span>
     </div>
   )

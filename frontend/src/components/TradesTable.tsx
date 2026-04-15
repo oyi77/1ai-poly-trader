@@ -197,8 +197,8 @@ export function TradesTable({ trades }: Props) {
                   </span>
                 </td>
                 <td className="py-1 px-1.5">
-                  <span className="text-neutral-400 truncate block max-w-[100px]" title={trade.event_slug || trade.market_ticker}>
-                    {(trade.event_slug || trade.market_ticker).replace('btc-updown-5m-', '')}
+                  <span className="text-neutral-400 truncate block max-w-[100px]" title={trade.event_slug || trade.market_ticker || ''}>
+                    {(trade.event_slug || trade.market_ticker || '').replace('btc-updown-5m-', '')}
                   </span>
                   {trade.signal_source && (
                     <span className="text-[9px] text-neutral-600 block truncate max-w-[100px]">{trade.signal_source}</span>
@@ -219,8 +219,8 @@ export function TradesTable({ trades }: Props) {
                     {trade.direction}
                   </span>
                 </td>
-                <td className="py-1 px-1.5 text-right text-neutral-300 tabular-nums">
-                  ${trade.size.toFixed(0)}
+                  <td className="py-1 px-1.5 text-right text-neutral-300 tabular-nums">
+                  ${(trade.size ?? 0).toFixed(0)}
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   {trade.pnl !== null ? (

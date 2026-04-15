@@ -170,11 +170,11 @@ export function AITab() {
               </div>
               <div className="border border-neutral-800 p-2">
                 <div className="text-[8px] text-neutral-600 uppercase">Spent</div>
-                <div className="text-[11px] text-neutral-200 font-mono tabular-nums">${aiStatus.spent_today.toFixed(4)}</div>
+                <div className="text-[11px] text-neutral-200 font-mono tabular-nums">${(aiStatus.spent_today ?? 0).toFixed(4)}</div>
               </div>
               <div className="border border-neutral-800 p-2">
                 <div className="text-[8px] text-neutral-600 uppercase">Signal Weight</div>
-                <div className="text-[11px] text-amber-400 font-mono tabular-nums">{(aiStatus.signal_weight * 100).toFixed(0)}%</div>
+                <div className="text-[11px] text-amber-400 font-mono tabular-nums">{((aiStatus.signal_weight ?? 0) * 100).toFixed(0)}%</div>
               </div>
             </div>
 
@@ -182,7 +182,7 @@ export function AITab() {
             <div>
               <div className="flex items-center justify-between text-[9px] mb-1">
                 <span className="text-neutral-600">Daily Budget</span>
-                <span className="text-neutral-500 tabular-nums">${aiStatus.spent_today.toFixed(3)} / ${aiStatus.daily_budget.toFixed(2)}</span>
+                <span className="text-neutral-500 tabular-nums">${(aiStatus.spent_today ?? 0).toFixed(3)} / ${(aiStatus.daily_budget ?? 0).toFixed(2)}</span>
               </div>
               <div className="h-1.5 bg-neutral-800 w-full">
                 <div
@@ -193,7 +193,7 @@ export function AITab() {
             </div>
 
             <div className="text-[9px] text-neutral-600">
-              AI analyzes each signal using {aiStatus.provider} before execution. Signals are weighted {(aiStatus.signal_weight * 100).toFixed(0)}% AI / {((1 - aiStatus.signal_weight) * 100).toFixed(0)}% technical.
+              AI analyzes each signal using {aiStatus.provider} before execution. Signals are weighted {((aiStatus.signal_weight ?? 0) * 100).toFixed(0)}% AI / {(((1 - (aiStatus.signal_weight ?? 0)) * 100)).toFixed(0)}% technical.
             </div>
           </div>
         ) : (

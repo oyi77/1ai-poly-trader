@@ -317,15 +317,15 @@ const NotificationCard = forwardRef(function NotificationCard({
                 {ctx.direction}
               </span>
               <span className="text-[10px] text-neutral-500">Model</span>
-              <span className="text-[10px] font-mono font-semibold text-green-400">{(ctx.model_probability * 100).toFixed(1)}%</span>
+              <span className="text-[10px] font-mono font-semibold text-green-400">{((ctx.model_probability ?? 0) * 100).toFixed(1)}%</span>
               <span className="text-[10px] text-neutral-500">Market</span>
-              <span className="text-[10px] font-mono font-semibold text-neutral-400">{(ctx.market_probability * 100).toFixed(1)}%</span>
+              <span className="text-[10px] font-mono font-semibold text-neutral-400">{((ctx.market_probability ?? 0) * 100).toFixed(1)}%</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-neutral-500">Edge</span>
-              <span className="text-[10px] font-bold text-amber-400">{(ctx.edge * 100).toFixed(1)}%</span>
+              <span className="text-[10px] font-bold text-amber-400">{((ctx.edge ?? 0) * 100).toFixed(1)}%</span>
               <span className="text-[10px] text-neutral-500">Kelly</span>
-              <span className="text-[10px] font-mono font-semibold text-blue-400">${ctx.suggested_size.toFixed(0)}</span>
+              <span className="text-[10px] font-mono font-semibold text-blue-400">${(ctx.suggested_size ?? 0).toFixed(0)}</span>
             </div>
           </div>
 
@@ -333,7 +333,7 @@ const NotificationCard = forwardRef(function NotificationCard({
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[9px] text-neutral-500 uppercase">CONFIDENCE</span>
-              <span className="text-[9px] font-mono font-semibold text-cyan-400">{(ctx.confidence * 100).toFixed(0)}%</span>
+              <span className="text-[9px] font-mono font-semibold text-cyan-400">{((ctx.confidence ?? 0) * 100).toFixed(0)}%</span>
             </div>
             {timeRemaining && (
               <div className="flex items-center gap-2">

@@ -41,7 +41,7 @@ const leaderboardColumns: ColumnDef<ScoredTrader>[] = [
     sortable: true,
     className: 'text-right',
     render: (row) => (
-      <span className="text-green-500 tabular-nums">{(row.score as number).toFixed(2)}</span>
+      <span className="text-green-500 tabular-nums">{((row.score as number) ?? 0).toFixed(2)}</span>
     ),
   },
   {
@@ -50,7 +50,7 @@ const leaderboardColumns: ColumnDef<ScoredTrader>[] = [
     sortable: true,
     className: 'text-right',
     render: (row) => {
-      const v = row.profit_30d as number
+      const v = (row.profit_30d as number) ?? 0
       return (
         <span className={`tabular-nums ${v >= 0 ? 'text-green-500' : 'text-red-500'}`}>
           {v >= 0 ? '+' : ''}${v.toFixed(0)}
@@ -65,7 +65,7 @@ const leaderboardColumns: ColumnDef<ScoredTrader>[] = [
     className: 'text-right',
     render: (row) => (
       <span className="tabular-nums text-neutral-300">
-        {((row.win_rate as number) * 100).toFixed(1)}%
+        {(((row.win_rate as number) ?? 0) * 100).toFixed(1)}%
       </span>
     ),
   },
@@ -94,7 +94,7 @@ const leaderboardColumns: ColumnDef<ScoredTrader>[] = [
     className: 'text-right',
     render: (row) => (
       <span className="tabular-nums text-neutral-400">
-        ${(row.estimated_bankroll as number).toFixed(0)}
+        ${((row.estimated_bankroll as number) ?? 0).toFixed(0)}
       </span>
     ),
   },
@@ -142,7 +142,7 @@ const positionColumns: ColumnDef<CopyTraderPosition>[] = [
     label: 'Size',
     className: 'text-right',
     render: (row) => (
-      <span className="tabular-nums text-neutral-300">{(row.size as number).toFixed(2)}</span>
+      <span className="tabular-nums text-neutral-300">{((row.size as number) ?? 0).toFixed(2)}</span>
     ),
   },
   {

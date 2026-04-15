@@ -214,10 +214,10 @@ export function Backtest() {
                   {run.completed && (
                     <div className="text-right">
                       <p className="text-green-400 font-semibold">
-                        P&L: ${run.total_pnl.toFixed(2)}
+                        P&L: ${(run.total_pnl ?? 0).toFixed(2)}
                       </p>
                       <p className="text-sm text-neutral-400">
-                        Return: {run.total_return_pct.toFixed(2)}%
+                        Return: {(run.total_return_pct ?? 0).toFixed(2)}%
                       </p>
                     </div>
                   )}
@@ -260,7 +260,7 @@ export function Backtest() {
                           {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
                         </p>
                         <p className="text-xs text-neutral-500 mt-1">
-                          ${s.initial_bankroll.toFixed(0)} → ${s.final_equity.toFixed(0)}
+                          ${(s.initial_bankroll ?? 0).toFixed(0)} → ${(s.final_equity ?? 0).toFixed(0)}
                         </p>
                       </div>
                       <div className="bg-neutral-700 rounded p-4">
@@ -272,8 +272,8 @@ export function Backtest() {
                       </div>
                       <div className="bg-neutral-700 rounded p-4">
                         <p className="text-xs text-neutral-400 mb-1 uppercase tracking-wide">Total P&L</p>
-                        <p className={`text-2xl font-bold ${s.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {s.total_pnl >= 0 ? '+' : ''}${s.total_pnl.toFixed(2)}
+                        <p className={`text-2xl font-bold ${(s.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {(s.total_pnl ?? 0) >= 0 ? '+' : ''}${(s.total_pnl ?? 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-neutral-500 mt-1">{s.total_trades} trades</p>
                       </div>
@@ -337,20 +337,20 @@ export function Backtest() {
                           </td>
                           <td className="py-2 pr-4 text-xs">{trade.market_ticker ?? '—'}</td>
                           <td className="py-2 pr-4 text-xs">{(trade.direction ?? '?').toUpperCase()}</td>
-                          <td className="py-2 pr-4">{(trade.entry_price * 100).toFixed(1)}¢</td>
+                          <td className="py-2 pr-4">{((trade.entry_price ?? 0) * 100).toFixed(1)}¢</td>
                           <td className="py-2 pr-4">{trade.exit_price != null ? `${(trade.exit_price * 100).toFixed(1)}¢` : '—'}</td>
-                          <td className="py-2 pr-4">${trade.size.toFixed(2)}</td>
-                          <td className={`py-2 pr-4 font-semibold ${trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                          <td className="py-2 pr-4">${(trade.size ?? 0).toFixed(2)}</td>
+                          <td className={`py-2 pr-4 font-semibold ${(trade.pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {(trade.pnl ?? 0) >= 0 ? '+' : ''}${(trade.pnl ?? 0).toFixed(2)}
                           </td>
                           <td className="py-2 pr-4">
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                               trade.result === 'win' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
                             }`}>
-                              {trade.result.toUpperCase()}
+                              {(trade.result ?? 'unknown').toUpperCase()}
                             </span>
                           </td>
-                          <td className="py-2 text-neutral-400">${trade.bankroll_after_trade.toFixed(2)}</td>
+                          <td className="py-2 text-neutral-400">${(trade.bankroll_after_trade ?? 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>

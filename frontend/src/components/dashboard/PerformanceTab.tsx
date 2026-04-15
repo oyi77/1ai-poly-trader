@@ -136,11 +136,11 @@ export function PerformanceTab() {
                       <span className="text-red-600">{row.losses}</span>
                     </div>
                     <div className="text-[10px] text-neutral-500 tabular-nums text-right">{row.pending}</div>
-                    <div className={`text-[10px] tabular-nums text-right ${row.win_rate >= 0.5 ? 'text-green-500' : settled === 0 ? 'text-neutral-500' : 'text-amber-400'}`}>
-                      {settled === 0 ? '—' : `${(row.win_rate * 100).toFixed(1)}%`}
+                    <div className={`text-[10px] tabular-nums text-right ${(row.win_rate ?? 0) >= 0.5 ? 'text-green-500' : settled === 0 ? 'text-neutral-500' : 'text-amber-400'}`}>
+                      {settled === 0 ? '—' : `${((row.win_rate ?? 0) * 100).toFixed(1)}%`}
                     </div>
-                    <div className={`text-[10px] tabular-nums font-mono text-right ${row.total_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {row.total_pnl >= 0 ? '+' : ''}{row.total_pnl.toFixed(2)}
+                    <div className={`text-[10px] tabular-nums font-mono text-right ${(row.total_pnl ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {(row.total_pnl ?? 0) >= 0 ? '+' : ''}{(row.total_pnl ?? 0).toFixed(2)}
                     </div>
                   </div>
                 )

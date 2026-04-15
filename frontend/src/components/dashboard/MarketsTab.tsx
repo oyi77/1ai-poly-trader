@@ -35,9 +35,9 @@ export function MarketsTab() {
                 <tr key={m.ticker} className="border-b border-neutral-800/40 hover:bg-neutral-900/30">
                   <td className="px-3 py-1 text-neutral-300 truncate max-w-[100px]" title={m.ticker}>{m.ticker.length > 12 ? `${m.ticker.slice(0, 10)}...` : m.ticker}</td>
                   <td className="px-3 py-1 text-neutral-500 truncate max-w-[300px]" title={m.question}>{m.question}</td>
-                  <td className="px-3 py-1 text-right text-green-400 tabular-nums">{(m.yes_price * 100).toFixed(1)}c</td>
-                  <td className="px-3 py-1 text-right text-red-400 tabular-nums">{(m.no_price * 100).toFixed(1)}c</td>
-                  <td className="px-3 py-1 text-right text-neutral-500 tabular-nums">{m.volume > 0 ? `$${(m.volume / 1000).toFixed(0)}k` : '--'}</td>
+                  <td className="px-3 py-1 text-right text-green-400 tabular-nums">{((m.yes_price ?? 0) * 100).toFixed(1)}c</td>
+                  <td className="px-3 py-1 text-right text-red-400 tabular-nums">{((m.no_price ?? 0) * 100).toFixed(1)}c</td>
+                  <td className="px-3 py-1 text-right text-neutral-500 tabular-nums">{(m.volume ?? 0) > 0 ? `$${((m.volume ?? 0) / 1000).toFixed(0)}k` : '--'}</td>
                 </tr>
               ))}
               {polymarketMarkets.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-neutral-700">No markets</td></tr>}

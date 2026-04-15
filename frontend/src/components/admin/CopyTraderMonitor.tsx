@@ -54,7 +54,7 @@ export function CopyTraderMonitor() {
                 <tr key={i} className="border-b border-neutral-800/50 hover:bg-neutral-800/20">
                   <td className="px-3 py-2 text-[10px] text-neutral-400 font-mono">{w.address}</td>
                   <td className="px-3 py-2 text-[10px] text-neutral-300">{w.pseudonym}</td>
-                  <td className="px-3 py-2 text-[10px] text-neutral-200 tabular-nums text-right">{w.score.toFixed(1)}</td>
+                  <td className="px-3 py-2 text-[10px] text-neutral-200 tabular-nums text-right">{(w.score ?? 0).toFixed(1)}</td>
                   <td className={`px-3 py-2 text-[10px] tabular-nums text-right ${w.profit_30d >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     ${(w.profit_30d ?? 0).toLocaleString()}
                   </td>
