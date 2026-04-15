@@ -233,3 +233,49 @@ def _send_telegram_alert_sync(message: str) -> None:
             )
         except Exception:
             logger.warning("Failed to send Telegram heartbeat alert")
+
+
+async def wallet_sync_job() -> None:
+    """
+    APScheduler job — fetches live CLOB wallet balance and persists to bot_state.
+    Runs every 60s to keep the dashboard bankroll in sync with on-chain reality.
+    """
+    from backend.config import settings
+
+    if settings.TRADING_MODE not in ("live", "testnet"):
+        return
+
+    try:
+        from backend.data.polymarket_clob import clob_from_settings
+
+        clob = clob_from_settings()
+        async with clob:
+            await clob.create_or_derive_api_creds()
+            balance_data = await clob.get_wallet_balance()
+            usdc_balance = balance_data.get("usdc_balance", 0.0)
+            error = balance_data.get("error")
+
+            if usdc_balance > 0 and not error:
+                _sync_balance_to_db(usdc_balance, settings.TRADING_MODE)
+                logger.info(
+                    f"wallet_sync: {settings.TRADING_MODE} balance = ${usdc_balance:.2f}"
+                )
+    except Exception as e:
+        logger.warning(f"wallet_sync_job failed: {e}")
+
+
+def _sync_balance_to_db(balance: float, mode: str) -> None:
+    """Write wallet balance to bot_state DB row (raw sqlite3 to bypass pool)."""
+    import sqlite3
+    from backend.config import settings
+
+    db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path, timeout=5.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        if mode == "live":
+            conn.execute("UPDATE bot_state SET bankroll=? WHERE id=1", (balance,))
+        conn.commit()
+        logger.debug(f"wallet_sync: {mode} balance updated to ${balance:.2f}")
+    finally:
+        conn.close()

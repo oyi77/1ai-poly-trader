@@ -96,6 +96,24 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     live_wins = state.winning_trades or 0
     live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
+    # Fetch real CLOB wallet balance when in live/testnet mode
+    if settings.TRADING_MODE in ("live", "testnet"):
+        try:
+            from backend.data.polymarket_clob import clob_from_settings
+
+            clob = clob_from_settings()
+            async with clob:
+                await clob.create_or_derive_api_creds()
+                balance_data = await clob.get_wallet_balance()
+                clob_balance = balance_data.get("usdc_balance", 0.0)
+                if clob_balance > 0:
+                    live_bankroll = clob_balance
+                    if state.bankroll != clob_balance:
+                        state.bankroll = clob_balance
+                        db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to fetch live CLOB wallet balance: {e}")
+
     # Testnet stats
     testnet_pnl = state.testnet_pnl or 0.0
     testnet_bankroll = state.testnet_bankroll or 0.0

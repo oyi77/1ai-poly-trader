@@ -196,12 +196,21 @@ def start_scheduler():
         )
 
     # Watchdog: check strategy heartbeats every 30s
-    from backend.core.heartbeat import watchdog_job
+    from backend.core.heartbeat import watchdog_job, wallet_sync_job
 
     scheduler.add_job(
         watchdog_job,
         IntervalTrigger(seconds=30),
         id="watchdog",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # Wallet balance sync: fetch live CLOB balance every 60s
+    scheduler.add_job(
+        wallet_sync_job,
+        IntervalTrigger(seconds=60),
+        id="wallet_sync",
         replace_existing=True,
         max_instances=1,
     )
