@@ -60,7 +60,7 @@ class SettlementWebSocketHandler:
             mode = settings.TRADING_MODE
             trades = (
                 db.query(Trade)
-                .filter(Trade.settled == False)
+                .filter(Trade.settled.is_(False))
                 .filter(Trade.trading_mode == mode)
                 .all()
             )
@@ -109,7 +109,7 @@ class SettlementWebSocketHandler:
             mode = settings.TRADING_MODE
             trades = (
                 db.query(Trade)
-                .filter(Trade.settled == False)
+                .filter(Trade.settled.is_(False))
                 .filter(Trade.trading_mode == mode)
                 .filter(
                     (Trade.market_ticker == market_ticker)

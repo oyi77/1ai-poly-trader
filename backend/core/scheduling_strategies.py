@@ -33,7 +33,7 @@ async def _process_signal_with_approval(
         db.query(Trade)
         .filter(
             Trade.event_slug == signal.market.slug,
-            Trade.settled == False,
+            Trade.settled.is_(False),
             Trade.trading_mode == settings.TRADING_MODE,
         )
         .first()
@@ -390,7 +390,7 @@ async def weather_scan_and_trade_job():
             weather_pending = (
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
-                    Trade.settled == False,
+                    Trade.settled.is_(False),
                     Trade.market_type == "weather",
                     Trade.trading_mode == settings.TRADING_MODE,
                 )
@@ -410,7 +410,7 @@ async def weather_scan_and_trade_job():
                     db.query(Trade)
                     .filter(
                         Trade.market_ticker == signal.market.market_id,
-                        Trade.settled == False,
+                        Trade.settled.is_(False),
                         Trade.trading_mode == settings.TRADING_MODE,
                     )
                     .first()
@@ -526,7 +526,7 @@ async def settlement_job():
             pending_count = (
                 db.query(Trade)
                 .filter(
-                    Trade.settled == False, Trade.trading_mode == settings.TRADING_MODE
+                    Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
                 )
                 .count()
             )
@@ -665,7 +665,7 @@ async def auto_trader_job():
             signals = (
                 db.query(Signal)
                 .filter(
-                    Signal.executed == False,
+                    Signal.executed.is_(False),
                     Signal.execution_mode == settings.TRADING_MODE,
                 )
                 .order_by(Signal.timestamp.desc())
@@ -679,7 +679,7 @@ async def auto_trader_job():
             current_exposure = float(
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
-                    Trade.settled == False, Trade.trading_mode == settings.TRADING_MODE
+                    Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
                 )
                 .scalar()
                 or 0.0
@@ -760,7 +760,7 @@ async def heartbeat_job():
         state = db.query(BotState).first()
         pending = (
             db.query(Trade)
-            .filter(Trade.settled == False, Trade.trading_mode == settings.TRADING_MODE)
+            .filter(Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE)
             .count()
         )
 

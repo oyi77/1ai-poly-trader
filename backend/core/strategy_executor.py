@@ -43,7 +43,7 @@ async def execute_decision(
         async with _trade_execution_lock:
             event_slug = decision.get("slug") or decision.get("event_slug")
             filters = [
-                Trade.settled == False,
+                Trade.settled.is_(False),
                 Trade.trading_mode == settings.TRADING_MODE,
             ]
             if event_slug:
@@ -267,7 +267,7 @@ def _get_current_exposure(db) -> float:
 
     result = (
         db.query(func.coalesce(func.sum(Trade.size), 0.0))
-        .filter(Trade.settled == False, Trade.trading_mode == settings.TRADING_MODE)
+        .filter(Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE)
         .scalar()
     )
     return float(result or 0.0)

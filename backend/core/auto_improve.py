@@ -119,7 +119,7 @@ def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> b
     post_trades = (
         db.query(Trade)
         .filter(
-            Trade.settled == True,  # noqa: E712
+            Trade.settled.is_(True),  # noqa: E712
             Trade.settlement_time >= applied_at,
             Trade.result.in_(("win", "loss")),
         )
@@ -322,7 +322,7 @@ async def auto_improve_job():
                     total_settled = (
                         db.query(Trade)
                         .filter(
-                            Trade.settled == True,  # noqa: E712
+                            Trade.settled.is_(True),  # noqa: E712
                             Trade.result.in_(("win", "loss")),
                         )
                         .count()
@@ -426,7 +426,7 @@ async def _write_outcomes_to_brain(db: Session, bigbrain: BigBrainClient) -> Non
         trades = (
             db.query(Trade)
             .filter(
-                Trade.settled == True,  # noqa: E712
+                Trade.settled.is_(True),  # noqa: E712
                 Trade.settlement_time >= week_ago,
             )
             .limit(50)

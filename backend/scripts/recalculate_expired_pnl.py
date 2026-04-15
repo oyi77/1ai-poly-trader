@@ -92,7 +92,7 @@ def _reconcile_bot_state(db):
             func.sum(Trade.pnl),
             func.sum(case((Trade.result == "win", 1), else_=0)),
         )
-        .filter(Trade.settled == True, Trade.result.in_(("win", "loss")))
+        .filter(Trade.settled.is_(True), Trade.result.in_(("win", "loss")))
         .first()
     )
 
@@ -102,7 +102,7 @@ def _reconcile_bot_state(db):
     win_count = win_count or 0
 
     open_exposure = (
-        db.query(func.sum(Trade.size)).filter(Trade.settled == False).scalar()
+        db.query(func.sum(Trade.size)).filter(Trade.settled.is_(False)).scalar()
     ) or 0.0
 
     correct_bankroll = round(

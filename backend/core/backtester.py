@@ -237,7 +237,7 @@ class BacktestEngine:
                 .filter(
                     Trade.timestamp >= self.config.start_date,
                     Trade.timestamp <= self.config.end_date,
-                    Trade.settled == True,
+                    Trade.settled.is_(True),
                 )
                 .order_by(Trade.timestamp.asc())
                 .all()

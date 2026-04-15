@@ -46,7 +46,7 @@ class StrategyRanker:
         strategies = (
             db.query(Trade.strategy)
             .filter(
-                Trade.settled == True,
+                Trade.settled.is_(True),
                 Trade.result.in_(("win", "loss")),
                 Trade.timestamp >= cutoff,
                 Trade.strategy != None,
@@ -64,7 +64,7 @@ class StrategyRanker:
                 db.query(Trade)
                 .filter(
                     Trade.strategy == strategy_name,
-                    Trade.settled == True,
+                    Trade.settled.is_(True),
                     Trade.result.in_(("win", "loss")),
                     Trade.timestamp >= cutoff,
                 )

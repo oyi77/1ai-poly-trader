@@ -35,7 +35,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
             pending = (
                 db.query(Trade)
                 .filter(
-                    Trade.settled == False, Trade.trading_mode == settings.TRADING_MODE
+                    Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
                 )
                 .all()
             )
@@ -319,7 +319,7 @@ async def reconcile_bot_state(db: Session) -> None:
                 func.sum(case((Trade.result == "win", 1), else_=0)),
             )
             .filter(
-                Trade.settled == True,
+                Trade.settled.is_(True),
                 Trade.trading_mode == mode,
                 Trade.result.in_(("win", "loss")),
             )
@@ -333,7 +333,7 @@ async def reconcile_bot_state(db: Session) -> None:
 
         open_exposure = (
             db.query(func.sum(Trade.size))
-            .filter(Trade.settled == False, Trade.trading_mode == mode)
+            .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
             .scalar()
         ) or 0.0
 

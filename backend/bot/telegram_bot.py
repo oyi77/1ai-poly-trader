@@ -544,7 +544,7 @@ class PolyEdgeBot:
 
                 pending = (
                     db.query(Trade)
-                    .filter(Trade.settled == False)
+                    .filter(Trade.settled.is_(False))
                     .filter(Trade.trading_mode == _s.TRADING_MODE)
                     .order_by(Trade.timestamp.desc())
                     .all()
@@ -744,13 +744,13 @@ class PolyEdgeBot:
                 mode = _s.TRADING_MODE
                 pending = (
                     db.query(Trade)
-                    .filter(Trade.settled == False)
+                    .filter(Trade.settled.is_(False))
                     .filter(Trade.trading_mode == mode)
                     .all()
                 )
                 settled = (
                     db.query(Trade)
-                    .filter(Trade.settled == True)
+                    .filter(Trade.settled.is_(True))
                     .filter(Trade.trading_mode == mode)
                     .all()
                 )
@@ -801,7 +801,7 @@ class PolyEdgeBot:
 
                 all_trades = (
                     db.query(Trade)
-                    .filter(Trade.settled == True)
+                    .filter(Trade.settled.is_(True))
                     .filter(Trade.trading_mode == _s.TRADING_MODE)
                     .all()
                 )

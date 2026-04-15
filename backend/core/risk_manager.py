@@ -86,7 +86,7 @@ class RiskManager:
             daily_pnl = (
                 db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
                 .filter(
-                    Trade.settled == True,
+                    Trade.settled.is_(True),
                     Trade.settlement_time >= day_start,
                     Trade.trading_mode == self.s.TRADING_MODE,
                 )
@@ -97,7 +97,7 @@ class RiskManager:
             weekly_pnl = (
                 db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
                 .filter(
-                    Trade.settled == True,
+                    Trade.settled.is_(True),
                     Trade.settlement_time >= week_start,
                     Trade.trading_mode == self.s.TRADING_MODE,
                 )
@@ -156,7 +156,7 @@ class RiskManager:
             daily_pnl = (
                 db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
                 .filter(
-                    Trade.settled == True,
+                    Trade.settled.is_(True),
                     Trade.settlement_time >= today_start,
                     Trade.trading_mode == self.s.TRADING_MODE,
                 )
@@ -182,7 +182,7 @@ class RiskManager:
                 db.query(func.count(Trade.id))
                 .filter(
                     Trade.market_ticker == market_ticker,
-                    Trade.settled == False,
+                    Trade.settled.is_(False),
                     Trade.trading_mode == self.s.TRADING_MODE,
                 )
                 .scalar()
