@@ -115,7 +115,7 @@ class RealtimeScannerStrategy(BaseStrategy):
         "min_volume": 5000,  # Minimum volume in USDC
         # Track configuration
         "track_name": "realtime",
-        "execution_mode": "paper",
+        "execution_mode": "live",
     }
 
     def __init__(self):

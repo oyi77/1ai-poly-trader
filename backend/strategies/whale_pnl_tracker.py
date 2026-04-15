@@ -115,7 +115,7 @@ class WhalePNLTrackerStrategy(BaseStrategy):
         "signal_cooldown_minutes": 5,  # Cooldown between signals for same market
         # Track configuration
         "track_name": "whale",
-        "execution_mode": "paper",
+        "execution_mode": "live",
     }
 
     def __init__(self):

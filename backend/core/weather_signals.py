@@ -1,4 +1,5 @@
 """Signal generator for weather temperature markets using ensemble forecasts."""
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -20,13 +21,14 @@ logger = logging.getLogger("trading_bot")
 @dataclass
 class WeatherTradingSignal:
     """A trading signal for a weather temperature market."""
+
     market: WeatherMarket
 
     # Core signal data
-    model_probability: float = 0.5   # Ensemble probability of YES outcome
+    model_probability: float = 0.5  # Ensemble probability of YES outcome
     market_probability: float = 0.5  # Market's implied YES probability
     edge: float = 0.0
-    direction: str = "yes"           # "yes" or "no"
+    direction: str = "yes"  # "yes" or "no"
 
     # Confidence and sizing
     confidence: float = 0.5
@@ -49,7 +51,9 @@ class WeatherTradingSignal:
         return abs(self.edge) >= settings.WEATHER_MIN_EDGE_THRESHOLD
 
 
-async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTradingSignal]:
+async def generate_weather_signal(
+    market: WeatherMarket,
+) -> Optional[WeatherTradingSignal]:
     """
     Generate a trading signal for a weather temperature market.
 
@@ -84,9 +88,13 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
     if city_sigma_f > 0:
         mean_f = forecast.mean_high if market.metric == "high" else forecast.mean_low
         if market.direction == "above":
-            gaussian_prob = float(norm.sf(market.threshold_f, loc=mean_f, scale=city_sigma_f))
+            gaussian_prob = float(
+                norm.sf(market.threshold_f, loc=mean_f, scale=city_sigma_f)
+            )
         else:
-            gaussian_prob = float(norm.cdf(market.threshold_f, loc=mean_f, scale=city_sigma_f))
+            gaussian_prob = float(
+                norm.cdf(market.threshold_f, loc=mean_f, scale=city_sigma_f)
+            )
         gaussian_prob = max(0.05, min(0.95, gaussian_prob))
         # Blend: 70% ensemble count, 30% Gaussian CDF
         model_yes_prob = 0.70 * model_yes_prob + 0.30 * gaussian_prob
@@ -117,6 +125,7 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
     bankroll = settings.INITIAL_BANKROLL
     try:
         from backend.models.database import BotState, SessionLocal
+
         _db = SessionLocal()
         _state = _db.query(BotState).first()
         if _state:
@@ -142,13 +151,19 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
     std_val = forecast.std_high if market.metric == "high" else forecast.std_low
 
     # Build reasoning
-    filter_status = "ACTIONABLE" if abs(edge) >= settings.WEATHER_MIN_EDGE_THRESHOLD else "FILTERED"
+    filter_status = (
+        "ACTIONABLE" if abs(edge) >= settings.WEATHER_MIN_EDGE_THRESHOLD else "FILTERED"
+    )
     filter_notes = []
     if entry_price > settings.WEATHER_MAX_ENTRY_PRICE:
-        filter_notes.append(f"entry {entry_price:.0%} > {settings.WEATHER_MAX_ENTRY_PRICE:.0%}")
+        filter_notes.append(
+            f"entry {entry_price:.0%} > {settings.WEATHER_MAX_ENTRY_PRICE:.0%}"
+        )
     filter_note = f" [{', '.join(filter_notes)}]" if filter_notes else ""
 
-    gaussian_note = f" | Gaussian: {gaussian_prob:.0%}" if gaussian_prob is not None else ""
+    gaussian_note = (
+        f" | Gaussian: {gaussian_prob:.0%}" if gaussian_prob is not None else ""
+    )
 
     reasoning = (
         f"[{filter_status}]{filter_note} "
@@ -208,6 +223,7 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
         try:
             from backend.data.kalshi_client import kalshi_credentials_present
             from backend.data.kalshi_markets import fetch_kalshi_weather_markets
+
             if kalshi_credentials_present():
                 kalshi_markets = await fetch_kalshi_weather_markets(city_keys)
                 markets.extend(kalshi_markets)
@@ -223,11 +239,15 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
         async with sem:
             return await generate_weather_signal(market)
 
-    results = await asyncio.gather(*[_gen_with_sem(m) for m in markets], return_exceptions=True)
+    results = await asyncio.gather(
+        *[_gen_with_sem(m) for m in markets], return_exceptions=True
+    )
     signals = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            logger.debug(f"Weather signal generation failed for {markets[i].title}: {result}")
+            logger.debug(
+                f"Weather signal generation failed for {markets[i].title}: {result}"
+            )
         elif result is not None:
             signals.append(result)
 
@@ -235,11 +255,15 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
     signals.sort(key=lambda s: abs(s.edge), reverse=True)
 
     actionable = [s for s in signals if s.passes_threshold]
-    logger.info(f"WEATHER SCAN COMPLETE: {len(signals)} signals, {len(actionable)} actionable")
+    logger.info(
+        f"WEATHER SCAN COMPLETE: {len(signals)} signals, {len(actionable)} actionable"
+    )
 
     for signal in actionable[:5]:
-        logger.info(f"  {signal.market.city_name}: {signal.market.metric} {signal.market.direction} "
-                     f"{signal.market.threshold_f:.0f}F | Edge: {signal.edge:+.1%}")
+        logger.info(
+            f"  {signal.market.city_name}: {signal.market.metric} {signal.market.direction} "
+            f"{signal.market.threshold_f:.0f}F | Edge: {signal.edge:+.1%}"
+        )
 
     # Persist signals to DB
     _persist_weather_signals(signals)
@@ -257,10 +281,15 @@ def _persist_weather_signals(signals: list):
     try:
         for signal in to_save:
             # Dedup: skip if already logged for this market
-            existing = db.query(Signal).filter(
-                Signal.market_ticker == signal.market.market_id,
-                Signal.timestamp >= signal.timestamp.replace(second=0, microsecond=0),
-            ).first()
+            existing = (
+                db.query(Signal)
+                .filter(
+                    Signal.market_ticker == signal.market.market_id,
+                    Signal.timestamp
+                    >= signal.timestamp.replace(second=0, microsecond=0),
+                )
+                .first()
+            )
             if existing:
                 continue
 
@@ -278,18 +307,23 @@ def _persist_weather_signals(signals: list):
                 suggested_size=signal.suggested_size,
                 sources=signal.sources,
                 reasoning=signal.reasoning,
+                execution_mode=settings.TRADING_MODE,
                 executed=False,
             )
             db.add(db_signal)
             try:
                 from backend.core.event_bus import _broadcast_event
-                _broadcast_event("signal_found", {
-                    "market_ticker": db_signal.market_ticker,
-                    "direction": db_signal.direction,
-                    "confidence": db_signal.confidence,
-                    "reasoning": db_signal.reasoning,
-                    "suggested_size": db_signal.suggested_size,
-                })
+
+                _broadcast_event(
+                    "signal_found",
+                    {
+                        "market_ticker": db_signal.market_ticker,
+                        "direction": db_signal.direction,
+                        "confidence": db_signal.confidence,
+                        "reasoning": db_signal.reasoning,
+                        "suggested_size": db_signal.suggested_size,
+                    },
+                )
             except Exception:
                 pass
 

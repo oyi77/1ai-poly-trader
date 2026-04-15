@@ -381,6 +381,7 @@ def _persist_signals(signals: list):
                 suggested_size=signal.suggested_size,
                 sources=signal.sources,
                 reasoning=signal.reasoning,
+                execution_mode=settings.TRADING_MODE,
                 executed=False,
             )
             db.add(db_signal)

@@ -1,4 +1,5 @@
 """Market intelligence routes - news, predictions, whales, edge performance."""
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import List, Optional
@@ -7,7 +8,13 @@ from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from backend.config import settings
-from backend.models.database import get_db, Signal, Trade, SessionLocal, WhaleTransaction
+from backend.models.database import (
+    get_db,
+    Signal,
+    Trade,
+    SessionLocal,
+    WhaleTransaction,
+)
 from backend.api.auth import require_admin
 import logging
 
@@ -35,15 +42,19 @@ async def get_edge_performance(
     """
     since_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-    query = db.query(
-        Signal.track_name,
-        func.count(Signal.id).label('total_signals'),
-        func.sum(case((Signal.executed == True, 1))).label('signals_executed'),
-        func.sum(case((Signal.outcome_correct == True, 1))).label('winning_trades'),
-    ).filter(
-        Signal.timestamp >= since_date,
-        Signal.track_name.isnot(None),
-    ).group_by(Signal.track_name)
+    query = (
+        db.query(
+            Signal.track_name,
+            func.count(Signal.id).label("total_signals"),
+            func.sum(case((Signal.executed == True, 1))).label("signals_executed"),
+            func.sum(case((Signal.outcome_correct == True, 1))).label("winning_trades"),
+        )
+        .filter(
+            Signal.timestamp >= since_date,
+            Signal.track_name.isnot(None),
+        )
+        .group_by(Signal.track_name)
+    )
 
     if track:
         query = query.filter(Signal.track_name == track)
@@ -58,36 +69,40 @@ async def get_edge_performance(
 
         win_rate = (winning_trades / signals_executed) if signals_executed > 0 else 0.0
 
-        pnl_query = db.query(
-            func.sum(Trade.pnl).label('total_pnl'),
-            func.count(Trade.id).label('trade_count'),
-        ).join(
-            Signal, Trade.signal_id == Signal.id
-        ).filter(
-            Signal.track_name == row.track_name,
-            Signal.execution_mode == 'paper',
-            Signal.timestamp >= since_date,
+        pnl_query = (
+            db.query(
+                func.sum(Trade.pnl).label("total_pnl"),
+                func.count(Trade.id).label("trade_count"),
+            )
+            .join(Signal, Trade.signal_id == Signal.id)
+            .filter(
+                Signal.track_name == row.track_name,
+                Signal.execution_mode == settings.TRADING_MODE,
+                Signal.timestamp >= since_date,
+            )
         )
 
         pnl_result = pnl_query.first()
         total_pnl = pnl_result.total_pnl or 0.0
         trade_count = pnl_result.trade_count or 0
 
-        track_metrics.append({
-            'track_name': row.track_name,
-            'total_signals': total_signals,
-            'signals_executed': signals_executed,
-            'winning_trades': winning_trades,
-            'win_rate': win_rate,
-            'total_pnl': total_pnl,
-            'trade_count': trade_count,
-            'status': 'paper',
-        })
+        track_metrics.append(
+            {
+                "track_name": row.track_name,
+                "total_signals": total_signals,
+                "signals_executed": signals_executed,
+                "winning_trades": winning_trades,
+                "win_rate": win_rate,
+                "total_pnl": total_pnl,
+                "trade_count": trade_count,
+                "status": "paper",
+            }
+        )
 
     return {
-        'tracks': track_metrics,
-        'days': days,
-        'since_date': since_date.isoformat(),
+        "tracks": track_metrics,
+        "days": days,
+        "since_date": since_date.isoformat(),
     }
 
 
@@ -96,11 +111,20 @@ async def get_whale_transactions(limit: int = 50, _: None = Depends(require_admi
     """Return recent whale transactions from DB."""
     db = SessionLocal()
     try:
-        rows = db.query(WhaleTransaction).order_by(WhaleTransaction.observed_at.desc()).limit(min(limit, 500)).all()
+        rows = (
+            db.query(WhaleTransaction)
+            .order_by(WhaleTransaction.observed_at.desc())
+            .limit(min(limit, 500))
+            .all()
+        )
         return [
             {
-                "id": r.id, "tx_hash": r.tx_hash, "wallet": r.wallet,
-                "market_id": r.market_id, "side": r.side, "size_usd": r.size_usd,
+                "id": r.id,
+                "tx_hash": r.tx_hash,
+                "wallet": r.wallet,
+                "market_id": r.market_id,
+                "side": r.side,
+                "size_usd": r.size_usd,
                 "block_number": r.block_number,
                 "observed_at": r.observed_at.isoformat() if r.observed_at else None,
             }
@@ -115,11 +139,14 @@ async def get_news_feed(_: None = Depends(require_admin)):
     """Return aggregated news feed from multiple sources."""
     try:
         from backend.data.feed_aggregator import FeedAggregator
+
         agg = FeedAggregator()
         items = await agg.fetch_all()
         return [
             {
-                "source": i.source, "title": i.title, "link": i.link,
+                "source": i.source,
+                "title": i.title,
+                "link": i.link,
                 "published_at": i.published_at.isoformat() if i.published_at else None,
                 "summary": i.summary,
             }
@@ -133,6 +160,7 @@ async def get_news_feed(_: None = Depends(require_admin)):
 async def get_prediction(market_id: str, _: None = Depends(require_admin)):
     """Return AI prediction for a specific market."""
     from backend.ai.prediction_engine import PredictionEngine
+
     engine = PredictionEngine()
     # Stub features — PE-013 will wire real market data
     features = engine.extract_features({"volume": 0}, {})
