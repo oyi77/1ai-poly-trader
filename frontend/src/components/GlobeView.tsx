@@ -237,9 +237,10 @@ export function GlobeView({ forecasts, signals }: Props) {
       sep.style.cssText = 'border-top:1px solid #262626;margin:6px 0;'
       card.appendChild(sep)
 
-      const edgePct = (m.bestSignal.edge * 100).toFixed(1)
-      const edgeColor = m.bestSignal.edge > 0.08 ? '#22c55e' : m.bestSignal.edge > 0.04 ? '#d97706' : '#a3a3a3'
-      addRow('Edge', `${m.bestSignal.edge > 0 ? '+' : ''}${edgePct}%`, edgeColor)
+      const edge = m.bestSignal.edge ?? 0
+      const edgePct = (edge * 100).toFixed(1)
+      const edgeColor = edge > 0.08 ? '#22c55e' : edge > 0.04 ? '#d97706' : '#a3a3a3'
+      addRow('Edge', `${edge > 0 ? '+' : ''}${edgePct}%`, edgeColor)
 
       if (m.bestSignal.direction) {
         addRow('Direction', m.bestSignal.direction.toUpperCase(), m.bestSignal.direction === 'over' ? '#ef4444' : '#3b82f6')

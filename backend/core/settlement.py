@@ -348,7 +348,11 @@ async def reconcile_bot_state(db: Session) -> None:
             drift_bankroll = abs((state.testnet_bankroll or 0) - correct_bankroll)
             drift_pnl = abs((state.testnet_pnl or 0) - realized_pnl)
         else:
-            drift_bankroll = abs((state.bankroll or 0) - correct_bankroll)
+            # Live mode: state.bankroll is synced from CLOB wallet (includes
+            # deposits, withdrawals, etc.) so it will always differ from the
+            # theoretical INITIAL_BANKROLL + pnl - exposure calculation.
+            # Only check PnL drift, not bankroll drift.
+            drift_bankroll = 0.0
             drift_pnl = abs((state.total_pnl or 0) - realized_pnl)
 
         if drift_bankroll > 0.01 or drift_pnl > 0.01:
