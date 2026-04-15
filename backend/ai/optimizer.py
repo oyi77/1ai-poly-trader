@@ -3,6 +3,7 @@ AI Parameter Optimizer for PolyEdge Trading Bot.
 
 Analyzes trading performance and suggests parameter adjustments using AI providers.
 """
+
 import json
 import re
 import logging
@@ -45,7 +46,9 @@ class ParameterOptimizer:
         """
         from backend.models.database import Trade
 
-        trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(trade_limit).all()
+        trades = (
+            db.query(Trade).order_by(Trade.timestamp.desc()).limit(trade_limit).all()
+        )
         total_trades = len(trades)
         settled_trades = [t for t in trades if t.result in ("win", "loss")]
         wins = [t for t in settled_trades if t.result == "win"]
@@ -102,12 +105,12 @@ Current parameters:
 - Max Trade Size: {max_size}
 - Daily Loss Limit: {daily_limit}
 
-Recent performance (last {analysis['total_trades']} trades):
-- Win rate: {analysis['win_rate']:.1%}
-- Total PNL: ${analysis['pnl']:.2f}
-- Avg edge of winning trades: {analysis['avg_win_edge']:.3f}
-- Avg edge of losing trades: {analysis['avg_loss_edge']:.3f}
-- Most active strategy: {analysis['top_strategy']}
+Recent performance (last {analysis["total_trades"]} trades):
+- Win rate: {analysis["win_rate"]:.1%}
+- Total PNL: ${analysis["pnl"]:.2f}
+- Avg edge of winning trades: {analysis["avg_win_edge"]:.3f}
+- Avg edge of losing trades: {analysis["avg_loss_edge"]:.3f}
+- Most active strategy: {analysis["top_strategy"]}
 
 Provide specific numerical suggestions in JSON format:
 {{
@@ -225,12 +228,15 @@ Provide specific numerical suggestions in JSON format:
             groq_key = getattr(self.settings, "GROQ_API_KEY", None)
             if groq_key:
                 try:
-                    from groq import Groq
+                    from groq import AsyncGroq
 
-                    model = getattr(self.settings, "AI_MODEL", None) or "llama-3.1-70b-versatile"
-                    client = Groq(api_key=groq_key)
+                    model = (
+                        getattr(self.settings, "AI_MODEL", None)
+                        or "llama-3.1-70b-versatile"
+                    )
+                    client = AsyncGroq(api_key=groq_key)
                     prompt = self.build_prompt(analysis)
-                    response = client.chat.completions.create(
+                    response = await client.chat.completions.create(
                         model=model,
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=400,
@@ -253,15 +259,15 @@ Provide specific numerical suggestions in JSON format:
             claude_key = getattr(self.settings, "ANTHROPIC_API_KEY", None)
             if claude_key:
                 try:
-                    import anthropic
+                    from anthropic import AsyncAnthropic
 
                     model = (
                         getattr(self.settings, "AI_MODEL", None)
                         or "claude-3-5-haiku-20241022"
                     )
-                    client = anthropic.Anthropic(api_key=claude_key)
+                    client = AsyncAnthropic(api_key=claude_key)
                     prompt = self.build_prompt(analysis)
-                    message = client.messages.create(
+                    message = await client.messages.create(
                         model=model,
                         max_tokens=400,
                         messages=[{"role": "user", "content": prompt}],

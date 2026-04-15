@@ -1,11 +1,15 @@
 """Claude AI integration for deep signal analysis."""
+
 import time
 from typing import Optional, List, Dict, Any
 import logging
 
 from .base import (
-    AIAnalysis, AnomalyReport, TradeRecommendation, BaseAIClient,
-    create_signal_prompt
+    AIAnalysis,
+    AnomalyReport,
+    TradeRecommendation,
+    BaseAIClient,
+    create_signal_prompt,
 )
 from .logger import get_ai_logger
 
@@ -20,33 +24,37 @@ class ClaudeAnalyzer(BaseAIClient):
     - Market anomaly detection
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-sonnet-4-20250514"):
+    def __init__(
+        self, api_key: Optional[str] = None, model: str = "claude-sonnet-4-20250514"
+    ):
         self.api_key = api_key
         self.model = model
         self._client = None
 
     def _get_client(self):
-        """Lazy load the Anthropic client."""
+        """Lazy load the async Anthropic client."""
         if self._client is None:
             if not self.api_key:
                 from backend.config import settings
+
                 self.api_key = settings.ANTHROPIC_API_KEY
 
             if not self.api_key:
                 raise ValueError("ANTHROPIC_API_KEY not configured")
 
             try:
-                import anthropic
-                self._client = anthropic.Anthropic(api_key=self.api_key)
+                from anthropic import AsyncAnthropic
+
+                self._client = AsyncAnthropic(api_key=self.api_key)
             except ImportError:
-                raise ImportError("anthropic package not installed. Run: pip install anthropic")
+                raise ImportError(
+                    "anthropic package not installed. Run: pip install anthropic"
+                )
 
         return self._client
 
     async def analyze_signal(
-        self,
-        signal_data: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        self, signal_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None
     ) -> AIAnalysis:
         """
         Analyze a trading signal with Claude for enhanced reasoning.
@@ -64,19 +72,16 @@ class ClaudeAnalyzer(BaseAIClient):
             client = self._get_client()
             prompt = create_signal_prompt(signal_data, context)
 
-            message = client.messages.create(
+            message = await client.messages.create(
                 model=self.model,
                 max_tokens=500,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             response_text = message.content[0].text
             tokens_used = message.usage.input_tokens + message.usage.output_tokens
             latency_ms = (time.time() - start_time) * 1000
 
-            # Log to file and database
             ai_logger = get_ai_logger()
             record = ai_logger.log_call(
                 provider="claude",
@@ -85,14 +90,15 @@ class ClaudeAnalyzer(BaseAIClient):
                 response=response_text,
                 latency_ms=latency_ms,
                 tokens_used=tokens_used,
-                related_market=signal_data.get('market_ticker'),
+                related_market=signal_data.get("market_ticker"),
                 call_type="analysis",
-                success=True
+                success=True,
             )
             # Persist to database synchronously
             try:
                 from backend.models.database import SessionLocal, AILog
                 from datetime import datetime
+
                 db = SessionLocal()
                 try:
                     db_record = AILog(
@@ -104,7 +110,7 @@ class ClaudeAnalyzer(BaseAIClient):
                         tokens_used=record.tokens_used,
                         cost_usd=record.cost_usd,
                         success=True,
-                        related_market=record.related_market
+                        related_market=record.related_market,
                     )
                     db.add(db_record)
                     db.commit()
@@ -137,7 +143,7 @@ class ClaudeAnalyzer(BaseAIClient):
                 model_used=self.model,
                 provider="claude",
                 latency_ms=latency_ms,
-                tokens_used=tokens_used
+                tokens_used=tokens_used,
             )
 
         except Exception as e:
@@ -154,13 +160,14 @@ class ClaudeAnalyzer(BaseAIClient):
                     response="",
                     latency_ms=latency_ms,
                     tokens_used=0,
-                    related_market=signal_data.get('market_ticker'),
+                    related_market=signal_data.get("market_ticker"),
                     call_type="analysis",
                     success=False,
-                    error=str(e)
+                    error=str(e),
                 )
                 from backend.models.database import SessionLocal, AILog
                 from datetime import datetime
+
                 db = SessionLocal()
                 try:
                     db_record = AILog(
@@ -172,7 +179,7 @@ class ClaudeAnalyzer(BaseAIClient):
                         tokens_used=0,
                         cost_usd=0,
                         success=False,
-                        related_market=record.related_market
+                        related_market=record.related_market,
                     )
                     db.add(db_record)
                     db.commit()
@@ -188,13 +195,11 @@ class ClaudeAnalyzer(BaseAIClient):
                 model_used=self.model,
                 provider="claude",
                 latency_ms=latency_ms,
-                tokens_used=0
+                tokens_used=0,
             )
 
     async def classify_market(
-        self,
-        title: str,
-        description: str = ""
+        self, title: str, description: str = ""
     ) -> tuple[str, float]:
         """Classify market using Claude (for complex cases)."""
         # For classification, prefer Groq for speed
@@ -209,12 +214,10 @@ Title: {title}
 
 Categories: weather, crypto, politics, economics, sports, other"""
 
-            message = client.messages.create(
+            message = await client.messages.create(
                 model=self.model,
                 max_tokens=50,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             response = message.content[0].text.strip().lower()
@@ -232,10 +235,11 @@ Categories: weather, crypto, politics, economics, sports, other"""
                     latency_ms=latency_ms,
                     tokens_used=tokens_used,
                     call_type="classification",
-                    success=True
+                    success=True,
                 )
                 from backend.models.database import SessionLocal, AILog
                 from datetime import datetime
+
                 db = SessionLocal()
                 try:
                     db_record = AILog(
@@ -246,7 +250,7 @@ Categories: weather, crypto, politics, economics, sports, other"""
                         latency_ms=record.latency_ms,
                         tokens_used=record.tokens_used,
                         cost_usd=record.cost_usd,
-                        success=True
+                        success=True,
                     )
                     db.add(db_record)
                     db.commit()
@@ -256,7 +260,14 @@ Categories: weather, crypto, politics, economics, sports, other"""
                 pass
 
             # Map response to category
-            valid_categories = ["weather", "crypto", "politics", "economics", "sports", "other"]
+            valid_categories = [
+                "weather",
+                "crypto",
+                "politics",
+                "economics",
+                "sports",
+                "other",
+            ]
             for cat in valid_categories:
                 if cat in response:
                     return (cat, 0.8)
@@ -268,8 +279,7 @@ Categories: weather, crypto, politics, economics, sports, other"""
             return ("other", 0.0)
 
     async def detect_anomalies(
-        self,
-        markets: List[Dict[str, Any]]
+        self, markets: List[Dict[str, Any]]
     ) -> List[AnomalyReport]:
         """Detect anomalies in market data using Claude."""
         if not markets:
@@ -279,11 +289,13 @@ Categories: weather, crypto, politics, economics, sports, other"""
             client = self._get_client()
 
             # Build market summary
-            market_summary = "\n".join([
-                f"- {m.get('ticker', 'Unknown')}: ${m.get('yes_price', 0):.2f} YES, "
-                f"${m.get('volume', 0):,.0f} volume"
-                for m in markets[:20]  # Limit to 20 markets
-            ])
+            market_summary = "\n".join(
+                [
+                    f"- {m.get('ticker', 'Unknown')}: ${m.get('yes_price', 0):.2f} YES, "
+                    f"${m.get('volume', 0):,.0f} volume"
+                    for m in markets[:20]  # Limit to 20 markets
+                ]
+            )
 
             prompt = f"""Analyze these prediction markets for anomalies:
 
@@ -297,29 +309,32 @@ Look for:
 List any anomalies found. If none, say "No anomalies detected."
 Be concise (1-2 sentences per anomaly)."""
 
-            message = client.messages.create(
+            message = await client.messages.create(
                 model=self.model,
                 max_tokens=500,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             response = message.content[0].text
 
-            # Parse anomalies from response
             anomalies = []
             if "no anomalies" not in response.lower():
                 # Simple parsing - could be enhanced
                 for line in response.split("\n"):
-                    if line.strip() and any(m.get('ticker', '') in line for m in markets):
-                        anomalies.append(AnomalyReport(
-                            market_ticker=line.split(":")[0].strip() if ":" in line else "Unknown",
-                            anomaly_type="ai_detected",
-                            severity="medium",
-                            description=line.strip(),
-                            ai_analysis=response
-                        ))
+                    if line.strip() and any(
+                        m.get("ticker", "") in line for m in markets
+                    ):
+                        anomalies.append(
+                            AnomalyReport(
+                                market_ticker=line.split(":")[0].strip()
+                                if ":" in line
+                                else "Unknown",
+                                anomaly_type="ai_detected",
+                                severity="medium",
+                                description=line.strip(),
+                                ai_analysis=response,
+                            )
+                        )
 
             return anomalies
 
@@ -328,9 +343,7 @@ Be concise (1-2 sentences per anomaly)."""
             return []
 
     async def analyze_trade_decision(
-        self,
-        signal_data: Dict[str, Any],
-        portfolio_state: Dict[str, Any]
+        self, signal_data: Dict[str, Any], portfolio_state: Dict[str, Any]
     ) -> TradeRecommendation:
         """Deep analysis of whether to execute a specific trade."""
         try:
@@ -339,15 +352,15 @@ Be concise (1-2 sentences per anomaly)."""
             prompt = f"""Should we execute this trade?
 
 Signal:
-- Market: {signal_data.get('market_title', 'Unknown')}
-- Direction: {signal_data.get('direction', 'Unknown')}
-- Edge: {signal_data.get('edge', 0):.1%}
-- Suggested Size: ${signal_data.get('suggested_size', 0):.2f}
+- Market: {signal_data.get("market_title", "Unknown")}
+- Direction: {signal_data.get("direction", "Unknown")}
+- Edge: {signal_data.get("edge", 0):.1%}
+- Suggested Size: ${signal_data.get("suggested_size", 0):.2f}
 
 Portfolio:
-- Bankroll: ${portfolio_state.get('bankroll', 0):,.2f}
-- Current P&L: ${portfolio_state.get('total_pnl', 0):,.2f}
-- Pending Trades: {portfolio_state.get('pending_trades', 0)}
+- Bankroll: ${portfolio_state.get("bankroll", 0):,.2f}
+- Current P&L: ${portfolio_state.get("total_pnl", 0):,.2f}
+- Pending Trades: {portfolio_state.get("pending_trades", 0)}
 
 Provide:
 1. Should trade? (yes/no)
@@ -357,41 +370,39 @@ Provide:
 
 Be concise."""
 
-            message = client.messages.create(
+            message = await client.messages.create(
                 model=self.model,
                 max_tokens=300,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             response = message.content[0].text
 
-            # Parse response
             should_trade = "yes" in response.lower()[:50]
 
             # Extract confidence
             confidence = 0.6
             import re
-            conf_match = re.search(r'confidence[:\s]*(\d+)', response.lower())
+
+            conf_match = re.search(r"confidence[:\s]*(\d+)", response.lower())
             if conf_match:
                 confidence = int(conf_match.group(1)) / 100
 
             return TradeRecommendation(
-                signal_ticker=signal_data.get('market_ticker', ''),
+                signal_ticker=signal_data.get("market_ticker", ""),
                 should_trade=should_trade,
-                recommended_size=signal_data.get('suggested_size'),
+                recommended_size=signal_data.get("suggested_size"),
                 reasoning=response,
                 risk_assessment="See reasoning",
                 confidence=confidence,
-                caveats=[]
+                caveats=[],
             )
 
         except Exception as e:
             logger.error(f"Claude trade analysis failed: {e}")
             return TradeRecommendation(
-                signal_ticker=signal_data.get('market_ticker', ''),
+                signal_ticker=signal_data.get("market_ticker", ""),
                 should_trade=True,  # Default to deterministic signal
                 reasoning=f"AI analysis unavailable: {e}",
-                confidence=0.5
+                confidence=0.5,
             )
