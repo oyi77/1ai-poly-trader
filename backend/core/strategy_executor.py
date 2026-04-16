@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -10,6 +11,7 @@ from backend.models.database import SessionLocal, Trade, Signal, BotState
 from backend.core.risk_manager import RiskManager
 from backend.core.event_bus import _broadcast_event
 from sqlalchemy import or_
+from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger("trading_bot.executor")
 risk_manager = RiskManager()
@@ -222,7 +224,16 @@ async def execute_decision(
             db.flush()
             trade.signal_id = signal_record.id
 
-            db.commit()
+            for _db_attempt in range(3):
+                try:
+                    db.commit()
+                    break
+                except OperationalError:
+                    db.rollback()
+                    if _db_attempt < 2:
+                        time.sleep(0.5 * (_db_attempt + 1))
+                    else:
+                        raise
 
             trade_dict = {
                 "id": trade.id,
@@ -259,6 +270,15 @@ async def execute_decision(
             )
             return trade_dict
 
+    except OperationalError as exc:
+        logger.error(
+            f"[strategy_executor.execute_decision] OperationalError: execute_decision failed for {market_ticker}: {exc}"
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
     except Exception as exc:
         logger.exception(
             f"[strategy_executor.execute_decision] {type(exc).__name__}: execute_decision failed for {market_ticker}: {exc}"
