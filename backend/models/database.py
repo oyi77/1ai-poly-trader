@@ -27,12 +27,16 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
+_is_sqlite = "sqlite" in settings.DATABASE_URL
+
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}
-    if "sqlite" in settings.DATABASE_URL
-    else {},
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
     pool_pre_ping=True,
+    pool_size=20 if _is_sqlite else 10,
+    max_overflow=30 if _is_sqlite else 20,
+    pool_recycle=1800,
+    pool_timeout=60,
 )
 
 

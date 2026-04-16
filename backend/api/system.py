@@ -1048,7 +1048,11 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
             state = db.query(BotState).first()
             if not state:
                 raise HTTPException(status_code=404, detail="Bot state not initialized")
-            cfg = db.query(StrategyConfig).filter(StrategyConfig.name == name).first()
+            cfg = (
+                db.query(StrategyConfig)
+                .filter(StrategyConfig.strategy_name == name)
+                .first()
+            )
             strategy_mode = (
                 cfg.trading_mode if cfg and cfg.trading_mode else None
             ) or settings.TRADING_MODE
