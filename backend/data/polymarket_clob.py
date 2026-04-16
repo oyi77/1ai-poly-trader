@@ -514,9 +514,8 @@ class PolymarketCLOB:
             )
 
             # Post the signed order
-            ot = OrderType(order_type)
             resp = await asyncio.to_thread(
-                self._clob_client.post_order, signed_order, ot
+                self._clob_client.post_order, signed_order, "GTC"
             )
 
             order_id = (
