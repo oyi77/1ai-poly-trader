@@ -130,15 +130,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
     # Open exposure — unsettled trades in the active mode
-    if settings.TRADING_MODE == "paper":
-        _mode_filter = Trade.trading_mode == "paper"
-    elif settings.TRADING_MODE == "testnet":
-        _mode_filter = Trade.trading_mode == "testnet"
-    else:
-        _mode_filter = Trade.trading_mode == "live"
-    open_trades_rows = (
-        db.query(Trade).filter(Trade.settled.is_(False), _mode_filter).all()
-    )
+    open_trades_rows = db.query(Trade).filter(Trade.settled.is_(False)).all()
     open_trades_count = len(open_trades_rows)
     open_exposure_amount = sum((t.size or 0.0) for t in open_trades_rows)
 
@@ -330,7 +322,7 @@ async def get_strategy_stats(
             func.avg(Trade.edge_at_entry).label("avg_edge"),
             func.avg(Trade.size).label("avg_size"),
         )
-        .filter(Trade.strategy.isnot(None), Trade.trading_mode == settings.TRADING_MODE)
+        .filter(Trade.strategy.isnot(None))
         .group_by(Trade.strategy)
         .all()
     )
@@ -1013,7 +1005,7 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
     # Build a proper StrategyContext and run the strategy
     try:
         from backend.strategies.base import StrategyContext
-        from backend.models.database import SessionLocal, BotState
+        from backend.models.database import SessionLocal, BotState, StrategyConfig
 
         cls = STRATEGY_REGISTRY[name]
         instance = cls()
@@ -1022,13 +1014,17 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
             state = db.query(BotState).first()
             if not state:
                 raise HTTPException(status_code=404, detail="Bot state not initialized")
+            cfg = db.query(StrategyConfig).filter(StrategyConfig.name == name).first()
+            strategy_mode = (
+                cfg.trading_mode if cfg and cfg.trading_mode else None
+            ) or settings.TRADING_MODE
             ctx = StrategyContext(
                 db=db,
                 clob=None,
                 settings=settings,
                 logger=logger,
                 params=dict(getattr(cls, "default_params", {})),
-                mode=settings.TRADING_MODE,
+                mode=strategy_mode,
             )
             result = await instance.run(ctx)
         finally:

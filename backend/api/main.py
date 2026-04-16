@@ -592,13 +592,7 @@ async def get_dashboard(
         )
 
     # Recent trades (with TradeContext enrichment)
-    trades = (
-        db.query(Trade)
-        .filter(Trade.trading_mode == settings.TRADING_MODE)
-        .order_by(Trade.timestamp.desc())
-        .limit(50)
-        .all()
-    )
+    trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(50).all()
     trade_ids = [t.id for t in trades]
     contexts = {}
     if trade_ids:
@@ -631,10 +625,7 @@ async def get_dashboard(
 
     # Equity curve: track equity at each settled trade
     equity_trades = (
-        db.query(Trade)
-        .filter(Trade.settled.is_(True), Trade.trading_mode == settings.TRADING_MODE)
-        .order_by(Trade.timestamp)
-        .all()
+        db.query(Trade).filter(Trade.settled.is_(True)).order_by(Trade.timestamp).all()
     )
     equity_curve = []
     cumulative_pnl = 0
@@ -670,13 +661,7 @@ async def get_dashboard(
                 if bot_state.bankroll is not None
                 else settings.INITIAL_BANKROLL
             )
-        open_trades = (
-            db.query(Trade)
-            .filter(
-                Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
-            )
-            .all()
-        )
+        open_trades = db.query(Trade).filter(Trade.settled.is_(False)).all()
         unrealized = (
             sum((t.pnl or 0) for t in open_trades if t.pnl is not None)
             if open_trades
@@ -698,7 +683,7 @@ async def get_dashboard(
             from backend.core.weather_signals import scan_for_weather_signals
             from backend.data.weather import fetch_ensemble_forecast, CITY_CONFIG
 
-            wx_signals = await scan_for_weather_signals()
+            wx_signals = await scan_for_weather_signals(mode=settings.TRADING_MODE)
             weather_signals_data = [_weather_signal_to_response(s) for s in wx_signals]
 
             city_keys = [

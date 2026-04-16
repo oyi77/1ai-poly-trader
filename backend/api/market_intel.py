@@ -52,7 +52,6 @@ async def get_edge_performance(
         .filter(
             Signal.timestamp >= since_date,
             Signal.track_name.isnot(None),
-            Signal.execution_mode == settings.TRADING_MODE,
         )
         .group_by(Signal.track_name)
     )
@@ -78,7 +77,6 @@ async def get_edge_performance(
             .join(Signal, Trade.signal_id == Signal.id)
             .filter(
                 Signal.track_name == row.track_name,
-                Signal.execution_mode == settings.TRADING_MODE,
                 Signal.timestamp >= since_date,
             )
         )
