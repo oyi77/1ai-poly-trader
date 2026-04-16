@@ -41,7 +41,7 @@ DATA_HOST = "https://data-api.polymarket.com"
 CHAIN_ID = 137  # Polygon mainnet — Builder Program and all trading run on mainnet
 
 # Polymarket minimum order size
-MIN_ORDER_USDC = 1.0
+MIN_ORDER_USDC = 5.0
 
 
 # Keys currently being processed (in-flight guard against concurrent duplicate calls)
@@ -139,6 +139,7 @@ class PolymarketCLOB:
         builder_api_key: Optional[str] = None,
         builder_secret: Optional[str] = None,
         builder_passphrase: Optional[str] = None,
+        builder_address: Optional[str] = None,
         signature_type: int = 0,
     ):
         # Backward-compat: if simulation kwarg passed, map to mode
@@ -153,6 +154,7 @@ class PolymarketCLOB:
         self.builder_api_key = builder_api_key
         self.builder_secret = builder_secret
         self.builder_passphrase = builder_passphrase
+        self.builder_address = builder_address
         self.signature_type = signature_type
 
         self._account: Optional[LocalAccount] = None
@@ -204,6 +206,7 @@ class PolymarketCLOB:
                     creds=creds,
                     signature_type=signature_type,
                     builder_config=builder_config,
+                    funder=builder_address if builder_address else None,
                 )
             except Exception as e:
                 logger.warning(
@@ -659,5 +662,6 @@ def clob_from_settings(mode: str = None) -> PolymarketCLOB:
         builder_api_key=settings.POLYMARKET_BUILDER_API_KEY,
         builder_secret=settings.POLYMARKET_BUILDER_SECRET,
         builder_passphrase=settings.POLYMARKET_BUILDER_PASSPHRASE,
+        builder_address=settings.POLYMARKET_BUILDER_ADDRESS,
         signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
     )

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     POLYMARKET_BUILDER_API_KEY: Optional[str] = None
     POLYMARKET_BUILDER_SECRET: Optional[str] = None
     POLYMARKET_BUILDER_PASSPHRASE: Optional[str] = None
+    POLYMARKET_BUILDER_ADDRESS: Optional[str] = (
+        None  # Builder proxy address (funder for CLOB orders)
+    )
 
     # Polymarket Relayer API (gasless on-chain operations)
     POLYMARKET_RELAYER_API_KEY: Optional[str] = None
