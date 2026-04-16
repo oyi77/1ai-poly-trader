@@ -313,10 +313,7 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
     )
 
 
-async def scan_for_signals() -> List[TradingSignal]:
-    """
-    Scan BTC 5-min markets and generate signals.
-    """
+async def scan_for_signals(mode: str = None) -> List[TradingSignal]:
     signals = []
 
     logger.info("=" * 50)
@@ -356,21 +353,21 @@ async def scan_for_signals() -> List[TradingSignal]:
         )
 
     # Persist signals with non-zero edge to DB for calibration tracking
-    _persist_signals(signals)
+    _persist_signals(signals, mode=mode)
 
     return signals
 
 
-def _persist_signals(signals: list):
-    """Save signals with non-zero edge to DB, deduplicating on (market_ticker, timestamp)."""
+def _persist_signals(signals: list, mode: str = None):
     to_save = [s for s in signals if abs(s.edge) > 0]
     if not to_save:
         return
 
+    execution_mode = mode or settings.TRADING_MODE
+
     db = SessionLocal()
     try:
         for signal in to_save:
-            # Dedup: skip if we already logged this signal for this market window
             existing = (
                 db.query(Signal)
                 .filter(
@@ -396,7 +393,7 @@ def _persist_signals(signals: list):
                 suggested_size=signal.suggested_size,
                 sources=signal.sources,
                 reasoning=signal.reasoning,
-                execution_mode=settings.TRADING_MODE,
+                execution_mode=execution_mode,
                 executed=False,
             )
             db.add(db_signal)

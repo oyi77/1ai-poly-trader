@@ -203,23 +203,23 @@ class CopyTraderStrategy(BaseStrategy):
         self._task: asyncio.Task | None = None
 
     @staticmethod
-    def _resolve_bankroll() -> float:
-        """Read bankroll from BotState, respecting paper vs live mode."""
+    def _resolve_bankroll(mode: str = None) -> float:
         try:
             from backend.models.database import SessionLocal, BotState
             from backend.config import settings as _settings
 
+            effective = mode or _settings.TRADING_MODE
             db = SessionLocal()
             try:
                 state = db.query(BotState).first()
                 if state:
-                    if _settings.TRADING_MODE == "paper":
+                    if effective == "paper":
                         return float(
                             state.paper_bankroll
                             if state.paper_bankroll is not None
                             else _settings.INITIAL_BANKROLL
                         )
-                    elif _settings.TRADING_MODE == "testnet":
+                    elif effective == "testnet":
                         return float(
                             state.testnet_bankroll
                             if state.testnet_bankroll is not None
@@ -287,7 +287,7 @@ class CopyTraderStrategy(BaseStrategy):
         result = CycleResult(decisions_recorded=0, trades_attempted=0, trades_placed=0)
         try:
             # Refresh bankroll from DB each cycle so it stays current
-            self._engine.bankroll = self._resolve_bankroll()
+            self._engine.bankroll = self._resolve_bankroll(mode=ctx.mode)
             if self._engine._executor:
                 self._engine._executor.bankroll = self._engine.bankroll
 

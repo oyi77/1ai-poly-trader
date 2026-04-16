@@ -207,27 +207,26 @@ class BondScannerStrategy(BaseStrategy):
             bankroll = 100.0
             try:
                 from backend.models.database import BotState
-                from backend.config import settings as _settings
 
                 state = ctx.db.query(BotState).first()
                 if state:
-                    if _settings.TRADING_MODE == "paper":
+                    if ctx.mode == "paper":
                         bankroll = float(
                             state.paper_bankroll
                             if state.paper_bankroll is not None
-                            else _settings.INITIAL_BANKROLL
+                            else ctx.settings.INITIAL_BANKROLL
                         )
-                    elif _settings.TRADING_MODE == "testnet":
+                    elif ctx.mode == "testnet":
                         bankroll = float(
                             state.testnet_bankroll
                             if state.testnet_bankroll is not None
-                            else _settings.INITIAL_BANKROLL
+                            else ctx.settings.INITIAL_BANKROLL
                         )
                     else:
                         bankroll = float(
                             state.bankroll
                             if state.bankroll is not None
-                            else _settings.INITIAL_BANKROLL
+                            else ctx.settings.INITIAL_BANKROLL
                         )
             except Exception:
                 pass
