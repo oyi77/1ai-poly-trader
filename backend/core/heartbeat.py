@@ -1,12 +1,8 @@
-"""
-Heartbeat and watchdog system for PolyEdge.
-
-Every strategy cycle updates a heartbeat row in BotState.
-The watchdog job checks all enabled strategies and alerts if any go silent.
-"""
+"""Heartbeat and watchdog — in-memory cache, batch-flushed to DB by watchdog."""
 
 import json
 import logging
+import threading
 from datetime import datetime, timezone, timedelta
 
 from backend.models.database import SessionLocal, BotState, StrategyConfig
@@ -17,14 +13,31 @@ HEARTBEAT_PREFIX = "heartbeat:"
 _recent_alerts: dict[str, datetime] = {}  # strategy_name -> last_alert_time
 ALERT_DEDUP_WINDOW = timedelta(minutes=5)
 
+# In-memory heartbeat cache: strategy_name -> ISO timestamp
+_pending_heartbeats: dict[str, str] = {}
+_hb_lock = threading.Lock()
 
-def _do_heartbeat_write_raw(strategy_name: str) -> None:
-    """Write heartbeat via raw sqlite3 — bypasses SQLAlchemy pool entirely."""
+
+def update_heartbeat(db, strategy_name: str) -> None:
+    """Record heartbeat in memory — no DB write (watchdog flushes batch)."""
+    ts = datetime.now(timezone.utc).isoformat()
+    with _hb_lock:
+        _pending_heartbeats[strategy_name] = ts
+
+
+def _flush_heartbeats() -> None:
+    """Write all pending heartbeats to DB in a single transaction."""
     import sqlite3
     from backend.config import settings
 
+    with _hb_lock:
+        if not _pending_heartbeats:
+            return
+        snapshot = dict(_pending_heartbeats)
+        _pending_heartbeats.clear()
+
     db_path = settings.DATABASE_URL.replace("sqlite:///", "")
-    conn = sqlite3.connect(db_path, timeout=10.0)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         row = conn.execute("SELECT misc_data FROM bot_state WHERE id=1").fetchone()
@@ -36,44 +49,14 @@ def _do_heartbeat_write_raw(strategy_name: str) -> None:
                 data = json.loads(row[0])
             except Exception:
                 data = {}
-        data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = datetime.now(
-            timezone.utc
-        ).isoformat()
+        for strategy_name, ts in snapshot.items():
+            data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = ts
         conn.execute("UPDATE bot_state SET misc_data=? WHERE id=1", (json.dumps(data),))
         conn.commit()
+    except Exception as e:
+        logger.warning(f"heartbeat flush failed: {e}")
     finally:
         conn.close()
-
-
-def update_heartbeat(db, strategy_name: str) -> None:
-    """Update heartbeat timestamp for a strategy.
-
-    Uses raw sqlite3 to bypass SQLAlchemy pool and avoid pool exhaustion.
-    Retries up to 5 times with exponential backoff + jitter.
-    """
-    import time
-    import random
-
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            _do_heartbeat_write_raw(strategy_name)
-            return
-        except Exception as e:
-            if attempt < max_retries - 1:
-                base_sleep = 0.3 * (2**attempt)  # 0.3, 0.6, 1.2, 2.4
-                jitter = random.uniform(0, base_sleep * 0.5)
-                sleep_time = base_sleep + jitter
-                logger.warning(
-                    f"update_heartbeat attempt {attempt + 1} failed for "
-                    f"{strategy_name}: {e} — retrying in {sleep_time:.1f}s"
-                )
-                time.sleep(sleep_time)
-            else:
-                logger.error(
-                    f"update_heartbeat failed for {strategy_name} after "
-                    f"{max_retries} attempts: {e}"
-                )
 
 
 def get_strategy_health(db) -> list[dict]:
@@ -135,11 +118,10 @@ def get_strategy_health(db) -> list[dict]:
 
 
 async def watchdog_job() -> None:
-    """
-    APScheduler watchdog job — runs every 30s.
-    Checks strategy heartbeats and fires alerts for stale ones.
-    """
+    """APScheduler watchdog — flush heartbeats, check for stale strategies."""
     from backend.core.decisions import record_decision
+
+    _flush_heartbeats()
 
     db = SessionLocal()
     try:
@@ -260,7 +242,7 @@ def _sync_balance_to_db(balance: float, mode: str) -> None:
     from backend.config import settings
 
     db_path = settings.DATABASE_URL.replace("sqlite:///", "")
-    conn = sqlite3.connect(db_path, timeout=10.0)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         if mode == "live":
