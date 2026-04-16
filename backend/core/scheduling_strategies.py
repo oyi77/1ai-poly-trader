@@ -861,24 +861,46 @@ async def strategy_cycle_job(strategy_name: str) -> None:
         ]
 
         execution_modes = []
-        if _settings.TRADING_MODE == "live":
+        if effective_mode == "live":
             execution_modes = ["paper", "live"]
-        elif _settings.TRADING_MODE == "paper":
+            logger.info(
+                f"[{strategy_name}] effective_mode=live, will execute in BOTH paper+live modes"
+            )
+        elif effective_mode == "paper":
             execution_modes = ["paper"]
-        elif _settings.TRADING_MODE == "testnet":
+            logger.info(
+                f"[{strategy_name}] effective_mode=paper, will execute in paper mode only"
+            )
+        elif effective_mode == "testnet":
             execution_modes = ["testnet"]
+            logger.info(
+                f"[{strategy_name}] effective_mode=testnet, will execute in testnet mode only"
+            )
+        else:
+            execution_modes = [_settings.TRADING_MODE]
+            logger.warning(
+                f"[{strategy_name}] Unknown effective_mode={effective_mode}, falling back to {_settings.TRADING_MODE}"
+            )
 
         for mode in execution_modes:
+            logger.info(
+                f"[{strategy_name}] Preparing to execute {len(buy_decisions)} decisions in {mode} mode"
+            )
             if buy_decisions:
                 decisions_copy = [d.copy() for d in buy_decisions]
                 for d in decisions_copy:
                     d["trading_mode"] = mode
+                logger.info(
+                    f"[{strategy_name}] Calling _exec_decisions with {len(decisions_copy)} decisions, mode={mode}"
+                )
                 trade_results = await _exec_decisions(
                     decisions_copy, strategy_name, db=db
                 )
                 logger.info(
-                    f"Strategy {strategy_name}: executed {len(trade_results)} trades in {mode} mode"
+                    f"[{strategy_name}] PARALLEL: executed {len(trade_results)} trades in {mode} mode (input decisions: {len(decisions_copy)})"
                 )
+            else:
+                logger.info(f"[{strategy_name}] No buy_decisions to execute")
 
         from backend.core.heartbeat import update_heartbeat
 
