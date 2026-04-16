@@ -37,8 +37,8 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 - Backend deprecation warnings reduced from ~69,000 to 17
 
 ### Known Gaps — Backend
-- **Exception handling**: 306 bare `except Exception` blocks across 77 files. Critical-path modules (orchestrator, order_executor, risk_manager, strategy_executor, api/main, polymarket_clob, settlement_helpers) are being audited for structured error logging. Remaining non-critical files are lower priority.
-- **Database migrations**: No Alembic setup. Schema changes require manual SQLite operations or fresh DB creation.
+- **Exception handling**: ~306 `except Exception` blocks across 77 files. Critical-path modules (orchestrator, order_executor, risk_manager, strategy_executor, api/main, polymarket_clob, settlement_helpers) and non-critical modules (core, strategies, data, AI) now have structured error logging. Remaining blocks in peripheral modules are low priority.
+- ~~**Database migrations**: No Alembic setup.~~ → **Fixed**: Alembic initialized with autogenerate from current schema. Initial migration at `alembic/versions/51c2bc15c671_initial_schema.py`.
 - **Kalshi API**: Base URL `https://api.elections.kalshi.com/trade-api/v2` confirmed working (returns 200). Authenticated endpoints (portfolio, orders) require valid `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PATH`. The 404 was from testing without credentials.
 - **Polymarket Testnet Clarification**: The Polymarket Builder Program operates on MAINNET (chain_id=137), not a separate testnet. The "testnet" mode in PolyEdge uses mainnet CLOB with Builder auth for gasless trading. There is no functional testnet CLOB host (clob-staging.polymarket.com returns 503). Testnet trades are REAL but gasless; track separately from paper/live modes.
 
@@ -61,7 +61,7 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 - PendingApprovals test wraps component with `QueryClientProvider`
 
 ### Known Gaps — Frontend
-- **Bundle size**: GlobeView chunk is ~1.8MB, index.js is ~950KB. Needs code splitting via `React.lazy()` and Vite manual chunks to get all chunks under 500KB.
+- **Bundle size**: GlobeView chunk is ~1.8MB. Landing, Dashboard, and Admin pages now lazy-loaded via `React.lazy()` + Suspense (separate chunks: 13KB/96KB/136KB). Remaining optimization: lazy-load GlobeView and heavy chart components.
 - **Offline/error states**: Some components lack loading skeletons and error boundaries.
 
 ---
@@ -103,9 +103,9 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 
 ## Future Work (Not In Current Scope)
 
-1. **Alembic migrations** — Proper schema versioning for production database changes
+1. ~~**Alembic migrations** — Proper schema versioning for production database changes~~ → **Done** (April 2026)
 2. **Grafana dashboards** — Visual monitoring for Prometheus metrics
-3. **Full exception audit** — Cover remaining ~250 bare `except Exception` blocks in non-critical modules
-4. **Frontend code splitting** — Lazy-load GlobeView and heavy chart components
+3. ~~**Full exception audit** — Cover remaining bare `except Exception` blocks~~ → Critical + non-critical modules now have structured logging (April 2026)
+4. ~~**Frontend code splitting** — Lazy-load heavy page components~~ → Landing, Dashboard, Admin now lazy-loaded (April 2026). GlobeView still eagerly loaded.
 5. **Kalshi live trading validation** — Verify API endpoints with active credentials
 6. **Load testing** — Stress test concurrent strategy execution and API throughput
