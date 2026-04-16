@@ -149,7 +149,6 @@ class BondScannerStrategy(BaseStrategy):
             if slug in existing_tickers:
                 continue
 
-            # Extract token_id from clobTokenIds
             clob_token_id = None
             clob_token_ids = market.get("clobTokenIds") or []
             if isinstance(clob_token_ids, str):
@@ -159,7 +158,7 @@ class BondScannerStrategy(BaseStrategy):
                     clob_token_ids = _json.loads(clob_token_ids)
                 except Exception:
                     clob_token_ids = []
-            if clob_token_ids:
+            if clob_token_ids and len(clob_token_ids) > 0:
                 clob_token_id = str(clob_token_ids[0])
 
             # Price filter — check outcomePrices

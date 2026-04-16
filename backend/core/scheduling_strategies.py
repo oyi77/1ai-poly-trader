@@ -23,7 +23,9 @@ logger = logging.getLogger("trading_bot")
 def _get_effective_mode(db, strategy_name: str) -> str:
     """Resolve per-strategy trading mode, falling back to global settings.TRADING_MODE."""
     config = (
-        db.query(StrategyConfig).filter(StrategyConfig.name == strategy_name).first()
+        db.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == strategy_name)
+        .first()
     )
     if config and config.trading_mode:
         return config.trading_mode
