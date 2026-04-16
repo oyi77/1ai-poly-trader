@@ -11,6 +11,7 @@ from backend.models.database import (
     BotState,
     Signal,
     PendingApproval,
+    StrategyConfig,
 )
 from backend.core.signals import scan_for_signals
 from backend.core.decisions import record_decision
@@ -19,22 +20,54 @@ from backend.core.event_bus import _broadcast_event
 logger = logging.getLogger("trading_bot")
 
 
+def _get_effective_mode(db, strategy_name: str) -> str:
+    """Resolve per-strategy trading mode, falling back to global settings.TRADING_MODE."""
+    config = (
+        db.query(StrategyConfig).filter(StrategyConfig.name == strategy_name).first()
+    )
+    if config and config.trading_mode:
+        return config.trading_mode
+    return settings.TRADING_MODE
+
+
+def _get_bankroll_for_mode(state, mode: str) -> float:
+    """Read the correct bankroll field based on trading mode."""
+    if mode == "paper":
+        return (
+            state.paper_bankroll
+            if state.paper_bankroll is not None
+            else settings.INITIAL_BANKROLL
+        )
+    elif mode == "testnet":
+        return (
+            state.testnet_bankroll
+            if state.testnet_bankroll is not None
+            else settings.INITIAL_BANKROLL
+        )
+    else:
+        return (
+            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+        )
+
+
 async def _process_signal_with_approval(
     signal,
     state,
     db,
     trades_executed: int,
     max_trades: int,
+    effective_mode: str = None,
 ) -> int:
-    """Process a signal through the approval workflow. Returns updated trades_executed count."""
     from backend.core.scheduler import log_event
+
+    mode = effective_mode or settings.TRADING_MODE
 
     existing_trade = (
         db.query(Trade)
         .filter(
             Trade.event_slug == signal.market.slug,
             Trade.settled.is_(False),
-            Trade.trading_mode == settings.TRADING_MODE,
+            Trade.trading_mode == mode,
         )
         .first()
     )
@@ -70,22 +103,7 @@ async def _process_signal_with_approval(
 
     MAX_TRADE_FRACTION = 0.03
     MIN_TRADE_SIZE = 10
-    if settings.TRADING_MODE == "paper":
-        bankroll = (
-            state.paper_bankroll
-            if state.paper_bankroll is not None
-            else settings.INITIAL_BANKROLL
-        )
-    elif settings.TRADING_MODE == "testnet":
-        bankroll = (
-            state.testnet_bankroll
-            if state.testnet_bankroll is not None
-            else settings.INITIAL_BANKROLL
-        )
-    else:
-        bankroll = (
-            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
-        )
+    bankroll = _get_bankroll_for_mode(state, mode)
     trade_size = min(signal.suggested_size, bankroll * MAX_TRADE_FRACTION)
     trade_size = max(trade_size, MIN_TRADE_SIZE)
 
@@ -187,11 +205,7 @@ async def _execute_trade(signal, state, db, trade_size, trades_executed: int) ->
     except Exception:
         pass
 
-    mode_label = (
-        f"[{settings.TRADING_MODE.upper()}] "
-        if settings.TRADING_MODE != "paper"
-        else ""
-    )
+    mode_label = f"[{mode.upper()}] " if mode != "paper" else ""
     log_event(
         "trade",
         f"{mode_label}BTC {signal.direction.upper()} ${trade_size:.0f} @ {entry_price:.0%} | {signal.market.slug}",
@@ -299,13 +313,15 @@ async def scan_and_trade_job():
             log_event("info", "Bot is paused, skipping trades")
             return
 
+        btc_mode = _get_effective_mode(db, "btc_oracle")
+
         ctx = StrategyContext(
             db=db,
             clob=None,
             settings=settings,
             logger=logger,
             params={},
-            mode=settings.TRADING_MODE,
+            mode=btc_mode,
         )
 
         strategy = BtcOracleStrategy()
@@ -386,13 +402,14 @@ async def weather_scan_and_trade_job():
             MAX_TRADES_PER_SCAN = 3
             MIN_TRADE_SIZE = 10
             MAX_WEATHER_ALLOCATION = 500.0
+            weather_mode = _get_effective_mode(db, "weather")
 
             weather_pending = (
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
                     Trade.settled.is_(False),
                     Trade.market_type == "weather",
-                    Trade.trading_mode == settings.TRADING_MODE,
+                    Trade.trading_mode == weather_mode,
                 )
                 .scalar()
             )
@@ -411,7 +428,7 @@ async def weather_scan_and_trade_job():
                     .filter(
                         Trade.market_ticker == signal.market.market_id,
                         Trade.settled.is_(False),
-                        Trade.trading_mode == settings.TRADING_MODE,
+                        Trade.trading_mode == weather_mode,
                     )
                     .first()
                 )
@@ -422,24 +439,7 @@ async def weather_scan_and_trade_job():
                 trade_size = min(signal.suggested_size, settings.WEATHER_MAX_TRADE_SIZE)
                 trade_size = max(trade_size, MIN_TRADE_SIZE)
 
-                if settings.TRADING_MODE == "paper":
-                    bankroll = (
-                        state.paper_bankroll
-                        if state.paper_bankroll is not None
-                        else settings.INITIAL_BANKROLL
-                    )
-                elif settings.TRADING_MODE == "testnet":
-                    bankroll = (
-                        state.testnet_bankroll
-                        if state.testnet_bankroll is not None
-                        else settings.INITIAL_BANKROLL
-                    )
-                else:
-                    bankroll = (
-                        state.bankroll
-                        if state.bankroll is not None
-                        else settings.INITIAL_BANKROLL
-                    )
+                bankroll = _get_bankroll_for_mode(state, weather_mode)
                 if bankroll < MIN_TRADE_SIZE:
                     log_event("warning", f"Bankroll too low: ${bankroll:.2f}")
                     break
@@ -527,7 +527,6 @@ async def settlement_job():
                 db.query(Trade)
                 .filter(
                     Trade.settled.is_(False),
-                    Trade.trading_mode == settings.TRADING_MODE,
                 )
                 .count()
             )
@@ -644,30 +643,14 @@ async def auto_trader_job():
             if not state or not state.is_running:
                 return
 
-            if settings.TRADING_MODE == "paper":
-                bankroll = (
-                    state.paper_bankroll
-                    if state.paper_bankroll is not None
-                    else settings.INITIAL_BANKROLL
-                )
-            elif settings.TRADING_MODE == "testnet":
-                bankroll = (
-                    state.testnet_bankroll
-                    if state.testnet_bankroll is not None
-                    else settings.INITIAL_BANKROLL
-                )
-            else:
-                bankroll = (
-                    state.bankroll
-                    if state.bankroll is not None
-                    else settings.INITIAL_BANKROLL
-                )
+            auto_trader_mode = _get_effective_mode(db, "auto_trader")
+            bankroll = _get_bankroll_for_mode(state, auto_trader_mode)
 
             signals = (
                 db.query(Signal)
                 .filter(
                     Signal.executed.is_(False),
-                    Signal.execution_mode == settings.TRADING_MODE,
+                    Signal.execution_mode == auto_trader_mode,
                 )
                 .order_by(Signal.timestamp.desc())
                 .limit(10)
@@ -681,7 +664,7 @@ async def auto_trader_job():
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
                     Trade.settled.is_(False),
-                    Trade.trading_mode == settings.TRADING_MODE,
+                    Trade.trading_mode == auto_trader_mode,
                 )
                 .scalar()
                 or 0.0
@@ -691,11 +674,8 @@ async def auto_trader_job():
             queued = 0
             skipped = 0
             for sig in signals:
-                # In live/testnet mode, signals without a token_id cannot
-                # be placed on the CLOB — mark them executed so they are
-                # not re-processed forever.
                 token_id = getattr(sig, "token_id", None)
-                if settings.TRADING_MODE in ("testnet", "live") and not token_id:
+                if auto_trader_mode in ("testnet", "live") and not token_id:
                     sig.executed = True
                     skipped += 1
                     continue
@@ -760,13 +740,7 @@ async def heartbeat_job():
     try:
         db = SessionLocal()
         state = db.query(BotState).first()
-        pending = (
-            db.query(Trade)
-            .filter(
-                Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
-            )
-            .count()
-        )
+        pending = db.query(Trade).filter(Trade.settled.is_(False)).count()
 
         if state is None:
             log_event("warning", "Heartbeat: Bot state not initialized")
