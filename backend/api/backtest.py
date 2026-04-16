@@ -20,6 +20,8 @@ from backend.api.auth import require_admin
 
 logger = logging.getLogger("trading_bot")
 
+logger = logging.getLogger("trading_bot")
+
 
 def get_all_strategies() -> dict:
     if not STRATEGY_REGISTRY:
@@ -226,7 +228,8 @@ async def get_backtest_strategies(_: None = Depends(require_admin)):
                     "default_params": getattr(inst, "default_params", {}),
                 }
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Strategy instantiation failed for backtest: {e}")
             result.append(
                 {
                     "name": name,

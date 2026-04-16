@@ -87,7 +87,8 @@ def _persist_env_updates(updates: dict[str, str]) -> None:
             for k, v in env_lines.items():
                 f.write(f"{k}={v}\n")
         os.replace(tmp_path, env_path)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Secret validation error: {e}")
         try:
             os.unlink(tmp_path)
         except OSError:

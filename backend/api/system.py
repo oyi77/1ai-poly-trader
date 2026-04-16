@@ -740,14 +740,14 @@ async def list_decisions(
         try:
             since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
             query = query.filter(DecisionLog.created_at >= since_dt)
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug(f"Strategy status check error: {e}")
     if until:
         try:
             until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
             query = query.filter(DecisionLog.created_at <= until_dt)
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug(f"Strategy status check error: {e}")
     total = query.count()
     col = getattr(DecisionLog, sort, DecisionLog.created_at)
     if order == "desc":

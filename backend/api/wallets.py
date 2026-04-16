@@ -255,8 +255,8 @@ async def get_wallet_balance(
                         "last_updated": last_updated,
                         "source": "cache",
                     }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Balance cache parse error: {e}")
 
     # Try to fetch live balance from Polymarket if we have credentials.
     # NOTE: The CLOB client is authenticated with the bot's private key, so it
@@ -270,8 +270,8 @@ async def get_wallet_balance(
             bot_address = _Acct.from_key(
                 settings.POLYMARKET_PRIVATE_KEY
             ).address.lower()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Address key derivation error: {e}")
 
     if (
         settings.POLYMARKET_PRIVATE_KEY
@@ -316,8 +316,8 @@ async def get_wallet_balance(
                 "last_updated": cached.get("last_updated"),
                 "source": "cache",
             }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Key derivation error: {e}")
 
     return {
         "address": address,

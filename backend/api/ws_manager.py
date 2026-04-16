@@ -10,6 +10,7 @@ It handles three distinct WebSocket systems:
 The three systems are kept separate (per consensus review decision) as they
 serve different purposes with different protocols and lifecycles.
 """
+
 import asyncio
 import logging
 from typing import List, Callable
@@ -59,7 +60,9 @@ class ChannelWebSocketManager(WebSocketManager):
         """Connect a client and send welcome message."""
         await super().connect(websocket)
         try:
-            await websocket.send_json({"type": "connected", "channel": self.channel_name})
+            await websocket.send_json(
+                {"type": "connected", "channel": self.channel_name}
+            )
         except Exception as e:
             logger.error(f"Error sending welcome message: {e}")
 
@@ -102,6 +105,6 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"WebSocket broadcast error (dead connection): {e}")
                 # Connection is dead, will be cleaned up on next disconnect
-                pass

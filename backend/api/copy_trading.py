@@ -135,8 +135,8 @@ async def get_copy_leaderboard(limit: int = 100, _: None = Depends(require_admin
                     )
                     for t in traders
                 ]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Leaderboard scraper fallback failed: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch leaderboard: {str(e)}"
         )
@@ -170,7 +170,8 @@ async def get_copy_signals(limit: int = 20, _: None = Depends(require_admin)):
             )
             for s in signals
         ]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Copy signals fetch failed: {e}")
         return []
     finally:
         db.close()

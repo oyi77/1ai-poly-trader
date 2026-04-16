@@ -1,4 +1,6 @@
 """Market data routes - BTC, Polymarket, Kalshi, Weather."""
+
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -11,6 +13,8 @@ from backend.api.auth import require_admin
 from backend.data.btc_markets import fetch_active_btc_markets
 from backend.data.crypto import fetch_crypto_price
 from backend.core.errors import handle_errors
+
+logger = logging.getLogger("trading_bot")
 
 router = APIRouter(tags=["markets"])
 
@@ -136,7 +140,8 @@ async def get_btc_windows():
             )
             for m in markets
         ]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Weather forecasts fetch failed: {e}")
         return []
 
 
@@ -232,8 +237,8 @@ async def get_weather_markets():
                 if kalshi_credentials_present():
                     kalshi_markets = await fetch_kalshi_weather_markets(city_keys)
                     markets.extend(kalshi_markets)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Market detail lookup failed: {e}")
 
         return [
             WeatherMarketResponse(
@@ -301,20 +306,17 @@ def _weather_signal_to_response(s) -> WeatherSignalResponse:
 
 @router.get("/api/polymarket/markets")
 async def get_polymarket_markets(
-    offset: int = 0,
-    limit: int = 100,
-    category: str | None = None
+    offset: int = 0, limit: int = 100, category: str | None = None
 ):
     """Get Polymarket CLOB markets with pagination."""
     try:
         from backend.core.market_scanner import fetch_all_active_markets
 
         markets = await fetch_all_active_markets(
-            category=category,
-            limit=limit + offset if limit else None
+            category=category, limit=limit + offset if limit else None
         )
         # Apply pagination
-        paginated = markets[offset:offset + limit]
+        paginated = markets[offset : offset + limit]
         return {
             "markets": [
                 {
@@ -336,7 +338,10 @@ async def get_polymarket_markets(
         }
     except Exception as e:
         import logging
-        logging.getLogger("trading_bot").error(f"Failed to fetch Polymarket markets: {e}")
+
+        logging.getLogger("trading_bot").error(
+            f"Failed to fetch Polymarket markets: {e}"
+        )
         return {"markets": [], "total": 0, "offset": offset, "limit": limit}
 
 
@@ -384,7 +389,9 @@ async def create_market_watch(
     """Add a market to the watch list."""
     existing = db.query(MarketWatch).filter(MarketWatch.ticker == body.ticker).first()
     if existing:
-        raise HTTPException(status_code=409, detail=f"Ticker '{body.ticker}' already watched")
+        raise HTTPException(
+            status_code=409, detail=f"Ticker '{body.ticker}' already watched"
+        )
 
     row = MarketWatch(
         ticker=body.ticker,
