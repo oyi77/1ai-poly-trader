@@ -184,8 +184,8 @@ class GeneralMarketScanner(BaseStrategy):
         "min_edge": 0.02,
         "max_price": 0.80,
         "min_price": 0.10,
-        "max_position_size": 2.00,
-        "min_position_size": 0.30,
+        "max_position_size": 8.0,
+        "min_position_size": 5.0,
         "scan_limit": 500,
         "categories": "politics,crypto,science,culture",
         "max_ai_calls_per_cycle": 40,
@@ -796,7 +796,7 @@ class GeneralMarketScanner(BaseStrategy):
             # DYNAMIC POSITION SIZING: Scale max based on AI confidence
             # Higher confidence = larger allowed position (up to bankroll %)
             # ============================================================
-            base_max = max_position_size  # Default $2
+            base_max = max_position_size
             if ai_confidence >= 0.90:
                 # Very high confidence: up to 20% of bankroll or $16
                 dynamic_max = min(bankroll * 0.20, 16.0)

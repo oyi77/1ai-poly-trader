@@ -107,8 +107,8 @@ async def execute_decision(
 
             adjusted_size = risk.adjusted_size
 
-            # Enforce minimum order size for live/testnet trading
-            MIN_ORDER_SIZE = 1.0
+            # Enforce minimum order size — must match Polymarket CLOB minimum ($5)
+            MIN_ORDER_SIZE = 5.0
             if adjusted_size < MIN_ORDER_SIZE:
                 logger.info(
                     f"[{effective_mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: "

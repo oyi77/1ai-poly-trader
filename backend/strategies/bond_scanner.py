@@ -258,6 +258,9 @@ class BondScannerStrategy(BaseStrategy):
             # Size proportional to edge — don't max-bet on tiny edges
             kelly = edge / (1.0 - qualifying_price) if qualifying_price < 1.0 else 0.0
             size = min(max_position_size, bankroll * 0.08, bankroll * kelly * 0.25)
+            # Floor at $5 to meet Polymarket CLOB minimum order size
+            size = max(size, 5.0)
+            size = min(size, max_position_size)
 
             trade_direction = str(qualifying_outcome).strip().strip("'\"").lower()
             if trade_direction not in ("yes", "no", "up", "down"):

@@ -298,6 +298,12 @@ class CopyTraderStrategy(BaseStrategy):
 
             signals = await self._engine.poll_once()
 
+            if not signals:
+                ctx.logger.info(
+                    f"CopyTrader: no new copy signals this cycle "
+                    f"(tracked={len(self._engine._tracked)} wallets)"
+                )
+
             # Build a set of wallets that produced signals for fast lookup
             signaled_wallets = {s.source_wallet for s in signals} if signals else set()
 
@@ -336,7 +342,7 @@ class CopyTraderStrategy(BaseStrategy):
                 ctx.db.add(log_row)
 
             ctx.db.commit()
-            result.decisions_recorded = len(wallet_pool)
+            result.decisions_recorded = len([s for s in (signals or []) if s])
             result.trades_attempted = len(signals) if signals else 0
 
             # Fetch token_ids in parallel for all signals

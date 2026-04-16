@@ -878,6 +878,7 @@ async def strategy_cycle_job(strategy_name: str) -> None:
                 trade_results = await _exec_decisions(
                     decisions_copy, strategy_name, db=db
                 )
+                result.trades_placed += len(trade_results)
                 logger.info(
                     f"[{strategy_name}] PARALLEL: executed {len(trade_results)} trades in {mode} mode (input decisions: {len(decisions_copy)})"
                 )
