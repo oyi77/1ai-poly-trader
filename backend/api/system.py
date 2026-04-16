@@ -102,21 +102,30 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     live_wins = state.winning_trades or 0
     live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
-    # Fetch real CLOB wallet balance when in live/testnet mode
+    # Fetch real CLOB wallet balance when in live/testnet mode (with 60s cache)
+    _wallet_cache_key = "_clob_wallet_cache"
     if settings.TRADING_MODE in ("live", "testnet"):
         try:
-            from backend.data.polymarket_clob import clob_from_settings
+            _cache = getattr(get_stats, _wallet_cache_key, None)
+            import time as _time
 
-            clob = clob_from_settings()
-            async with clob:
-                await clob.create_or_derive_api_creds()
-                balance_data = await clob.get_wallet_balance()
-                clob_balance = balance_data.get("usdc_balance", 0.0)
-                if clob_balance >= 0:
-                    live_bankroll = clob_balance
-                    if state.bankroll != clob_balance:
-                        state.bankroll = clob_balance
-                        db.commit()
+            _now = _time.time()
+            if _cache and (_now - _cache[0]) < 60:
+                live_bankroll = _cache[1]
+            else:
+                from backend.data.polymarket_clob import clob_from_settings
+
+                clob = clob_from_settings()
+                async with clob:
+                    await clob.create_or_derive_api_creds()
+                    balance_data = await clob.get_wallet_balance()
+                    clob_balance = balance_data.get("usdc_balance", 0.0)
+                    if clob_balance >= 0:
+                        live_bankroll = clob_balance
+                        if state.bankroll != clob_balance:
+                            state.bankroll = clob_balance
+                            db.commit()
+                        setattr(get_stats, _wallet_cache_key, (_now, clob_balance))
         except Exception as e:
             logger.warning(f"Failed to fetch live CLOB wallet balance: {e}")
 
@@ -129,34 +138,32 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     testnet_wins = state.testnet_wins or 0
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
-    # Open exposure — unsettled trades in the active mode
-    open_trades_rows = db.query(Trade).filter(Trade.settled.is_(False)).all()
-    open_trades_count = len(open_trades_rows)
-    open_exposure_amount = sum((t.size or 0.0) for t in open_trades_rows)
+    # Open exposure — unsettled trades in the ACTIVE mode only
+    mode_trades = (
+        db.query(Trade)
+        .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
+        .all()
+    )
+    open_trades_count = len(mode_trades)
+    open_exposure_amount = sum((t.size or 0.0) for t in mode_trades)
 
     unrealized_pnl = 0.0
     position_cost = 0.0
     position_market_value = 0.0
-    paper_open_trades = (
-        db.query(Trade)
-        .filter(Trade.settled.is_(False), Trade.trading_mode == "paper")
-        .all()
-    )
-    if paper_open_trades:
+    if mode_trades:
         try:
             import httpx
 
-            tickers = list(
-                {t.market_ticker for t in paper_open_trades if t.market_ticker}
-            )
+            tickers = list({t.market_ticker for t in mode_trades if t.market_ticker})
             if tickers:
                 ticker_to_price = {}
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    for ticker in tickers[:50]:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    for ticker in tickers[:20]:
                         try:
                             r = await client.get(
                                 "https://gamma-api.polymarket.com/markets?slug="
-                                + ticker
+                                + ticker,
+                                timeout=5.0,
                             )
                             data = r.json()
                             if data and isinstance(data, list) and len(data) > 0:
@@ -167,7 +174,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
                                 }
                         except Exception:
                             pass
-                for t in paper_open_trades:
+                for t in mode_trades:
                     size = t.size or 0.0
                     position_cost += size
                     if not t.market_ticker or t.market_ticker not in ticker_to_price:
