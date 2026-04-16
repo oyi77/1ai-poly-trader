@@ -477,7 +477,7 @@ export async function fetchStrategies(): Promise<StrategyConfig[]> {
   return data
 }
 
-export async function updateStrategy(name: string, body: { enabled?: boolean; interval_seconds?: number; params?: Record<string, unknown> }): Promise<StrategyConfig> {
+export async function updateStrategy(name: string, body: { enabled?: boolean; interval_seconds?: number; params?: Record<string, unknown>; trading_mode?: string | null }): Promise<StrategyConfig> {
   const { data } = await adminApi.put(`/strategies/${name}`, body)
   return data
 }

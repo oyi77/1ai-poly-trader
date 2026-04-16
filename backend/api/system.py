@@ -900,6 +900,7 @@ async def list_strategies(
                 if cfg and cfg.updated_at
                 else None,
                 "required_credentials": required_creds,
+                "trading_mode": cfg.trading_mode if cfg else None,
             }
         )
     return result
@@ -909,6 +910,7 @@ class StrategyUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
     interval_seconds: Optional[int] = None
     params: Optional[dict] = None
+    trading_mode: Optional[str] = None
 
 
 @router.get("/api/strategies/{name}")
@@ -941,6 +943,7 @@ async def get_strategy(
         "params": _json.loads(cfg.params) if cfg and cfg.params else {},
         "default_params": default_params,
         "updated_at": cfg.updated_at.isoformat() if cfg and cfg.updated_at else None,
+        "trading_mode": cfg.trading_mode if cfg else None,
     }
 
 
@@ -968,6 +971,14 @@ async def update_strategy(
         cfg.interval_seconds = body.interval_seconds
     if body.params is not None:
         cfg.params = _json.dumps(body.params)
+    if body.trading_mode is not None:
+        valid_modes = ["paper", "testnet", "live", None]
+        if body.trading_mode not in valid_modes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid trading_mode '{body.trading_mode}'. Must be one of: paper, testnet, live",
+            )
+        cfg.trading_mode = body.trading_mode
 
     db.commit()
     db.refresh(cfg)
@@ -978,6 +989,7 @@ async def update_strategy(
         "interval_seconds": cfg.interval_seconds,
         "params": _json.loads(cfg.params) if cfg.params else {},
         "updated_at": cfg.updated_at.isoformat() if cfg.updated_at else None,
+        "trading_mode": cfg.trading_mode,
     }
 
 
