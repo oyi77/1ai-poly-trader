@@ -61,7 +61,7 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 - PendingApprovals test wraps component with `QueryClientProvider`
 
 ### Known Gaps — Frontend
-- **Bundle size**: GlobeView chunk is ~1.8MB. Landing, Dashboard, and Admin pages now lazy-loaded via `React.lazy()` + Suspense (separate chunks: 13KB/96KB/136KB). Remaining optimization: lazy-load GlobeView and heavy chart components.
+    - **Bundle size**: GlobeView lazy-loaded in OverviewTab + manualChunks splits three-globe (1MB), three (569KB), recharts (408KB) into separate chunks. Main index.js is 57KB. All page routes lazy-loaded. Further reduction requires replacing three-globe dependency.
 - **Offline/error states**: Some components lack loading skeletons and error boundaries.
 
 ---
@@ -105,6 +105,6 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 1. ~~**Alembic migrations** — Proper schema versioning for production database changes~~ → **Done** (April 2026)
 2. **Grafana dashboards** — Visual monitoring for Prometheus metrics
 3. ~~**Full exception audit** — Cover remaining bare `except Exception` blocks~~ → Critical + non-critical modules now have structured logging (April 2026)
-4. ~~**Frontend code splitting** — Lazy-load heavy page components~~ → Landing, Dashboard, Admin now lazy-loaded (April 2026). GlobeView still eagerly loaded.
+4. ~~**Frontend code splitting** — Lazy-load heavy page components~~ → All pages lazy-loaded + manualChunks configured (April 2026). GlobeView lazy-loaded in OverviewTab. Remaining three-globe (1MB) is external library weight.
 5. **Kalshi live trading validation** — Verify API endpoints with active credentials
 6. **Load testing** — Stress test concurrent strategy execution and API throughput
