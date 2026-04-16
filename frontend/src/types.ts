@@ -96,6 +96,8 @@ export interface BotStats {
   pnl_source?: string
   open_exposure?: number
   open_trades?: number
+  settled_trades?: number
+  settled_wins?: number
   unrealized_pnl?: number
   position_cost?: number
   position_market_value?: number

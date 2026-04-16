@@ -5,7 +5,7 @@ import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { useStats } from '../hooks/useStats'
 
 export function StatsCards() {
-  const { pnl, wins, trades, bankroll, winRate, returnPercent, mode, isRunning, openExposure, openTrades, totalEquity } = useStats()
+  const { pnl, wins, trades, bankroll, winRate, returnPercent, mode, isRunning, openExposure, openTrades, totalEquity, settledTrades, unrealizedPnl } = useStats()
   const modeLabel = mode ? mode.toUpperCase() : ''
 
   const { data, isLoading, isError } = useQuery({
@@ -63,6 +63,11 @@ export function StatsCards() {
         <span className={`text-[10px] tabular-nums ${returnPercent >= 0 ? 'text-green-500/60' : 'text-red-500/60'}`}>
           {returnPercent >= 0 ? '+' : ''}{returnPercent.toFixed(1)}%
         </span>
+        {unrealizedPnl !== 0 && (
+          <span className="text-[9px] text-neutral-600 tabular-nums">
+            ({unrealizedPnl >= 0 ? '+' : ''}{unrealizedPnl.toFixed(2)} unrealized)
+          </span>
+        )}
       </motion.div>
 
       <div className="w-px h-3 bg-neutral-800" />
@@ -81,7 +86,7 @@ export function StatsCards() {
 
       <motion.div className="flex items-center gap-1.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
         <span className="text-[10px] text-neutral-600 uppercase">Settled</span>
-        <span className="text-sm font-semibold tabular-nums text-neutral-100">{trades}</span>
+        <span className="text-sm font-semibold tabular-nums text-neutral-100">{settledTrades}</span>
         {isRunning && <div className="live-dot" />}
       </motion.div>
 

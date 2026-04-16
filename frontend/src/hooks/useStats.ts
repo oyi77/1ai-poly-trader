@@ -38,34 +38,32 @@ export function useStats() {
       ? stats.testnet
       : stats.paper || null
 
-  // Derived values (computed once, used everywhere)
-  const pnl = active ? active.pnl : stats.total_pnl
+  const settledPnl = active ? active.pnl : stats.total_pnl
   const wins = active ? active.wins : stats.winning_trades
   const trades = active ? active.trades : stats.total_trades
-  // Use mode-specific bankroll when available, otherwise use default
   const bankroll = active ? active.bankroll : stats.bankroll
   const initialBankroll = stats.initial_bankroll || 10000
-  const winRate = trades > 0 ? (wins / trades * 100) : 0
-  const returnPercent = initialBankroll > 0 ? (pnl / initialBankroll * 100) : 0
+  const totalPnl = settledPnl + (stats.unrealized_pnl ?? 0)
 
   return {
-    // Raw stats
     stats,
     isLoading,
     error,
 
-    // Computed values (use these, not raw stats)
-    pnl,
+    pnl: totalPnl,
+    settledPnl,
     wins,
     trades,
     bankroll,
-    winRate,
-    returnPercent,
+    winRate: trades > 0 ? (wins / trades * 100) : 0,
+    returnPercent: initialBankroll > 0 ? (totalPnl / initialBankroll * 100) : 0,
     isRunning: stats.is_running,
     lastRun: stats.last_run,
     mode: stats.mode,
     openExposure: stats.open_exposure ?? 0,
     openTrades: stats.open_trades ?? 0,
+    settledTrades: stats.settled_trades ?? 0,
+    settledWins: stats.settled_wins ?? 0,
     unrealizedPnl: stats.unrealized_pnl ?? 0,
     positionCost: stats.position_cost ?? 0,
     positionMarketValue: stats.position_market_value ?? 0,

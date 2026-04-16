@@ -64,6 +64,8 @@ class BotStats(BaseModel):
     live: dict = {}
     open_exposure: float = 0.0
     open_trades: int = 0
+    settled_trades: int = 0
+    settled_wins: int = 0
     unrealized_pnl: float = 0.0
     position_cost: float = 0.0
     position_market_value: float = 0.0
@@ -145,7 +147,6 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
 
     mode = settings.TRADING_MODE
 
-    # Open exposure — unsettled trades in ACTIVE mode only
     mode_trades = (
         db.query(Trade)
         .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
@@ -153,6 +154,19 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     )
     open_trades_count = len(mode_trades)
     open_exposure_amount = sum((t.size or 0.0) for t in mode_trades)
+
+    settled_trades_count = (
+        db.query(func.count(Trade.id))
+        .filter(Trade.settled.is_(True), Trade.trading_mode == mode)
+        .scalar()
+        or 0
+    )
+    settled_wins_count = (
+        db.query(func.count(Trade.id))
+        .filter(Trade.settled.is_(True), Trade.trading_mode == mode, Trade.pnl > 0)
+        .scalar()
+        or 0
+    )
 
     unrealized_pnl = 0.0
     position_cost = 0.0
@@ -326,6 +340,8 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         },
         open_exposure=open_exposure_amount,
         open_trades=open_trades_count,
+        settled_trades=settled_trades_count,
+        settled_wins=settled_wins_count,
         unrealized_pnl=unrealized_pnl,
         position_cost=position_cost,
         position_market_value=position_market_value,
