@@ -43,12 +43,14 @@ def _make_ctx(ai_enabled=True, params=None, bankroll=100.0, min_debate_edge=0.04
         bankroll=bankroll, paper_bankroll=bankroll
     )
 
+    merged_params = {"skip_hours": [], **(params or {})}
+
     ctx = StrategyContext(
         db=db,
         clob=None,
         settings=settings_mock,
         logger=MagicMock(),
-        params=params or {},
+        params=merged_params,
         mode="paper",
     )
     return ctx

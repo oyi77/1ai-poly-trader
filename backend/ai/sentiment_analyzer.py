@@ -55,4 +55,12 @@ class SentimentAnalyzer:
         raise RuntimeError("AI client has no compatible complete() method")
 
     async def analyze_batch(self, texts: List[str]) -> List[SentimentResult]:
-        return await asyncio.gather(*[self.analyze(t) for t in texts])
+        results = await asyncio.gather(
+            *[self.analyze(t) for t in texts], return_exceptions=True
+        )
+        return [
+            r
+            if isinstance(r, SentimentResult)
+            else SentimentResult(0.0, "neutral", 0.0)
+            for r in results
+        ]

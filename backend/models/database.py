@@ -468,7 +468,7 @@ class ResearchItemDB(Base):
     content_summary = Column(String)
     relevance_score = Column(Float, nullable=False)
     fingerprint = Column(String, unique=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     used_in_decision = Column(Boolean, default=False)
 
 

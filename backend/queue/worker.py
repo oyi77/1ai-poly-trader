@@ -6,6 +6,7 @@ fail, timeout).
 
 RQ-006: Worker implementation for job queue processing
 """
+
 import asyncio
 import logging
 import time
@@ -52,6 +53,7 @@ class Worker:
         self._in_flight_jobs: Set[int] = set()
         self._running = False
         self._db_executor = ThreadPoolExecutor(max_workers=1)
+        self._active_tasks: Set[asyncio.Task] = set()
 
         logger.info(
             f"Worker initialized with max_concurrent={self._max_concurrent}, "
@@ -89,13 +91,17 @@ class Worker:
                 job = await self._queue.dequeue()
                 if job is None:
                     # No jobs available — update depth and sleep briefly
-                    get_queue_metrics().update_depth(await self._queue.get_pending_count())
+                    get_queue_metrics().update_depth(
+                        await self._queue.get_pending_count()
+                    )
                     await asyncio.sleep(0.5)
                     continue
 
                 # Periodically update depth (every 10 iterations)
                 if _iter_count % 10 == 0:
-                    get_queue_metrics().update_depth(await self._queue.get_pending_count())
+                    get_queue_metrics().update_depth(
+                        await self._queue.get_pending_count()
+                    )
 
                 # Log snapshot once per minute
                 _now = time.monotonic()
@@ -112,8 +118,9 @@ class Worker:
                     f"priority={job.priority}, payload={job.payload}"
                 )
 
-                # Process job asynchronously
-                asyncio.create_task(self._process_job(job))
+                task = asyncio.create_task(self._process_job(job))
+                self._active_tasks.add(task)
+                task.add_done_callback(self._active_tasks.discard)
 
         except Exception as e:
             logger.error(f"Worker loop error: {e}", exc_info=True)
@@ -134,8 +141,7 @@ class Worker:
             try:
                 # Execute job with timeout
                 result = await asyncio.wait_for(
-                    self.dispatch_job(job),
-                    timeout=settings.JOB_TIMEOUT_SECONDS
+                    self.dispatch_job(job), timeout=settings.JOB_TIMEOUT_SECONDS
                 )
 
                 # Check if handler reported success
@@ -204,38 +210,17 @@ class Worker:
 
         return result
 
-    def stop(self) -> None:
-        """
-        Stop the worker gracefully.
-
-        This method:
-        1. Sets the running flag to False
-        2. Waits for in-flight jobs to complete (max 30 seconds)
-        3. Shuts down the database executor
-        4. Logs shutdown completion
-
-        Note:
-            This is a synchronous method. For async shutdown, call this method
-            and then await the start() method's return.
-        """
-        if not self._running:
-            logger.warning("Worker already stopped")
-            return
-
-        logger.info("Stopping worker...")
+    async def stop(self) -> None:
         self._running = False
 
-        # Wait for in-flight jobs to complete
         if self._in_flight_jobs:
             logger.info(
                 f"Waiting for {len(self._in_flight_jobs)} in-flight jobs to complete..."
             )
-            # Poll for completion (max 30 seconds)
-            for _ in range(300):  # 30 seconds * 10 checks per second
+            for _ in range(300):
                 if not self._in_flight_jobs:
                     break
-                import time
-                time.sleep(0.1)
+                await asyncio.sleep(0.1)
 
             if self._in_flight_jobs:
                 logger.warning(
@@ -244,6 +229,11 @@ class Worker:
             else:
                 logger.info("All in-flight jobs completed")
 
-        # Shutdown database executor
+        if self._active_tasks:
+            for task in self._active_tasks:
+                task.cancel()
+            await asyncio.gather(*self._active_tasks, return_exceptions=True)
+            self._active_tasks.clear()
+
         self._db_executor.shutdown(wait=True)
         logger.info("Worker stopped and cleaned up")

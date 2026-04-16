@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.ai.market_analyzer import (
@@ -262,7 +262,7 @@ def _make_research_item(title="Test", source="rss", content="Body", score=0.7):
         relevance_score=score,
         url="https://example.com",
         fingerprint="abc123",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
 
 

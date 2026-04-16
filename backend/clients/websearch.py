@@ -17,7 +17,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from typing import Optional, List, Literal
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ class WebSearchResponse:
     query: str
     results: List[SearchResult] = field(default_factory=list)
     source: str = "unknown"
-    searched_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    searched_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
     def to_context_string(self, max_results: int = 5) -> str:
         """Convert search results to a context string for AI consumption."""

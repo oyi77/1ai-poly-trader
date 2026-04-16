@@ -383,7 +383,11 @@ def stop_scheduler():
     # Stop worker if running
     if worker is not None:
         logger.info("Stopping queue worker...")
-        worker.stop()
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(worker.stop())
+        except RuntimeError:
+            asyncio.run(worker.stop())
         worker = None
         logger.info("Queue worker stopped")
 

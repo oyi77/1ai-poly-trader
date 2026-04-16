@@ -1,7 +1,7 @@
 """Research data models for the PolyEdge research pipeline."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -12,5 +12,5 @@ class ResearchItem:
     relevance_score: float
     url: str
     fingerprint: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     id: int = None  # set after DB storage

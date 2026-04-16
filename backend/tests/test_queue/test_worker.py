@@ -8,6 +8,7 @@ In-memory SQLite with StaticPool shares one connection across threads causing
 "bad parameter" errors; with NullPool each new connection gets an empty DB.
 Using a per-test on-disk temp file lets every thread open the same schema.
 """
+
 import asyncio
 import pytest
 from sqlalchemy import create_engine
@@ -23,6 +24,7 @@ from backend.queue.worker import Worker
 # Fixture: isolated on-disk temp DB + queue + monkeypatched SessionLocal
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def queue(monkeypatch, tmp_path):
     db_file = tmp_path / "test_worker.db"
@@ -36,8 +38,10 @@ def queue(monkeypatch, tmp_path):
     Base.metadata.create_all(bind=engine)
 
     import backend.models.database as db_mod
+
     monkeypatch.setattr(db_mod, "SessionLocal", TestSession)
     import backend.queue.sqlite_queue as sq_mod
+
     monkeypatch.setattr(sq_mod, "SessionLocal", TestSession)
 
     q = AsyncSQLiteQueue()
@@ -60,6 +64,7 @@ async def _wait_for_pending_zero(q, timeout=5.0):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_worker_processes_job(queue, monkeypatch):
     """Worker calls handler, marks job completed."""
@@ -78,7 +83,7 @@ async def test_worker_processes_job(queue, monkeypatch):
     reached_zero = await _wait_for_pending_zero(q, timeout=5.0)
     # Give a moment for _process_job to finish after dequeue
     await asyncio.sleep(0.3)
-    worker.stop()
+    await worker.stop()
     await asyncio.wait_for(task, timeout=3.0)
 
     db = Session()
@@ -96,8 +101,10 @@ async def test_worker_handles_timeout(queue, monkeypatch):
 
     # Patch timeout to 1 second
     import backend.config as cfg_mod
+
     monkeypatch.setattr(cfg_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
     import backend.queue.worker as wk_mod
+
     monkeypatch.setattr(wk_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
 
     async def _slow_handler(job):
@@ -112,7 +119,7 @@ async def test_worker_handles_timeout(queue, monkeypatch):
     task = asyncio.create_task(worker.start())
     # Wait long enough for timeout to fire (>1s) plus some processing margin
     await asyncio.sleep(3.0)
-    worker.stop()
+    await worker.stop()
     await asyncio.wait_for(task, timeout=3.0)
     # Give the thread pool a moment to flush the final fail() DB write
     await asyncio.sleep(0.3)
@@ -134,8 +141,10 @@ async def test_worker_continues_after_timeout(queue, monkeypatch):
     q, Session = queue
 
     import backend.config as cfg_mod
+
     monkeypatch.setattr(cfg_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
     import backend.queue.worker as wk_mod
+
     monkeypatch.setattr(wk_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
 
     call_log = []
@@ -158,7 +167,7 @@ async def test_worker_continues_after_timeout(queue, monkeypatch):
     task = asyncio.create_task(worker.start())
     # Wait for: slow timeout (1s) + fast completion + some margin
     await asyncio.sleep(4.0)
-    worker.stop()
+    await worker.stop()
     await asyncio.wait_for(task, timeout=3.0)
 
     db = Session()
@@ -181,11 +190,11 @@ async def test_worker_graceful_shutdown(queue):
     await asyncio.sleep(0.2)  # let it start
 
     assert worker._running is True
-    worker.stop()
+    await worker.stop()
     await asyncio.wait_for(task, timeout=3.0)
 
     assert worker._running is False
-    # Executor is shut down; submitting new work should raise RuntimeError
     import pytest as _pytest
+
     with _pytest.raises(RuntimeError):
         worker._db_executor.submit(lambda: None)

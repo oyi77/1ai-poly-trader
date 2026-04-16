@@ -25,13 +25,19 @@ def get_bot() -> Optional["PolyEdgeBot"]:
 
 
 def _fire(coro) -> None:
-    """Schedule a coroutine on the running event loop (best-effort, never raises)."""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(coro)
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(coro)
+        task.add_done_callback(_log_task_exception)
+    except RuntimeError:
+        pass
     except Exception as e:
         logger.debug(f"notify fire error: {e}")
+
+
+def _log_task_exception(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception():
+        logger.debug(f"Notification task failed: {task.exception()}")
 
 
 def notify_btc_signal(signal, trade=None) -> None:

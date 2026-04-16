@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from sqlalchemy import or_
@@ -68,7 +68,7 @@ class ResearchStorage:
     async def get_recent(
         self, hours: int = 24, min_relevance: float = 0.3
     ) -> list[ResearchItem]:
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         with SessionLocal() as db:
             rows = (
                 db.query(ResearchItemDB)
