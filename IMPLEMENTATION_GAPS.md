@@ -79,7 +79,6 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 ### Known Gaps — Infrastructure
 - **Grafana dashboards**: Prometheus metrics are collected but no dashboards are configured. Future work.
 - **Log aggregation**: Structured logging exists but no centralized log collection (e.g., Loki, CloudWatch).
-- **Health checks**: Basic `/health` endpoint exists but no deep dependency checks (DB, Redis, external APIs).
 
 ---
 
