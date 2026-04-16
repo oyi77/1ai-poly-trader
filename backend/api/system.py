@@ -983,6 +983,15 @@ async def update_strategy(
     db.commit()
     db.refresh(cfg)
 
+    # Reschedule the APScheduler job if interval changed or strategy was toggled
+    if body.interval_seconds is not None or body.enabled is not None:
+        from backend.core.scheduler import schedule_strategy, unschedule_strategy
+
+        if cfg.enabled:
+            schedule_strategy(name, cfg.interval_seconds or 60)
+        else:
+            unschedule_strategy(name)
+
     return {
         "name": name,
         "enabled": cfg.enabled,
