@@ -1065,8 +1065,40 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
                 mode=strategy_mode,
             )
             result = await instance.run(ctx)
+
+            buy_decisions = [
+                d
+                for d in getattr(result, "decisions", [])
+                if isinstance(d, dict)
+                and d.get("decision") == "BUY"
+                and d.get("market_ticker")
+            ]
+
+            if buy_decisions:
+                from backend.core.strategy_executor import execute_decisions
+
+                execution_modes = []
+                if strategy_mode == "live":
+                    execution_modes = ["paper", "live"]
+                else:
+                    execution_modes = [strategy_mode]
+
+                for mode in execution_modes:
+                    decisions_copy = [d.copy() for d in buy_decisions]
+                    for d in decisions_copy:
+                        d["trading_mode"] = mode
+                    await execute_decisions(decisions_copy, name, db=db)
+
         finally:
             db.close()
+
+        return {
+            "status": "ok",
+            "name": name,
+            "decisions": result.decisions_recorded,
+            "trades_attempted": result.trades_attempted,
+            "errors": len(result.errors),
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -1074,5 +1106,3 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
         raise HTTPException(
             status_code=500, detail="Strategy run failed — check server logs"
         )
-
-    return {"status": "ok", "name": name}
