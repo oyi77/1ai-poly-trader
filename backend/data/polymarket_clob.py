@@ -284,6 +284,21 @@ class PolymarketCLOB:
 
     async def get_order_book(self, token_id: str) -> OrderBook:
         """Fetch live order book for a token."""
+        from backend.data.orderbook_cache import get_orderbook_cache
+
+        cache = get_orderbook_cache()
+        cached = await cache.get(token_id)
+
+        if cached:
+            logger.debug(
+                f"Using cached orderbook for {token_id} (age: {cached.age_seconds:.1f}s)"
+            )
+            return OrderBook(
+                token_id=token_id,
+                bids=cached.bids,
+                asks=cached.asks,
+                mid_price=cached.mid_price,
+            )
 
         async def _fetch_book():
             resp = await self._http.get(
@@ -311,6 +326,15 @@ class PolymarketCLOB:
 
     async def get_mid_price(self, token_id: str) -> float:
         """Get mid-price for a token (fast, single endpoint)."""
+        from backend.data.orderbook_cache import get_orderbook_cache
+
+        cache = get_orderbook_cache()
+        cached_price = await cache.get_mid_price(token_id)
+
+        if cached_price is not None:
+            logger.debug(f"Using cached mid price for {token_id}: {cached_price:.4f}")
+            return cached_price
+
         try:
             resp = await self._http.get(
                 f"{self._clob_host}/midpoint", params={"token_id": token_id}

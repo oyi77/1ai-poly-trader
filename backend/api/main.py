@@ -40,7 +40,11 @@ try:
     from eth_account import Account
 except ImportError:
     Account = None
-    print("WARNING: eth_account not available - wallet creation disabled")
+    import logging
+
+    logging.getLogger("trading_bot").warning(
+        "eth_account not available - wallet creation disabled"
+    )
 from backend.core.signals import scan_for_signals, TradingSignal
 from backend.data.btc_markets import fetch_active_btc_markets
 from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
@@ -224,7 +228,203 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("  - Weather trading: DISABLED")
     logger.info("=" * 60)
 
+    async def stats_broadcaster():
+        """Background task that computes and broadcasts stats every second."""
+        from backend.api.ws_manager import stats_ws
+
+        logger.info("Stats broadcaster task started")
+        while True:
+            try:
+                if stats_ws.active_connections:
+                    logger.debug(
+                        f"Broadcasting stats to {len(stats_ws.active_connections)} clients"
+                    )
+                    db = SessionLocal()
+                    try:
+                        stats = await get_stats(db, None)
+                        await stats_ws.broadcast(
+                            {
+                                "type": "stats_update",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "data": stats.model_dump(),
+                            }
+                        )
+                    finally:
+                        db.close()
+            except Exception as e:
+                logger.error(f"Stats broadcaster error: {e}", exc_info=True)
+            await asyncio.sleep(1)
+
+    logger.info("Creating stats broadcaster background task...")
+    stats_task = asyncio.create_task(stats_broadcaster())
+    logger.info("Stats broadcaster task created")
+
+    from backend.data.polymarket_websocket import (
+        get_market_websocket,
+        shutdown_market_websocket,
+        get_user_websocket,
+        shutdown_user_websocket,
+    )
+    from backend.data.orderbook_cache import get_orderbook_cache
+
+    logger.info("Starting Polymarket WebSocket for real-time market data...")
+    market_ws_task = None
+    user_ws_task = None
+    try:
+        if settings.POLYMARKET_WS_ENABLED:
+            asset_ids = []
+            condition_ids = []
+            db = SessionLocal()
+            try:
+                active_markets = (
+                    db.query(MarketWatch).filter(MarketWatch.is_active == True).all()
+                )
+                for market in active_markets:
+                    if market.token_id:
+                        asset_ids.append(market.token_id)
+                    if market.condition_id:
+                        condition_ids.append(market.condition_id)
+            finally:
+                db.close()
+
+            if asset_ids:
+                market_ws = await get_market_websocket(asset_ids)
+                orderbook_cache = get_orderbook_cache()
+
+                def handle_orderbook(snapshot):
+                    logger.debug(f"Orderbook update: {snapshot.asset_id}")
+                    asyncio.create_task(
+                        orderbook_cache.update(
+                            snapshot.asset_id, snapshot.bids, snapshot.asks
+                        )
+                    )
+                    publish_event(
+                        "orderbook_update",
+                        {
+                            "asset_id": snapshot.asset_id,
+                            "bids": snapshot.bids[:5],
+                            "asks": snapshot.asks[:5],
+                            "timestamp": snapshot.timestamp,
+                        },
+                    )
+
+                def handle_trade(trade):
+                    logger.debug(f"Trade: {trade.side} {trade.size} @ {trade.price}")
+                    publish_event(
+                        "trade_executed",
+                        {
+                            "asset_id": trade.asset_id,
+                            "price": trade.price,
+                            "size": trade.size,
+                            "side": trade.side,
+                            "timestamp": trade.timestamp,
+                        },
+                    )
+
+                market_ws.on_orderbook(handle_orderbook)
+                market_ws.on_trade(handle_trade)
+
+                market_ws_task = asyncio.create_task(market_ws.connect())
+                logger.info(
+                    f"Polymarket WebSocket started for {len(asset_ids)} markets"
+                )
+            else:
+                logger.info("No active markets found - WebSocket not started")
+
+            if settings.POLYMARKET_USER_WS_ENABLED and condition_ids:
+                if all(
+                    [
+                        settings.POLYMARKET_API_KEY,
+                        settings.POLYMARKET_API_SECRET,
+                        settings.POLYMARKET_API_PASSPHRASE,
+                    ]
+                ):
+                    user_ws = await get_user_websocket(
+                        condition_ids=condition_ids,
+                        api_key=settings.POLYMARKET_API_KEY,
+                        api_secret=settings.POLYMARKET_API_SECRET,
+                        api_passphrase=settings.POLYMARKET_API_PASSPHRASE,
+                    )
+
+                    def handle_user_order(event):
+                        logger.info(
+                            f"Order update: {event.get('id')} - {event.get('status')}"
+                        )
+                        publish_event("user_order_update", event)
+
+                    def handle_user_trade(event):
+                        logger.info(
+                            f"Trade fill: {event.get('id')} - {event.get('status')}"
+                        )
+                        publish_event("user_trade_fill", event)
+
+                        db = SessionLocal()
+                        try:
+                            trade_id = event.get("id")
+                            status = event.get("status")
+
+                            if status == "CONFIRMED":
+                                trade = (
+                                    db.query(Trade)
+                                    .filter(Trade.clob_order_id == trade_id)
+                                    .first()
+                                )
+                                if trade and not trade.settled:
+                                    trade.settled = True
+                                    trade.settlement_time = datetime.now(timezone.utc)
+                                    db.commit()
+                                    logger.info(f"Trade {trade_id} confirmed on-chain")
+                        except Exception as e:
+                            logger.error(
+                                f"Error updating trade status: {e}", exc_info=True
+                            )
+                        finally:
+                            db.close()
+
+                    user_ws.on_user_order(handle_user_order)
+                    user_ws.on_user_trade(handle_user_trade)
+
+                    user_ws_task = asyncio.create_task(user_ws.connect())
+                    logger.info(
+                        f"Polymarket User WebSocket started for {len(condition_ids)} markets"
+                    )
+                else:
+                    logger.warning("User WebSocket enabled but API credentials missing")
+            else:
+                logger.info("Polymarket User WebSocket disabled in settings")
+        else:
+            logger.info("Polymarket WebSocket disabled in settings")
+    except Exception as e:
+        logger.error(f"Failed to start Polymarket WebSocket: {e}", exc_info=True)
+
     yield
+
+    logger.info("Shutting down Polymarket WebSocket...")
+    if market_ws_task:
+        await shutdown_market_websocket()
+        market_ws_task.cancel()
+        try:
+            await market_ws_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Polymarket WebSocket shut down")
+
+    if user_ws_task:
+        await shutdown_user_websocket()
+        user_ws_task.cancel()
+        try:
+            await user_ws_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Polymarket User WebSocket shut down")
+
+    logger.info("Cancelling stats broadcaster task...")
+    stats_task.cancel()
+    try:
+        await stats_task
+    except asyncio.CancelledError:
+        logger.info("Stats broadcaster task cancelled")
+        pass
 
     # --- Shutdown ---
     from backend.core.scheduler import stop_scheduler, scheduler as _scheduler
@@ -998,21 +1198,13 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
     await stats_ws.connect(websocket)
 
     try:
-        db = SessionLocal()
-        try:
-            while True:
-                stats = await get_stats(db)
-                await websocket.send_json(
-                    {
-                        "type": "stats_update",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "data": stats.model_dump(),
-                    }
-                )
-                await asyncio.sleep(1)
-        finally:
-            db.close()
+        while True:
+            await asyncio.sleep(60)
     except WebSocketDisconnect:
+        logger.info("Stats WebSocket disconnected")
+        stats_ws.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"Stats WebSocket error: {e}")
         stats_ws.disconnect(websocket)
     except Exception as e:
         logger.exception(f"Stats WebSocket error: {e}")

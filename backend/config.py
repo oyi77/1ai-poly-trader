@@ -143,6 +143,10 @@ class Settings(BaseSettings):
     MIN_WHALE_TRADE_USD: float = 1000.0
     WHALE_LISTENER_ENABLED: bool = False
 
+    # Polymarket WebSocket (real-time market data)
+    POLYMARKET_WS_ENABLED: bool = True
+    POLYMARKET_USER_WS_ENABLED: bool = False
+
     # Job Queue Settings
     JOB_WORKER_ENABLED: bool = False  # Phase 1: disabled by default
     JOB_QUEUE_URL: str = "sqlite:///./job_queue.db"  # or "redis://localhost:6379"
