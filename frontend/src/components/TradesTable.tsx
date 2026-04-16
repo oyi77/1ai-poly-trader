@@ -223,7 +223,7 @@ export function TradesTable({ trades }: Props) {
                   ${(trade.size ?? 0).toFixed(0)}
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  {trade.pnl !== null ? (
+                  {trade.pnl != null ? (
                     <span className={`font-semibold tabular-nums ${
                       trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'
                     }`}>
