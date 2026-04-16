@@ -39,7 +39,7 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 ### Known Gaps — Backend
 - **Exception handling**: 306 bare `except Exception` blocks across 77 files. Critical-path modules (orchestrator, order_executor, risk_manager, strategy_executor, api/main, polymarket_clob, settlement_helpers) are being audited for structured error logging. Remaining non-critical files are lower priority.
 - **Database migrations**: No Alembic setup. Schema changes require manual SQLite operations or fresh DB creation.
-- **Kalshi API**: Market data endpoint returned 404 during testing. Kalshi integration may need API key updates or endpoint verification.
+- **Kalshi API**: Base URL `https://api.elections.kalshi.com/trade-api/v2` confirmed working (returns 200). Authenticated endpoints (portfolio, orders) require valid `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PATH`. The 404 was from testing without credentials.
 - **Polymarket Testnet Clarification**: The Polymarket Builder Program operates on MAINNET (chain_id=137), not a separate testnet. The "testnet" mode in PolyEdge uses mainnet CLOB with Builder auth for gasless trading. There is no functional testnet CLOB host (clob-staging.polymarket.com returns 503). Testnet trades are REAL but gasless; track separately from paper/live modes.
 
 ---

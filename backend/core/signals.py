@@ -259,8 +259,8 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
                     )
         finally:
             _db.close()
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Bankroll read failed, using INITIAL_BANKROLL: {_e}")
     suggested_size = calculate_kelly_size(
         edge=abs(edge),
         probability=model_up_prob,
@@ -440,8 +440,8 @@ def _persist_signals(signals: list, mode: str = None):
                         else None,
                     },
                 )
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Event broadcast failed for signal: {_e}")
 
         db.commit()
     except Exception as e:

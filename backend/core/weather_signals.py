@@ -154,8 +154,8 @@ async def generate_weather_signal(
                     )
         finally:
             _db.close()
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Bankroll read failed, using INITIAL_BANKROLL: {_e}")
     suggested_size = calculate_kelly_size(
         edge=abs(edge),
         probability=model_yes_prob,

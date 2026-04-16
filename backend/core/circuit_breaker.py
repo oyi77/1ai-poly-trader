@@ -56,7 +56,8 @@ class CircuitBreaker:
             if self._state == State.OPEN:
                 if (
                     self.last_failure_time is not None
-                    and time.monotonic() - self.last_failure_time >= self.recovery_timeout
+                    and time.monotonic() - self.last_failure_time
+                    >= self.recovery_timeout
                 ):
                     self._transition(State.HALF_OPEN)
                     self._half_open_probes = 0
@@ -73,8 +74,9 @@ class CircuitBreaker:
 
         try:
             result = await func(*args, **kwargs)
-        except Exception:
+        except Exception as _e:
             await self._on_failure()
+            logger.debug(f"Circuit breaker {self.name} caught error, failing: {_e}")
             raise
         finally:
             if is_half_open_probe:
@@ -88,6 +90,7 @@ class CircuitBreaker:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             return await self.call(func, *args, **kwargs)
+
         return wrapper
 
     def reset(self) -> None:
@@ -106,7 +109,10 @@ class CircuitBreaker:
             current_state = self._state
             if current_state == State.HALF_OPEN:
                 self._transition(State.OPEN)
-            elif current_state == State.CLOSED and self.failure_count >= self.failure_threshold:
+            elif (
+                current_state == State.CLOSED
+                and self.failure_count >= self.failure_threshold
+            ):
                 self._transition(State.OPEN)
 
     async def _on_success(self) -> None:
