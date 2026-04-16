@@ -1,4 +1,5 @@
 """Wash trade detection for Polymarket markets."""
+
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -9,9 +10,9 @@ logger = logging.getLogger("trading_bot.wash_trade")
 
 
 class WashTradeRisk(str, Enum):
-    LOW = "LOW"           # score 0-25
-    MEDIUM = "MEDIUM"     # score 26-50
-    HIGH = "HIGH"         # score 51-75
+    LOW = "LOW"  # score 0-25
+    MEDIUM = "MEDIUM"  # score 26-50
+    HIGH = "HIGH"  # score 51-75
     VERY_HIGH = "VERY_HIGH"  # score 76-100
 
 
@@ -32,7 +33,9 @@ class WashTradeDetector:
         "price_manipulation": 0.15,
     }
 
-    def analyze_trades(self, trades: list[dict], market_id: str = "") -> WashTradeAnalysis:
+    def analyze_trades(
+        self, trades: list[dict], market_id: str = ""
+    ) -> WashTradeAnalysis:
         if not trades:
             return WashTradeAnalysis(
                 risk=WashTradeRisk.LOW,
@@ -82,9 +85,16 @@ class WashTradeDetector:
             risk = WashTradeRisk.VERY_HIGH
 
         if market_id:
-            logger.info("Wash trade analysis for %s: score=%d risk=%s", market_id, score, risk.value)
+            logger.info(
+                "Wash trade analysis for %s: score=%d risk=%s",
+                market_id,
+                score,
+                risk.value,
+            )
 
-        return WashTradeAnalysis(risk=risk, score=score, indicators=indicators, details=details)
+        return WashTradeAnalysis(
+            risk=risk, score=score, indicators=indicators, details=details
+        )
 
     def _self_trading(self, trades: list[dict]) -> tuple[float, list[str]]:
         # Detect wallets that are maker AND taker within the same trade (strongest signal)
@@ -110,7 +120,9 @@ class WashTradeDetector:
             detail = [f"Self-trading: {count} wallet(s) appear on both sides"]
         else:
             score = 100.0
-            detail = [f"Self-trading: {count} wallets appear on both maker and taker sides"]
+            detail = [
+                f"Self-trading: {count} wallets appear on both maker and taker sides"
+            ]
 
         return score, detail
 
@@ -157,7 +169,9 @@ class WashTradeDetector:
             detail = [f"Size uniformity: {pct:.0%} of trades share the same size"]
         else:
             score = 100.0
-            detail = [f"Size uniformity: {pct:.0%} of trades share the same size (bot pattern)"]
+            detail = [
+                f"Size uniformity: {pct:.0%} of trades share the same size (bot pattern)"
+            ]
 
         return score, detail
 
@@ -170,6 +184,9 @@ class WashTradeDetector:
         clustered_pairs = 0
         total_pairs = total - 1
 
+        if total_pairs <= 0:
+            return 0.0, []
+
         for i in range(total_pairs):
             if timestamps[i + 1] - timestamps[i] <= 5:
                 clustered_pairs += 1
@@ -181,10 +198,14 @@ class WashTradeDetector:
             detail = []
         elif pct <= 0.50:
             score = 50.0
-            detail = [f"Timing clustering: {pct:.0%} of consecutive trade pairs within 5s"]
+            detail = [
+                f"Timing clustering: {pct:.0%} of consecutive trade pairs within 5s"
+            ]
         else:
             score = 100.0
-            detail = [f"Timing clustering: {pct:.0%} of consecutive trade pairs within 5s (suspicious)"]
+            detail = [
+                f"Timing clustering: {pct:.0%} of consecutive trade pairs within 5s (suspicious)"
+            ]
 
         return score, detail
 
@@ -205,7 +226,9 @@ class WashTradeDetector:
             detail = [f"Price manipulation: {pct:.0%} of trades at the same price"]
         else:
             score = 100.0
-            detail = [f"Price manipulation: {pct:.0%} of trades at identical price (suspicious)"]
+            detail = [
+                f"Price manipulation: {pct:.0%} of trades at identical price (suspicious)"
+            ]
 
         return score, detail
 
