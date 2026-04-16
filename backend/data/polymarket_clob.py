@@ -647,7 +647,7 @@ class PolymarketCLOB:
 # =========================================================================
 
 
-def clob_from_settings() -> PolymarketCLOB:
+def clob_from_settings(mode: str = None) -> PolymarketCLOB:
     """Create PolymarketCLOB from app settings."""
     from backend.config import settings
 
@@ -656,7 +656,7 @@ def clob_from_settings() -> PolymarketCLOB:
         api_key=settings.POLYMARKET_API_KEY,
         api_secret=settings.POLYMARKET_API_SECRET,
         api_passphrase=settings.POLYMARKET_API_PASSPHRASE,
-        mode=settings.TRADING_MODE,
+        mode=mode or settings.TRADING_MODE,
         builder_api_key=settings.POLYMARKET_BUILDER_API_KEY,
         builder_secret=settings.POLYMARKET_BUILDER_SECRET,
         builder_passphrase=settings.POLYMARKET_BUILDER_PASSPHRASE,

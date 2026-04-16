@@ -150,7 +150,9 @@ async def _process_signal_with_approval(
 
     elif approval_mode == "auto_approve":
         if signal.confidence >= min_confidence:
-            return await _execute_trade(signal, state, db, trade_size, trades_executed)
+            return await _execute_trade(
+                signal, state, db, trade_size, trades_executed, mode=mode
+            )
         else:
             log_event(
                 "info",
@@ -163,7 +165,9 @@ async def _process_signal_with_approval(
     )
 
 
-async def _execute_trade(signal, state, db, trade_size, trades_executed: int) -> int:
+async def _execute_trade(
+    signal, state, db, trade_size, trades_executed: int, mode: str = None
+) -> int:
     """Execute a BTC trade by delegating to strategy_executor.execute_decision()."""
     from backend.core.scheduler import log_event
     from backend.core.strategy_executor import execute_decision
@@ -366,7 +370,9 @@ async def weather_scan_and_trade_job():
     try:
         from backend.core.weather_signals import scan_for_weather_signals
 
-        signals = await scan_for_weather_signals()
+        weather_mode = _get_effective_mode(SessionLocal(), "weather")
+
+        signals = await scan_for_weather_signals(mode=weather_mode)
         actionable = [s for s in signals if s.passes_threshold]
 
         log_event(

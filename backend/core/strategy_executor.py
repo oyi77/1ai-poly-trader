@@ -125,7 +125,7 @@ async def execute_decision(
                     try:
                         from backend.data.polymarket_clob import clob_from_settings
 
-                        async with clob_from_settings() as clob:
+                        async with clob_from_settings(mode=effective_mode) as clob:
                             await clob.create_or_derive_api_creds()
                             result = await clob.place_limit_order(
                                 token_id=token_id,

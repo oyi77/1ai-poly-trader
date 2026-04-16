@@ -9,7 +9,6 @@ import asyncio
 import logging
 from typing import Optional, Set
 
-from backend.config import settings
 from backend.data.ws_client import CLOBWebSocket, SettlementEvent
 from backend.models.database import SessionLocal, Trade
 
@@ -57,13 +56,7 @@ class SettlementWebSocketHandler:
         """Load all open trade token_ids to subscribe to."""
         db = SessionLocal()
         try:
-            mode = settings.TRADING_MODE
-            trades = (
-                db.query(Trade)
-                .filter(Trade.settled.is_(False))
-                .filter(Trade.trading_mode == mode)
-                .all()
-            )
+            trades = db.query(Trade).filter(Trade.settled.is_(False)).all()
             for trade in trades:
                 if hasattr(trade, "token_id") and trade.token_id:
                     self._token_id_to_ticker[trade.token_id] = trade.market_ticker
@@ -106,11 +99,9 @@ class SettlementWebSocketHandler:
         """Settle all open trades for a market."""
         db = SessionLocal()
         try:
-            mode = settings.TRADING_MODE
             trades = (
                 db.query(Trade)
                 .filter(Trade.settled.is_(False))
-                .filter(Trade.trading_mode == mode)
                 .filter(
                     (Trade.market_ticker == market_ticker)
                     | (Trade.market_ticker == token_id)

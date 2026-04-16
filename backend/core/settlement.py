@@ -32,13 +32,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
 
     async with _settlement_lock:
         try:
-            pending = (
-                db.query(Trade)
-                .filter(
-                    Trade.settled.is_(False), Trade.trading_mode == settings.TRADING_MODE
-                )
-                .all()
-            )
+            pending = db.query(Trade).filter(Trade.settled.is_(False)).all()
         except Exception as e:
             logger.error(f"Failed to query pending trades: {e}")
             return []
@@ -282,21 +276,28 @@ async def update_bot_state_with_settlements(
             db.rollback()
             return
 
-        if settings.TRADING_MODE == "paper":
-            logger.info(
-                f"Updated bot state (paper): Bankroll ${state.paper_bankroll:.2f}, "
-                f"P&L ${state.paper_pnl:+.2f}, {state.paper_trades} trades"
-            )
-        elif settings.TRADING_MODE == "testnet":
-            logger.info(
-                f"Updated bot state (testnet): Bankroll ${state.testnet_bankroll:.2f}, "
-                f"P&L ${state.testnet_pnl:+.2f}, {state.testnet_trades} trades"
-            )
-        else:
-            logger.info(
-                f"Updated bot state (live): Bankroll ${state.bankroll:.2f}, "
-                f"P&L ${state.total_pnl:+.2f}, {state.total_trades} trades"
-            )
+        # Log stats for ALL modes that had settlements
+        modes_with_settlements = set(
+            getattr(t, "trading_mode", "paper") or "paper"
+            for t in settled_trades
+            if t.pnl is not None
+        )
+        for m in sorted(modes_with_settlements):
+            if m == "paper":
+                logger.info(
+                    f"Updated bot state (paper): Bankroll ${state.paper_bankroll:.2f}, "
+                    f"P&L ${state.paper_pnl:+.2f}, {state.paper_trades} trades"
+                )
+            elif m == "testnet":
+                logger.info(
+                    f"Updated bot state (testnet): Bankroll ${state.testnet_bankroll:.2f}, "
+                    f"P&L ${state.testnet_pnl:+.2f}, {state.testnet_trades} trades"
+                )
+            else:
+                logger.info(
+                    f"Updated bot state (live): Bankroll ${state.bankroll:.2f}, "
+                    f"P&L ${state.total_pnl:+.2f}, {state.total_trades} trades"
+                )
     except Exception as e:
         logger.error(f"Failed to update bot state: {e}")
         db.rollback()
@@ -311,73 +312,81 @@ async def reconcile_bot_state(db: Session) -> None:
         if not state:
             return
 
-        mode = settings.TRADING_MODE
-        real_trades = (
-            db.query(
-                func.count(Trade.id),
-                func.sum(Trade.pnl),
-                func.sum(case((Trade.result == "win", 1), else_=0)),
+        for mode in ("paper", "testnet", "live"):
+            real_trades = (
+                db.query(
+                    func.count(Trade.id),
+                    func.sum(Trade.pnl),
+                    func.sum(case((Trade.result == "win", 1), else_=0)),
+                )
+                .filter(
+                    Trade.settled.is_(True),
+                    Trade.trading_mode == mode,
+                    Trade.result.in_(("win", "loss")),
+                )
+                .first()
             )
-            .filter(
-                Trade.settled.is_(True),
-                Trade.trading_mode == mode,
-                Trade.result.in_(("win", "loss")),
-            )
-            .first()
-        )
 
-        trade_count, realized_pnl, win_count = real_trades
-        trade_count = trade_count or 0
-        realized_pnl = round(realized_pnl or 0.0, 2)
-        win_count = win_count or 0
+            trade_count, realized_pnl, win_count = real_trades
+            trade_count = trade_count or 0
+            realized_pnl = round(realized_pnl or 0.0, 2)
+            win_count = win_count or 0
 
-        open_exposure = (
-            db.query(func.sum(Trade.size))
-            .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
-            .scalar()
-        ) or 0.0
+            open_exposure = (
+                db.query(func.sum(Trade.size))
+                .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
+                .scalar()
+            ) or 0.0
 
-        correct_bankroll = round(
-            settings.INITIAL_BANKROLL + realized_pnl - open_exposure, 2
-        )
-
-        if mode == "paper":
-            drift_bankroll = abs((state.paper_bankroll or 0) - correct_bankroll)
-            drift_pnl = abs((state.paper_pnl or 0) - realized_pnl)
-        elif mode == "testnet":
-            drift_bankroll = abs((state.testnet_bankroll or 0) - correct_bankroll)
-            drift_pnl = abs((state.testnet_pnl or 0) - realized_pnl)
-        else:
-            # Live mode: state.bankroll is synced from CLOB wallet (includes
-            # deposits, withdrawals, etc.) so it will always differ from the
-            # theoretical INITIAL_BANKROLL + pnl - exposure calculation.
-            # Only check PnL drift, not bankroll drift.
-            drift_bankroll = 0.0
-            drift_pnl = abs((state.total_pnl or 0) - realized_pnl)
-
-        if drift_bankroll > 0.01 or drift_pnl > 0.01:
-            logger.warning(
-                f"Bot state drift detected ({mode})! "
-                f"Bankroll Δ${drift_bankroll:.2f}, PNL Δ${drift_pnl:.2f}"
-            )
             if mode == "paper":
-                state.paper_bankroll = correct_bankroll
-                state.paper_pnl = realized_pnl
-                state.paper_trades = trade_count
-                state.paper_wins = win_count
+                drift_bankroll = abs(
+                    (state.paper_bankroll or 0)
+                    - (settings.INITIAL_BANKROLL + realized_pnl - open_exposure)
+                )
+                drift_pnl = abs((state.paper_pnl or 0) - realized_pnl)
+                if drift_bankroll > 0.01 or drift_pnl > 0.01:
+                    logger.warning(
+                        f"Bot state drift detected (paper)! "
+                        f"Bankroll Δ${drift_bankroll:.2f}, PNL Δ${drift_pnl:.2f}"
+                    )
+                    state.paper_bankroll = round(
+                        settings.INITIAL_BANKROLL + realized_pnl - open_exposure, 2
+                    )
+                    state.paper_pnl = realized_pnl
+                    state.paper_trades = trade_count
+                    state.paper_wins = win_count
+                    logger.info("Bot state reconciled from trade history (paper)")
             elif mode == "testnet":
-                state.testnet_bankroll = correct_bankroll
-                state.testnet_pnl = realized_pnl
-                state.testnet_trades = trade_count
-                state.testnet_wins = win_count
+                drift_bankroll = abs(
+                    (state.testnet_bankroll or 0)
+                    - (settings.INITIAL_BANKROLL + realized_pnl - open_exposure)
+                )
+                drift_pnl = abs((state.testnet_pnl or 0) - realized_pnl)
+                if drift_bankroll > 0.01 or drift_pnl > 0.01:
+                    logger.warning(
+                        f"Bot state drift detected (testnet)! "
+                        f"Bankroll Δ${drift_bankroll:.2f}, PNL Δ${drift_pnl:.2f}"
+                    )
+                    state.testnet_bankroll = round(
+                        settings.INITIAL_BANKROLL + realized_pnl - open_exposure, 2
+                    )
+                    state.testnet_pnl = realized_pnl
+                    state.testnet_trades = trade_count
+                    state.testnet_wins = win_count
+                    logger.info("Bot state reconciled from trade history (testnet)")
             else:
-                state.total_pnl = realized_pnl
-                state.total_trades = trade_count
-                state.winning_trades = win_count
-            db.commit()
-            logger.info(f"Bot state reconciled from trade history ({mode})")
-        else:
-            logger.debug("Bot state reconciliation: no drift detected")
+                drift_pnl = abs((state.total_pnl or 0) - realized_pnl)
+                if drift_pnl > 0.01:
+                    logger.warning(
+                        f"Bot state drift detected (live)! PNL Δ${drift_pnl:.2f}"
+                    )
+                    state.total_pnl = realized_pnl
+                    state.total_trades = trade_count
+                    state.winning_trades = win_count
+                    logger.info("Bot state reconciled from trade history (live)")
+
+        db.commit()
+        logger.debug("Bot state reconciliation complete")
 
     except Exception as e:
         logger.error(f"Bot state reconciliation failed: {e}")

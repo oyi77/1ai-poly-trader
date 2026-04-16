@@ -207,30 +207,51 @@ def _send_telegram_alert_sync(message: str) -> None:
 async def wallet_sync_job() -> None:
     """
     APScheduler job — fetches live CLOB wallet balance and persists to bot_state.
-    Runs every 60s to keep the dashboard bankroll in sync with on-chain reality.
+    Syncs ALL modes that need real wallet balance (live, testnet).
     """
     from backend.config import settings
+    from backend.models.database import SessionLocal, StrategyConfig
 
-    if settings.TRADING_MODE not in ("live", "testnet"):
+    modes_to_sync = set()
+    try:
+        _db = SessionLocal()
+        try:
+            configs = (
+                _db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
+            )
+            for cfg in configs:
+                cfg_mode = cfg.trading_mode
+                if cfg_mode in ("live", "testnet"):
+                    modes_to_sync.add(cfg_mode)
+        finally:
+            _db.close()
+    except Exception:
+        pass
+
+    if settings.TRADING_MODE in ("live", "testnet"):
+        modes_to_sync.add(settings.TRADING_MODE)
+
+    if not modes_to_sync:
         return
 
-    try:
-        from backend.data.polymarket_clob import clob_from_settings
+    for sync_mode in modes_to_sync:
+        try:
+            from backend.data.polymarket_clob import clob_from_settings
 
-        clob = clob_from_settings()
-        async with clob:
-            await clob.create_or_derive_api_creds()
-            balance_data = await clob.get_wallet_balance()
-            usdc_balance = balance_data.get("usdc_balance", 0.0)
-            error = balance_data.get("error")
+            clob = clob_from_settings(mode=sync_mode)
+            async with clob:
+                await clob.create_or_derive_api_creds()
+                balance_data = await clob.get_wallet_balance()
+                usdc_balance = balance_data.get("usdc_balance", 0.0)
+                error = balance_data.get("error")
 
-            if usdc_balance >= 0 and not error:
-                _sync_balance_to_db(usdc_balance, settings.TRADING_MODE)
-                logger.info(
-                    f"wallet_sync: {settings.TRADING_MODE} balance = ${usdc_balance:.2f}"
-                )
-    except Exception as e:
-        logger.warning(f"wallet_sync_job failed: {e}")
+                if usdc_balance >= 0 and not error:
+                    _sync_balance_to_db(usdc_balance, sync_mode)
+                    logger.info(
+                        f"wallet_sync: {sync_mode} balance = ${usdc_balance:.2f}"
+                    )
+        except Exception as e:
+            logger.warning(f"wallet_sync_job ({sync_mode}) failed: {e}")
 
 
 def _sync_balance_to_db(balance: float, mode: str) -> None:

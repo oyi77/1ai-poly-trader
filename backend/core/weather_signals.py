@@ -53,6 +53,7 @@ class WeatherTradingSignal:
 
 async def generate_weather_signal(
     market: WeatherMarket,
+    mode: str = None,
 ) -> Optional[WeatherTradingSignal]:
     """
     Generate a trading signal for a weather temperature market.
@@ -125,6 +126,7 @@ async def generate_weather_signal(
 
     # Kelly sizing — use current bankroll from BotState, not static INITIAL_BANKROLL
     bankroll = settings.INITIAL_BANKROLL
+    effective_mode = mode or settings.TRADING_MODE
     try:
         from backend.models.database import BotState, SessionLocal
 
@@ -132,13 +134,13 @@ async def generate_weather_signal(
         try:
             _state = _db.query(BotState).first()
             if _state:
-                if settings.TRADING_MODE == "paper":
+                if effective_mode == "paper":
                     bankroll = float(
                         _state.paper_bankroll
                         if _state.paper_bankroll is not None
                         else settings.INITIAL_BANKROLL
                     )
-                elif settings.TRADING_MODE == "testnet":
+                elif effective_mode == "testnet":
                     bankroll = float(
                         _state.testnet_bankroll
                         if _state.testnet_bankroll is not None
@@ -214,7 +216,7 @@ async def generate_weather_signal(
     )
 
 
-async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
+async def scan_for_weather_signals(mode: str = None) -> List[WeatherTradingSignal]:
     """
     Scan weather markets and generate ensemble-based signals.
     """
@@ -254,7 +256,7 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
 
     async def _gen_with_sem(market):
         async with sem:
-            return await generate_weather_signal(market)
+            return await generate_weather_signal(market, mode=mode)
 
     results = await asyncio.gather(
         *[_gen_with_sem(m) for m in markets], return_exceptions=True
@@ -283,16 +285,18 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
         )
 
     # Persist signals to DB
-    _persist_weather_signals(signals)
+    _persist_weather_signals(signals, mode=mode)
 
     return signals
 
 
-def _persist_weather_signals(signals: list):
+def _persist_weather_signals(signals: list, mode: str = None):
     """Save weather signals to DB for calibration tracking."""
     to_save = [s for s in signals if abs(s.edge) > 0]
     if not to_save:
         return
+
+    effective_mode = mode or settings.TRADING_MODE
 
     db = SessionLocal()
     try:
@@ -324,7 +328,7 @@ def _persist_weather_signals(signals: list):
                 suggested_size=signal.suggested_size,
                 sources=signal.sources,
                 reasoning=signal.reasoning,
-                execution_mode=settings.TRADING_MODE,
+                execution_mode=effective_mode,
                 executed=False,
             )
             db.add(db_signal)
