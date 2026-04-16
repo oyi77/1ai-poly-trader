@@ -987,6 +987,38 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
         ws_manager.disconnect(websocket)
 
 
+@app.websocket("/ws/stats")
+async def websocket_stats(websocket: WebSocket, token: str = ""):
+    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+
+    from backend.api.ws_manager import stats_ws
+
+    await stats_ws.connect(websocket)
+
+    try:
+        db = SessionLocal()
+        try:
+            while True:
+                stats = await get_stats(db)
+                await websocket.send_json(
+                    {
+                        "type": "stats_update",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "data": stats.model_dump(),
+                    }
+                )
+                await asyncio.sleep(1)
+        finally:
+            db.close()
+    except WebSocketDisconnect:
+        stats_ws.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"Stats WebSocket error: {e}")
+        stats_ws.disconnect(websocket)
+
+
 if __name__ == "__main__":
     import uvicorn
 

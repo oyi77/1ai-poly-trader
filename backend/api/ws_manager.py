@@ -70,6 +70,7 @@ class ChannelWebSocketManager(WebSocketManager):
 # WebSocket managers for different channels
 market_ws = ChannelWebSocketManager("markets")
 whale_ws = ChannelWebSocketManager("whales")
+stats_ws = ChannelWebSocketManager("stats")
 
 
 async def broadcast_market_tick(payload: dict) -> None:
@@ -80,6 +81,11 @@ async def broadcast_market_tick(payload: dict) -> None:
 async def broadcast_whale_tick(payload: dict) -> None:
     """Broadcast a whale tick to all whale WebSocket clients."""
     await whale_ws.broadcast(payload)
+
+
+async def broadcast_stats_update(payload: dict) -> None:
+    """Broadcast stats update to all stats WebSocket clients."""
+    await stats_ws.broadcast(payload)
 
 
 # Legacy SSE broadcaster (kept for backward compatibility)

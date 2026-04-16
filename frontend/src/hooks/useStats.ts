@@ -1,22 +1,69 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchDashboard } from '../api'
+import { useEffect, useState } from 'react'
 import type { BotStats } from '../types'
 
-/**
- * Single source of truth for all dashboard stats.
- * Ensures consistent values across all tabs and sections.
- */
 export function useStats() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['stats-unified'],
+  const [wsStats, setWsStats] = useState<BotStats | null>(null)
+  const [wsConnected, setWsConnected] = useState(false)
+
+  useEffect(() => {
+    const apiKey = localStorage.getItem('adminApiKey') || ''
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/stats?token=${apiKey}`
+    
+    let ws: WebSocket | null = null
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+
+    const connect = () => {
+      ws = new WebSocket(wsUrl)
+      
+      ws.onopen = () => {
+        setWsConnected(true)
+      }
+      
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data)
+          if (msg.type === 'stats_update' && msg.data) {
+            setWsStats(msg.data)
+          }
+        } catch (e) {
+          console.error('Failed to parse stats WebSocket message:', e)
+        }
+      }
+      
+      ws.onerror = () => {
+        setWsConnected(false)
+      }
+      
+      ws.onclose = () => {
+        setWsConnected(false)
+        reconnectTimeout = setTimeout(connect, 3000)
+      }
+    }
+
+    connect()
+
+    return () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout)
+      if (ws) {
+        ws.onclose = null
+        ws.close()
+      }
+    }
+  }, [])
+
+  const { data: fallbackData, isLoading, error } = useQuery({
+    queryKey: ['stats-fallback'],
     queryFn: async () => {
+      const { fetchDashboard } = await import('../api')
       const dashboard = await fetchDashboard()
       return dashboard.stats
     },
-    refetchInterval: 10000,
+    refetchInterval: wsConnected ? false : 10000,
+    enabled: !wsConnected,
   })
 
-  const stats = data || ({
+  const stats = wsStats || fallbackData || ({
     is_running: false,
     last_run: null,
     total_trades: 0,
