@@ -803,7 +803,7 @@ async def strategy_cycle_job(strategy_name: str) -> None:
             )
             from backend.core.heartbeat import update_heartbeat
 
-            update_heartbeat(db, strategy_name)
+            update_heartbeat(strategy_name)
             return
 
         params = {}
@@ -900,6 +900,6 @@ async def strategy_cycle_job(strategy_name: str) -> None:
 
     # Heartbeat AFTER db.close() so the pool connection is returned first
     try:
-        update_heartbeat(None, strategy_name)
+        update_heartbeat(strategy_name)
     except Exception:
         pass

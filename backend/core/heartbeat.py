@@ -18,7 +18,7 @@ _pending_heartbeats: dict[str, str] = {}
 _hb_lock = threading.Lock()
 
 
-def update_heartbeat(db, strategy_name: str) -> None:
+def update_heartbeat(strategy_name: str) -> None:
     """Record heartbeat in memory — no DB write (watchdog flushes batch)."""
     ts = datetime.now(timezone.utc).isoformat()
     with _hb_lock:

@@ -11,7 +11,6 @@ import logging
 from backend.models.database import get_db, WalletConfig, BotState, SessionLocal
 from backend.api.auth import require_admin
 from backend.config import settings
-from backend.data.polymarket_clob import PolymarketCLOB
 
 logger = logging.getLogger("trading_bot")
 router = APIRouter(tags=["wallets"])
@@ -280,14 +279,9 @@ async def get_wallet_balance(
         and address.lower() == bot_address
     ):
         try:
-            async with PolymarketCLOB(
-                private_key=settings.POLYMARKET_PRIVATE_KEY,
-                api_key=settings.POLYMARKET_API_KEY,
-                api_secret=settings.POLYMARKET_API_SECRET,
-                api_passphrase=settings.POLYMARKET_API_PASSPHRASE,
-                mode=settings.TRADING_MODE,
-                signature_type=settings.POLYMARKET_SIGNATURE_TYPE,
-            ) as clob:
+            from backend.data.polymarket_clob import clob_from_settings
+
+            async with clob_from_settings(mode=settings.TRADING_MODE) as clob:
                 balance_data = await clob.get_wallet_balance()
 
                 if balance_data.get("error") is None:

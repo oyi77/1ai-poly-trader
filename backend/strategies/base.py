@@ -160,7 +160,7 @@ class BaseStrategy(ABC):
         try:
             from backend.core.heartbeat import update_heartbeat
 
-            update_heartbeat(ctx.db, self.name)
+            update_heartbeat(self.name)
         except Exception:
             pass
 

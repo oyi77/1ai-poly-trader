@@ -422,7 +422,7 @@ class GeneralMarketScanner(BaseStrategy):
                     pass
 
             # In-loop concurrent check: stop placing if we hit the limit
-            trades_placed_this_cycle = result.trades_placed
+            trades_placed_this_cycle = result.decisions_recorded
             if (
                 max_concurrent > 0
                 and open_trade_count + trades_placed_this_cycle >= max_concurrent
