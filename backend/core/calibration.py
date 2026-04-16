@@ -5,6 +5,7 @@ Tracks resolved weather markets and adaptively recalibrates forecast
 uncertainty (sigma) per city/source. Calibrated sigma improves the
 Gaussian probability model's accuracy over time.
 """
+
 import json
 import logging
 import math
@@ -14,8 +15,8 @@ from typing import Dict
 logger = logging.getLogger("trading_bot")
 
 # Default sigma values (°F) before calibration
-DEFAULT_SIGMA_F = 2.5   # US cities (°F)
-DEFAULT_SIGMA_C = 1.4   # Non-US cities (°C, converted to effective °F)
+DEFAULT_SIGMA_F = 2.5  # US cities (°F)
+DEFAULT_SIGMA_C = 1.4  # Non-US cities (°C, converted to effective °F)
 
 # Minimum resolved markets before trusting calibration
 MIN_CALIBRATION_SAMPLES = 20
@@ -29,7 +30,8 @@ def _load() -> Dict[str, dict]:
     if not _cal_cache and _CALIBRATION_FILE.exists():
         try:
             _cal_cache = json.loads(_CALIBRATION_FILE.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to load calibration file: {e}")
             _cal_cache = {}
     return _cal_cache
 
@@ -46,11 +48,14 @@ def get_sigma(city_key: str, source: str = "gefs") -> float:
         return float(entry["sigma"])
     # Default: US cities in °F, others effectively in °F after conversion
     from backend.data.weather import CITY_CONFIG
+
     unit = CITY_CONFIG.get(city_key, {}).get("unit", "F")
     return DEFAULT_SIGMA_F if unit == "F" else DEFAULT_SIGMA_C * 1.8  # rough C→F scale
 
 
-def update_calibration(city_key: str, source: str, forecast_temp_f: float, actual_temp_f: float) -> None:
+def update_calibration(
+    city_key: str, source: str, forecast_temp_f: float, actual_temp_f: float
+) -> None:
     """
     Update calibration with a resolved market outcome.
     Uses online Welford algorithm for running mean/variance.
@@ -59,7 +64,9 @@ def update_calibration(city_key: str, source: str, forecast_temp_f: float, actua
     key = f"{city_key}_{source}"
 
     error = abs(forecast_temp_f - actual_temp_f)
-    entry = cal.get(key, {"n": 0, "mean_error": 0.0, "M2": 0.0, "sigma": DEFAULT_SIGMA_F})
+    entry = cal.get(
+        key, {"n": 0, "mean_error": 0.0, "M2": 0.0, "sigma": DEFAULT_SIGMA_F}
+    )
 
     n = entry["n"] + 1
     delta = error - entry["mean_error"]
@@ -87,6 +94,10 @@ def get_calibration_report() -> str:
         lines.append(
             f"  {key:30s} n={entry['n']:3d}  sigma={entry['sigma']:.2f}°F  "
             f"mean_err={entry['mean_error']:.2f}°F"
-            + ("  ✓ ACTIVE" if entry["n"] >= MIN_CALIBRATION_SAMPLES else "  (warming up)")
+            + (
+                "  ✓ ACTIVE"
+                if entry["n"] >= MIN_CALIBRATION_SAMPLES
+                else "  (warming up)"
+            )
         )
     return "\n".join(lines)

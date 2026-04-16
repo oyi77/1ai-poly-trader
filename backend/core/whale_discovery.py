@@ -1,4 +1,5 @@
 """Dynamic whale discovery — seeds candidates and computes scores."""
+
 import logging
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -28,11 +29,13 @@ class WhaleDiscovery:
                 days = self._estimate_days(history)
                 score = calculate_whale_score(history, days_active=days)
                 w.whale_score = score
-                results.append({
-                    "wallet": w.address,
-                    "score": score,
-                    "trade_count": len(history),
-                })
+                results.append(
+                    {
+                        "wallet": w.address,
+                        "score": score,
+                        "trade_count": len(history),
+                    }
+                )
             db.commit()
         finally:
             db.close()
@@ -51,6 +54,7 @@ class WhaleDiscovery:
         url = f"https://data-api.polymarket.com/positions?user={wallet}&limit=200"
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.get(url)
             if r.status_code != 200:
@@ -60,12 +64,21 @@ class WhaleDiscovery:
             out: List[dict] = []
             for row in rows:
                 try:
-                    out.append({
-                        "pnl": float(row.get("realizedPnl", row.get("pnl", 0.0)) or 0.0),
-                        "size": float(row.get("size", row.get("initialValue", 0.0)) or 0.0),
-                        "timestamp": int(row.get("timestamp", row.get("createdAt", 0)) or 0),
-                    })
-                except Exception:
+                    out.append(
+                        {
+                            "pnl": float(
+                                row.get("realizedPnl", row.get("pnl", 0.0)) or 0.0
+                            ),
+                            "size": float(
+                                row.get("size", row.get("initialValue", 0.0)) or 0.0
+                            ),
+                            "timestamp": int(
+                                row.get("timestamp", row.get("createdAt", 0)) or 0
+                            ),
+                        }
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to parse position row for {wallet}: {e}")
                     continue
             return out
         except Exception as e:
@@ -81,5 +94,6 @@ class WhaleDiscovery:
                 return 1.0
             spread = max(timestamps) - min(timestamps)
             return max(spread / 86400.0, 1.0)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to estimate days from history: {e}")
             return 1.0

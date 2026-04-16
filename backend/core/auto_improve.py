@@ -482,7 +482,11 @@ async def _write_market_insights(db: Session, bigbrain: BigBrainClient) -> None:
                         edge=edge,
                         reasoning=f"Signal from {sig.strategy}",
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(
+                        "Skipping signal %s in insight writing: %s",
+                        getattr(sig, "strategy", "unknown"),
+                        e,
+                    )
     except Exception as e:
         logger.warning("Failed to write market insights: %s", e)

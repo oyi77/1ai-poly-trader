@@ -185,8 +185,8 @@ class ClaudeAnalyzer(BaseAIClient):
                     db.commit()
                 finally:
                     db.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to log failed call to database: {e}")
 
             return AIAnalysis(
                 reasoning=f"Analysis unavailable: {str(e)}",
@@ -256,8 +256,8 @@ Categories: weather, crypto, politics, economics, sports, other"""
                     db.commit()
                 finally:
                     db.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to log classification to database: {e}")
 
             # Map response to category
             valid_categories = [

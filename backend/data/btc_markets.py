@@ -1,4 +1,5 @@
 """BTC 5-minute market fetcher for Polymarket."""
+
 import httpx
 import json
 import logging
@@ -30,6 +31,7 @@ def is_valid_btc_slug(slug: str) -> bool:
 @dataclass
 class BtcMarket:
     """A single BTC 5-minute Up/Down market."""
+
     slug: str
     market_id: str
     up_price: float
@@ -38,8 +40,8 @@ class BtcMarket:
     window_end: datetime
     volume: float
     closed: bool
-    up_token_id: str = ""   # CLOB token ID for the UP (YES) outcome
-    down_token_id: str = "" # CLOB token ID for the DOWN (NO) outcome
+    up_token_id: str = ""  # CLOB token ID for the UP (YES) outcome
+    down_token_id: str = ""  # CLOB token ID for the DOWN (NO) outcome
 
     @property
     def event_slug(self) -> str:
@@ -133,7 +135,11 @@ def _parse_event_to_btc_market(event: dict) -> Optional[BtcMarket]:
     down_price = 0.5
     if outcome_prices:
         try:
-            prices = json.loads(outcome_prices) if isinstance(outcome_prices, str) else outcome_prices
+            prices = (
+                json.loads(outcome_prices)
+                if isinstance(outcome_prices, str)
+                else outcome_prices
+            )
             if isinstance(prices, list) and len(prices) >= 2:
                 up_price = float(prices[0])
                 down_price = float(prices[1])
@@ -150,13 +156,13 @@ def _parse_event_to_btc_market(event: dict) -> Optional[BtcMarket]:
 
     if start_str:
         try:
-            window_start = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+            window_start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             pass
 
     if end_str:
         try:
-            window_end = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+            window_end = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             pass
 
@@ -166,12 +172,16 @@ def _parse_event_to_btc_market(event: dict) -> Optional[BtcMarket]:
     raw_token_ids = market.get("clobTokenIds")
     if raw_token_ids:
         try:
-            token_ids = json.loads(raw_token_ids) if isinstance(raw_token_ids, str) else raw_token_ids
+            token_ids = (
+                json.loads(raw_token_ids)
+                if isinstance(raw_token_ids, str)
+                else raw_token_ids
+            )
             if isinstance(token_ids, list) and len(token_ids) >= 2:
                 up_token_id = str(token_ids[0])
                 down_token_id = str(token_ids[1])
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.debug(f"Failed to parse clobTokenIds: {e}")
 
     return BtcMarket(
         slug=slug,
@@ -197,6 +207,7 @@ async def fetch_btc_market_by_slug(slug: str) -> Optional[BtcMarket]:
     params = {"slug": slug}
 
     try:
+
         async def _do_fetch():
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(url, params=params)
@@ -277,6 +288,7 @@ async def fetch_btc_market_for_settlement(slug: str) -> Optional[BtcMarket]:
     params = {"slug": slug}
 
     try:
+
         async def _do_fetch():
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(url, params=params)

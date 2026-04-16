@@ -1,10 +1,11 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Landing from './pages/Landing'
-import Dashboard from './pages/Dashboard'
-import Admin from './pages/Admin'
 import { TradeNotifications } from './components/TradeNotifications'
 import { PageLoader } from './components/PageLoader'
+
+const Landing = React.lazy(() => import('./pages/Landing'))
+const Dashboard = React.lazy(() => import('./pages/Dashboard'))
+const Admin = React.lazy(() => import('./pages/Admin'))
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -67,22 +68,24 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <TradeNotifications />
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin" element={<Admin />} />
-          {/* Legacy standalone routes → redirect to Dashboard tabs */}
-          <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/market-intel" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/decisions" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/trading-terminal" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/pending-approvals" element={<Navigate to="/admin" replace />} />
-          <Route path="/edge-tracker" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/docs/*" element={<DocsRedirect />} />
-          <Route path="/docs" element={<DocsRedirect />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <React.Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admin" element={<Admin />} />
+            {/* Legacy standalone routes → redirect to Dashboard tabs */}
+            <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/market-intel" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/decisions" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/trading-terminal" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/pending-approvals" element={<Navigate to="/admin" replace />} />
+            <Route path="/edge-tracker" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/docs/*" element={<DocsRedirect />} />
+            <Route path="/docs" element={<DocsRedirect />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </React.Suspense>
       </BrowserRouter>
     </ErrorBoundary>
   )

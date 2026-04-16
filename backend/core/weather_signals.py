@@ -345,8 +345,8 @@ def _persist_weather_signals(signals: list, mode: str = None):
                         "suggested_size": db_signal.suggested_size,
                     },
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to broadcast signal_found event: {e}")
 
         db.commit()
     except Exception as e:

@@ -246,8 +246,8 @@ async def _call_groq(prompt: str) -> Optional[str]:
                 success=False,
                 error=str(e),
             )
-        except Exception:
-            pass
+        except Exception as log_err:
+            logger.debug(f"Failed to log Groq error to database: {log_err}")
         return None
 
 
@@ -299,8 +299,8 @@ async def _call_claude(prompt: str) -> Optional[str]:
                 success=False,
                 error=str(e),
             )
-        except Exception:
-            pass
+        except Exception as log_err:
+            logger.debug(f"Failed to log Claude error to database: {log_err}")
         return None
 
 

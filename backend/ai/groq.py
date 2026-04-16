@@ -296,8 +296,8 @@ Key question: Is this edge reliable?"""
                     db.commit()
                 finally:
                     db.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to log analysis to database: {e}")
 
             confidence = 0.6
             if "reliable" in result.lower() or "strong" in result.lower():

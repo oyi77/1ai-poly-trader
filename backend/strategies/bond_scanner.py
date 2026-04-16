@@ -156,7 +156,8 @@ class BondScannerStrategy(BaseStrategy):
 
                 try:
                     clob_token_ids = _json.loads(clob_token_ids)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to parse clobTokenIds JSON: {e}")
                     clob_token_ids = []
             if clob_token_ids and len(clob_token_ids) > 0:
                 clob_token_id = str(clob_token_ids[0])
@@ -171,7 +172,8 @@ class BondScannerStrategy(BaseStrategy):
 
                 try:
                     outcome_prices_raw = _json.loads(outcome_prices_raw)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to parse outcomePrices JSON: {e}")
                     continue
 
             if isinstance(outcomes, str):
@@ -179,7 +181,8 @@ class BondScannerStrategy(BaseStrategy):
 
                 try:
                     outcomes = _json.loads(outcomes)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to parse outcomes JSON: {e}")
                     outcomes = []
 
             if not outcome_prices_raw:
@@ -227,8 +230,8 @@ class BondScannerStrategy(BaseStrategy):
                             if state.bankroll is not None
                             else ctx.settings.INITIAL_BANKROLL
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to query open trades: {e}")
 
             # Conservative edge model:
             # Assume the market is efficient at pricing probabilities above 0.90.

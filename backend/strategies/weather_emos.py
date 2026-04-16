@@ -505,7 +505,8 @@ class WeatherEMOSStrategy(BaseStrategy):
 
                     try:
                         clob_token_ids = _json.loads(clob_token_ids)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Failed to parse clobTokenIds JSON: {e}")
                         clob_token_ids = []
                 if clob_token_ids:
                     clob_token_id = str(clob_token_ids[0])

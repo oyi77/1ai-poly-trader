@@ -45,7 +45,8 @@ async def _fetch_token_id(
                 if isinstance(clob_token_ids, str):
                     try:
                         clob_token_ids = json.loads(clob_token_ids)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Failed to parse clobTokenIds JSON: {e}")
                         clob_token_ids = []
                 if clob_token_ids:
                     return str(clob_token_ids[0])
