@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import json as _json
+import asyncio
 
 from backend.config import settings
 from backend.models.database import (
@@ -26,6 +27,10 @@ import logging
 logger = logging.getLogger("trading_bot")
 
 router = APIRouter(tags=["system"])
+
+_ticker_price_cache = {}
+_ticker_price_cache_timestamps = {}
+_CACHE_TTL_SECONDS = 60
 
 
 # ============================================================================
@@ -138,7 +143,9 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     testnet_wins = state.testnet_wins or 0
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
-    # Open exposure — unsettled trades in the ACTIVE mode only
+    mode = settings.TRADING_MODE
+
+    # Open exposure — unsettled trades in ACTIVE mode only
     mode_trades = (
         db.query(Trade)
         .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
@@ -153,27 +160,48 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     if mode_trades:
         try:
             import httpx
+            import time as _time
 
             tickers = list({t.market_ticker for t in mode_trades if t.market_ticker})
             if tickers:
                 ticker_to_price = {}
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    for ticker in tickers[:20]:
-                        try:
+                now = _time.time()
+
+                async def fetch_ticker_price(ticker):
+                    if ticker in _ticker_price_cache:
+                        cache_time = _ticker_price_cache_timestamps.get(ticker, 0)
+                        if now - cache_time < _CACHE_TTL_SECONDS:
+                            return ticker, _ticker_price_cache[ticker]
+
+                    try:
+                        async with httpx.AsyncClient(timeout=5.0) as client:
                             r = await client.get(
-                                "https://gamma-api.polymarket.com/markets?slug="
-                                + ticker,
+                                f"https://gamma-api.polymarket.com/markets?slug={ticker}",
                                 timeout=5.0,
                             )
                             data = r.json()
                             if data and isinstance(data, list) and len(data) > 0:
                                 m = data[0]
-                                ticker_to_price[ticker] = {
+                                price_data = {
                                     "yes_price": float(m.get("yes_price", 0.5)),
                                     "no_price": float(m.get("no_price", 0.5)),
                                 }
-                        except Exception:
-                            pass
+                                _ticker_price_cache[ticker] = price_data
+                                _ticker_price_cache_timestamps[ticker] = now
+                                return ticker, price_data
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch price for {ticker}: {e}")
+                    return ticker, None
+
+                tasks = [fetch_ticker_price(ticker) for ticker in tickers[:20]]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for result in results:
+                    if not isinstance(result, Exception) and result:
+                        ticker, price = result
+                        if price:
+                            ticker_to_price[ticker] = price
+
                 for t in mode_trades:
                     size = t.size or 0.0
                     position_cost += size
@@ -203,7 +231,6 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
 
     # Fallback: if mode PnL is 0 but settled trades exist, recalculate from DB
     pnl_source = "botstate"
-    mode = settings.TRADING_MODE
     if mode == "paper" and paper_pnl == 0 and paper_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
