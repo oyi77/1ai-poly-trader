@@ -285,8 +285,6 @@ describe('ModeFilterContext', () => {
         wrapper: ModeFilterProvider,
       })
 
-      const initialValue = result.current
-
       act(() => {
         result.current.setSelectedMode('paper')
       })

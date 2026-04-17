@@ -903,3 +903,136 @@ async def strategy_cycle_job(strategy_name: str) -> None:
         update_heartbeat(strategy_name)
     except Exception:
         pass
+
+
+async def sync_testnet_wallet():
+    """Reconcile testnet wallet every 60 seconds."""
+    db = SessionLocal()
+    try:
+        from backend.core.wallet_reconciliation import WalletReconciler
+        from backend.data.polymarket_clob import clob_from_settings
+
+        clob = clob_from_settings(mode="testnet")
+        reconciler = WalletReconciler(clob, db, "testnet")
+        result = await reconciler.full_reconciliation()
+
+        state = db.query(BotState).first()
+        if state:
+            state.last_sync_at = result.last_sync_at
+            db.commit()
+
+        logger.info(
+            f"Testnet wallet sync: imported={result.imported_count}, "
+            f"updated={result.updated_count}, closed={result.closed_count}"
+        )
+    except Exception as e:
+        logger.error(f"Testnet wallet sync failed: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def sync_live_wallet():
+    """Reconcile live wallet every 30 seconds."""
+    db = SessionLocal()
+    try:
+        from backend.core.wallet_reconciliation import WalletReconciler
+        from backend.data.polymarket_clob import clob_from_settings
+
+        clob = clob_from_settings(mode="live")
+        reconciler = WalletReconciler(clob, db, "live")
+        result = await reconciler.full_reconciliation()
+
+        state = db.query(BotState).first()
+        if state:
+            state.last_sync_at = result.last_sync_at
+            db.commit()
+
+        logger.info(
+            f"Live wallet sync: imported={result.imported_count}, "
+            f"updated={result.updated_count}, closed={result.closed_count}"
+        )
+    except Exception as e:
+        logger.error(f"Live wallet sync failed: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
+async def verify_settlement_blockchain():
+    """Check unsettled trades and update with blockchain-verified settlement data."""
+    from backend.core.scheduler import log_event
+    from backend.core.settlement_helpers import (
+        fetch_polymarket_resolution,
+        calculate_pnl,
+    )
+
+    db = SessionLocal()
+    try:
+        unsettled_trades = db.query(Trade).filter(Trade.settled.is_(False)).all()
+
+        if not unsettled_trades:
+            log_event("data", "Settlement verification: no unsettled trades")
+            state = db.query(BotState).first()
+            if state:
+                state.settlement_last_check_at = datetime.now(timezone.utc)
+                db.commit()
+            return
+
+        settled_count = 0
+        error_count = 0
+
+        for trade in unsettled_trades:
+            try:
+                is_resolved, settlement_value = await fetch_polymarket_resolution(
+                    trade.market_ticker, event_slug=trade.event_slug
+                )
+
+                if is_resolved and settlement_value is not None:
+                    pnl = calculate_pnl(trade, settlement_value)
+
+                    trade.settled = True
+                    trade.settlement_value = settlement_value
+                    trade.pnl = pnl
+                    trade.settlement_time = datetime.now(timezone.utc)
+                    trade.blockchain_verified = True
+
+                    if pnl is not None and pnl > 0:
+                        trade.result = "win"
+                    elif pnl is not None and pnl < 0:
+                        trade.result = "loss"
+                    else:
+                        trade.result = "push"
+
+                    settled_count += 1
+                    logger.info(
+                        f"Settlement verified: trade_id={trade.id} market={trade.market_ticker} "
+                        f"result={trade.result} pnl=${pnl:.2f}"
+                    )
+
+            except Exception as e:
+                error_count += 1
+                logger.warning(
+                    f"Settlement verification failed for trade {trade.id}: {e}"
+                )
+                continue
+
+        state = db.query(BotState).first()
+        if state:
+            state.settlement_last_check_at = datetime.now(timezone.utc)
+
+        db.commit()
+
+        log_event(
+            "success" if settled_count > 0 else "info",
+            f"Settlement verified: {settled_count} trades settled, {error_count} errors",
+            {
+                "settled_count": settled_count,
+                "error_count": error_count,
+                "total_checked": len(unsettled_trades),
+            },
+        )
+
+    except Exception as e:
+        log_event("error", f"Settlement verification job failed: {e}")
+        logger.exception("Error in verify_settlement_blockchain")
+    finally:
+        db.close()

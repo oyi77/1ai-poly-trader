@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import json as _json
@@ -14,11 +14,9 @@ from backend.models.database import (
     get_db,
     BotState,
     Trade,
-    Signal,
     AILog,
     DecisionLog,
     StrategyConfig,
-    SessionLocal,
 )
 from backend.api.auth import require_admin
 from backend.core.signals import scan_for_signals
@@ -36,6 +34,13 @@ _CACHE_TTL_SECONDS = 60
 # ============================================================================
 # Pydantic Response Models
 # ============================================================================
+
+
+class SyncMetadata(BaseModel):
+    """Metadata about database synchronization state."""
+    last_synced_at: Optional[datetime] = None
+    orphaned_count: int = 0
+    external_imports_count: int = 0
 
 
 class BotStats(BaseModel):
@@ -69,6 +74,7 @@ class BotStats(BaseModel):
     unrealized_pnl: float = 0.0
     position_cost: float = 0.0
     position_market_value: float = 0.0
+    sync_metadata: Optional[SyncMetadata] = None
 
 
 class EventResponse(BaseModel):
@@ -99,13 +105,71 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     paper_wins = state.paper_wins or 0
     paper_win_rate = paper_wins / paper_trades if paper_trades > 0 else 0.0
 
-    live_pnl = state.total_pnl or 0.0
-    live_bankroll = (
-        state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
-    )
-    live_trades = state.total_trades or 0
-    live_wins = state.winning_trades or 0
-    live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
+    sync_metadata = None
+    
+    if settings.TRADING_MODE in ("testnet", "live"):
+        mode = settings.TRADING_MODE
+        
+        live_trades = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.trading_mode == mode, Trade.settled)
+            .scalar()
+            or 0
+        )
+        live_wins = (
+            db.query(func.count(Trade.id))
+            .filter(
+                Trade.trading_mode == mode,
+                Trade.settled,
+                Trade.pnl > 0,
+            )
+            .scalar()
+            or 0
+        )
+        live_pnl = (
+            db.query(func.sum(Trade.pnl))
+            .filter(Trade.trading_mode == mode, Trade.settled)
+            .scalar()
+            or 0.0
+        )
+        
+        orphaned_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.trading_mode == mode, Trade.result == "orphaned")
+            .scalar()
+            or 0
+        )
+        external_imports_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.trading_mode == mode, Trade.source == "external")
+            .scalar()
+            or 0
+        )
+        
+        sync_metadata = SyncMetadata(
+            last_synced_at=state.last_sync_at,
+            orphaned_count=orphaned_count,
+            external_imports_count=external_imports_count,
+        )
+        
+        if live_pnl != (state.total_pnl or 0.0):
+            logger.warning(
+                f"Stat change detected for {mode}: DB PnL={live_pnl} vs BotState={state.total_pnl}. "
+                f"Orphaned={orphaned_count}, External={external_imports_count}"
+            )
+        
+        live_bankroll = (
+            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+        )
+        live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
+    else:
+        live_pnl = state.total_pnl or 0.0
+        live_bankroll = (
+            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+        )
+        live_trades = state.total_trades or 0
+        live_wins = state.winning_trades or 0
+        live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
     testnet_pnl = state.testnet_pnl or 0.0
     testnet_bankroll = (
@@ -119,24 +183,38 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
 
     mode_trades = (
         db.query(Trade)
-        .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
+        .filter(~Trade.settled, Trade.trading_mode == mode)
         .all()
     )
     open_trades_count = len(mode_trades)
     open_exposure_amount = sum((t.size or 0.0) for t in mode_trades)
 
-    settled_trades_count = (
-        db.query(func.count(Trade.id))
-        .filter(Trade.settled.is_(True), Trade.trading_mode == mode)
-        .scalar()
-        or 0
-    )
-    settled_wins_count = (
-        db.query(func.count(Trade.id))
-        .filter(Trade.settled.is_(True), Trade.trading_mode == mode, Trade.pnl > 0)
-        .scalar()
-        or 0
-    )
+    if mode in ("testnet", "live"):
+        settled_trades_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.settled, Trade.trading_mode == mode)
+            .scalar()
+            or 0
+        )
+        settled_wins_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.settled, Trade.trading_mode == mode, Trade.pnl > 0)
+            .scalar()
+            or 0
+        )
+    else:
+        settled_trades_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.settled, Trade.trading_mode == mode)
+            .scalar()
+            or 0
+        )
+        settled_wins_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.settled, Trade.trading_mode == mode, Trade.pnl > 0)
+            .scalar()
+            or 0
+        )
 
     unrealized_pnl = 0.0
     position_cost = 0.0
@@ -315,6 +393,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         unrealized_pnl=unrealized_pnl,
         position_cost=position_cost,
         position_market_value=position_market_value,
+        sync_metadata=sync_metadata,
     )
 
 
@@ -336,7 +415,7 @@ async def get_strategy_stats(
             func.count(Trade.id).label("total_trades"),
             func.sum(case((Trade.result == "win", 1), else_=0)).label("wins"),
             func.sum(case((Trade.result == "loss", 1), else_=0)).label("losses"),
-            func.sum(case((Trade.settled == True, Trade.pnl), else_=0)).label(
+            func.sum(case((Trade.settled, Trade.pnl), else_=0)).label(
                 "total_pnl"
             ),
             func.avg(Trade.edge_at_entry).label("avg_edge"),

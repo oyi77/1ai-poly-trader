@@ -24,6 +24,9 @@ from backend.core.scheduling_strategies import (
     auto_trader_job,
     heartbeat_job,
     strategy_cycle_job,
+    sync_testnet_wallet,
+    sync_live_wallet,
+    verify_settlement_blockchain,
 )
 from backend.core.auto_improve import auto_improve_job
 from backend.core.strategy_ranker import strategy_ranking_job
@@ -213,6 +216,30 @@ def start_scheduler():
         wallet_sync_job,
         IntervalTrigger(seconds=60),
         id="wallet_sync",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        sync_testnet_wallet,
+        IntervalTrigger(seconds=60),
+        id="wallet_sync_testnet",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        sync_live_wallet,
+        IntervalTrigger(seconds=30),
+        id="wallet_sync_live",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        verify_settlement_blockchain,
+        IntervalTrigger(seconds=120),
+        id="settlement_verify",
         replace_existing=True,
         max_instances=1,
     )

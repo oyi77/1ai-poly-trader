@@ -34,6 +34,20 @@ When you open the dashboard, you'll see a **top navigation bar** with key number
 | **Win** | Percentage of trades that made money | 65% = 65 out of 100 trades were winners |
 | **Exposure** | How much money is currently "in play" (not settled yet) | $15 = $15 is currently bet on open markets |
 
+### Sync Status (Live/Testnet Only)
+
+When running in `LIVE` or `TESTNET` mode, you'll see a sync status indicator showing when the bot last synchronized with the blockchain:
+
+| Indicator | What It Means |
+|-----------|---------------|
+| **Last Synced** | Timestamp showing when the bot last checked the blockchain for external trades |
+| **Green (< 60s ago)** | Sync is current and healthy |
+| **Yellow (60-120s ago)** | Sync is slightly stale but acceptable |
+| **Red (> 120s ago)** | Sync is stale, may need manual refresh |
+| **Refresh Button** | Manually trigger an immediate sync with the blockchain |
+
+The bot automatically syncs every 30-60 seconds in live mode. External trades (made outside the bot) are automatically imported and displayed in your trade history.
+
 ### What the Colors Mean
 
 - **Green** = Good (profit, winning)
@@ -248,6 +262,12 @@ Set up mobile notifications:
 - Refresh the page
 - Check the WebSocket indicator (top right) - should show "Connected"
 - Verify backend is running (check system status in Admin)
+
+### "Sync status shows stale or red"
+- Click the manual refresh button next to the sync timestamp
+- Check that you're in LIVE or TESTNET mode (paper mode doesn't sync)
+- Verify your Polymarket API credentials are configured correctly
+- Check backend logs for sync errors
 
 ### "Telegram alerts not working"
 - Verify TELEGRAM_BOT_TOKEN is set

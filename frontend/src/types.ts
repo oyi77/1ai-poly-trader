@@ -185,3 +185,15 @@ export interface WalletBalance {
   last_updated: string | null
   source: string
 }
+
+export interface SyncModeStatus {
+  last_synced_at: string | null
+  next_sync_at: string | null
+  last_result: string | null
+  status: string
+}
+
+export interface SyncStatus {
+  testnet: SyncModeStatus
+  live: SyncModeStatus
+}

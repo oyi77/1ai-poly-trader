@@ -14,6 +14,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -110,6 +111,26 @@ class OrderBook:
         if self.best_ask and self.best_bid:
             return self.best_ask - self.best_bid
         return 1.0
+
+
+@dataclass
+class TradeRecord:
+    """Trade record from Polymarket Data API."""
+    id: str
+    user: str
+    asset_id: str
+    outcome: str  # "YES" | "NO"
+    shares: float
+    price: float
+    spent: float
+    timestamp: int
+    transaction_hash: Optional[str] = None
+    block_number: Optional[int] = None
+
+    @property
+    def created_at(self) -> datetime:
+        """Convert timestamp to datetime."""
+        return datetime.fromtimestamp(self.timestamp, tz=timezone.utc)
 
 
 class PolymarketCLOB:
@@ -666,6 +687,172 @@ class PolymarketCLOB:
                 exc_info=True,
             )
             return {"usdc_balance": 0.0, "token_balances": {}, "error": str(e)}
+
+    async def get_wallet_trades(
+        self,
+        wallet_address: Optional[str] = None,
+        limit: int = 1000,
+        offset: int = 0,
+        max_pages: Optional[int] = None,
+    ) -> list[TradeRecord]:
+        """
+        Fetch historical trades for a wallet from Polymarket Data API.
+
+        Args:
+            wallet_address: Wallet to fetch trades for. If None, uses self.builder_address
+            limit: Records per page (max 1000, default 1000)
+            offset: Starting offset (for pagination)
+            max_pages: Max pages to fetch. If None, fetches all pages
+
+        Returns:
+            List of TradeRecord objects (blockchain-authoritative history)
+
+        Raises:
+            ValueError: If no wallet address available
+            HTTPStatusError: If API returns error
+
+        Usage:
+            async with clob_factory() as clob:
+                trades = await clob.get_wallet_trades(limit=500)
+                # Returns all trades for connected wallet
+
+                trades = await clob.get_wallet_trades(
+                    wallet_address="0xabc...",
+                    max_pages=5
+                )
+                # Returns first 5 pages only
+        """
+        # Determine which address to query
+        address = wallet_address
+        if not address:
+            if self.builder_address:
+                address = self.builder_address
+            elif self._account:
+                address = self._account.address
+            else:
+                raise ValueError(
+                    "No wallet address available. "
+                    "Either pass wallet_address arg, set POLYMARKET_BUILDER_ADDRESS, "
+                    "or initialize with private_key"
+                )
+
+        logger.info(f"[polymarket_clob.get_wallet_trades] Fetching trades for {address}")
+
+        # Validate inputs
+        if limit > 1000:
+            logger.warning(f"Requested limit {limit} > 1000, capping at 1000")
+            limit = 1000
+
+        all_trades: list[TradeRecord] = []
+        current_offset = offset
+        page = 0
+
+        async def _fetch_page(off: int) -> tuple[list[dict], bool]:
+            """Fetch one page of trades. Returns (trades, has_more)."""
+            try:
+                resp = await self._http.get(
+                    f"{DATA_HOST}/trades",
+                    params={
+                        "user": address,
+                        "limit": limit,
+                        "offset": off,
+                    },
+                    timeout=30.0
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+                # Data API returns {"trades": [...]} or just [...]
+                trades = data.get("trades", data) if isinstance(data, dict) else data
+                if not isinstance(trades, list):
+                    raise ValueError(f"Unexpected response format: {type(trades)}")
+
+                logger.debug(
+                    f"[polymarket_clob.get_wallet_trades] "
+                    f"Page {page}: {len(trades)} trades at offset {off}"
+                )
+
+                # Check if there are more pages
+                has_more = len(trades) == limit
+                return trades, has_more
+            except Exception as e:
+                logger.error(
+                    f"[polymarket_clob.get_wallet_trades] "
+                    f"Failed to fetch page at offset {off}: {e}",
+                    exc_info=True
+                )
+                raise
+
+        # Fetch paginated results
+        while True:
+            if max_pages is not None and page >= max_pages:
+                logger.info(
+                    f"[polymarket_clob.get_wallet_trades] "
+                    f"Reached max_pages={max_pages}, stopping"
+                )
+                break
+
+            try:
+                trades_page, has_more = await clob_breaker.call(
+                    lambda off=current_offset: _fetch_page(off)
+                )
+            except Exception as e:
+                logger.error(
+                    f"[polymarket_clob.get_wallet_trades] "
+                    f"Circuit breaker or API error: {e}"
+                )
+                if all_trades:
+                    logger.info(
+                        f"Returning {len(all_trades)} trades fetched before error"
+                    )
+                    break
+                raise
+
+            if not trades_page:
+                logger.info(
+                    f"[polymarket_clob.get_wallet_trades] "
+                    f"No more trades (empty page at offset {current_offset})"
+                )
+                break
+
+            # Parse trades
+            for trade_data in trades_page:
+                try:
+                    record = TradeRecord(
+                        id=trade_data["id"],
+                        user=trade_data["user"],
+                        asset_id=trade_data["asset_id"],
+                        outcome=trade_data["outcome"],
+                        shares=float(trade_data["shares"]),
+                        price=float(trade_data["price"]),
+                        spent=float(trade_data["spent"]),
+                        timestamp=int(trade_data["timestamp"]),
+                        transaction_hash=trade_data.get("transaction_hash"),
+                        block_number=trade_data.get("block_number"),
+                    )
+                    all_trades.append(record)
+                except (KeyError, ValueError) as e:
+                    logger.warning(
+                        f"[polymarket_clob.get_wallet_trades] "
+                        f"Skipping malformed trade record: {e}"
+                    )
+
+            page += 1
+            current_offset += limit
+
+            if not has_more:
+                logger.info(
+                    f"[polymarket_clob.get_wallet_trades] "
+                    f"Reached end of results (page {page})"
+                )
+                break
+
+        logger.info(
+            f"[polymarket_clob.get_wallet_trades] "
+            f"Fetched {len(all_trades)} total trades across {page} pages"
+        )
+
+        return all_trades
 
 
 # =========================================================================

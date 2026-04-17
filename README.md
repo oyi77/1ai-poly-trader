@@ -32,6 +32,7 @@ A full-stack automated prediction market trading bot targeting **Polymarket** an
 - **Signal Calibration** — Brier score tracking for prediction accuracy over time
 - **Risk Management** — Circuit breakers, position limits, portfolio concentration guards
 - **Shadow Mode** — Paper trading with virtual bankroll and equity curve tracking
+- **Unified State Sync** — Automatic blockchain reconciliation imports external trades and verifies settlements
 - **Professional Dashboard** — React + TypeScript + TanStack Query with real-time updates
 - **Job Queue** — Redis-backed (falls back to SQLite) for background strategy execution
 - **Monitoring** — Prometheus metrics endpoint with request/response middleware
@@ -126,6 +127,7 @@ Starts the backend API + Redis. See `docker-compose.yml` for configuration.
 
 ## Documentation
 
+- **[User Guide](docs/user-guide.md)** - Beginner-friendly dashboard walkthrough
 - **[How It Works](docs/how-it-works.md)** - Detailed explanation of BTC and weather strategies
 - **[API Reference](docs/api.md)** - Complete API endpoint documentation
 - **[Configuration](docs/configuration.md)** - All settings and environment variables

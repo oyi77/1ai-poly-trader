@@ -76,8 +76,10 @@ from backend.api.system import router as system_router, get_stats, BotStats
 from backend.api.backtest import router as backtest_router
 from backend.api.wallets import router as wallets_router
 from backend.api.analytics import router as analytics_router
+from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
+from fastapi import BackgroundTasks
 import logging
 
 logger = logging.getLogger("trading_bot")
@@ -209,6 +211,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     _seed_strategy_configs()
+
+    logger.info("Starting wallet reconciliation recovery...")
+    try:
+        from backend.data.polymarket_clob import clob_from_settings
+        
+        db = SessionLocal()
+        try:
+            for mode in ["testnet", "live"]:
+                if mode == "testnet" or settings.TRADING_MODE == "live":
+                    try:
+                        clob = clob_from_settings(mode=mode)
+                        reconciler = WalletReconciler(clob, db, mode)
+                        result = await reconciler.full_reconciliation()
+                        
+                        state = db.query(BotState).first()
+                        if state:
+                            state.last_sync_at = result.last_sync_at
+                            db.commit()
+                        
+                        logger.info(
+                            f"Startup recovery [{mode}]: imported={result.imported_count}, "
+                            f"updated={result.updated_count}, closed={result.closed_count}, "
+                            f"errors={len(result.errors)}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Startup recovery [{mode}] failed: {e}", exc_info=True)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Wallet reconciliation startup failed: {e}", exc_info=True)
 
     from backend.core.scheduler import start_scheduler, log_event
 
@@ -1100,6 +1132,158 @@ class CopySignalResponse(BaseModel):
     condition_id: str
     title: str
     timestamp: str
+
+
+# =========================================================================
+# Sync Status Endpoints
+# =========================================================================
+
+
+class SyncStatusResponse(BaseModel):
+    """Status of wallet sync for a single mode (testnet or live)."""
+    mode: str  # "testnet" or "live"
+    last_synced_at: Optional[datetime]
+    next_sync_at: Optional[datetime]
+    last_result: Optional[str]  # "success", "error", or None
+    status: str  # "healthy" if last sync < 2 min ago, else "stale"
+
+
+class SyncStatusAllResponse(BaseModel):
+    """Combined sync status for both modes."""
+    testnet: SyncStatusResponse
+    live: SyncStatusResponse
+
+
+@app.get("/api/admin/sync-status", response_model=SyncStatusAllResponse)
+async def get_sync_status(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    """
+    Get wallet sync status for testnet and live modes.
+    
+    Returns:
+    - last_synced_at: Timestamp of last successful sync
+    - next_sync_at: Estimated next sync time (if scheduled)
+    - last_result: Result of last sync ("success" or error message)
+    - status: "healthy" if last sync < 2 min ago, else "stale"
+    """
+    state = db.query(BotState).first()
+    now = datetime.now(timezone.utc)
+    
+    # Helper to compute status
+    def compute_status(last_sync_at: Optional[datetime]) -> str:
+        if not last_sync_at:
+            return "stale"
+        elapsed = (now - last_sync_at).total_seconds()
+        return "healthy" if elapsed < 120 else "stale"
+    
+    # For now, use the single last_sync_at from BotState for both modes
+    # In future, could track per-mode sync times
+    testnet_status = SyncStatusResponse(
+        mode="testnet",
+        last_synced_at=state.last_sync_at if state else None,
+        next_sync_at=None,  # Not scheduled yet
+        last_result=None,
+        status=compute_status(state.last_sync_at if state else None),
+    )
+    
+    live_status = SyncStatusResponse(
+        mode="live",
+        last_synced_at=state.last_sync_at if state else None,
+        next_sync_at=None,  # Not scheduled yet
+        last_result=None,
+        status=compute_status(state.last_sync_at if state else None),
+    )
+    
+    return SyncStatusAllResponse(testnet=testnet_status, live=live_status)
+
+
+async def _sync_wallet_background(mode: str, db: Session):
+    """Background task to perform wallet sync."""
+    try:
+        from backend.data.polymarket_clob import clob_from_settings
+        
+        logger.info(f"Starting background sync for mode={mode}")
+        
+        clob = clob_from_settings(mode=mode)
+        reconciler = WalletReconciler(clob, db, mode)
+        result = await reconciler.full_reconciliation()
+        
+        # Update BotState with sync result
+        state = db.query(BotState).first()
+        if state:
+            state.last_sync_at = result.last_sync_at
+            db.commit()
+        
+        logger.info(
+            f"Background sync complete [{mode}]: imported={result.imported_count}, "
+            f"updated={result.updated_count}, closed={result.closed_count}, "
+            f"errors={len(result.errors)}"
+        )
+        
+        # Publish event for dashboard
+        publish_event("sync_completed", {
+            "mode": mode,
+            "imported": result.imported_count,
+            "updated": result.updated_count,
+            "closed": result.closed_count,
+            "errors": len(result.errors),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        
+    except Exception as e:
+        logger.error(f"Background sync failed for mode={mode}: {e}", exc_info=True)
+        publish_event("sync_failed", {
+            "mode": mode,
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+
+@app.post("/api/admin/sync-now")
+async def sync_now(
+    mode: str = "live",
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    """
+    Trigger an immediate wallet sync in the background.
+    
+    Args:
+        mode: "testnet" or "live" (default: "live")
+    
+    Returns:
+        202 Accepted with status "syncing"
+    
+    Note:
+        - Does not block the API response
+        - Sync completion is published via WebSocket events
+        - Paper mode is skipped (returns 400)
+    """
+    if mode not in ("testnet", "live"):
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be 'testnet' or 'live'"
+        )
+    
+    if settings.TRADING_MODE == "paper":
+        raise HTTPException(
+            status_code=400,
+            detail="Sync not available in paper mode"
+        )
+    
+    # Queue background task
+    background_tasks.add_task(_sync_wallet_background, mode, db)
+    
+    logger.info(f"Queued background sync for mode={mode}")
+    
+    return {
+        "status": "syncing",
+        "mode": mode,
+        "message": f"Wallet sync started for {mode} mode"
+    }
 
 
 @app.get("/api/events/stream")

@@ -700,3 +700,17 @@ export async function fetchEdgePerformance(days = 7): Promise<EdgePerformanceRes
   const { data } = await api.get<EdgePerformanceResponse>('/edge-performance', { params: { days } })
   return data
 }
+
+// ── Sync Status ──────────────────────────────────────────────────────────────
+
+export async function getSyncStatus(): Promise<import('./types').SyncStatus> {
+  const { data } = await adminApi.get<import('./types').SyncStatus>('/admin/sync-status')
+  return data
+}
+
+export async function triggerManualSync(mode: 'testnet' | 'live'): Promise<{ status: string; message: string }> {
+  const { data } = await adminApi.post<{ status: string; message: string }>('/admin/sync-now', null, {
+    params: { mode }
+  })
+  return data
+}

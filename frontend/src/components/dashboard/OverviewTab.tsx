@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useStats } from '../../hooks/useStats'
 import { useModeFilter } from '../../hooks/useModeFilter'
+import { useWebSocket } from '../../hooks/useWebSocket'
 import { SignalsTable } from '../SignalsTable'
 import { TradesTable } from '../TradesTable'
 import { EquityChart } from '../EquityChart'
@@ -11,7 +12,7 @@ import { MicrostructurePanel } from '../MicrostructurePanel'
 import { CalibrationPanel } from '../CalibrationPanel'
 import { WeatherPanel } from '../WeatherPanel'
 import { EdgeDistribution } from '../EdgeDistribution'
-import { fetchSignalHistory } from '../../api'
+import { fetchSignalHistory, getSyncStatus, triggerManualSync, getWsUrl } from '../../api'
 import { formatCountdown } from '../../utils'
 import type { SignalHistoryRow } from '../../api'
 import type { BtcWindow } from '../../types'
@@ -213,6 +214,52 @@ export function OverviewTab({
   const { selectedMode } = useModeFilter()
   const actionableCount = activeSignals.filter((s: any) => s.actionable).length + weatherSignals.filter((s: any) => s.actionable).length
 
+  const [syncRefreshing, setSyncRefreshing] = useState(false)
+  const { data: syncStatus, refetch: refetchSyncStatus } = useQuery({
+    queryKey: ['sync-status'],
+    queryFn: getSyncStatus,
+    refetchInterval: 60_000,
+    enabled: stats.mode !== 'paper',
+  })
+
+  const { data: syncEvent } = useWebSocket<{ mode: string; status: string; timestamp: string }>(
+    getWsUrl('/ws/sync')
+  )
+
+  useEffect(() => {
+    if (syncEvent?.status === 'completed' || syncEvent?.status === 'failed') {
+      refetchSyncStatus()
+    }
+  }, [syncEvent, refetchSyncStatus])
+
+  const handleManualSync = async (mode: 'testnet' | 'live') => {
+    setSyncRefreshing(true)
+    try {
+      await triggerManualSync(mode)
+      setTimeout(() => refetchSyncStatus(), 2000)
+    } catch (err) {
+      console.error('Manual sync failed:', err)
+    } finally {
+      setSyncRefreshing(false)
+    }
+  }
+
+  const getSyncColor = (lastSyncedAt: string | null) => {
+    if (!lastSyncedAt) return 'text-neutral-600'
+    const elapsed = (Date.now() - new Date(lastSyncedAt).getTime()) / 1000
+    if (elapsed < 60) return 'text-green-500'
+    if (elapsed < 120) return 'text-yellow-500'
+    return 'text-red-500'
+  }
+
+  const formatSyncTime = (lastSyncedAt: string | null) => {
+    if (!lastSyncedAt) return 'Never'
+    const elapsed = Math.floor((Date.now() - new Date(lastSyncedAt).getTime()) / 1000)
+    if (elapsed < 60) return `${elapsed}s ago`
+    if (elapsed < 3600) return `${Math.floor(elapsed / 60)}m ago`
+    return `${Math.floor(elapsed / 3600)}h ago`
+  }
+
   // Filter stats by selected mode
   const getFilteredValue = (key: 'pnl' | 'bankroll' | 'returnPercent' | 'winRate') => {
     if (selectedMode === 'all') return stats[key]
@@ -283,8 +330,38 @@ export function OverviewTab({
               )
             })}
           </div>
-        )}
-        {calibration && calibration.total_with_outcome > 0 && (
+         )}
+         {stats.mode !== 'paper' && syncStatus && (
+           <div className="shrink-0 border-b border-neutral-800 px-2 py-2">
+             <div className="flex items-center justify-between mb-1.5">
+               <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Sync Status</span>
+             </div>
+             <div className="space-y-1.5">
+               {(['testnet', 'live'] as const).map(mode => {
+                 const modeStatus = syncStatus[mode]
+                 const color = getSyncColor(modeStatus.last_synced_at)
+                 return (
+                   <div key={mode} className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       <span className="text-[9px] uppercase text-neutral-600">{mode}</span>
+                       <span className={`text-[9px] tabular-nums ${color}`}>
+                         {formatSyncTime(modeStatus.last_synced_at)}
+                       </span>
+                     </div>
+                     <button
+                       onClick={() => handleManualSync(mode)}
+                       disabled={syncRefreshing}
+                       className="text-[8px] px-1.5 py-0.5 border border-neutral-700 hover:border-neutral-500 text-neutral-400 hover:text-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                     >
+                       {syncRefreshing ? '...' : '↻'}
+                     </button>
+                   </div>
+                 )
+               })}
+             </div>
+           </div>
+         )}
+         {calibration && calibration.total_with_outcome > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="shrink-0 border-b border-neutral-800 px-2 py-2">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Calibration</span>

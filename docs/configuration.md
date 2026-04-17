@@ -48,3 +48,17 @@ All settings in `backend/config.py`, overridable via environment variables.
 | `JOB_TIMEOUT_SECONDS` | `300` | Per-job timeout |
 | `MAX_CONCURRENT_JOBS` | `1` | Worker concurrency limit |
 | `CACHE_URL` | `sqlite:///./cache.db` | Cache backend |
+
+## Unified State Sync
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SYNC_INTERVAL_TESTNET` | `60` | Testnet sync interval (seconds) |
+| `SYNC_INTERVAL_LIVE` | `30` | Live mode sync interval (seconds) |
+| `SYNC_SETTLEMENT_INTERVAL` | `120` | Settlement verification interval (seconds) |
+
+The bot automatically syncs with the Polymarket blockchain in live and testnet modes to:
+- Import external trades made outside the bot
+- Verify settlement status of open positions
+- Detect orphaned positions (on blockchain but not in database)
+- Update trade metadata with blockchain verification timestamps
