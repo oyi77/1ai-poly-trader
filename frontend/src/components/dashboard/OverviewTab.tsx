@@ -72,6 +72,7 @@ interface SignalsPanelProps {
 
 function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimulating }: SignalsPanelProps) {
   const [tab, setTab] = useState<'live' | 'history'>('live')
+  const { selectedMode } = useModeFilter()
 
   const { data: historyData, isLoading, isError } = useQuery({
     queryKey: ['signals-history'],
@@ -81,6 +82,7 @@ function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimula
   })
 
   const history: SignalHistoryRow[] = (isLoading || isError) ? [] : (historyData?.items ?? [])
+  const filteredHistory = selectedMode === 'all' ? history : history.filter(h => h.trading_mode === selectedMode)
 
   return (
     <div className="flex flex-col min-h-0" style={{ height: '50%' }}>
@@ -112,7 +114,7 @@ function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimula
               )}
             </>
           ) : (
-            <span className="text-[10px] text-neutral-600 tabular-nums">{historyData?.total ?? 0} total</span>
+            <span className="text-[10px] text-neutral-600 tabular-nums">{filteredHistory.length} total</span>
           )}
         </div>
       </div>
@@ -138,7 +140,7 @@ function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimula
               </tr>
             </thead>
             <tbody>
-              {history.map(row => (
+              {filteredHistory.map(row => (
                 <tr key={row.id} className="border-b border-neutral-800/40 hover:bg-neutral-900/30">
                   <td className="px-2 py-1 text-neutral-600">
                     {row.timestamp ? new Date(row.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '—'}
@@ -169,9 +171,9 @@ function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimula
                       <span className="text-red-500">loss</span>
                     )}
                   </td>
-                </tr>
-              ))}
-              {history.length === 0 && (
+                 </tr>
+               ))}
+              {filteredHistory.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-2 py-4 text-center text-neutral-700">No signal history</td>
                 </tr>

@@ -3,10 +3,32 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchDashboard } from '../api'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { useStats } from '../hooks/useStats'
+import { useModeFilter } from '../hooks/useModeFilter'
 
 export function StatsCards() {
-  const { pnl, wins, trades, bankroll, winRate, returnPercent, mode, isRunning, openExposure, openTrades, totalEquity, settledTrades, unrealizedPnl } = useStats()
+  const stats = useStats()
+  const { selectedMode } = useModeFilter()
+  
+  // Filter stats by selected mode
+  const modeData = selectedMode === 'all' ? null :
+                   selectedMode === 'paper' ? stats.paperStats :
+                   selectedMode === 'testnet' ? stats.testnetStats :
+                   selectedMode === 'live' ? stats.liveStats : null
+  
+  const pnl = modeData ? modeData.pnl : stats.pnl
+  const wins = modeData ? modeData.wins : stats.wins
+  const trades = modeData ? modeData.trades : stats.trades
+  const bankroll = modeData ? modeData.bankroll : stats.bankroll
+  const winRate = modeData && modeData.trades > 0 ? (modeData.wins / modeData.trades * 100) : stats.winRate
+  const returnPercent = modeData && stats.stats.initial_bankroll > 0 ? (modeData.pnl / stats.stats.initial_bankroll * 100) : stats.returnPercent
+  const mode = selectedMode === 'all' ? stats.mode : selectedMode
   const modeLabel = mode ? mode.toUpperCase() : ''
+  const isRunning = stats.isRunning
+  const openExposure = stats.openExposure
+  const openTrades = stats.openTrades
+  const totalEquity = modeData ? modeData.bankroll + (stats.positionMarketValue ?? 0) : stats.totalEquity
+  const settledTrades = stats.settledTrades
+  const unrealizedPnl = stats.unrealizedPnl
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
