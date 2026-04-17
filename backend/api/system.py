@@ -91,18 +91,31 @@ class EventResponse(BaseModel):
 
 @router.get("/api/stats", response_model=BotStats)
 async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_admin)):
-    state = db.query(BotState).first()
+    # Query all 3 mode states
+    paper_state = db.query(BotState).filter_by(mode="paper").first()
+    testnet_state = db.query(BotState).filter_by(mode="testnet").first()
+    live_state = db.query(BotState).filter_by(mode="live").first()
+    
+    # Use current mode's state as primary
+    mode = settings.TRADING_MODE
+    if mode == "paper":
+        state = paper_state
+    elif mode == "testnet":
+        state = testnet_state
+    else:
+        state = live_state
+    
     if not state:
         raise HTTPException(status_code=404, detail="Bot state not initialized")
 
-    paper_pnl = state.paper_pnl or 0.0
+    paper_pnl = (paper_state.total_pnl or 0.0) if paper_state else 0.0
     paper_bankroll = (
-        state.paper_bankroll
-        if state.paper_bankroll is not None
+        paper_state.bankroll
+        if paper_state and paper_state.bankroll is not None
         else settings.INITIAL_BANKROLL
     )
-    paper_trades = state.paper_trades or 0
-    paper_wins = state.paper_wins or 0
+    paper_trades = (paper_state.total_trades or 0) if paper_state else 0
+    paper_wins = (paper_state.winning_trades or 0) if paper_state else 0
     paper_win_rate = paper_wins / paper_trades if paper_trades > 0 else 0.0
 
     sync_metadata = None
@@ -147,14 +160,14 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         )
         
         sync_metadata = SyncMetadata(
-            last_synced_at=state.last_sync_at,
+            last_synced_at=live_state.last_sync_at if live_state else None,
             orphaned_count=orphaned_count,
             external_imports_count=external_imports_count,
         )
         
-        if live_pnl != (state.total_pnl or 0.0):
+        if live_state and live_pnl != (live_state.total_pnl or 0.0):
             logger.warning(
-                f"Stat change detected for {mode}: DB PnL={live_pnl} vs BotState={state.total_pnl}. "
+                f"Stat change detected for {mode}: DB PnL={live_pnl} vs BotState={live_state.total_pnl}. "
                 f"Orphaned={orphaned_count}, External={external_imports_count}"
             )
         
@@ -163,20 +176,20 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         )
         live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
     else:
-        live_pnl = state.total_pnl or 0.0
+        live_pnl = (live_state.total_pnl or 0.0) if live_state else 0.0
         live_bankroll = (
-            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+            live_state.bankroll if live_state and live_state.bankroll is not None else settings.INITIAL_BANKROLL
         )
-        live_trades = state.total_trades or 0
-        live_wins = state.winning_trades or 0
+        live_trades = (live_state.total_trades or 0) if live_state else 0
+        live_wins = (live_state.winning_trades or 0) if live_state else 0
         live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
-    testnet_pnl = state.testnet_pnl or 0.0
+    testnet_pnl = (testnet_state.total_pnl or 0.0) if testnet_state else 0.0
     testnet_bankroll = (
-        state.testnet_bankroll if state.testnet_bankroll is not None else 0.0
+        testnet_state.bankroll if testnet_state and testnet_state.bankroll is not None else 100.0
     )
-    testnet_trades = state.testnet_trades or 0
-    testnet_wins = state.testnet_wins or 0
+    testnet_trades = (testnet_state.total_trades or 0) if testnet_state else 0
+    testnet_wins = (testnet_state.winning_trades or 0) if testnet_state else 0
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
     mode = settings.TRADING_MODE
@@ -496,7 +509,8 @@ async def toggle_ai(_: None = Depends(require_admin)):
 async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import start_scheduler, log_event, is_scheduler_running
 
-    state = db.query(BotState).first()
+    mode = settings.TRADING_MODE
+    state = db.query(BotState).filter_by(mode=mode).first()
     if state and state.is_running:
         raise HTTPException(
             status_code=409, detail={"error": "already_running", "is_running": True}
@@ -517,7 +531,8 @@ async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
 async def stop_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import log_event
 
-    state = db.query(BotState).first()
+    mode = settings.TRADING_MODE
+    state = db.query(BotState).filter_by(mode=mode).first()
     if state and not state.is_running:
         raise HTTPException(
             status_code=409, detail={"error": "already_stopped", "is_running": False}
@@ -548,21 +563,15 @@ async def reset_bot(
 
     try:
         trades_deleted = db.query(Trade).delete()
-        state = db.query(BotState).first()
-        if state:
-            state.bankroll = settings.INITIAL_BANKROLL
-            state.total_trades = 0
-            state.winning_trades = 0
-            state.total_pnl = 0.0
-            state.paper_bankroll = settings.INITIAL_BANKROLL
-            state.paper_trades = 0
-            state.paper_wins = 0
-            state.paper_pnl = 0.0
-            state.testnet_bankroll = settings.INITIAL_BANKROLL
-            state.testnet_trades = 0
-            state.testnet_wins = 0
-            state.testnet_pnl = 0.0
-            state.is_running = True
+        
+        for mode in ["paper", "testnet", "live"]:
+            state = db.query(BotState).filter_by(mode=mode).first()
+            if state:
+                state.bankroll = settings.INITIAL_BANKROLL
+                state.total_trades = 0
+                state.winning_trades = 0
+                state.total_pnl = 0.0
+                state.is_running = True
 
         ai_logs_deleted = db.query(AILog).delete()
         db.commit()
@@ -726,7 +735,8 @@ async def get_events(limit: int = 50, _: None = Depends(require_admin)):
 async def run_scan(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import run_manual_scan, log_event
 
-    state = db.query(BotState).first()
+    mode = settings.TRADING_MODE
+    state = db.query(BotState).filter_by(mode=mode).first()
     if state:
         state.last_run = datetime.now(timezone.utc)
         db.commit()
@@ -1110,7 +1120,16 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
         instance = cls()
         db = SessionLocal()
         try:
-            state = db.query(BotState).first()
+            cfg = (
+                db.query(StrategyConfig)
+                .filter(StrategyConfig.strategy_name == name)
+                .first()
+            )
+            strategy_mode = (
+                cfg.trading_mode if cfg and cfg.trading_mode else None
+            ) or settings.TRADING_MODE
+            
+            state = db.query(BotState).filter_by(mode=strategy_mode).first()
             if not state:
                 raise HTTPException(status_code=404, detail="Bot state not initialized")
             cfg = (

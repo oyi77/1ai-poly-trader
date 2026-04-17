@@ -67,7 +67,7 @@ async def execute_decision(
                 )
                 return None
 
-            state = db.query(BotState).first()
+            state = db.query(BotState).filter_by(mode=effective_mode).first()
             if not state or not state.is_running:
                 logger.info(
                     f"[{strategy_name}] Bot not running, skipping decision for {market_ticker}"

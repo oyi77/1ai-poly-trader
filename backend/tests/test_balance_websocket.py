@@ -8,18 +8,16 @@ from backend.models.database import BotState, Trade
 
 
 def test_stats_endpoint_returns_balance(client, db):
-    state = db.query(BotState).first()
+    state = db.query(BotState).filter_by(mode="paper").first()
     if not state:
         state = BotState(
+            id=1,
+            mode="paper",
             is_running=False,
             bankroll=2500.0,
             total_trades=5,
             winning_trades=3,
             total_pnl=500.0,
-            paper_bankroll=10000.0,
-            paper_pnl=0.0,
-            paper_trades=0,
-            paper_wins=0,
         )
         db.add(state)
     else:
@@ -39,25 +37,12 @@ def test_stats_endpoint_returns_balance(client, db):
 
 
 def test_stats_endpoint_paper_mode(client, db):
-    state = db.query(BotState).first()
-    if not state:
-        state = BotState(
-            is_running=False,
-            bankroll=10000.0,
-            total_trades=0,
-            winning_trades=0,
-            total_pnl=0.0,
-            paper_bankroll=12000.0,
-            paper_pnl=2000.0,
-            paper_trades=10,
-            paper_wins=6,
-        )
-        db.add(state)
-    else:
-        state.paper_bankroll = 12000.0
-        state.paper_pnl = 2000.0
-        state.paper_trades = 10
-        state.paper_wins = 6
+    state = db.query(BotState).filter_by(mode="paper").first()
+    if state:
+        state.bankroll = 12000.0
+        state.total_pnl = 2000.0
+        state.total_trades = 10
+        state.winning_trades = 6
     db.commit()
 
     with patch("backend.config.settings.TRADING_MODE", "paper"):
@@ -66,33 +51,31 @@ def test_stats_endpoint_paper_mode(client, db):
 
         data = response.json()
         assert data["mode"] == "paper"
-        assert data["paper_bankroll"] == 12000.0
-        assert data["paper_pnl"] == 2000.0
+        assert data["bankroll"] == 12000.0
+        assert data["total_pnl"] == 2000.0
 
 
 def test_stats_endpoint_includes_mode_specific_data(client, db):
-    state = db.query(BotState).first()
-    if not state:
-        state = BotState(
-            is_running=False,
-            bankroll=5000.0,
-            total_trades=3,
-            winning_trades=2,
-            total_pnl=300.0,
-            paper_bankroll=11000.0,
-            paper_pnl=1000.0,
-            paper_trades=5,
-            paper_wins=3,
-            testnet_bankroll=200.0,
-            testnet_pnl=50.0,
-            testnet_trades=2,
-            testnet_wins=1,
-        )
-        db.add(state)
-    else:
-        state.bankroll = 5000.0
-        state.paper_bankroll = 11000.0
-        state.testnet_bankroll = 200.0
+    paper_state = db.query(BotState).filter_by(mode="paper").first()
+    if paper_state:
+        paper_state.bankroll = 11000.0
+        paper_state.total_pnl = 1000.0
+        paper_state.total_trades = 5
+        paper_state.winning_trades = 3
+    
+    testnet_state = db.query(BotState).filter_by(mode="testnet").first()
+    if testnet_state:
+        testnet_state.bankroll = 200.0
+        testnet_state.total_pnl = 50.0
+        testnet_state.total_trades = 2
+        testnet_state.winning_trades = 1
+    
+    live_state = db.query(BotState).filter_by(mode="live").first()
+    if live_state:
+        live_state.bankroll = 5000.0
+        live_state.total_pnl = 300.0
+        live_state.total_trades = 3
+        live_state.winning_trades = 2
     db.commit()
 
     response = client.get("/api/stats")
@@ -156,22 +139,6 @@ def test_stats_endpoint_handles_missing_botstate(client, db):
 
 
 def test_stats_pnl_source_indicator(client, db):
-    state = db.query(BotState).first()
-    if not state:
-        state = BotState(
-            is_running=False,
-            bankroll=10000.0,
-            total_trades=0,
-            winning_trades=0,
-            total_pnl=0.0,
-            paper_bankroll=10000.0,
-            paper_pnl=0.0,
-            paper_trades=0,
-            paper_wins=0,
-        )
-        db.add(state)
-    db.commit()
-
     response = client.get("/api/stats")
     assert response.status_code == 200
 
@@ -181,22 +148,6 @@ def test_stats_pnl_source_indicator(client, db):
 
 
 def test_stats_includes_position_metrics(client, db):
-    state = db.query(BotState).first()
-    if not state:
-        state = BotState(
-            is_running=False,
-            bankroll=10000.0,
-            total_trades=0,
-            winning_trades=0,
-            total_pnl=0.0,
-            paper_bankroll=10000.0,
-            paper_pnl=0.0,
-            paper_trades=0,
-            paper_wins=0,
-        )
-        db.add(state)
-    db.commit()
-
     response = client.get("/api/stats")
     assert response.status_code == 200
 

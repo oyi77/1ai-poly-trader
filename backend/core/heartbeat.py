@@ -40,7 +40,7 @@ def _flush_heartbeats() -> None:
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        row = conn.execute("SELECT misc_data FROM bot_state WHERE id=1").fetchone()
+        row = conn.execute("SELECT misc_data FROM bot_state WHERE id=1 AND mode=?", (settings.TRADING_MODE,)).fetchone()
         if not row:
             return
         data = {}
@@ -51,7 +51,7 @@ def _flush_heartbeats() -> None:
                 data = {}
         for strategy_name, ts in snapshot.items():
             data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = ts
-        conn.execute("UPDATE bot_state SET misc_data=? WHERE id=1", (json.dumps(data),))
+        conn.execute("UPDATE bot_state SET misc_data=? WHERE id=1 AND mode=?", (json.dumps(data), settings.TRADING_MODE))
         conn.commit()
     except Exception as e:
         logger.warning(f"heartbeat flush failed: {e}")
@@ -69,7 +69,8 @@ def get_strategy_health(db) -> list[dict]:
         configs = (
             db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
         )
-        state = db.query(BotState).first()
+        from backend.config import settings
+        state = db.query(BotState).filter_by(mode=settings.TRADING_MODE).first()
         data = {}
         if state and state.misc_data:
             try:
@@ -245,12 +246,7 @@ def _sync_balance_to_db(balance: float, mode: str) -> None:
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        if mode == "live":
-            conn.execute("UPDATE bot_state SET bankroll=? WHERE id=1", (balance,))
-        elif mode == "testnet":
-            conn.execute(
-                "UPDATE bot_state SET testnet_bankroll=? WHERE id=1", (balance,)
-            )
+        conn.execute("UPDATE bot_state SET bankroll=? WHERE id=1 AND mode=?", (balance, mode))
         conn.commit()
         logger.debug(f"wallet_sync: {mode} balance updated to ${balance:.2f}")
     finally:

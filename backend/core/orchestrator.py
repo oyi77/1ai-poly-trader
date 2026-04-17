@@ -63,6 +63,24 @@ class Orchestrator:
 
         db = SessionLocal()
         try:
+            from backend.models.database import BotState
+            
+            for mode in ["paper", "testnet", "live"]:
+                existing = db.query(BotState).filter_by(mode=mode).first()
+                if not existing:
+                    initial_bankroll = settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
+                    db.add(BotState(
+                        id=1,
+                        mode=mode,
+                        bankroll=initial_bankroll,
+                        total_trades=0,
+                        winning_trades=0,
+                        total_pnl=0.0,
+                        is_running=False
+                    ))
+            db.commit()
+            logger.info("BotState rows initialized for all 3 modes")
+            
             defaults = [
                 (
                     "copy_trader",

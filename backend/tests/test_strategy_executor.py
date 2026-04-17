@@ -56,22 +56,22 @@ except Exception:
 # ---------------------------------------------------------------------------
 
 
-def _seed_state(db, bankroll=1000.0, paper_bankroll=1000.0, is_running=True):
+def _seed_state(db, bankroll=1000.0, paper_bankroll=1000.0, is_running=True, mode="paper"):
     """Insert or reset BotState for a test."""
-    state = db.query(BotState).first()
+    state = db.query(BotState).filter_by(mode=mode).first()
     if state:
         state.bankroll = bankroll
-        state.paper_bankroll = paper_bankroll
         state.is_running = is_running
         state.total_trades = 0
-        state.paper_trades = 0
     else:
         state = BotState(
+            id=1,
+            mode=mode,
             bankroll=bankroll,
-            paper_bankroll=paper_bankroll,
             is_running=is_running,
             total_trades=0,
-            paper_trades=0,
+            winning_trades=0,
+            total_pnl=0.0,
         )
         db.add(state)
     db.commit()
@@ -232,9 +232,8 @@ class TestUpdatesBankroll:
 
         check_db = TestSession()
         try:
-            state = check_db.query(BotState).first()
-            # Bankroll deducted by trade size at entry (settlement returns stake + PNL)
-            assert state.paper_bankroll == pytest.approx(500.0 - 50.0)
+            state = check_db.query(BotState).filter_by(mode="paper").first()
+            assert state.bankroll == pytest.approx(500.0 - 50.0)
         finally:
             check_db.close()
 

@@ -64,15 +64,19 @@ from backend.config import settings as _settings
 
 _seed_db = TestSessionLocal()
 try:
-    if not _seed_db.query(BotState).first():
-        _seed_db.add(BotState(
-            bankroll=_settings.INITIAL_BANKROLL,
-            total_trades=0,
-            winning_trades=0,
-            total_pnl=0.0,
-            is_running=True,
-        ))
-        _seed_db.commit()
+    for mode in ["paper", "testnet", "live"]:
+        if not _seed_db.query(BotState).filter_by(mode=mode).first():
+            initial_bankroll = _settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
+            _seed_db.add(BotState(
+                id=1,
+                mode=mode,
+                bankroll=initial_bankroll,
+                total_trades=0,
+                winning_trades=0,
+                total_pnl=0.0,
+                is_running=True,
+            ))
+    _seed_db.commit()
 finally:
     _seed_db.close()
 
