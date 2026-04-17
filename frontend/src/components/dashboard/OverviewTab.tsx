@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useStats } from '../../hooks/useStats'
 import { useModeFilter } from '../../hooks/useModeFilter'
-import { useWebSocket } from '../../hooks/useWebSocket'
 import { SignalsTable } from '../SignalsTable'
 import { TradesTable } from '../TradesTable'
 import { EquityChart } from '../EquityChart'
@@ -12,7 +11,7 @@ import { MicrostructurePanel } from '../MicrostructurePanel'
 import { CalibrationPanel } from '../CalibrationPanel'
 import { WeatherPanel } from '../WeatherPanel'
 import { EdgeDistribution } from '../EdgeDistribution'
-import { fetchSignalHistory, getSyncStatus, triggerManualSync, getWsUrl } from '../../api'
+import { fetchSignalHistory, getSyncStatus, triggerManualSync } from '../../api'
 import { formatCountdown } from '../../utils'
 import type { SignalHistoryRow } from '../../api'
 import type { BtcWindow } from '../../types'
@@ -235,16 +234,6 @@ export function OverviewTab({
     refetchInterval: 60_000,
     enabled: stats.mode !== 'paper',
   })
-
-  const { data: syncEvent } = useWebSocket<{ mode: string; status: string; timestamp: string }>(
-    getWsUrl('/ws/sync')
-  )
-
-  useEffect(() => {
-    if (syncEvent?.status === 'completed' || syncEvent?.status === 'failed') {
-      refetchSyncStatus()
-    }
-  }, [syncEvent, refetchSyncStatus])
 
   const handleManualSync = async (mode: 'testnet' | 'live') => {
     setSyncRefreshing(true)

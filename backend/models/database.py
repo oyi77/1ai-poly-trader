@@ -865,6 +865,18 @@ def ensure_schema():
             except Exception as e:
                 logger.warning(f"Schema migration: could not add bot_state.last_live_sync_error: {e}")
 
+        # NEW FIELD 3: settlement_last_check_at
+        if "settlement_last_check_at" not in bot_state_columns:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE bot_state ADD COLUMN settlement_last_check_at DATETIME DEFAULT NULL")
+                        )
+                        logger.info("Added 'settlement_last_check_at' column to bot_state")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add bot_state.settlement_last_check_at: {e}")
+
     # Create indexes for new fields
     try:
         with engine.connect() as conn:
