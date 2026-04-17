@@ -923,3 +923,81 @@ async def process_settled_trade(
         )
 
     return True
+
+
+async def reconcile_positions(db: Session) -> List[int]:
+    """
+    Reconcile open trades with actual Polymarket positions.
+
+    Fetches current positions from Polymarket and compares with open trades in DB.
+    Returns list of trade IDs that should be marked as "closed" (position no longer exists).
+
+    This catches:
+    - Orders that were filled then sold manually
+    - Orders that expired unfilled
+    - Positions closed outside the bot
+    """
+    from backend.data.polymarket_clob import clob_from_settings
+    from backend.config import settings
+    from backend.models.database import Trade
+
+    if settings.TRADING_MODE == "paper":
+        logger.debug("Skipping position reconciliation in paper mode")
+        return []
+
+    wallet_address = settings.POLYMARKET_BUILDER_ADDRESS
+
+    if not wallet_address:
+        logger.debug("No wallet address available for position reconciliation")
+        return []
+
+    try:
+        async with clob_from_settings() as clob:
+            positions = await clob.get_trader_positions(wallet_address)
+
+        active_positions = set()
+        for pos in positions:
+            market_ticker = pos.get("slug")
+
+            if market_ticker and float(pos.get("size", 0)) > 0:
+                active_positions.add(market_ticker)
+
+        logger.info(
+            f"Position reconciliation: found {len(active_positions)} active positions on Polymarket"
+        )
+
+        open_trades = (
+            db.query(Trade)
+            .filter(
+                Trade.settled.is_(False),
+                Trade.trading_mode == settings.TRADING_MODE,
+                Trade.platform == "polymarket",
+            )
+            .all()
+        )
+
+        logger.info(
+            f"Position reconciliation: found {len(open_trades)} open trades in DB"
+        )
+
+        trades_to_close = []
+        for trade in open_trades:
+            if trade.market_ticker not in active_positions:
+                trades_to_close.append(trade.id)
+                logger.info(
+                    f"Trade {trade.id} marked for closure: {trade.market_ticker} "
+                    f"{trade.direction.upper()} (position not found on Polymarket)"
+                )
+
+        logger.info(
+            f"Position reconciliation: {len(trades_to_close)} trades to mark as closed"
+        )
+        return trades_to_close
+
+    except Exception as e:
+        logger.error(
+            f"[settlement_helpers.reconcile_positions] {type(e).__name__}: "
+            f"Position reconciliation failed: {e}",
+            exc_info=True,
+        )
+        return []
