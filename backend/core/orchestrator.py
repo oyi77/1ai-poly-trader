@@ -185,6 +185,34 @@ class Orchestrator:
         self._copy_trader = None
         self._copy_task = None
 
+        # Create 3 ModeExecutionContext instances for per-mode execution isolation
+        from backend.core.mode_context import ModeExecutionContext, register_context
+        from backend.core.risk_manager import RiskManager
+        
+        for mode in ["paper", "testnet", "live"]:
+            # Create RiskManager instance for this mode
+            risk_manager = RiskManager()
+            
+            # Load StrategyConfig rows filtered by mode
+            strategy_configs = {}
+            configs = db.query(StrategyConfig).filter(
+                (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
+            ).all()
+            for config in configs:
+                strategy_configs[config.strategy_name] = config
+            
+            # Create ModeExecutionContext
+            context = ModeExecutionContext(
+                mode=mode,
+                clob_client=self._clob_clients[mode],
+                risk_manager=risk_manager,
+                strategy_configs=strategy_configs
+            )
+            
+            # Register context
+            register_context(mode, context)
+            logger.info(f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies")
+
         self._patch_weather_job()
 
         from backend.core.scheduler import start_scheduler
