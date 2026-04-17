@@ -153,6 +153,10 @@ class BotState(Base):
     last_run = Column(DateTime, nullable=True)
     is_running = Column(Boolean, default=False)
 
+    # Sync metadata for reconciliation tracking
+    last_sync_at = Column(DateTime, nullable=True, default=None)
+    last_live_sync_error = Column(String, nullable=True, default=None)
+
     # Active wallet for multi-wallet management
     active_wallet = Column(String, nullable=True, index=True)
 
