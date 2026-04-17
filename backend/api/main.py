@@ -322,7 +322,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             db = SessionLocal()
             try:
                 active_markets = (
-                    db.query(MarketWatch).filter(MarketWatch.is_active == True).all()
+                    db.query(MarketWatch).all()
                 )
                 for market in active_markets:
                     if market.token_id:
@@ -851,7 +851,7 @@ async def get_dashboard(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     """Get all dashboard data in one call."""
-    stats = await get_stats(db)
+    stats = await get_stats(db, _)
 
     # Fetch BTC price from microstructure first, fallback to CoinGecko
     btc_price_data = None
