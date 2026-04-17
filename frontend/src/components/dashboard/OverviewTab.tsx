@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy, Component, type ReactNode, type Er
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useStats } from '../../hooks/useStats'
+import { useModeFilter } from '../../hooks/useModeFilter'
 import { SignalsTable } from '../SignalsTable'
 import { TradesTable } from '../TradesTable'
 import { EquityChart } from '../EquityChart'
@@ -209,7 +210,30 @@ export function OverviewTab({
   onSimulateTrade, isSimulating, onStart, onStop, onScan,
 }: OverviewTabProps) {
   const stats = useStats()
+  const { selectedMode } = useModeFilter()
   const actionableCount = activeSignals.filter((s: any) => s.actionable).length + weatherSignals.filter((s: any) => s.actionable).length
+
+  // Filter stats by selected mode
+  const getFilteredValue = (key: 'pnl' | 'bankroll' | 'returnPercent' | 'winRate') => {
+    if (selectedMode === 'all') return stats[key]
+    const modeStats = selectedMode === 'paper' ? stats.paperStats :
+                      selectedMode === 'testnet' ? stats.testnetStats :
+                      selectedMode === 'live' ? stats.liveStats : null
+    if (!modeStats) return stats[key]
+    
+    if (key === 'pnl') return modeStats.pnl
+    if (key === 'bankroll') return modeStats.bankroll
+    if (key === 'returnPercent') return modeStats.trades > 0 ? (modeStats.pnl / stats.bankroll * 100) : 0
+    if (key === 'winRate') return modeStats.trades > 0 ? (modeStats.wins / modeStats.trades * 100) : 0
+    return stats[key]
+  }
+
+  const filteredStats = {
+    pnl: getFilteredValue('pnl'),
+    bankroll: getFilteredValue('bankroll'),
+    returnPercent: getFilteredValue('returnPercent'),
+    winRate: getFilteredValue('winRate'),
+  }
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-[300px_1fr_340px] gap-0">
@@ -225,18 +249,18 @@ export function OverviewTab({
           </motion.div>
         )}
         <div className="border-b border-neutral-800" style={{ height: '35%', minHeight: '180px' }}>
-          <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Equity</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] tabular-nums text-neutral-200">${stats.totalEquity.toFixed(2)}</span>
-              <span className={`text-[10px] tabular-nums ${stats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(2)}
-              </span>
-            </div>
-          </div>
-          <div className="h-[calc(100%-24px)] p-1">
-            <EquityChart data={equityCurve} initialBankroll={stats.bankroll - stats.pnl} />
-          </div>
+           <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
+             <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Equity</span>
+             <div className="flex items-center gap-2">
+               <span className="text-[10px] tabular-nums text-neutral-200">${(filteredStats.bankroll + (stats.positionMarketValue ?? 0)).toFixed(2)}</span>
+               <span className={`text-[10px] tabular-nums ${filteredStats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                 {filteredStats.pnl >= 0 ? '+' : ''}${filteredStats.pnl.toFixed(2)}
+               </span>
+             </div>
+           </div>
+           <div className="h-[calc(100%-24px)] p-1">
+             <EquityChart data={equityCurve} initialBankroll={filteredStats.bankroll - filteredStats.pnl} />
+           </div>
         </div>
         {(stats.paperStats || stats.liveStats) && (
           <div className="shrink-0 border-b border-neutral-800 px-2 py-2 flex gap-2">
@@ -269,16 +293,16 @@ export function OverviewTab({
             <CalibrationPanel calibration={calibration} />
           </motion.div>
         )}
-        <div className="flex-1 min-h-0">
-          <Terminal
-            isRunning={stats.isRunning}
-            lastRun={stats.lastRun}
-            stats={{ total_trades: stats.trades, total_pnl: stats.pnl }}
-            onStart={onStart}
-            onStop={onStop}
-            onScan={onScan}
-          />
-        </div>
+         <div className="flex-1 min-h-0">
+           <Terminal
+             isRunning={stats.isRunning}
+             lastRun={stats.lastRun}
+             stats={{ total_trades: selectedMode === 'all' ? stats.trades : (selectedMode === 'paper' && stats.paperStats ? stats.paperStats.trades : selectedMode === 'testnet' && stats.testnetStats ? stats.testnetStats.trades : selectedMode === 'live' && stats.liveStats ? stats.liveStats.trades : stats.trades), total_pnl: filteredStats.pnl }}
+             onStart={onStart}
+             onStop={onStop}
+             onScan={onScan}
+           />
+         </div>
       </div>
 
       {/* CENTER */}

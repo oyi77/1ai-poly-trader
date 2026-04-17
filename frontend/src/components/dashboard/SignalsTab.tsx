@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSignalHistory } from '../../api'
+import { useModeFilter } from '../../hooks/useModeFilter'
 import type { SignalHistoryRow } from '../../api'
 
 export function SignalsTab() {
+  const { selectedMode } = useModeFilter()
   const [dirFilter, setDirFilter] = useState<string>('all')
   const [execFilter, setExecFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -19,6 +21,7 @@ export function SignalsTab() {
 
   const rows: SignalHistoryRow[] = data?.items ?? []
   const filtered = rows.filter(r => {
+    if (selectedMode !== 'all' && r.trading_mode !== selectedMode) return false
     if (dirFilter !== 'all' && r.direction !== dirFilter) return false
     if (execFilter === 'yes' && !r.executed) return false
     if (execFilter === 'no' && r.executed) return false

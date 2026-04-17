@@ -233,6 +233,7 @@ export interface SignalHistoryRow {
   outcome_correct: boolean | null
   settlement_value: number | null
   settled_at: string | null
+  trading_mode: string
 }
 
 export async function fetchSignalHistory(params?: { limit?: number; offset?: number; market_type?: string; direction?: string }): Promise<{ items: SignalHistoryRow[]; total: number }> {

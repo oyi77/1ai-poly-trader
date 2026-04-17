@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTrades } from '../../api'
+import { useModeFilter } from '../../hooks/useModeFilter'
 
 export function TradesTab() {
   const [page, setPage] = useState(0)
-  const [modeFilter, setModeFilter] = useState<string>('all')
+  const { selectedMode } = useModeFilter()
   const [resultFilter, setResultFilter] = useState<string>('all')
   const [strategyFilter, setStrategyFilter] = useState<string>('all')
   const PER_PAGE = 50
@@ -19,7 +20,7 @@ export function TradesTab() {
   if (error) return <div className="flex items-center justify-center h-64 text-red-500/60 text-sm">Failed to load data</div>
 
   const filtered = trades.filter((t: any) => {
-    if (modeFilter !== 'all' && t.trading_mode !== modeFilter) return false
+    if (selectedMode !== 'all' && t.trading_mode !== selectedMode) return false
     if (resultFilter !== 'all' && t.result !== resultFilter) return false
     if (strategyFilter !== 'all' && t.strategy !== strategyFilter) return false
     return true
@@ -40,12 +41,6 @@ export function TradesTab() {
       {/* Filter row */}
       <div className="shrink-0 flex items-center gap-3 px-3 py-2 border-b border-neutral-800 bg-neutral-950">
         <span className="text-[9px] text-neutral-600 uppercase tracking-wider">Filters</span>
-        <select value={modeFilter} onChange={e => { setModeFilter(e.target.value); setPage(0) }} className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-[10px] px-2 py-0.5 font-mono focus:outline-none">
-          <option value="all">All Modes</option>
-          <option value="paper">Paper</option>
-          <option value="testnet">Testnet</option>
-          <option value="live">Live</option>
-        </select>
         <select value={resultFilter} onChange={e => { setResultFilter(e.target.value); setPage(0) }} className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-[10px] px-2 py-0.5 font-mono focus:outline-none">
           <option value="all">All Results</option>
           <option value="pending">Pending</option>

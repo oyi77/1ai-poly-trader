@@ -188,27 +188,28 @@ async def get_signals_history(
     total = query.count()
     rows = query.order_by(Signal.timestamp.desc()).offset(offset).limit(limit).all()
     items = [
-        {
-            "id": r.id,
-            "market_ticker": r.market_ticker,
-            "platform": r.platform or "polymarket",
-            "market_type": r.market_type or "btc",
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-            "direction": r.direction,
-            "model_probability": r.model_probability,
-            "market_probability": r.market_price,
-            "edge": r.edge,
-            "confidence": r.confidence,
-            "suggested_size": r.suggested_size,
-            "reasoning": r.reasoning,
-            "executed": r.executed,
-            "actual_outcome": r.actual_outcome,
-            "outcome_correct": r.outcome_correct,
-            "settlement_value": r.settlement_value,
-            "settled_at": r.settled_at.isoformat() if r.settled_at else None,
-        }
-        for r in rows
-    ]
+         {
+             "id": r.id,
+             "market_ticker": r.market_ticker,
+             "platform": r.platform or "polymarket",
+             "market_type": r.market_type or "btc",
+             "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+             "direction": r.direction,
+             "model_probability": r.model_probability,
+             "market_probability": r.market_price,
+             "edge": r.edge,
+             "confidence": r.confidence,
+             "suggested_size": r.suggested_size,
+             "reasoning": r.reasoning,
+             "executed": r.executed,
+             "actual_outcome": r.actual_outcome,
+             "outcome_correct": r.outcome_correct,
+             "settlement_value": r.settlement_value,
+             "settled_at": r.settled_at.isoformat() if r.settled_at else None,
+             "trading_mode": r.execution_mode or "paper",
+         }
+         for r in rows
+     ]
     return {"items": items, "total": total}
 
 
