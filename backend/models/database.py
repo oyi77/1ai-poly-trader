@@ -121,6 +121,13 @@ class Trade(Base):
     # Market end date for settlement tracking (when the market expires)
     market_end_date = Column(DateTime, nullable=True, index=True)
 
+    # Reconciliation fields for blockchain sync
+    source = Column(String, nullable=False, default="bot", index=True)
+    blockchain_verified = Column(Boolean, nullable=False, default=False)
+    settlement_source = Column(String, nullable=True, default=None)
+    last_sync_at = Column(DateTime, nullable=True, default=None, index=True)
+    external_import_at = Column(DateTime, nullable=True, default=None)
+
 
 class BtcPriceSnapshot(Base):
     """Cached BTC prices for momentum calculation."""
