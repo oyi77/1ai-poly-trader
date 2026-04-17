@@ -197,12 +197,15 @@ async def execute_decision(
                 state.paper_bankroll = max(
                     0.0, (state.paper_bankroll or 0.0) - adjusted_size
                 )
+                state.paper_trades = (state.paper_trades or 0) + 1
             elif effective_mode == "testnet" and state:
                 state.testnet_bankroll = max(
                     0.0, (state.testnet_bankroll or 0.0) - adjusted_size
                 )
+                state.testnet_trades = (state.testnet_trades or 0) + 1
             elif effective_mode == "live" and state:
                 state.bankroll = max(0.0, (state.bankroll or 0.0) - adjusted_size)
+                state.total_trades = (state.total_trades or 0) + 1
 
             signal_record = Signal(
                 market_ticker=market_ticker,
