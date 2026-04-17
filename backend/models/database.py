@@ -87,7 +87,9 @@ class Trade(Base):
     settled = Column(Boolean, default=False)
     settlement_time = Column(DateTime, nullable=True)
     settlement_value = Column(Float, nullable=True)  # 1.0=Up won, 0.0=Down won
-    result = Column(String, default="pending")  # pending, win, loss
+    result = Column(
+        String, default="pending"
+    )  # pending, win, loss, expired, push, closed
     pnl = Column(Float, nullable=True)
 
     # Model performance tracking
