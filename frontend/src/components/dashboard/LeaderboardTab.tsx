@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchCopyLeaderboard, createWalletConfig } from '../../api'
+import { useModeFilter } from '../../hooks/useModeFilter'
 import type { ScoredTrader } from '../../api'
 
 type SortField = 'score' | 'profit_30d' | 'win_rate' | 'total_trades' | 'unique_markets'
 
 export function LeaderboardTab() {
+  const { selectedMode } = useModeFilter()
   const { data: leaders = [], isError, isLoading } = useQuery({
     queryKey: ['copy-leaderboard-tab'],
     queryFn: fetchCopyLeaderboard,
@@ -26,6 +28,10 @@ export function LeaderboardTab() {
 
   const filtered = useMemo(() => {
     let result = [...leaders]
+
+    if (selectedMode !== 'all') {
+      result = result.filter((item: any) => item.trading_mode === selectedMode)
+    }
 
     // Search
     if (search) {
@@ -54,7 +60,7 @@ export function LeaderboardTab() {
     })
 
     return result
-  }, [leaders, search, sortBy, sortAsc, minProfit, minWinRate, minTrades])
+  }, [leaders, selectedMode, search, sortBy, sortAsc, minProfit, minWinRate, minTrades])
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {

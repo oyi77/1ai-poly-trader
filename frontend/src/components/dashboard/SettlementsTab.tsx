@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DataTable, type ColumnDef } from '../DataTable'
 import { fetchSettlements } from '../../api'
+import { useModeFilter } from '../../hooks/useModeFilter'
 
 interface SettlementRow extends Record<string, unknown> {
   id: number
@@ -14,11 +15,16 @@ interface SettlementRow extends Record<string, unknown> {
 }
 
 export function SettlementsTab() {
+  const { selectedMode } = useModeFilter()
   const { data: settlements, isLoading, isError } = useQuery({
     queryKey: ['settlements'],
     queryFn: () => fetchSettlements(100, 0),
     refetchInterval: 30000,
   })
+
+  const filtered = (settlements as SettlementRow[] ?? []).filter((item: any) =>
+    selectedMode === 'all' || item.trading_mode === selectedMode
+  )
 
   const columns: ColumnDef<SettlementRow>[] = [
     {
@@ -83,8 +89,8 @@ export function SettlementsTab() {
           ) : (
             <DataTable<SettlementRow>
               columns={columns}
-              rows={(settlements as SettlementRow[]) ?? []}
-              total={settlements?.length ?? 0}
+              rows={filtered}
+              total={filtered.length}
               loading={false}
               emptyMessage="No settlements yet — trades settle after market resolution"
               keyField="id"

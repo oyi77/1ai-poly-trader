@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { fetchEdgePerformance, EdgePerformanceTrack } from '../../api'
+import { useModeFilter } from '../../hooks/useModeFilter'
 
 export function EdgeTrackerTab() {
+  const { selectedMode } = useModeFilter()
   const [tracks, setTracks] = useState<EdgePerformanceTrack[]>([])
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(7)
@@ -17,7 +19,10 @@ export function EdgeTrackerTab() {
     setError(null)
     try {
       const data = await fetchEdgePerformance(days)
-      setTracks(data.tracks)
+      const filtered = data.tracks.filter((track: any) =>
+        selectedMode === 'all' || track.trading_mode === selectedMode
+      )
+      setTracks(filtered)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load edge performance')
     } finally {

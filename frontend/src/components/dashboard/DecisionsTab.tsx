@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDecisions } from '../../api'
+import { useModeFilter } from '../../hooks/useModeFilter'
 import type { DecisionLogRow } from '../../api'
 
 export function DecisionsTab() {
+  const { selectedMode } = useModeFilter()
   const [stratFilter, setStratFilter] = useState<string>('all')
   const [decisionFilter, setDecisionFilter] = useState<string>('all')
 
@@ -19,6 +21,7 @@ export function DecisionsTab() {
   const rows: DecisionLogRow[] = data?.items ?? []
   const strategies = Array.from(new Set(rows.map(r => r.strategy).filter(Boolean)))
   const filtered = rows.filter(r => {
+    if (selectedMode !== 'all' && r.strategy !== selectedMode) return false
     if (stratFilter !== 'all' && r.strategy !== stratFilter) return false
     if (decisionFilter !== 'all' && r.decision !== decisionFilter) return false
     return true
