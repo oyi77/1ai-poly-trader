@@ -79,13 +79,19 @@ def get_recent_events(limit: int = 50) -> List[dict]:
     return event_log[-limit:]
 
 
-def schedule_strategy(strategy_name: str, interval_seconds: int) -> None:
-    """Add or replace a strategy's APScheduler job."""
+def schedule_strategy(strategy_name: str, interval_seconds: int, mode: str = "paper") -> None:
+    """Add or replace a strategy's APScheduler job for a specific mode.
+    
+    Args:
+        strategy_name: Name of the strategy to schedule.
+        interval_seconds: Interval between job executions.
+        mode: Trading mode ("paper", "testnet", or "live").
+    """
     global scheduler
     if scheduler is None or not scheduler.running:
         return
 
-    job_id = f"strategy_{strategy_name}"
+    job_id = f"{mode}_{strategy_name}_{interval_seconds}"
     # functools.partial(async_fn) loses iscoroutinefunction → APScheduler won't await it
     # misfire_grace_time must be generous for long-interval strategies (e.g. 300s, 600s)
     # so that a small scheduler delay doesn't permanently skip the run.
@@ -93,28 +99,28 @@ def schedule_strategy(strategy_name: str, interval_seconds: int) -> None:
     scheduler.add_job(
         strategy_cycle_job,
         IntervalTrigger(seconds=interval_seconds),
-        args=[strategy_name],
+        args=[strategy_name, mode],
         id=job_id,
         replace_existing=True,
         max_instances=1,
         misfire_grace_time=grace,
     )
     logger.info(
-        f"Scheduled strategy {strategy_name} every {interval_seconds}s (job_id={job_id})"
+        f"Scheduled strategy {strategy_name} for mode {mode} every {interval_seconds}s (job_id={job_id})"
     )
 
 
-def unschedule_strategy(strategy_name: str) -> None:
-    """Remove a strategy's APScheduler job."""
+def unschedule_strategy(strategy_name: str, mode: str = "paper", interval_seconds: int = 60) -> None:
+    """Remove a strategy's APScheduler job for a specific mode."""
     global scheduler
     if scheduler is None or not scheduler.running:
         return
-    job_id = f"strategy_{strategy_name}"
+    job_id = f"{mode}_{strategy_name}_{interval_seconds}"
     try:
         scheduler.remove_job(job_id)
-        logger.info(f"Unscheduled strategy {strategy_name}")
+        logger.info(f"Unscheduled strategy {strategy_name} for mode {mode}")
     except Exception:
-        logger.warning(f"Failed to unschedule strategy {strategy_name}")
+        logger.warning(f"Failed to unschedule strategy {strategy_name} for mode {mode}")
 
 
 def get_scheduler_jobs() -> list[dict]:
@@ -133,16 +139,24 @@ def get_scheduler_jobs() -> list[dict]:
 
 
 def _load_strategy_jobs() -> None:
-    """Read StrategyConfig table and schedule enabled strategies."""
+    """Read StrategyConfig table and schedule enabled strategies for all modes."""
     from backend.models.database import SessionLocal, StrategyConfig
+    from backend.core.mode_context import list_contexts
 
     db = SessionLocal()
     try:
-        configs = (
-            db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
-        )
-        for cfg in configs:
-            schedule_strategy(cfg.strategy_name, cfg.interval_seconds or 60)
+        contexts = list_contexts()
+        for mode in contexts.keys():
+            configs = (
+                db.query(StrategyConfig)
+                .filter(StrategyConfig.enabled.is_(True))
+                .filter(
+                    (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
+                )
+                .all()
+            )
+            for cfg in configs:
+                schedule_strategy(cfg.strategy_name, cfg.interval_seconds or 60, mode)
     finally:
         db.close()
 
