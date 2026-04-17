@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import signal
-from typing import Optional
+from typing import Optional, Dict
 
 from cachetools import TTLCache
 
@@ -18,6 +18,7 @@ class Orchestrator:
 
     def __init__(self):
         self._clob: Optional[PolymarketCLOB] = None
+        self._clob_clients: Dict[str, PolymarketCLOB] = {}
         self._bot = None
         self._copy_trader = None
         self._copy_task: Optional[asyncio.Task] = None
@@ -32,9 +33,15 @@ class Orchestrator:
         self._clob = clob_from_settings()
         await self._clob.__aenter__()
 
+        for mode in ["paper", "testnet", "live"]:
+            clob_client = clob_from_settings(mode=mode)
+            await clob_client.__aenter__()
+            self._clob_clients[mode] = clob_client
+            logger.info(f"CLOB client initialized for mode: {mode}")
+
         if settings.TRADING_MODE == "live":
             logger.info("Live mode: deriving API credentials from private key...")
-            creds = await self._clob.create_or_derive_api_creds()
+            creds = await self._clob_clients["live"].create_or_derive_api_creds()
             if not creds:
                 raise RuntimeError(
                     "Failed to derive Polymarket API credentials from private key. "
@@ -212,6 +219,12 @@ class Orchestrator:
             if settings.TRADING_MODE == "live":
                 await self._clob.cancel_all_orders()
             await self._clob.__aexit__(None, None, None)
+
+        for mode, clob_client in self._clob_clients.items():
+            if mode == "live":
+                await clob_client.cancel_all_orders()
+            await clob_client.__aexit__(None, None, None)
+            logger.info(f"CLOB client closed for mode: {mode}")
 
         from backend.core.scheduler import stop_scheduler
 
