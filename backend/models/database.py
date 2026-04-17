@@ -763,6 +763,147 @@ def ensure_schema():
     except Exception as e:
         logger.warning(f"Could not create settlement_events index: {e}")
 
+    # Migration: Add unified state sync columns to trades table
+    inspector = inspect(engine)
+    try:
+        existing_cols = {col["name"] for col in inspector.get_columns("trades")}
+    except Exception:
+        existing_cols = set()
+
+    if existing_cols:
+        # NEW FIELD 1: source
+        if "source" not in existing_cols:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE trades ADD COLUMN source VARCHAR DEFAULT 'bot'")
+                        )
+                        logger.info("Added 'source' column to trades")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add trades.source: {e}")
+
+        # NEW FIELD 2: blockchain_verified
+        if "blockchain_verified" not in existing_cols:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE trades ADD COLUMN blockchain_verified BOOLEAN DEFAULT 0")
+                        )
+                        logger.info("Added 'blockchain_verified' column to trades")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add trades.blockchain_verified: {e}")
+
+        # NEW FIELD 3: settlement_source
+        if "settlement_source" not in existing_cols:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE trades ADD COLUMN settlement_source VARCHAR DEFAULT NULL")
+                        )
+                        logger.info("Added 'settlement_source' column to trades")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add trades.settlement_source: {e}")
+
+        # NEW FIELD 4: last_sync_at
+        if "last_sync_at" not in existing_cols:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE trades ADD COLUMN last_sync_at DATETIME DEFAULT NULL")
+                        )
+                        logger.info("Added 'last_sync_at' column to trades")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add trades.last_sync_at: {e}")
+
+        # NEW FIELD 5: external_import_at
+        if "external_import_at" not in existing_cols:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE trades ADD COLUMN external_import_at DATETIME DEFAULT NULL")
+                        )
+                        logger.info("Added 'external_import_at' column to trades")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add trades.external_import_at: {e}")
+
+    # Migration: Add unified state sync columns to bot_state table
+    try:
+        bot_state_columns = {col["name"] for col in inspector.get_columns("bot_state")}
+    except Exception:
+        bot_state_columns = set()
+
+    if bot_state_columns:
+        # NEW FIELD 1: last_sync_at
+        if "last_sync_at" not in bot_state_columns:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE bot_state ADD COLUMN last_sync_at DATETIME DEFAULT NULL")
+                        )
+                        logger.info("Added 'last_sync_at' column to bot_state")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add bot_state.last_sync_at: {e}")
+
+        # NEW FIELD 2: last_live_sync_error
+        if "last_live_sync_error" not in bot_state_columns:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(
+                            text("ALTER TABLE bot_state ADD COLUMN last_live_sync_error VARCHAR DEFAULT NULL")
+                        )
+                        logger.info("Added 'last_live_sync_error' column to bot_state")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add bot_state.last_live_sync_error: {e}")
+
+    # Create indexes for new fields
+    try:
+        with engine.connect() as conn:
+            with conn.begin():
+                # Index for source filtering (Tasks 6-10, Task 11)
+                conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS idx_trades_source ON trades(source)")
+                )
+                # Index for last_sync_at filtering
+                conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS idx_trades_last_sync_at ON trades(last_sync_at)")
+                )
+                # Index for blockchain_verified filtering
+                conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS idx_trades_blockchain_verified ON trades(blockchain_verified)")
+                )
+                # Index for clob_order_id uniqueness check (Task 5)
+                conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS idx_trades_clob_order_id ON trades(clob_order_id)")
+                )
+                logger.info("Created indexes for unified state sync fields")
+    except Exception as e:
+        logger.warning(f"Could not create unified state sync indexes: {e}")
+
+    # Backfill logic for existing trades (preserve data)
+    try:
+        with engine.connect() as conn:
+            with conn.begin():
+                # Set source="bot" for all existing trades (assume bot-executed)
+                conn.execute(
+                    text("UPDATE trades SET source = 'bot' WHERE source IS NULL")
+                )
+                logger.info("Backfilled 'source' field for existing trades")
+
+                # Set blockchain_verified=0 for all existing trades (conservative)
+                conn.execute(
+                    text("UPDATE trades SET blockchain_verified = 0 WHERE blockchain_verified IS NULL")
+                )
+                logger.info("Backfilled 'blockchain_verified' field for existing trades")
+    except Exception as e:
+        logger.warning(f"Could not backfill unified state sync fields: {e}")
+
 
 def log_audit(action: str, actor: str = "system", details: dict = None):
     db = SessionLocal()
