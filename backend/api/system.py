@@ -89,7 +89,6 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     if not state:
         raise HTTPException(status_code=404, detail="Bot state not initialized")
 
-    # Paper stats
     paper_pnl = state.paper_pnl or 0.0
     paper_bankroll = (
         state.paper_bankroll
@@ -100,7 +99,6 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     paper_wins = state.paper_wins or 0
     paper_win_rate = paper_wins / paper_trades if paper_trades > 0 else 0.0
 
-    # Live stats
     live_pnl = state.total_pnl or 0.0
     live_bankroll = (
         state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
@@ -109,44 +107,6 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     live_wins = state.winning_trades or 0
     live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
-    # Fetch real CLOB wallet balance when in live/testnet mode (with 60s cache)
-    _wallet_cache_key = f"_clob_wallet_cache_{settings.TRADING_MODE}"
-    if settings.TRADING_MODE in ("live", "testnet"):
-        try:
-            _cache = getattr(get_stats, _wallet_cache_key, None)
-            import time as _time
-
-            _now = _time.time()
-            if _cache and (_now - _cache[0]) < 60:
-                clob_balance = _cache[1]
-            else:
-                from backend.data.polymarket_clob import clob_from_settings
-
-                clob = clob_from_settings()
-                async with clob:
-                    await clob.create_or_derive_api_creds()
-                    balance_data = await clob.get_wallet_balance()
-                    clob_balance = balance_data.get("usdc_balance", 0.0)
-                    if clob_balance >= 0:
-                        setattr(get_stats, _wallet_cache_key, (_now, clob_balance))
-
-            if clob_balance >= 0:
-                if settings.TRADING_MODE == "live":
-                    live_bankroll = clob_balance
-                    if state.bankroll != clob_balance:
-                        state.bankroll = clob_balance
-                        db.commit()
-                elif settings.TRADING_MODE == "testnet":
-                    testnet_bankroll = clob_balance
-                    if state.testnet_bankroll != clob_balance:
-                        state.testnet_bankroll = clob_balance
-                        db.commit()
-        except Exception as e:
-            logger.warning(
-                f"Failed to fetch {settings.TRADING_MODE} CLOB wallet balance: {e}"
-            )
-
-    # Testnet stats
     testnet_pnl = state.testnet_pnl or 0.0
     testnet_bankroll = (
         state.testnet_bankroll if state.testnet_bankroll is not None else 0.0

@@ -228,17 +228,61 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("  - Weather trading: DISABLED")
     logger.info("=" * 60)
 
+    _balance_cache = {"balance": None, "timestamp": 0, "mode": settings.TRADING_MODE}
+
+    async def refresh_balance_cache():
+        if settings.TRADING_MODE not in ("live", "testnet"):
+            return
+
+        try:
+            from backend.data.polymarket_clob import clob_from_settings
+
+            clob = clob_from_settings()
+            async with clob:
+                await clob.create_or_derive_api_creds()
+                balance_data = await clob.get_wallet_balance()
+                clob_balance = balance_data.get("usdc_balance", 0.0)
+
+                if clob_balance >= 0:
+                    _balance_cache["balance"] = clob_balance
+                    _balance_cache["timestamp"] = time.time()
+                    _balance_cache["mode"] = settings.TRADING_MODE
+                    logger.info(f"Balance cache refreshed: ${clob_balance:.2f}")
+
+                    db = SessionLocal()
+                    try:
+                        state = db.query(BotState).first()
+                        if state:
+                            if settings.TRADING_MODE == "live":
+                                state.bankroll = clob_balance
+                            elif settings.TRADING_MODE == "testnet":
+                                state.testnet_bankroll = clob_balance
+                            db.commit()
+                    finally:
+                        db.close()
+        except Exception as e:
+            logger.warning(f"Failed to refresh balance cache: {e}")
+
     async def stats_broadcaster():
-        """Background task that computes and broadcasts stats every second."""
         from backend.api.ws_manager import stats_ws
 
         logger.info("Stats broadcaster task started")
+
+        await refresh_balance_cache()
+
+        BALANCE_REFRESH_INTERVAL = 30
+
         while True:
             try:
                 if stats_ws.active_connections:
                     logger.debug(
                         f"Broadcasting stats to {len(stats_ws.active_connections)} clients"
                     )
+
+                    now = time.time()
+                    if now - _balance_cache["timestamp"] > BALANCE_REFRESH_INTERVAL:
+                        await refresh_balance_cache()
+
                     db = SessionLocal()
                     try:
                         stats = await get_stats(db, None)
@@ -374,6 +418,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                                     trade.settlement_time = datetime.now(timezone.utc)
                                     db.commit()
                                     logger.info(f"Trade {trade_id} confirmed on-chain")
+
+                                asyncio.create_task(refresh_balance_cache())
                         except Exception as e:
                             logger.error(
                                 f"Error updating trade status: {e}", exc_info=True
