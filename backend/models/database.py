@@ -362,6 +362,7 @@ class StrategyConfig(Base):
     trading_mode = Column(
         String, nullable=True
     )  # "paper", "testnet", "live" - overrides global TRADING_MODE
+    mode = Column(String, nullable=True, default=None)  # "paper", "testnet", "live" - NULL = applies to all modes
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -976,6 +977,23 @@ def ensure_schema():
                 logger.info("Backfilled 'blockchain_verified' field for existing trades")
     except Exception as e:
         logger.warning(f"Could not backfill unified state sync fields: {e}")
+
+    # Add mode column to strategy_config for per-mode strategy control
+    try:
+        strategy_config_columns = {col["name"] for col in inspector.get_columns("strategy_config")}
+    except Exception:
+        strategy_config_columns = set()
+
+    if strategy_config_columns and "mode" not in strategy_config_columns:
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(
+                        text("ALTER TABLE strategy_config ADD COLUMN mode TEXT")
+                    )
+                    logger.info("Added 'mode' column to strategy_config")
+        except Exception as e:
+            logger.warning(f"Schema migration: could not add strategy_config.mode: {e}")
 
 
 def log_audit(action: str, actor: str = "system", details: dict = None):
