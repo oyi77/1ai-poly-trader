@@ -1,9 +1,9 @@
 {
-  "active_plan": "/home/openclaw/projects/polyedge/.sisyphus/plans/polyedge-agi.md",
-  "started_at": "2026-04-12T15:19:12.162Z",
+  "active_plan": "/home/openclaw/projects/polyedge/.sisyphus/plans/global-mode-filter.md",
+  "started_at": "2026-04-17T15:00:28.192Z",
   "session_ids": [
-    "ses_27f99fb2fffeGGvH5ctCI0pxi8"
+    "ses_2642e646dffeJAxbB5oApSozL4"
   ],
-  "plan_name": "polyedge-agi",
+  "plan_name": "global-mode-filter",
   "agent": "atlas"
 }
