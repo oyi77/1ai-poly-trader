@@ -146,6 +146,7 @@ class BotState(Base):
     __tablename__ = "bot_state"
 
     id = Column(Integer, primary_key=True)
+    mode = Column(String, primary_key=True, default="paper")
     bankroll = Column(Float, default=100.0)
     total_trades = Column(Integer, default=0)
     winning_trades = Column(Integer, default=0)
@@ -177,6 +178,11 @@ class BotState(Base):
 
     # Settlement verification tracking
     settlement_last_check_at = Column(DateTime, nullable=True, default=None)
+
+    def __repr__(self):
+        return (f"<BotState(id={self.id}, mode={self.mode}, bankroll={self.bankroll}, "
+                f"total_pnl={self.total_pnl}, total_trades={self.total_trades}, "
+                f"winning_trades={self.winning_trades})>")
 
 
 class Signal(Base):
@@ -622,6 +628,58 @@ def ensure_schema():
                     logger.warning(
                         f"Schema migration: could not add signals edge-track column {col}: {e}"
                     )
+
+    try:
+        bot_state_columns = {col["name"] for col in inspector.get_columns("bot_state")}
+    except Exception:
+        bot_state_columns = set()
+
+    if bot_state_columns and "mode" not in bot_state_columns:
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(
+                        text("ALTER TABLE bot_state ADD COLUMN mode VARCHAR DEFAULT 'paper'")
+                    )
+                    logger.info("Added 'mode' column to bot_state")
+        except Exception as e:
+            logger.warning(f"Schema migration: could not add bot_state.mode: {e}")
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    result = conn.execute(
+                        text("SELECT COUNT(*) FROM bot_state")
+                    )
+                    count = result.scalar()
+                    
+                    if count == 1:
+                        result = conn.execute(
+                            text("SELECT id, bankroll, total_trades, winning_trades, total_pnl, "
+                                 "paper_bankroll, paper_pnl, paper_trades, paper_wins, "
+                                 "testnet_bankroll, testnet_pnl, testnet_trades, testnet_wins "
+                                 "FROM bot_state LIMIT 1")
+                        )
+                        row = result.fetchone()
+                        
+                        if row:
+                            (id_val, bankroll, total_trades, winning_trades, total_pnl,
+                             paper_bankroll, paper_pnl, paper_trades, paper_wins,
+                             testnet_bankroll, testnet_pnl, testnet_trades, testnet_wins) = row
+                            
+                            conn.execute(
+                                text("UPDATE bot_state SET bankroll = :bankroll, "
+                                     "total_trades = :total_trades, winning_trades = :winning_trades, "
+                                     "total_pnl = :total_pnl WHERE id = :id"),
+                                {"bankroll": paper_bankroll or bankroll, 
+                                 "total_trades": paper_trades or total_trades,
+                                 "winning_trades": paper_wins or winning_trades,
+                                 "total_pnl": paper_pnl or total_pnl,
+                                 "id": id_val}
+                            )
+                            logger.info("Migrated existing bot_state row to paper mode")
+        except Exception as e:
+            logger.warning(f"Schema migration: could not migrate bot_state to mode-based schema: {e}")
 
     # Add per-track bankroll and PNL tracking to bot_state
     try:
