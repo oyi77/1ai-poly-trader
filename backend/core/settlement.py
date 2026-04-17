@@ -32,6 +32,48 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
 
     async with _settlement_lock:
         try:
+            from backend.core.settlement_helpers import reconcile_positions
+
+            trades_to_close = await reconcile_positions(db)
+
+            if trades_to_close:
+                now = datetime.now(timezone.utc)
+                closed_count = 0
+
+                for trade_id in trades_to_close:
+                    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+                    if trade and not trade.settled:
+                        trade.settled = True
+                        trade.result = "closed"
+                        trade.settlement_time = now
+                        trade.pnl = 0.0
+                        closed_count += 1
+
+                        try:
+                            from backend.core.event_bus import _broadcast_event
+
+                            _broadcast_event(
+                                "trade_settled",
+                                {
+                                    "trade_id": trade.id,
+                                    "market_ticker": trade.market_ticker,
+                                    "result": "closed",
+                                    "pnl": 0.0,
+                                    "mode": getattr(trade, "trading_mode", "paper"),
+                                },
+                            )
+                        except Exception as e:
+                            logger.debug(f"Broadcast event failed: {e}")
+
+                if closed_count > 0:
+                    db.commit()
+                    logger.info(
+                        f"Position reconciliation: marked {closed_count} trades as closed"
+                    )
+        except Exception as e:
+            logger.error(f"Position reconciliation failed: {e}", exc_info=True)
+
+        try:
             pending = db.query(Trade).filter(Trade.settled.is_(False)).all()
         except Exception as e:
             logger.error(f"Failed to query pending trades: {e}")
@@ -194,7 +236,7 @@ async def update_bot_state_with_settlements(
 
             trading_mode = getattr(trade, "trading_mode", "paper") or "paper"
             is_real_trade = trade.result in ("win", "loss")
-            is_expired_or_push = trade.result in ("expired", "push")
+            is_expired_or_push = trade.result in ("expired", "push", "closed")
 
             if trading_mode == "paper":
                 if is_real_trade:
