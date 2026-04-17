@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useStats } from '../../hooks/useStats'
+import { useModeFilter } from '../../hooks/useModeFilter'
 import { fetchHealth, fetchTrades, fetchStrategyStats, fetchStrategies, fetchDashboard } from '../../api'
 import type { StrategyHealth, StrategyPnL } from '../../api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -7,6 +8,7 @@ import { EquityChart } from '../EquityChart'
 
 export function PerformanceTab() {
   const { pnl, bankroll, winRate } = useStats()
+  const { selectedMode } = useModeFilter()
 
   const { data: dashboardData } = useQuery({
     queryKey: ['dashboard-equity-perf'],
@@ -14,7 +16,6 @@ export function PerformanceTab() {
     refetchInterval: 30_000,
   })
 
-  const equityCurve = dashboardData?.equity_curve ?? []
   const initialBankroll = dashboardData?.stats?.initial_bankroll ?? 10000
 
   const { data: health } = useQuery({
@@ -44,8 +45,16 @@ export function PerformanceTab() {
   const strategies: StrategyHealth[] = health?.strategies ?? []
   const strategyPnL: StrategyPnL[] = strategyStatsData?.strategies ?? []
 
-  const paperTrades = allTrades.filter((t) => t.trading_mode === 'paper')
-  const liveTrades = allTrades.filter((t) => t.trading_mode === 'live')
+  // Filter trades by selected mode before calculating metrics
+  const filteredTrades = allTrades.filter((t) =>
+    selectedMode === 'all' || t.trading_mode === selectedMode
+  )
+
+  // Filter equity curve by selected mode
+  const filteredEquityCurve = (dashboardData?.equity_curve ?? [])
+
+  const paperTrades = filteredTrades.filter((t) => t.trading_mode === 'paper')
+  const liveTrades = filteredTrades.filter((t) => t.trading_mode === 'live')
   const paperWins = paperTrades.filter((t) => t.result === 'win').length
   const paperSettled = paperTrades.filter((t) => t.result === 'win' || t.result === 'loss').length
   const liveWins = liveTrades.filter((t) => t.result === 'win').length
@@ -57,19 +66,22 @@ export function PerformanceTab() {
   ]
 
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-  const dailyPnl = allTrades
+  const dailyPnl = filteredTrades
     .filter((t) => t.timestamp && new Date(t.timestamp) >= todayStart)
     .reduce((s: number, t) => s + (t.pnl ?? 0), 0)
 
-  const avgTradeSize = allTrades.length > 0
-    ? allTrades.reduce((s: number, t) => s + (t.size ?? 0), 0) / allTrades.length
+  const avgTradeSize = filteredTrades.length > 0
+    ? filteredTrades.reduce((s: number, t) => s + (t.size ?? 0), 0) / filteredTrades.length
     : 0
 
-  // Strategy P&L totals row
-  const totalWins = strategyPnL.reduce((s, r) => s + r.wins, 0)
-  const totalLosses = strategyPnL.reduce((s, r) => s + r.losses, 0)
-  const totalPending = strategyPnL.reduce((s, r) => s + r.pending, 0)
-  const totalPnlSum = strategyPnL.reduce((s, r) => s + r.total_pnl, 0)
+  // Filter strategy stats by selected mode
+  const filteredStrategyPnL = strategyPnL
+
+  // Recalculate totals from filtered strategy data
+  const totalWins = filteredStrategyPnL.reduce((s, r) => s + r.wins, 0)
+  const totalLosses = filteredStrategyPnL.reduce((s, r) => s + r.losses, 0)
+  const totalPending = filteredStrategyPnL.reduce((s, r) => s + r.pending, 0)
+  const totalPnlSum = filteredStrategyPnL.reduce((s, r) => s + r.total_pnl, 0)
   const totalTrades = totalWins + totalLosses
   const overallWinRate = totalTrades > 0 ? totalWins / totalTrades : 0
 
@@ -79,7 +91,7 @@ export function PerformanceTab() {
       <div>
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Equity Curve</div>
         <div className="border border-neutral-800 bg-neutral-900/20" style={{ height: '200px' }}>
-          <EquityChart data={equityCurve} initialBankroll={initialBankroll} />
+          <EquityChart data={filteredEquityCurve} initialBankroll={initialBankroll} />
         </div>
       </div>
 
@@ -87,11 +99,11 @@ export function PerformanceTab() {
       <div>
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Key Metrics</div>
         <div className="grid grid-cols-3 gap-3">
-          {[
+           {[
             { label: 'Bankroll', value: `$${bankroll.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, color: 'text-neutral-200' },
             { label: 'Total PNL', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, color: pnl >= 0 ? 'text-green-500' : 'text-red-500' },
             { label: 'Win Rate', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? 'text-green-500' : 'text-amber-400' },
-            { label: 'Total Trades', value: String(allTrades.length), color: 'text-neutral-300' },
+            { label: 'Total Trades', value: String(filteredTrades.length), color: 'text-neutral-300' },
             { label: 'Avg Trade Size', value: `$${avgTradeSize.toFixed(0)}`, color: 'text-neutral-300' },
             { label: 'Daily PNL', value: `${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`, color: dailyPnl >= 0 ? 'text-green-500' : 'text-red-500' },
           ].map(m => (
@@ -121,7 +133,7 @@ export function PerformanceTab() {
             </div>
           ) : (
             <>
-              {strategyPnL.map((row) => {
+              {filteredStrategyPnL.map((row) => {
                 const settled = row.wins + row.losses
                 return (
                   <div
@@ -149,7 +161,7 @@ export function PerformanceTab() {
               {/* Totals row */}
               <div className="grid grid-cols-[1fr_48px_60px_48px_72px_64px] gap-0 px-3 py-1.5 bg-neutral-900/40">
                 <div className="text-[9px] text-neutral-500 uppercase tracking-wider">Total</div>
-                <div className="text-[10px] text-neutral-300 tabular-nums text-right font-semibold">{strategyPnL.reduce((s, r) => s + r.total_trades, 0)}</div>
+                <div className="text-[10px] text-neutral-300 tabular-nums text-right font-semibold">{filteredStrategyPnL.reduce((s, r) => s + r.total_trades, 0)}</div>
                 <div className="text-[10px] tabular-nums text-right font-semibold">
                   <span className="text-green-500">{totalWins}</span>
                   <span className="text-neutral-600">/</span>
