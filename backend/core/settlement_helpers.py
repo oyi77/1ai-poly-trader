@@ -48,19 +48,49 @@ async def fetch_polymarket_resolution(
                         return _parse_market_resolution(markets[0])
 
             # Try slug-based query first (market_id may be a slug, not numeric ID)
-            slug_response = await client.get(
-                "https://gamma-api.polymarket.com/markets",
-                params={"slug": market_id},
-            )
-            if slug_response.status_code == 200:
-                slug_results = slug_response.json()
-                if isinstance(slug_results, list) and slug_results:
-                    result = _parse_market_resolution(slug_results[0])
-                    # If Gamma says unresolved but prices are 0/null, check CLOB
-                    if not result[0] and _has_invalid_prices(slug_results[0]):
-                        clob_result = await _check_clob_resolution(market_id)
-                        if clob_result[0]:
-                            return clob_result
+            try:
+                slug_response = await client.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"slug": market_id},
+                    timeout=5.0,
+                )
+                if slug_response.status_code == 200:
+                    slug_results = slug_response.json()
+                    if isinstance(slug_results, list) and slug_results:
+                        result = _parse_market_resolution(slug_results[0])
+                        # If Gamma says unresolved but prices are 0/null, check CLOB
+                        if not result[0] and _has_invalid_prices(slug_results[0]):
+                            clob_result = await _check_clob_resolution(market_id)
+                            if clob_result[0]:
+                                return clob_result
+                        return result
+            except (httpx.TimeoutException, httpx.ConnectTimeout):
+                logger.debug(
+                    f"Market query timeout for {market_id}, trying event query"
+                )
+
+            # If market query times out, try querying by event slug
+            # Extract event slug by removing the last suffix (e.g., -scf, -cel4, -draw)
+            if "-" in market_id:
+                parts = market_id.rsplit("-", 1)
+                if len(parts) == 2 and len(parts[1]) <= 5:
+                    event_slug = parts[0]
+                    try:
+                        event_response = await client.get(
+                            "https://gamma-api.polymarket.com/events",
+                            params={"slug": event_slug},
+                            timeout=5.0,
+                        )
+                        if event_response.status_code == 200:
+                            events = event_response.json()
+                            if events and isinstance(events, list):
+                                event = events[0]
+                                markets = event.get("markets", [])
+                                for market in markets:
+                                    if market.get("slug") == market_id:
+                                        return _parse_market_resolution(market)
+                    except Exception as e:
+                        logger.debug(f"Event query failed for {event_slug}: {e}")
 
             # Fallback: try market ID directly (works for numeric IDs)
             url = f"https://gamma-api.polymarket.com/markets/{market_id}"
