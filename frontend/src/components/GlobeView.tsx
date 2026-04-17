@@ -134,6 +134,18 @@ export function GlobeView({ forecasts, signals }: Props) {
       globeRef.current.controls().autoRotateSpeed = 0.3
       globeRef.current.controls().enableZoom = false
     }
+    return () => {
+      // Clean up WebGL context to prevent "Too many active WebGL contexts" memory leak
+      if (globeRef.current) {
+        try {
+          const renderer = globeRef.current.renderer()
+          if (renderer) {
+            renderer.dispose()
+            renderer.forceContextLoss()
+          }
+        } catch (e) {}
+      }
+    }
   }, [])
 
   const handleInteraction = useCallback(() => {

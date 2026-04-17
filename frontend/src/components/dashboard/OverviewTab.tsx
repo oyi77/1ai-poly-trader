@@ -212,7 +212,21 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const stats = useStats()
   const { selectedMode } = useModeFilter()
-  const actionableCount = activeSignals.filter((s: any) => s.actionable).length + weatherSignals.filter((s: any) => s.actionable).length
+  
+  // Filter signals and trades by selected mode
+  const filteredActiveSignals = selectedMode === 'all' 
+    ? activeSignals 
+    : activeSignals.filter((s: any) => s.trading_mode === selectedMode)
+  
+  const filteredRecentTrades = selectedMode === 'all'
+    ? recentTrades
+    : recentTrades.filter((t: any) => t.trading_mode === selectedMode)
+  
+  const filteredWeatherSignals = selectedMode === 'all'
+    ? weatherSignals
+    : weatherSignals.filter((s: any) => s.trading_mode === selectedMode)
+  
+  const actionableCount = filteredActiveSignals.filter((s: any) => s.actionable).length + filteredWeatherSignals.filter((s: any) => s.actionable).length
 
   const [syncRefreshing, setSyncRefreshing] = useState(false)
   const { data: syncStatus, refetch: refetchSyncStatus } = useQuery({
@@ -370,11 +384,22 @@ export function OverviewTab({
             <CalibrationPanel calibration={calibration} />
           </motion.div>
         )}
-         <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0">
            <Terminal
              isRunning={stats.isRunning}
              lastRun={stats.lastRun}
-             stats={{ total_trades: selectedMode === 'all' ? stats.trades : (selectedMode === 'paper' && stats.paperStats ? stats.paperStats.trades : selectedMode === 'testnet' && stats.testnetStats ? stats.testnetStats.trades : selectedMode === 'live' && stats.liveStats ? stats.liveStats.trades : stats.trades), total_pnl: filteredStats.pnl }}
+             stats={{ 
+               total_trades: selectedMode === 'all' 
+                 ? stats.trades 
+                 : (selectedMode === 'paper' && stats.paperStats 
+                     ? stats.paperStats.trades 
+                     : selectedMode === 'testnet' && stats.testnetStats 
+                       ? stats.testnetStats.trades 
+                       : selectedMode === 'live' && stats.liveStats 
+                         ? stats.liveStats.trades 
+                         : stats.trades), 
+               total_pnl: filteredStats.pnl 
+             }}
              onStart={onStart}
              onStop={onStop}
              onScan={onScan}
@@ -388,7 +413,7 @@ export function OverviewTab({
           <div className="absolute inset-0">
             <GlobeErrorBoundary>
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center bg-black"><span className="text-[10px] text-neutral-600 uppercase tracking-wider">Loading Globe...</span></div>}>
-                <GlobeView forecasts={weatherForecasts} signals={weatherSignals} />
+                <GlobeView forecasts={weatherForecasts} signals={filteredWeatherSignals} />
               </Suspense>
             </GlobeErrorBoundary>
           </div>
@@ -405,7 +430,7 @@ export function OverviewTab({
               <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Edge Distribution</span>
             </div>
             <div className="flex-1 min-h-0 p-1">
-              <EdgeDistribution btcSignals={activeSignals} weatherSignals={weatherSignals} />
+              <EdgeDistribution btcSignals={filteredActiveSignals} weatherSignals={filteredWeatherSignals} />
             </div>
           </div>
           <div className="border-r border-neutral-800 flex flex-col min-h-0">
@@ -422,7 +447,7 @@ export function OverviewTab({
               <span className="px-1 py-0.5 text-[8px] font-bold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">WX</span>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
-              <WeatherPanel forecasts={weatherForecasts} signals={weatherSignals} />
+              <WeatherPanel forecasts={weatherForecasts} signals={filteredWeatherSignals} />
             </div>
           </div>
         </div>
@@ -431,18 +456,18 @@ export function OverviewTab({
       {/* RIGHT */}
       <div className="flex flex-col min-h-0 overflow-hidden">
         <SignalsPanel
-          activeSignals={activeSignals}
-          weatherSignals={weatherSignals}
+          activeSignals={filteredActiveSignals}
+          weatherSignals={filteredWeatherSignals}
           onSimulateTrade={onSimulateTrade}
           isSimulating={isSimulating}
         />
         <div className="flex flex-col min-h-0 border-t border-neutral-800" style={{ height: '50%' }}>
           <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Trades</span>
-            <span className="text-[10px] text-neutral-600 tabular-nums">{recentTrades.length}</span>
+            <span className="text-[10px] text-neutral-600 tabular-nums">{filteredRecentTrades.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0">
-            <TradesTable trades={recentTrades} />
+            <TradesTable trades={filteredRecentTrades} />
           </div>
         </div>
       </div>

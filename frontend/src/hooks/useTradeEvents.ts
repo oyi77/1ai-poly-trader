@@ -27,21 +27,38 @@ export function useTradeEvents(onEvent: (event: TradeEvent) => void) {
     const API_BASE = import.meta.env.VITE_API_URL || ''
     const key = getAdminApiKey()
     const tokenParam = key ? `?token=${encodeURIComponent(key)}` : ''
-    const es = new EventSource(`${API_BASE}/api/events/stream${tokenParam}`)
+    let es: EventSource | null = null
+    let reconnectTimeout: ReturnType<typeof setTimeout>
 
-    es.onmessage = (e) => {
-      try {
-        const event = JSON.parse(e.data) as TradeEvent
-        onEventRef.current(event)
-      } catch {
-        // ignore malformed events
+    const connect = () => {
+      es = new EventSource(`${API_BASE}/api/events/stream${tokenParam}`)
+
+      es.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data) as TradeEvent
+          onEventRef.current(event)
+        } catch {
+          // ignore malformed events
+        }
+      }
+
+      es.onerror = () => {
+        // Prevent rapid reconnect spam which causes ERR_QUIC_PROTOCOL_ERROR / TOO_MANY_RTOS
+        if (es) {
+          es.close()
+          es = null
+        }
+        reconnectTimeout = setTimeout(() => {
+          connect()
+        }, 5000) // Backoff 5s
       }
     }
 
-    es.onerror = () => {
-      // EventSource auto-reconnects, no action needed
-    }
+    connect()
 
-    return () => es.close()
+    return () => {
+      clearTimeout(reconnectTimeout)
+      if (es) es.close()
+    }
   }, [adminKey])
 }
