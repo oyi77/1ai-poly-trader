@@ -110,7 +110,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
     # Fetch real CLOB wallet balance when in live/testnet mode (with 60s cache)
-    _wallet_cache_key = "_clob_wallet_cache"
+    _wallet_cache_key = f"_clob_wallet_cache_{settings.TRADING_MODE}"
     if settings.TRADING_MODE in ("live", "testnet"):
         try:
             _cache = getattr(get_stats, _wallet_cache_key, None)
@@ -118,7 +118,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
 
             _now = _time.time()
             if _cache and (_now - _cache[0]) < 60:
-                live_bankroll = _cache[1]
+                clob_balance = _cache[1]
             else:
                 from backend.data.polymarket_clob import clob_from_settings
 
@@ -128,13 +128,23 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
                     balance_data = await clob.get_wallet_balance()
                     clob_balance = balance_data.get("usdc_balance", 0.0)
                     if clob_balance >= 0:
-                        live_bankroll = clob_balance
-                        if state.bankroll != clob_balance:
-                            state.bankroll = clob_balance
-                            db.commit()
                         setattr(get_stats, _wallet_cache_key, (_now, clob_balance))
+
+            if clob_balance >= 0:
+                if settings.TRADING_MODE == "live":
+                    live_bankroll = clob_balance
+                    if state.bankroll != clob_balance:
+                        state.bankroll = clob_balance
+                        db.commit()
+                elif settings.TRADING_MODE == "testnet":
+                    testnet_bankroll = clob_balance
+                    if state.testnet_bankroll != clob_balance:
+                        state.testnet_bankroll = clob_balance
+                        db.commit()
         except Exception as e:
-            logger.warning(f"Failed to fetch live CLOB wallet balance: {e}")
+            logger.warning(
+                f"Failed to fetch {settings.TRADING_MODE} CLOB wallet balance: {e}"
+            )
 
     # Testnet stats
     testnet_pnl = state.testnet_pnl or 0.0
