@@ -20,16 +20,7 @@ from backend.core.event_bus import _broadcast_event
 logger = logging.getLogger("trading_bot")
 
 
-def _get_effective_mode(db, strategy_name: str) -> str:
-    """Resolve per-strategy trading mode, falling back to global settings.TRADING_MODE."""
-    config = (
-        db.query(StrategyConfig)
-        .filter(StrategyConfig.strategy_name == strategy_name)
-        .first()
-    )
-    if config and config.trading_mode:
-        return config.trading_mode
-    return settings.TRADING_MODE
+
 
 
 def _get_bankroll_for_mode(state, mode: str) -> float:
@@ -198,7 +189,7 @@ async def _execute_trade(
         "reasoning": f"edge {signal.edge:.3f} >= threshold, {signal.direction} @ {entry_price:.0%}",
     }
 
-    result = await execute_decision(decision, "btc_5m", db=db)
+    result = await execute_decision(decision, "btc_5m", mode=mode, db=db)
     if result is None:
         return trades_executed
 
@@ -300,26 +291,24 @@ async def _queue_for_approval(
     return trades_executed
 
 
-async def scan_and_trade_job():
+async def scan_and_trade_job(mode: str):
     """Run BTC Oracle strategy. Runs every minute."""
     from backend.core.scheduler import log_event
     from backend.strategies.btc_oracle import BtcOracleStrategy
     from backend.strategies.base import StrategyContext
 
-    log_event("info", "Running BTC Oracle strategy (replaces broken momentum)...")
+    log_event("info", f"[{mode.upper()}] Running BTC Oracle strategy (replaces broken momentum)...")
 
     db = SessionLocal()
     try:
-        state = db.query(BotState).first()
+        state = db.query(BotState).filter_by(mode=mode).first()
         if not state:
-            log_event("error", "Bot state not initialized")
+            log_event("error", f"[{mode.upper()}] Bot state not initialized")
             return
 
         if not state.is_running:
-            log_event("info", "Bot is paused, skipping trades")
+            log_event("info", f"[{mode.upper()}] Bot is paused, skipping trades")
             return
-
-        btc_mode = _get_effective_mode(db, "btc_oracle")
 
         ctx = StrategyContext(
             db=db,
@@ -327,7 +316,7 @@ async def scan_and_trade_job():
             settings=settings,
             logger=logger,
             params={},
-            mode=btc_mode,
+            mode=mode,
         )
 
         strategy = BtcOracleStrategy()
@@ -345,41 +334,39 @@ async def scan_and_trade_job():
             try:
                 from backend.core.strategy_executor import execute_decisions
 
-                executed = await execute_decisions(buy_decisions, "btc_oracle", db=db)
-                log_event("success", f"BTC Oracle: executed {len(executed)} trade(s)")
+                executed = await execute_decisions(buy_decisions, "btc_oracle", mode=mode, db=db)
+                log_event("success", f"[{mode.upper()}] BTC Oracle: executed {len(executed)} trade(s)")
             except Exception as exec_err:
-                log_event("error", f"BTC Oracle execution failed: {exec_err}")
+                log_event("error", f"[{mode.upper()}] BTC Oracle execution failed: {exec_err}")
         else:
-            log_event("info", "BTC Oracle: no actionable signals")
+            log_event("info", f"[{mode.upper()}] BTC Oracle: no actionable signals")
 
         state.last_run = datetime.now(timezone.utc)
         db.commit()
 
     except Exception as e:
-        log_event("error", f"BTC Oracle error: {str(e)}")
-        logger.exception("Error in scan_and_trade_job (btc_oracle)")
+        log_event("error", f"[{mode.upper()}] BTC Oracle error: {str(e)}")
+        logger.exception(f"Error in scan_and_trade_job (btc_oracle) mode={mode}")
     finally:
         db.close()
 
 
-async def weather_scan_and_trade_job():
+async def weather_scan_and_trade_job(mode: str):
     """Scan weather temperature markets and execute trades. Runs every 5 minutes."""
     from backend.core.scheduler import log_event
     from backend.core.heartbeat import update_heartbeat as _update_hb
 
-    log_event("info", "Scanning weather temperature markets...")
+    log_event("info", f"[{mode.upper()}] Scanning weather temperature markets...")
 
     try:
         from backend.core.weather_signals import scan_for_weather_signals
 
-        weather_mode = _get_effective_mode(SessionLocal(), "weather")
-
-        signals = await scan_for_weather_signals(mode=weather_mode)
+        signals = await scan_for_weather_signals(mode=mode)
         actionable = [s for s in signals if s.passes_threshold]
 
         log_event(
             "data",
-            f"Weather: {len(signals)} signals, {len(actionable)} actionable",
+            f"[{mode.upper()}] Weather: {len(signals)} signals, {len(actionable)} actionable",
             {
                 "total_signals": len(signals),
                 "actionable": len(actionable),
@@ -387,7 +374,7 @@ async def weather_scan_and_trade_job():
         )
 
         if not actionable:
-            log_event("info", "No actionable weather signals")
+            log_event("info", f"[{mode.upper()}] No actionable weather signals")
             # Still update heartbeat so watchdog knows we ran
             hb_db = SessionLocal()
             try:
@@ -398,26 +385,25 @@ async def weather_scan_and_trade_job():
 
         db = SessionLocal()
         try:
-            state = db.query(BotState).first()
+            state = db.query(BotState).filter_by(mode=mode).first()
             if not state:
-                log_event("error", "Bot state not initialized")
+                log_event("error", f"[{mode.upper()}] Bot state not initialized")
                 return
 
             if not state.is_running:
-                log_event("info", "Bot is paused, skipping weather trades")
+                log_event("info", f"[{mode.upper()}] Bot is paused, skipping weather trades")
                 return
 
             MAX_TRADES_PER_SCAN = 3
             MIN_TRADE_SIZE = 10
             MAX_WEATHER_ALLOCATION = 500.0
-            weather_mode = _get_effective_mode(db, "weather")
 
             weather_pending = (
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
                     Trade.settled.is_(False),
                     Trade.market_type == "weather",
-                    Trade.trading_mode == weather_mode,
+                    Trade.trading_mode == mode,
                 )
                 .scalar()
             )
@@ -425,7 +411,7 @@ async def weather_scan_and_trade_job():
             if weather_pending >= MAX_WEATHER_ALLOCATION:
                 log_event(
                     "info",
-                    f"Weather allocation limit reached: ${weather_pending:.0f}/${MAX_WEATHER_ALLOCATION:.0f}",
+                    f"[{mode.upper()}] Weather allocation limit reached: ${weather_pending:.0f}/${MAX_WEATHER_ALLOCATION:.0f}",
                 )
                 return
 
@@ -436,7 +422,7 @@ async def weather_scan_and_trade_job():
                     .filter(
                         Trade.market_ticker == signal.market.market_id,
                         Trade.settled.is_(False),
-                        Trade.trading_mode == weather_mode,
+                        Trade.trading_mode == mode,
                     )
                     .first()
                 )
@@ -447,9 +433,9 @@ async def weather_scan_and_trade_job():
                 trade_size = min(signal.suggested_size, settings.WEATHER_MAX_TRADE_SIZE)
                 trade_size = max(trade_size, MIN_TRADE_SIZE)
 
-                bankroll = _get_bankroll_for_mode(state, weather_mode)
+                bankroll = _get_bankroll_for_mode(state, mode)
                 if bankroll < MIN_TRADE_SIZE:
-                    log_event("warning", f"Bankroll too low: ${bankroll:.2f}")
+                    log_event("warning", f"[{mode.upper()}] Bankroll too low: ${bankroll:.2f}")
                     break
 
                 if trades_executed >= MAX_TRADES_PER_SCAN:
@@ -480,14 +466,14 @@ async def weather_scan_and_trade_job():
                     "market_type": "weather",
                     "reasoning": f"weather signal: {signal.market.city_name}",
                 }
-                result = await execute_decision(decision, "weather", db=db)
+                result = await execute_decision(decision, "weather", mode=mode, db=db)
                 if result is None:
                     continue
 
                 trades_executed += 1
                 log_event(
                     "trade",
-                    f"WX {signal.market.city_name}: {signal.direction.upper()} "
+                    f"[{mode.upper()}] WX {signal.market.city_name}: {signal.direction.upper()} "
                     f"${trade_size:.0f} @ {entry_price:.0%}",
                     {
                         "slug": signal.market.slug,
@@ -502,9 +488,9 @@ async def weather_scan_and_trade_job():
             db.commit()
 
             if trades_executed > 0:
-                log_event("success", f"Executed {trades_executed} weather trade(s)")
+                log_event("success", f"[{mode.upper()}] Executed {trades_executed} weather trade(s)")
             else:
-                log_event("info", "No new weather trades executed")
+                log_event("info", f"[{mode.upper()}] No new weather trades executed")
 
             _update_hb(db, "weather_emos")
 
@@ -512,8 +498,8 @@ async def weather_scan_and_trade_job():
             db.close()
 
     except Exception as e:
-        log_event("error", f"Weather scan error: {str(e)}")
-        logger.exception("Error in weather_scan_and_trade_job")
+        log_event("error", f"[{mode.upper()}] Weather scan error: {str(e)}")
+        logger.exception(f"Error in weather_scan_and_trade_job mode={mode}")
 
 
 async def settlement_job():
@@ -633,7 +619,7 @@ async def arbitrage_scan_job():
         log_event("error", f"arbitrage_scan error: {e}")
 
 
-async def auto_trader_job():
+async def auto_trader_job(mode: str):
     """Run AutoTrader against unexecuted signals when AUTO_TRADER_ENABLED."""
     from backend.core.scheduler import log_event
 
@@ -647,32 +633,31 @@ async def auto_trader_job():
         trader = AutoTrader(RiskManager(), clob_factory=clob_from_settings)
         db = SessionLocal()
         try:
-            state = db.query(BotState).first()
+            state = db.query(BotState).filter_by(mode=mode).first()
             if not state or not state.is_running:
                 return
 
-            auto_trader_mode = _get_effective_mode(db, "auto_trader")
-            bankroll = _get_bankroll_for_mode(state, auto_trader_mode)
+            bankroll = _get_bankroll_for_mode(state, mode)
 
             signals = (
                 db.query(Signal)
                 .filter(
                     Signal.executed.is_(False),
-                    Signal.execution_mode == auto_trader_mode,
+                    Signal.execution_mode == mode,
                 )
                 .order_by(Signal.timestamp.desc())
                 .limit(10)
                 .all()
             )
             if not signals:
-                log_event("info", "AutoTrader cycle: no pending signals")
+                log_event("info", f"[{mode.upper()}] AutoTrader cycle: no pending signals")
                 return
 
             current_exposure = float(
                 db.query(func.coalesce(func.sum(Trade.size), 0.0))
                 .filter(
                     Trade.settled.is_(False),
-                    Trade.trading_mode == auto_trader_mode,
+                    Trade.trading_mode == mode,
                 )
                 .scalar()
                 or 0.0
@@ -717,7 +702,7 @@ async def auto_trader_job():
                         "token_id": token_id,
                         "platform": "polymarket",
                     }
-                    exec_result = await execute_decision(decision, "auto_trader", db=db)
+                    exec_result = await execute_decision(decision, "auto_trader", mode=auto_trader_mode, db=db)
                     if exec_result is not None:
                         sig.executed = True
                         executed += 1
@@ -876,7 +861,7 @@ async def strategy_cycle_job(strategy_name: str) -> None:
                     f"[{strategy_name}] Calling _exec_decisions with {len(decisions_copy)} decisions, mode={mode}"
                 )
                 trade_results = await _exec_decisions(
-                    decisions_copy, strategy_name, db=db
+                    decisions_copy, strategy_name, mode, db=db
                 )
                 result.trades_placed += len(trade_results)
                 logger.info(

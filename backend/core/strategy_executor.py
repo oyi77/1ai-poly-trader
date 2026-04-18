@@ -10,6 +10,7 @@ from backend.config import settings
 from backend.models.database import SessionLocal, Trade, Signal, BotState
 from backend.core.risk_manager import RiskManager
 from backend.core.event_bus import _broadcast_event
+from backend.core.mode_context import get_context
 from sqlalchemy import or_
 from sqlalchemy.exc import OperationalError
 
@@ -23,7 +24,7 @@ _trade_execution_lock = asyncio.Lock()
 
 
 async def execute_decision(
-    decision: dict, strategy_name: str, db=None
+    decision: dict, strategy_name: str, mode: str, db=None
 ) -> Optional[dict]:
     market_ticker = decision.get("market_ticker", "")
     direction = decision.get("direction", "")
@@ -43,13 +44,17 @@ async def execute_decision(
         db = SessionLocal()
     try:
         async with _trade_execution_lock:
-            # Use mode from decision if provided (per-strategy override), otherwise use global
-            effective_mode = decision.get("trading_mode") or settings.TRADING_MODE
+            # Get mode execution context
+            try:
+                context = get_context(mode)
+            except KeyError:
+                logger.error(f"[{strategy_name}] No execution context for mode: {mode}")
+                return None
 
             event_slug = decision.get("slug") or decision.get("event_slug")
             filters = [
                 Trade.settled.is_(False),
-                Trade.trading_mode == effective_mode,
+                Trade.trading_mode == mode,
             ]
             if event_slug:
                 filters.append(
@@ -67,18 +72,18 @@ async def execute_decision(
                 )
                 return None
 
-            state = db.query(BotState).filter_by(mode=effective_mode).first()
+            state = db.query(BotState).filter_by(mode=mode).first()
             if not state or not state.is_running:
                 logger.info(
                     f"[{strategy_name}] Bot not running, skipping decision for {market_ticker}"
                 )
                 return None
 
-            if effective_mode == "paper":
+            if mode == "paper":
                 bankroll = (
                     state.paper_bankroll if state.paper_bankroll is not None else 0.0
                 )
-            elif effective_mode == "testnet":
+            elif mode == "testnet":
                 bankroll = (
                     state.testnet_bankroll
                     if state.testnet_bankroll is not None
@@ -90,16 +95,16 @@ async def execute_decision(
                     if state.bankroll is not None
                     else settings.INITIAL_BANKROLL
                 )
-            current_exposure = _get_current_exposure(db, trading_mode=effective_mode)
+            current_exposure = _get_current_exposure(db, trading_mode=mode)
 
-            risk = risk_manager.validate_trade(
+            risk = context.risk_manager.validate_trade(
                 size=size,
                 current_exposure=current_exposure,
                 bankroll=bankroll,
                 confidence=confidence,
                 market_ticker=market_ticker,
                 db=db,
-                trading_mode=effective_mode,
+                mode=mode,
             )
             if not risk.allowed:
                 logger.info(
@@ -109,11 +114,10 @@ async def execute_decision(
 
             adjusted_size = risk.adjusted_size
 
-            # Enforce minimum order size — must match Polymarket CLOB minimum ($5)
             MIN_ORDER_SIZE = 5.0
             if adjusted_size < MIN_ORDER_SIZE:
                 logger.info(
-                    f"[{effective_mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
+                    f"[{mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
                     f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE}"
                 )
                 return None
@@ -122,12 +126,10 @@ async def execute_decision(
             fill_price = entry_price
             filled_size = None
 
-            if effective_mode in ("testnet", "live"):
+            if mode in ("testnet", "live"):
                 if token_id:
                     try:
-                        from backend.data.polymarket_clob import clob_from_settings
-
-                        async with clob_from_settings(mode=effective_mode) as clob:
+                        async with context.clob_client as clob:
                             await clob.create_or_derive_api_creds()
                             result = await clob.place_limit_order(
                                 token_id=token_id,
@@ -145,11 +147,11 @@ async def execute_decision(
                             ):
                                 filled_size = result.filled_size
                             logger.info(
-                                f"[{effective_mode.upper()}][{strategy_name}] Order placed: {clob_order_id}"
+                                f"[{mode.upper()}][{strategy_name}] Order placed: {clob_order_id}"
                             )
                         else:
                             logger.warning(
-                                f"[{effective_mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: {result.error}"
+                                f"[{mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: {result.error}"
                             )
                             return None
                     except Exception as clob_err:
@@ -160,7 +162,7 @@ async def execute_decision(
                         return None
                 else:
                     logger.warning(
-                        f"[{effective_mode.upper()}][{strategy_name}] No token_id for {market_ticker}, skipping order"
+                        f"[{mode.upper()}][{strategy_name}] No token_id for {market_ticker}, skipping order"
                     )
                     return None
             market_end_date = None
@@ -181,7 +183,7 @@ async def execute_decision(
                 model_probability=model_probability,
                 market_price_at_entry=entry_price,
                 edge_at_entry=edge,
-                trading_mode=effective_mode,
+                trading_mode=mode,
                 strategy=strategy_name,
                 confidence=confidence,
                 clob_order_id=clob_order_id,
@@ -193,17 +195,17 @@ async def execute_decision(
             db.add(trade)
             db.flush()
 
-            if effective_mode == "paper" and state:
+            if mode == "paper" and state:
                 state.paper_bankroll = max(
                     0.0, (state.paper_bankroll or 0.0) - adjusted_size
                 )
                 state.paper_trades = (state.paper_trades or 0) + 1
-            elif effective_mode == "testnet" and state:
+            elif mode == "testnet" and state:
                 state.testnet_bankroll = max(
                     0.0, (state.testnet_bankroll or 0.0) - adjusted_size
                 )
                 state.testnet_trades = (state.testnet_trades or 0) + 1
-            elif effective_mode == "live" and state:
+            elif mode == "live" and state:
                 state.bankroll = max(0.0, (state.bankroll or 0.0) - adjusted_size)
                 state.total_trades = (state.total_trades or 0) + 1
 
@@ -219,7 +221,7 @@ async def execute_decision(
                 suggested_size=adjusted_size,
                 reasoning=reasoning,
                 track_name=strategy_name,
-                execution_mode=effective_mode,
+                execution_mode=mode,
                 token_id=token_id,
                 executed=True,
             )
@@ -246,7 +248,7 @@ async def execute_decision(
                 "size": adjusted_size,
                 "edge": edge,
                 "confidence": confidence,
-                "trading_mode": effective_mode,
+                "trading_mode": mode,
                 "clob_order_id": clob_order_id,
                 "strategy": strategy_name,
             }
@@ -258,7 +260,7 @@ async def execute_decision(
                         **trade_dict,
                         "trade_id": trade.id,
                         "entry_price": fill_price,
-                        "mode": effective_mode,
+                        "mode": mode,
                     },
                 )
             except Exception as e:
@@ -269,7 +271,7 @@ async def execute_decision(
 
             logger.info(
                 f"[{strategy_name}] Trade created: {direction.upper()} {market_ticker} "
-                f"${adjusted_size:.2f} @ {fill_price:.3f} (mode={effective_mode})"
+                f"${adjusted_size:.2f} @ {fill_price:.3f} (mode={mode})"
             )
             return trade_dict
 
@@ -314,13 +316,13 @@ def _get_current_exposure(db, trading_mode: str = None) -> float:
 
 
 async def execute_decisions(
-    decisions: list[dict], strategy_name: str, db=None
+    decisions: list[dict], strategy_name: str, mode: str, db=None
 ) -> list[dict]:
     """Execute multiple decisions, respecting per-scan limits."""
     MAX_TRADES_PER_CYCLE = 6
     results = []
     for d in decisions[:MAX_TRADES_PER_CYCLE]:
-        result = await execute_decision(d, strategy_name, db=db)
+        result = await execute_decision(d, strategy_name, mode, db=db)
         if result:
             results.append(result)
     return results

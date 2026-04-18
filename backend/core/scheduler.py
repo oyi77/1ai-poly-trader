@@ -192,27 +192,33 @@ def start_scheduler():
         max_instances=1,
     )
 
-    # BTC scan job
-    scheduler.add_job(
-        scan_and_trade_job,
-        IntervalTrigger(seconds=scan_seconds),
-        id="market_scan",
-        replace_existing=True,
-        max_instances=1,
-        misfire_grace_time=60,
-    )
+    from backend.core.mode_context import list_contexts
+    contexts = list_contexts()
+    modes = list(contexts.keys()) if contexts else ["paper", "testnet", "live"]
 
-    # Weather scan job (only if enabled)
-    if getattr(settings, "WEATHER_ENABLED", True):
-        weather_seconds = getattr(settings, "WEATHER_SCAN_INTERVAL_SECONDS", 600)
+    for mode in modes:
         scheduler.add_job(
-            weather_scan_and_trade_job,
-            IntervalTrigger(seconds=weather_seconds),
-            id="weather_scan",
+            scan_and_trade_job,
+            IntervalTrigger(seconds=scan_seconds),
+            args=[mode],
+            id=f"{mode}_market_scan",
             replace_existing=True,
             max_instances=1,
-            misfire_grace_time=120,
+            misfire_grace_time=60,
         )
+
+    if getattr(settings, "WEATHER_ENABLED", True):
+        weather_seconds = getattr(settings, "WEATHER_SCAN_INTERVAL_SECONDS", 600)
+        for mode in modes:
+            scheduler.add_job(
+                weather_scan_and_trade_job,
+                IntervalTrigger(seconds=weather_seconds),
+                args=[mode],
+                id=f"{mode}_weather_scan",
+                replace_existing=True,
+                max_instances=1,
+                misfire_grace_time=120,
+            )
 
     # Watchdog: check strategy heartbeats every 30s
     from backend.core.heartbeat import watchdog_job, wallet_sync_job
@@ -285,13 +291,15 @@ def start_scheduler():
         )
 
     if settings.AUTO_TRADER_ENABLED:
-        scheduler.add_job(
-            auto_trader_job,
-            IntervalTrigger(seconds=60),
-            id="auto_trader",
-            replace_existing=True,
-            max_instances=1,
-        )
+        for mode in modes:
+            scheduler.add_job(
+                auto_trader_job,
+                IntervalTrigger(seconds=60),
+                args=[mode],
+                id=f"{mode}_auto_trader",
+                replace_existing=True,
+                max_instances=1,
+            )
 
     # Strategy ranking job - weekly ranking and auto-disable
     scheduler.add_job(
@@ -362,11 +370,7 @@ def start_scheduler():
         queue = AsyncSQLiteQueue(max_workers=settings.DB_EXECUTOR_MAX_WORKERS)
         worker = Worker(queue, max_concurrent=settings.MAX_CONCURRENT_JOBS)
 
-        # Remove APScheduler jobs to prevent double-execution
-        # The worker will process jobs from the queue instead
-        # Note: weather_scan is NOT removed - it continues via APScheduler
-        # because there's no queue handler for it yet
-        jobs_to_remove = ["market_scan", "settlement_check"]
+        jobs_to_remove = [f"{mode}_market_scan" for mode in modes] + ["settlement_check"]
         for job_id in jobs_to_remove:
             try:
                 scheduler.remove_job(job_id)
@@ -524,10 +528,10 @@ def reschedule_jobs() -> list[dict]:
     return results
 
 
-async def run_manual_scan():
+async def run_manual_scan(mode: str = "paper"):
     """Trigger a manual market scan."""
-    log_event("info", "Manual scan triggered")
-    await scan_and_trade_job()
+    log_event("info", f"Manual scan triggered for mode: {mode}")
+    await scan_and_trade_job(mode)
 
 
 async def run_manual_settlement():
