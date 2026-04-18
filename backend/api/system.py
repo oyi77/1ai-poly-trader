@@ -1,6 +1,6 @@
 """System routes - stats, bot control, backtest, events."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -90,17 +90,21 @@ class EventResponse(BaseModel):
 
 
 @router.get("/api/stats", response_model=BotStats)
-async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def get_stats(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+    mode: Optional[str] = Query(None)
+):
     # Query all 3 mode states
     paper_state = db.query(BotState).filter_by(mode="paper").first()
     testnet_state = db.query(BotState).filter_by(mode="testnet").first()
     live_state = db.query(BotState).filter_by(mode="live").first()
     
-    # Use current mode's state as primary
-    mode = settings.TRADING_MODE
-    if mode == "paper":
+    # Use provided mode or current mode as primary
+    effective_mode = mode or settings.TRADING_MODE
+    if effective_mode == "paper":
         state = paper_state
-    elif mode == "testnet":
+    elif effective_mode == "testnet":
         state = testnet_state
     else:
         state = live_state
@@ -120,19 +124,17 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
 
     sync_metadata = None
     
-    if settings.TRADING_MODE in ("testnet", "live"):
-        mode = settings.TRADING_MODE
-        
+    if effective_mode in ("testnet", "live"):
         live_trades = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == mode, Trade.settled)
+            .filter(Trade.trading_mode == effective_mode, Trade.settled)
             .scalar()
             or 0
         )
         live_wins = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == mode,
+                Trade.trading_mode == effective_mode,
                 Trade.settled,
                 Trade.pnl > 0,
             )
@@ -141,20 +143,20 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         )
         live_pnl = (
             db.query(func.sum(Trade.pnl))
-            .filter(Trade.trading_mode == mode, Trade.settled)
+            .filter(Trade.trading_mode == effective_mode, Trade.settled)
             .scalar()
             or 0.0
         )
         
         orphaned_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == mode, Trade.result == "orphaned")
+            .filter(Trade.trading_mode == effective_mode, Trade.result == "orphaned")
             .scalar()
             or 0
         )
         external_imports_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == mode, Trade.source == "external")
+            .filter(Trade.trading_mode == effective_mode, Trade.source == "external")
             .scalar()
             or 0
         )
@@ -167,7 +169,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         
         if live_state and live_pnl != (live_state.total_pnl or 0.0):
             logger.warning(
-                f"Stat change detected for {mode}: DB PnL={live_pnl} vs BotState={live_state.total_pnl}. "
+                f"Stat change detected for {effective_mode}: DB PnL={live_pnl} vs BotState={live_state.total_pnl}. "
                 f"Orphaned={orphaned_count}, External={external_imports_count}"
             )
         
@@ -192,39 +194,37 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
     testnet_wins = (testnet_state.winning_trades or 0) if testnet_state else 0
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
-    mode = settings.TRADING_MODE
-
     mode_trades = (
         db.query(Trade)
-        .filter(~Trade.settled, Trade.trading_mode == mode)
+        .filter(~Trade.settled, Trade.trading_mode == effective_mode)
         .all()
     )
     open_trades_count = len(mode_trades)
     open_exposure_amount = sum((t.size or 0.0) for t in mode_trades)
 
-    if mode in ("testnet", "live"):
+    if effective_mode in ("testnet", "live"):
         settled_trades_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == mode)
+            .filter(Trade.settled, Trade.trading_mode == effective_mode)
             .scalar()
             or 0
         )
         settled_wins_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == mode, Trade.pnl > 0)
+            .filter(Trade.settled, Trade.trading_mode == effective_mode, Trade.pnl > 0)
             .scalar()
             or 0
         )
     else:
         settled_trades_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == mode)
+            .filter(Trade.settled, Trade.trading_mode == effective_mode)
             .scalar()
             or 0
         )
         settled_wins_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == mode, Trade.pnl > 0)
+            .filter(Trade.settled, Trade.trading_mode == effective_mode, Trade.pnl > 0)
             .scalar()
             or 0
         )
@@ -304,9 +304,8 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         except Exception:
             unrealized_pnl = 0.0
 
-    # Fallback: if mode PnL is 0 but settled trades exist, recalculate from DB
     pnl_source = "botstate"
-    if mode == "paper" and paper_pnl == 0 and paper_trades > 0:
+    if effective_mode == "paper" and paper_pnl == 0 and paper_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
             .filter(Trade.settled.is_(True), Trade.trading_mode == "paper")
@@ -316,7 +315,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         if db_pnl != 0:
             paper_pnl = db_pnl
             pnl_source = "recalculated"
-    elif mode == "testnet" and testnet_pnl == 0 and testnet_trades > 0:
+    elif effective_mode == "testnet" and testnet_pnl == 0 and testnet_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
             .filter(Trade.settled.is_(True), Trade.trading_mode == "testnet")
@@ -326,7 +325,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         if db_pnl != 0:
             testnet_pnl = db_pnl
             pnl_source = "recalculated"
-    elif mode == "live" and live_pnl == 0 and live_trades > 0:
+    elif effective_mode == "live" and live_pnl == 0 and live_trades > 0:
         db_pnl = (
             db.query(func.sum(Trade.pnl))
             .filter(Trade.settled.is_(True), Trade.trading_mode == "live")
@@ -337,14 +336,13 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
             live_pnl = db_pnl
             pnl_source = "recalculated"
 
-    # Top-level fields reflect the ACTIVE trading mode
-    if mode == "paper":
+    if effective_mode == "paper":
         display_bankroll = paper_bankroll
         display_trades = paper_trades
         display_wins = paper_wins
         display_win_rate = paper_win_rate
         display_pnl = paper_pnl
-    elif mode == "testnet":
+    elif effective_mode == "testnet":
         display_bankroll = testnet_bankroll
         display_trades = testnet_trades
         display_wins = testnet_wins
@@ -376,7 +374,7 @@ async def get_stats(db: Session = Depends(get_db), _: None = Depends(require_adm
         testnet_trades=testnet_trades,
         testnet_wins=testnet_wins,
         testnet_win_rate=testnet_win_rate,
-        mode=mode,
+        mode=effective_mode,
         pnl_source=pnl_source,
         paper={
             "pnl": paper_pnl,
