@@ -299,13 +299,21 @@ class TestConcurrentExecution:
         from backend.core.strategy_executor import execute_decision
         import asyncio
 
-        # Register contexts
+        # Register contexts with properly mocked CLOB clients
         for mode in ["paper", "testnet", "live"]:
+            mock_clob = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.order_id = f"order-{mode}-concurrent-123"
+            mock_result.fill_price = 0.55
+            mock_result.filled_size = None
+            mock_clob.__aenter__.return_value.place_limit_order.return_value = mock_result
+            
             register_context(
                 mode,
                 ModeExecutionContext(
                     mode=mode,
-                    clob_client=AsyncMock(),
+                    clob_client=mock_clob,
                     risk_manager=RiskManager(),
                     strategy_configs={},
                 ),
@@ -383,13 +391,20 @@ class TestDatabaseIntegrity:
         from backend.core.risk_manager import RiskManager
         from backend.core.strategy_executor import execute_decision
 
-        # Register contexts
         for mode in ["paper", "testnet", "live"]:
+            mock_clob = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.order_id = f"order-{mode}-integrity-456"
+            mock_result.fill_price = 0.55
+            mock_result.filled_size = None
+            mock_clob.__aenter__.return_value.place_limit_order.return_value = mock_result
+            
             register_context(
                 mode,
                 ModeExecutionContext(
                     mode=mode,
-                    clob_client=AsyncMock(),
+                    clob_client=mock_clob,
                     risk_manager=RiskManager(),
                     strategy_configs={},
                 ),
