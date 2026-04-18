@@ -180,7 +180,7 @@ class WalletReconciler:
                 avg_price = pos["avgPrice"]
                 outcome = pos["outcome"]
                 
-                # Check if trade already exists by market_ticker and timestamp
+                # Check if trade already exists by market_ticker
                 existing = self.db.query(Trade).filter(
                     (Trade.market_ticker == market_slug) &
                     (Trade.trading_mode == self.mode) &
@@ -188,11 +188,19 @@ class WalletReconciler:
                 ).first()
                 
                 if existing:
-                    # Trade already in DB - skip
-                    self.logger.debug(f"Trade {market_slug} already in DB (id={existing.id})")
+                    # Trade already in DB - update size if different (position may have changed)
+                    if abs(existing.size - size) > 0.01:
+                        self.logger.info(
+                            f"Updating position size for {market_slug}: "
+                            f"{existing.size} -> {size}"
+                        )
+                        existing.size = size
+                        existing.last_sync_at = datetime.now(timezone.utc)
+                    else:
+                        self.logger.debug(f"Trade {market_slug} already in DB (id={existing.id})")
                     continue
                 
-                # New external trade - import it
+                # New position not in DB - import it as orphaned
                 new_trade = Trade(
                     market_ticker=market_slug,
                     platform="polymarket",
@@ -202,22 +210,22 @@ class WalletReconciler:
                     timestamp=datetime.now(timezone.utc),
                     trading_mode=self.mode,
                     
-                    # Reconciliation fields
-                    source="external",                    # Manual trade or bot-placed outside
+                    # Reconciliation fields - mark as orphaned since we found it on blockchain
+                    source="orphaned",                    # Position found on-chain, not in DB
                     blockchain_verified=True,            # Came from blockchain
                     settlement_source="data_api",        # From Polymarket Data API
                     external_import_at=datetime.now(timezone.utc),
                     
                     # Default values for required fields
-                    model_probability=0.5,  # Unknown for external trades
+                    model_probability=0.5,  # Unknown for orphaned positions
                     market_price_at_entry=avg_price,
-                    edge_at_entry=0.0,  # Unknown for external trades
+                    edge_at_entry=0.0,  # Unknown for orphaned positions
                 )
                 
                 self.db.add(new_trade)
                 imported += 1
                 self.logger.info(
-                    f"Imported external trade: {market_slug} "
+                    f"Imported orphaned position: {market_slug} "
                     f"({outcome} @ {avg_price}, {size} shares)"
                 )
             
