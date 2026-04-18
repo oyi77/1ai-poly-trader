@@ -195,115 +195,136 @@ async def get_stats(
     testnet_wins = (testnet_state.winning_trades or 0) if testnet_state else 0
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
-    mode_trades = (
-        db.query(Trade)
-        .filter(~Trade.settled, Trade.trading_mode == effective_mode)
-        .all()
-    )
-    open_trades_count = len(mode_trades)
-    open_exposure_amount = sum((t.size or 0.0) for t in mode_trades)
-
-    if effective_mode in ("testnet", "live"):
-        settled_trades_count = (
-            db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == effective_mode)
-            .scalar()
-            or 0
+    # Calculate per-mode unrealized PnL for all 3 modes
+    async def calculate_mode_unrealized_pnl(mode: str):
+        """Calculate unrealized PnL for a specific mode."""
+        mode_trades = (
+            db.query(Trade)
+            .filter(~Trade.settled, Trade.trading_mode == mode)
+            .all()
         )
-        settled_wins_count = (
-            db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == effective_mode, Trade.pnl > 0)
-            .scalar()
-            or 0
-        )
-    else:
-        settled_trades_count = (
-            db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == effective_mode)
-            .scalar()
-            or 0
-        )
-        settled_wins_count = (
-            db.query(func.count(Trade.id))
-            .filter(Trade.settled, Trade.trading_mode == effective_mode, Trade.pnl > 0)
-            .scalar()
-            or 0
-        )
+        
+        open_trades_count = len(mode_trades)
+        open_exposure_amount = sum((t.size or 0.0) for t in mode_trades)
+        
+        unrealized_pnl = 0.0
+        position_cost = 0.0
+        position_market_value = 0.0
+        
+        if mode_trades:
+            try:
+                import httpx
+                import time as _time
 
-    unrealized_pnl = 0.0
-    position_cost = 0.0
-    position_market_value = 0.0
-    if mode_trades:
-        try:
-            import httpx
-            import time as _time
+                tickers = list({t.market_ticker for t in mode_trades if t.market_ticker})
+                if tickers:
+                    ticker_to_price = {}
+                    now = _time.time()
 
-            tickers = list({t.market_ticker for t in mode_trades if t.market_ticker})
-            if tickers:
-                ticker_to_price = {}
-                now = _time.time()
+                    async def fetch_ticker_price(ticker):
+                        if ticker in _ticker_price_cache:
+                            cache_time = _ticker_price_cache_timestamps.get(ticker, 0)
+                            if now - cache_time < _CACHE_TTL_SECONDS:
+                                return ticker, _ticker_price_cache[ticker]
 
-                async def fetch_ticker_price(ticker):
-                    if ticker in _ticker_price_cache:
-                        cache_time = _ticker_price_cache_timestamps.get(ticker, 0)
-                        if now - cache_time < _CACHE_TTL_SECONDS:
-                            return ticker, _ticker_price_cache[ticker]
+                        try:
+                            async with httpx.AsyncClient(timeout=5.0) as client:
+                                r = await client.get(
+                                    f"https://gamma-api.polymarket.com/markets?slug={ticker}",
+                                    timeout=5.0,
+                                )
+                                data = r.json()
+                                if data and isinstance(data, list) and len(data) > 0:
+                                    m = data[0]
+                                    price_data = {
+                                        "yes_price": float(m.get("yes_price", 0.5)),
+                                        "no_price": float(m.get("no_price", 0.5)),
+                                    }
+                                    _ticker_price_cache[ticker] = price_data
+                                    _ticker_price_cache_timestamps[ticker] = now
+                                    return ticker, price_data
+                        except Exception as e:
+                            logger.warning(f"Failed to fetch price for {ticker}: {e}")
+                        return ticker, None
 
-                    try:
-                        async with httpx.AsyncClient(timeout=5.0) as client:
-                            r = await client.get(
-                                f"https://gamma-api.polymarket.com/markets?slug={ticker}",
-                                timeout=5.0,
-                            )
-                            data = r.json()
-                            if data and isinstance(data, list) and len(data) > 0:
-                                m = data[0]
-                                price_data = {
-                                    "yes_price": float(m.get("yes_price", 0.5)),
-                                    "no_price": float(m.get("no_price", 0.5)),
-                                }
-                                _ticker_price_cache[ticker] = price_data
-                                _ticker_price_cache_timestamps[ticker] = now
-                                return ticker, price_data
-                    except Exception as e:
-                        logger.warning(f"Failed to fetch price for {ticker}: {e}")
-                    return ticker, None
+                    tasks = [fetch_ticker_price(ticker) for ticker in tickers[:20]]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                tasks = [fetch_ticker_price(ticker) for ticker in tickers[:20]]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+                    for result in results:
+                        if not isinstance(result, Exception) and result:
+                            ticker, price = result
+                            if price:
+                                ticker_to_price[ticker] = price
 
-                for result in results:
-                    if not isinstance(result, Exception) and result:
-                        ticker, price = result
-                        if price:
-                            ticker_to_price[ticker] = price
-
-                for t in mode_trades:
-                    size = t.size or 0.0
-                    position_cost += size
-                    if not t.market_ticker or t.market_ticker not in ticker_to_price:
-                        continue
-                    prices = ticker_to_price[t.market_ticker]
-                    entry = t.entry_price or 0.5
-                    direction = t.direction
-                    if direction == "up":
-                        current_price = prices["yes_price"]
-                    else:
-                        current_price = prices["no_price"]
-                    if entry > 0 and entry < 1:
-                        shares = size / entry
+                    for t in mode_trades:
+                        size = t.size or 0.0
+                        position_cost += size
+                        if not t.market_ticker or t.market_ticker not in ticker_to_price:
+                            continue
+                        prices = ticker_to_price[t.market_ticker]
+                        entry = t.entry_price or 0.5
+                        direction = t.direction
                         if direction == "up":
-                            mkt_val = shares * current_price
+                            current_price = prices["yes_price"]
                         else:
-                            mkt_val = shares * (1 - current_price)
-                    else:
-                        mkt_val = size
-                    position_market_value += mkt_val
-                unrealized_pnl = round(position_market_value - position_cost, 2)
-                position_cost = round(position_cost, 2)
-                position_market_value = round(position_market_value, 2)
-        except Exception:
-            unrealized_pnl = 0.0
+                            current_price = prices["no_price"]
+                        if entry > 0 and entry < 1:
+                            shares = size / entry
+                            if direction == "up":
+                                mkt_val = shares * current_price
+                            else:
+                                mkt_val = shares * (1 - current_price)
+                        else:
+                            mkt_val = size
+                        position_market_value += mkt_val
+                    unrealized_pnl = round(position_market_value - position_cost, 2)
+                    position_cost = round(position_cost, 2)
+                    position_market_value = round(position_market_value, 2)
+            except Exception:
+                unrealized_pnl = 0.0
+        
+        return {
+            "open_trades": open_trades_count,
+            "open_exposure": open_exposure_amount,
+            "unrealized_pnl": unrealized_pnl,
+            "position_cost": position_cost,
+            "position_market_value": position_market_value,
+        }
+    
+    # Calculate unrealized PnL for all 3 modes in parallel
+    paper_unrealized, testnet_unrealized, live_unrealized = await asyncio.gather(
+        calculate_mode_unrealized_pnl("paper"),
+        calculate_mode_unrealized_pnl("testnet"),
+        calculate_mode_unrealized_pnl("live"),
+    )
+    
+    # Use effective_mode's values for top-level fields (backward compatibility)
+    if effective_mode == "paper":
+        mode_unrealized = paper_unrealized
+    elif effective_mode == "testnet":
+        mode_unrealized = testnet_unrealized
+    else:
+        mode_unrealized = live_unrealized
+    
+    open_trades_count = mode_unrealized["open_trades"]
+    open_exposure_amount = mode_unrealized["open_exposure"]
+    unrealized_pnl = mode_unrealized["unrealized_pnl"]
+    position_cost = mode_unrealized["position_cost"]
+    position_market_value = mode_unrealized["position_market_value"]
+    
+    # Query settled trades for effective_mode
+    settled_trades_count = (
+        db.query(func.count(Trade.id))
+        .filter(Trade.settled, Trade.trading_mode == effective_mode)
+        .scalar()
+        or 0
+    )
+    settled_wins_count = (
+        db.query(func.count(Trade.id))
+        .filter(Trade.settled, Trade.trading_mode == effective_mode, Trade.pnl > 0)
+        .scalar()
+        or 0
+    )
 
     pnl_source = "botstate"
     if effective_mode == "paper" and paper_pnl == 0 and paper_trades > 0:
@@ -383,6 +404,11 @@ async def get_stats(
             "trades": paper_trades,
             "wins": paper_wins,
             "win_rate": paper_win_rate,
+            "open_trades": paper_unrealized["open_trades"],
+            "open_exposure": paper_unrealized["open_exposure"],
+            "unrealized_pnl": paper_unrealized["unrealized_pnl"],
+            "position_cost": paper_unrealized["position_cost"],
+            "position_market_value": paper_unrealized["position_market_value"],
         },
         testnet={
             "pnl": testnet_pnl,
@@ -390,6 +416,11 @@ async def get_stats(
             "trades": testnet_trades,
             "wins": testnet_wins,
             "win_rate": testnet_win_rate,
+            "open_trades": testnet_unrealized["open_trades"],
+            "open_exposure": testnet_unrealized["open_exposure"],
+            "unrealized_pnl": testnet_unrealized["unrealized_pnl"],
+            "position_cost": testnet_unrealized["position_cost"],
+            "position_market_value": testnet_unrealized["position_market_value"],
         },
         live={
             "pnl": live_pnl,
@@ -397,6 +428,11 @@ async def get_stats(
             "trades": live_trades,
             "wins": live_wins,
             "win_rate": live_win_rate,
+            "open_trades": live_unrealized["open_trades"],
+            "open_exposure": live_unrealized["open_exposure"],
+            "unrealized_pnl": live_unrealized["unrealized_pnl"],
+            "position_cost": live_unrealized["position_cost"],
+            "position_market_value": live_unrealized["position_market_value"],
         },
         active_mode=settings.TRADING_MODE,
         open_exposure=open_exposure_amount,
