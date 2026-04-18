@@ -815,18 +815,17 @@ class PolymarketCLOB:
                 )
                 break
 
-            # Parse trades
             for trade_data in trades_page:
                 try:
                     record = TradeRecord(
-                        id=trade_data["id"],
-                        user=trade_data["user"],
-                        asset_id=trade_data["asset_id"],
-                        outcome=trade_data["outcome"],
-                        shares=float(trade_data["shares"]),
-                        price=float(trade_data["price"]),
-                        spent=float(trade_data["spent"]),
-                        timestamp=int(trade_data["timestamp"]),
+                        id=trade_data.get("id") or trade_data.get("conditionId", ""),
+                        user=trade_data.get("user") or trade_data.get("proxyWallet", ""),
+                        asset_id=trade_data.get("asset_id") or trade_data.get("asset", ""),
+                        outcome=trade_data.get("outcome") or trade_data.get("side", ""),
+                        shares=float(trade_data.get("shares", 0) or trade_data.get("size", 0)),
+                        price=float(trade_data.get("price", 0)),
+                        spent=float(trade_data.get("spent", 0) or 0),
+                        timestamp=int(trade_data.get("timestamp", 0)),
                         transaction_hash=trade_data.get("transaction_hash"),
                         block_number=trade_data.get("block_number"),
                     )

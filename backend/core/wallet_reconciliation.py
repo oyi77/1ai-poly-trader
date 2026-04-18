@@ -16,9 +16,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
 from sqlalchemy.orm import Session
 
-from backend.data.polymarket_clob import PolymarketCLOB, TradeRecord
+from backend.data.polymarket_clob import PolymarketCLOB
 from backend.models.database import Trade
 
 logger = logging.getLogger("wallet_reconciler")
@@ -141,14 +142,14 @@ class WalletReconciler:
 
     async def import_blockchain_history(self, max_pages: Optional[int] = None) -> int:
         """
-        Download ALL historical trades from blockchain.
+        Download ALL historical trades from blockchain via Data API.
 
-        Fetches from Data API using get_wallet_trades().
+        Fetches from https://data-api.polymarket.com/positions?user={wallet_address}.
         Imports trades with source='external' if they don't exist locally.
-        Deduplicates by clob_order_id or market+timestamp.
+        Deduplicates by market_ticker and timestamp.
 
         Args:
-            max_pages: Max pages to fetch. If None, fetches all pages.
+            max_pages: Unused (Data API returns all positions in one call)
 
         Returns:
             Count of newly imported trades
@@ -156,59 +157,68 @@ class WalletReconciler:
         self.logger.info(f"Importing blockchain history for {self.wallet_address}")
         
         try:
-            # Fetch blockchain history using Task 2's method
-            trades = await self.clob.get_wallet_trades(
-                wallet_address=self.wallet_address,
-                limit=1000,
-                max_pages=max_pages
-            )
+            # Fetch positions from Data API
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    "https://data-api.polymarket.com/positions",
+                    params={"user": self.wallet_address}
+                )
+                response.raise_for_status()
+                positions = response.json()
             
-            self.logger.info(f"Downloaded {len(trades)} trades from blockchain")
+            self.logger.info(f"Downloaded {len(positions)} positions from Data API")
             
             imported = 0
-            for trade_record in trades:
-                # Check if trade already exists by clob_order_id or market+timestamp
+            for pos in positions:
+                # Skip redeemable positions (already settled)
+                if pos.get("redeemable", False):
+                    continue
+                
+                # Use asset (token_id) as market_ticker (enables CLOB API midpoint lookup)
+                market_slug = pos["asset"]
+                size = pos["initialValue"]
+                avg_price = pos["avgPrice"]
+                outcome = pos["outcome"]
+                
+                # Check if trade already exists by market_ticker and timestamp
                 existing = self.db.query(Trade).filter(
-                    (Trade.clob_order_id == trade_record.id) |
-                    (
-                        (Trade.market_ticker == trade_record.asset_id) &
-                        (Trade.timestamp == trade_record.created_at)
-                    )
+                    (Trade.market_ticker == market_slug) &
+                    (Trade.trading_mode == self.mode) &
+                    (~Trade.settled)
                 ).first()
                 
                 if existing:
                     # Trade already in DB - skip
-                    self.logger.debug(f"Trade {trade_record.id} already in DB (id={existing.id})")
+                    self.logger.debug(f"Trade {market_slug} already in DB (id={existing.id})")
                     continue
                 
                 # New external trade - import it
                 new_trade = Trade(
-                    market_ticker=trade_record.asset_id,
+                    market_ticker=market_slug,
                     platform="polymarket",
-                    direction="up" if trade_record.outcome == "YES" else "down",
-                    entry_price=trade_record.price,
-                    size=trade_record.shares,
-                    timestamp=trade_record.created_at,
+                    direction="up" if outcome == "Yes" else "down",
+                    entry_price=avg_price,
+                    size=size,
+                    timestamp=datetime.now(timezone.utc),
                     trading_mode=self.mode,
                     
-                    # Reconciliation fields (Task 1)
+                    # Reconciliation fields
                     source="external",                    # Manual trade or bot-placed outside
-                    clob_order_id=trade_record.id,
                     blockchain_verified=True,            # Came from blockchain
                     settlement_source="data_api",        # From Polymarket Data API
                     external_import_at=datetime.now(timezone.utc),
                     
                     # Default values for required fields
                     model_probability=0.5,  # Unknown for external trades
-                    market_price_at_entry=trade_record.price,
+                    market_price_at_entry=avg_price,
                     edge_at_entry=0.0,  # Unknown for external trades
                 )
                 
                 self.db.add(new_trade)
                 imported += 1
                 self.logger.info(
-                    f"Imported external trade: {trade_record.id} "
-                    f"({trade_record.outcome} @ {trade_record.price}, {trade_record.shares} shares)"
+                    f"Imported external trade: {market_slug} "
+                    f"({outcome} @ {avg_price}, {size} shares)"
                 )
             
             self.db.commit()
@@ -236,12 +246,12 @@ class WalletReconciler:
         result = SyncResult()
         
         try:
-            # Fetch open positions from CLOB API
+            # Fetch open positions from Data API
             blockchain_positions = await self._fetch_open_positions()
             
-            # Build map of blockchain positions by market_id
+            # Build map of blockchain positions by asset (token_id)
             blockchain_map = {
-                pos["asset_id"]: pos
+                pos["asset"]: pos
                 for pos in blockchain_positions
             }
             
@@ -251,7 +261,7 @@ class WalletReconciler:
             db_open_trades = self.db.query(Trade).filter(
                 (Trade.trading_mode == self.mode) &
                 (Trade.settlement_time.is_(None)) &  # Still open
-                (Trade.settled == False)
+                (~Trade.settled)
             ).all()
             
             self.logger.debug(f"DB has {len(db_open_trades)} open trades")
@@ -260,20 +270,19 @@ class WalletReconciler:
             for db_trade in db_open_trades:
                 if db_trade.market_ticker not in blockchain_map:
                     # Blockchain says position is closed but DB says open
-                    # Mark as closed with settlement_source='clob_api'
+                    # Mark as closed with settlement_source='data_api'
                     self.logger.warning(
                         f"Position {db_trade.market_ticker} (id={db_trade.id}) "
                         f"closed on-chain but open in DB. Marking as closed."
                     )
                     db_trade.settlement_time = datetime.now(timezone.utc)
-                    db_trade.settlement_source = "clob_api"
+                    db_trade.settlement_source = "data_api"
                     db_trade.blockchain_verified = True
                     db_trade.settled = True
                     db_trade.result = "closed"
                     result.closed_count += 1
                 else:
                     # Position still open - update fields
-                    blockchain_pos = blockchain_map[db_trade.market_ticker]
                     db_trade.last_sync_at = datetime.now(timezone.utc)
                     db_trade.blockchain_verified = True
                     result.updated_count += 1
@@ -313,9 +322,9 @@ class WalletReconciler:
             for pos in blockchain_positions:
                 # Check if trade exists in DB
                 existing = self.db.query(Trade).filter(
-                    (Trade.market_ticker == pos["asset_id"]) &
+                    (Trade.market_ticker == pos["asset"]) &
                     (Trade.trading_mode == self.mode) &
-                    (Trade.settled == False)
+                    (~Trade.settled)
                 ).first()
                 
                 if existing:
@@ -323,10 +332,9 @@ class WalletReconciler:
                 
                 # Orphaned!
                 orphan = OrphanedPosition(
-                    market_id=pos["asset_id"],
-                    blockchain_size=pos["size"],
-                    blockchain_entry_price=pos["avg_price"],
-                    clob_order_id=pos.get("order_id"),
+                    market_id=pos["asset"],
+                    blockchain_size=pos["initialValue"],
+                    blockchain_entry_price=pos["avgPrice"],
                     detected_at=datetime.now(timezone.utc)
                 )
                 orphans.append(orphan)
@@ -403,7 +411,7 @@ class WalletReconciler:
 
     async def _fetch_open_positions(self) -> list[dict]:
         """
-        Fetch trader's current open positions from CLOB API.
+        Fetch trader's current open positions from Data API.
 
         Called by sync_current_positions() and detect_orphaned_positions().
 
@@ -411,12 +419,11 @@ class WalletReconciler:
             List of position dicts with structure:
             [
                 {
-                    "asset_id": "0x123abc...",
-                    "order_id": "0xorder123",
+                    "slug": "btc-up-5m",
                     "size": 100.5,
-                    "avg_price": 0.42,
+                    "avgPrice": 0.42,
                     "outcome": "YES",
-                    "timestamp": "2025-04-17T10:30:00Z"
+                    "initialValue": 42.21,
                 },
                 ...
             ]
@@ -424,16 +431,18 @@ class WalletReconciler:
         self.logger.info(f"Fetching open positions for {self.wallet_address}")
         
         try:
-            # Call CLOB API's get_trader_positions() endpoint
-            # Signature: get_trader_positions(trader_address: str) -> List[Dict]
-            positions = await self.clob.get_trader_positions(
-                wallet=self.wallet_address
-            )
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    "https://data-api.polymarket.com/positions",
+                    params={"user": self.wallet_address}
+                )
+                response.raise_for_status()
+                positions = response.json()
             
-            # Filter to only open positions (size > 0)
+            # Filter to only open positions (not redeemable)
             open_positions = [
                 pos for pos in positions 
-                if pos.get("size", 0) > 0 and pos.get("exit_timestamp") is None
+                if not pos.get("redeemable", False)
             ]
             
             self.logger.debug(f"Found {len(open_positions)} open positions")

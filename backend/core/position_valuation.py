@@ -127,10 +127,7 @@ async def calculate_position_market_value(
 
         if entry > 0 and entry < 1:
             shares = size / entry
-            if direction == "up":
-                mkt_val = shares * current_price
-            else:
-                mkt_val = shares * (1 - current_price)
+            mkt_val = shares * current_price
         else:
             # Edge case: invalid entry_price
             mkt_val = size
@@ -211,28 +208,49 @@ async def _fetch_prices_with_fallback(
 
         # Fetch from API
         try:
-            r = await client.get(
-                f"https://gamma-api.polymarket.com/markets?slug={ticker}",
-                timeout=5.0,
-            )
-            r.raise_for_status()
-            data = r.json()
-
-            if data and isinstance(data, list) and len(data) > 0:
-                m = data[0]
+            if ticker.isdigit():
+                # Token ID - use CLOB API midpoint
+                r = await client.get(
+                    f"https://clob.polymarket.com/midpoint?token_id={ticker}",
+                    timeout=5.0,
+                )
+                r.raise_for_status()
+                data = r.json()
+                mid = float(data.get("mid", 0.5))
                 price_data = {
-                    "yes_price": float(m.get("yes_price", 0.5)),
-                    "no_price": float(m.get("no_price", 0.5)),
+                    "yes_price": mid,
+                    "no_price": mid,
                 }
+                
                 # Update cache
                 _ticker_price_cache[ticker] = price_data
                 _ticker_price_cache_timestamps[ticker] = now
                 telemetry["prices_fetched"] += 1
                 return ticker, price_data, None
             else:
-                error_msg = f"Empty or invalid response for {ticker}"
-                logger.error(error_msg)
-                return ticker, None, "invalid_response"
+                # Slug - use Gamma API
+                r = await client.get(
+                    f"https://gamma-api.polymarket.com/markets?slug={ticker}",
+                    timeout=5.0,
+                )
+                r.raise_for_status()
+                data = r.json()
+
+                if data and isinstance(data, list) and len(data) > 0:
+                    m = data[0]
+                    price_data = {
+                        "yes_price": float(m.get("yes_price") or 0.5),
+                        "no_price": float(m.get("no_price") or 0.5),
+                    }
+                    # Update cache
+                    _ticker_price_cache[ticker] = price_data
+                    _ticker_price_cache_timestamps[ticker] = now
+                    telemetry["prices_fetched"] += 1
+                    return ticker, price_data, None
+                else:
+                    error_msg = f"Empty or invalid response for {ticker}"
+                    logger.error(error_msg)
+                    return ticker, None, "invalid_response"
 
         except httpx.TimeoutException as e:
             error_msg = f"Timeout fetching price for {ticker}: {e}"

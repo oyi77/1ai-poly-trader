@@ -113,22 +113,55 @@ async def get_stats(
     if not state:
         raise HTTPException(status_code=404, detail="Bot state not initialized")
 
-    paper_pnl = (paper_state.total_pnl or 0.0) if paper_state else 0.0
+    paper_trades = (
+        db.query(func.count(Trade.id))
+        .filter(
+            Trade.trading_mode == "paper",
+            Trade.settled,
+            Trade.source == "bot"
+        )
+        .scalar()
+        or 0
+    )
+    paper_wins = (
+        db.query(func.count(Trade.id))
+        .filter(
+            Trade.trading_mode == "paper",
+            Trade.settled,
+            Trade.pnl > 0,
+            Trade.source == "bot"
+        )
+        .scalar()
+        or 0
+    )
+    paper_pnl = (
+        db.query(func.sum(Trade.pnl))
+        .filter(
+            Trade.trading_mode == "paper",
+            Trade.settled,
+            Trade.source == "bot"
+        )
+        .scalar()
+        or 0.0
+    )
     paper_bankroll = (
         paper_state.bankroll
         if paper_state and paper_state.bankroll is not None
         else settings.INITIAL_BANKROLL
     )
-    paper_trades = (paper_state.total_trades or 0) if paper_state else 0
-    paper_wins = (paper_state.winning_trades or 0) if paper_state else 0
     paper_win_rate = paper_wins / paper_trades if paper_trades > 0 else 0.0
 
     sync_metadata = None
     
     if effective_mode in ("testnet", "live"):
+        # Only count bot-executed trades (exclude external imports and orphaned positions)
         live_trades = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == effective_mode, Trade.settled)
+            .filter(
+                Trade.trading_mode == effective_mode,
+                Trade.settled,
+                Trade.source == "bot"
+            )
             .scalar()
             or 0
         )
@@ -138,13 +171,18 @@ async def get_stats(
                 Trade.trading_mode == effective_mode,
                 Trade.settled,
                 Trade.pnl > 0,
+                Trade.source == "bot"
             )
             .scalar()
             or 0
         )
         live_pnl = (
             db.query(func.sum(Trade.pnl))
-            .filter(Trade.trading_mode == effective_mode, Trade.settled)
+            .filter(
+                Trade.trading_mode == effective_mode,
+                Trade.settled,
+                Trade.source == "bot"
+            )
             .scalar()
             or 0.0
         )
@@ -187,12 +225,40 @@ async def get_stats(
         live_wins = (live_state.winning_trades or 0) if live_state else 0
         live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
-    testnet_pnl = (testnet_state.total_pnl or 0.0) if testnet_state else 0.0
+    testnet_trades = (
+        db.query(func.count(Trade.id))
+        .filter(
+            Trade.trading_mode == "testnet",
+            Trade.settled,
+            Trade.source == "bot"
+        )
+        .scalar()
+        or 0
+    )
+    testnet_wins = (
+        db.query(func.count(Trade.id))
+        .filter(
+            Trade.trading_mode == "testnet",
+            Trade.settled,
+            Trade.pnl > 0,
+            Trade.source == "bot"
+        )
+        .scalar()
+        or 0
+    )
+    testnet_pnl = (
+        db.query(func.sum(Trade.pnl))
+        .filter(
+            Trade.trading_mode == "testnet",
+            Trade.settled,
+            Trade.source == "bot"
+        )
+        .scalar()
+        or 0.0
+    )
     testnet_bankroll = (
         testnet_state.bankroll if testnet_state and testnet_state.bankroll is not None else 100.0
     )
-    testnet_trades = (testnet_state.total_trades or 0) if testnet_state else 0
-    testnet_wins = (testnet_state.winning_trades or 0) if testnet_state else 0
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
     from backend.core.position_valuation import calculate_position_market_value
@@ -238,16 +304,25 @@ async def get_stats(
     position_cost = mode_unrealized["position_cost"]
     position_market_value = mode_unrealized["position_market_value"]
     
-    # Query settled trades for effective_mode
+    # Query settled trades for effective_mode (bot-executed only)
     settled_trades_count = (
         db.query(func.count(Trade.id))
-        .filter(Trade.settled, Trade.trading_mode == effective_mode)
+        .filter(
+            Trade.settled,
+            Trade.trading_mode == effective_mode,
+            Trade.source == "bot"
+        )
         .scalar()
         or 0
     )
     settled_wins_count = (
         db.query(func.count(Trade.id))
-        .filter(Trade.settled, Trade.trading_mode == effective_mode, Trade.pnl > 0)
+        .filter(
+            Trade.settled,
+            Trade.trading_mode == effective_mode,
+            Trade.pnl > 0,
+            Trade.source == "bot"
+        )
         .scalar()
         or 0
     )
@@ -396,7 +471,7 @@ async def get_strategy_stats(
             func.avg(Trade.edge_at_entry).label("avg_edge"),
             func.avg(Trade.size).label("avg_size"),
         )
-        .filter(Trade.strategy.isnot(None))
+        .filter(Trade.strategy.isnot(None), Trade.source == "bot")
         .group_by(Trade.strategy)
         .all()
     )
