@@ -35,6 +35,7 @@ class TradingSignal:
     sources: List[str] = field(default_factory=list)
     reasoning: str = ""
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    execution_mode: str = "paper"  # "paper", "testnet", or "live"
 
     # BTC price context
     btc_price: float = 0.0
@@ -112,7 +113,7 @@ def calculate_kelly_size(
     return size
 
 
-async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
+async def generate_btc_signal(market: BtcMarket, mode: str = "paper") -> Optional[TradingSignal]:
     """Generate a trading signal for a BTC 5-min Up/Down market."""
     try:
         micro = await compute_btc_microstructure()
@@ -230,37 +231,21 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
         0.95, (base_confidence + edge_component + composite_component) * vol_adjustment
     )
 
-    # Use current bankroll from BotState, not static INITIAL_BANKROLL
     bankroll = settings.INITIAL_BANKROLL
     try:
         from backend.models.database import BotState, SessionLocal
 
         _db = SessionLocal()
         try:
-            _state = _db.query(BotState).first()
+            _state = _db.query(BotState).filter_by(mode=mode).first()
             if _state:
-                if settings.TRADING_MODE == "paper":
-                    bankroll = float(
-                        _state.paper_bankroll
-                        if _state.paper_bankroll is not None
-                        else settings.INITIAL_BANKROLL
-                    )
-                elif settings.TRADING_MODE == "testnet":
-                    bankroll = float(
-                        _state.testnet_bankroll
-                        if _state.testnet_bankroll is not None
-                        else settings.INITIAL_BANKROLL
-                    )
-                else:
-                    bankroll = float(
-                        _state.bankroll
-                        if _state.bankroll is not None
-                        else settings.INITIAL_BANKROLL
-                    )
+                bankroll = float(
+                    _state.bankroll if _state.bankroll is not None else settings.INITIAL_BANKROLL
+                )
         finally:
             _db.close()
     except Exception as _e:
-        logger.debug(f"Bankroll read failed, using INITIAL_BANKROLL: {_e}")
+        logger.debug(f"Bankroll read failed for mode {mode}, using INITIAL_BANKROLL: {_e}")
     suggested_size = calculate_kelly_size(
         edge=abs(edge),
         probability=model_up_prob,
@@ -307,13 +292,14 @@ async def generate_btc_signal(market: BtcMarket) -> Optional[TradingSignal]:
         suggested_size=suggested_size,
         sources=[f"binance_microstructure_{micro.source}"],
         reasoning=reasoning,
+        execution_mode=mode,
         btc_price=micro.price,
-        btc_change_1h=micro.momentum_5m * 12,  # rough annualisation for display
-        btc_change_24h=micro.momentum_15m * 96,  # rough extrapolation for display
+        btc_change_1h=micro.momentum_5m * 12,
+        btc_change_24h=micro.momentum_15m * 96,
     )
 
 
-async def scan_for_signals(mode: str = None) -> List[TradingSignal]:
+async def scan_for_signals(mode: str = "paper") -> List[TradingSignal]:
     signals = []
 
     logger.info("=" * 50)
@@ -329,7 +315,7 @@ async def scan_for_signals(mode: str = None) -> List[TradingSignal]:
 
     for market in markets:
         try:
-            signal = await generate_btc_signal(market)
+            signal = await generate_btc_signal(market, mode=mode)
             if signal:
                 signals.append(signal)
         except Exception as e:
@@ -358,12 +344,12 @@ async def scan_for_signals(mode: str = None) -> List[TradingSignal]:
     return signals
 
 
-def _persist_signals(signals: list, mode: str = None):
+def _persist_signals(signals: list, mode: str = "paper"):
     to_save = [s for s in signals if abs(s.edge) > 0]
     if not to_save:
         return
 
-    execution_mode = mode or settings.TRADING_MODE
+    execution_mode = mode
 
     db = SessionLocal()
     try:
@@ -451,9 +437,9 @@ def _persist_signals(signals: list, mode: str = None):
         db.close()
 
 
-async def get_actionable_signals() -> List[TradingSignal]:
+async def get_actionable_signals(mode: str = "paper") -> List[TradingSignal]:
     """Get only signals that pass the edge threshold."""
-    all_signals = await scan_for_signals()
+    all_signals = await scan_for_signals(mode=mode)
     return [s for s in all_signals if s.passes_threshold]
 
 
