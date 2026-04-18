@@ -318,12 +318,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
                     db = SessionLocal()
                     try:
-                        stats = await get_stats(db, None)
+                        # Get stats for all 3 modes
+                        stats = await get_stats(db, None, mode=None)
                         await stats_ws.broadcast(
                             {
                                 "type": "stats_update",
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                                "data": stats.model_dump(),
+                                "data": {
+                                    "paper": stats.paper,
+                                    "testnet": stats.testnet,
+                                    "live": stats.live,
+                                },
                             }
                         )
                     finally:

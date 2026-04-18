@@ -24,7 +24,18 @@ export function useStats() {
         try {
           const msg = JSON.parse(event.data)
           if (msg.type === 'stats_update' && msg.data) {
-            setWsStats(msg.data)
+            const isAllModesFormat = msg.data.paper && msg.data.testnet && msg.data.live
+            
+            if (isAllModesFormat) {
+              setWsStats({
+                ...wsStats,
+                paper: msg.data.paper,
+                testnet: msg.data.testnet,
+                live: msg.data.live,
+              } as BotStats)
+            } else {
+              setWsStats(msg.data)
+            }
           }
         } catch (e) {
           console.error('Failed to parse stats WebSocket message:', e)
