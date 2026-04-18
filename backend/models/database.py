@@ -513,6 +513,48 @@ class ResearchItemDB(Base):
     used_in_decision = Column(Boolean, default=False)
 
 
+class Alert(Base):
+    __tablename__ = "alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    alert_type = Column(String, nullable=False, index=True)
+    severity = Column(String, nullable=False)
+    entity_type = Column(String, nullable=False)
+    entity_id = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    resolved = Column(Boolean, default=False, index=True)
+    resolved_at = Column(DateTime, nullable=True)
+    
+    __table_args__ = (
+        Index("idx_alerts_type_severity", "alert_type", "severity"),
+        Index("idx_alerts_resolved", "resolved"),
+    )
+    
+    def __repr__(self):
+        return (
+            f"<Alert(id={self.id}, type={self.alert_type}, severity={self.severity}, "
+            f"entity={self.entity_type}:{self.entity_id}, resolved={self.resolved})>"
+        )
+
+
+class AlertConfig(Base):
+    __tablename__ = "alert_config"
+    
+    id = Column(Integer, primary_key=True)
+    alert_type = Column(String, unique=True, nullable=False)
+    enabled = Column(Boolean, default=True)
+    threshold_value = Column(Float, nullable=True)
+    threshold_unit = Column(String, nullable=True)
+    severity = Column(String, default="WARNING")
+    
+    def __repr__(self):
+        return (
+            f"<AlertConfig(type={self.alert_type}, enabled={self.enabled}, "
+            f"threshold={self.threshold_value} {self.threshold_unit})>"
+        )
+
+
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)

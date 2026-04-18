@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from backend.models.alert import Alert, AlertConfig
+from backend.models.database import Alert, AlertConfig
 
 logger = logging.getLogger("alert_manager")
 

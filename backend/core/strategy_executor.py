@@ -11,6 +11,7 @@ from backend.models.database import SessionLocal, Trade, Signal, BotState
 from backend.core.risk_manager import RiskManager
 from backend.core.event_bus import _broadcast_event
 from backend.core.mode_context import get_context
+from backend.core.alert_manager import AlertManager
 from sqlalchemy import or_
 from sqlalchemy.exc import OperationalError
 
@@ -125,8 +126,7 @@ async def execute_decision(
             clob_order_id = None
             fill_price = entry_price
             filled_size = None
-            fee = None
-            slippage = None
+            alert_manager = AlertManager(db)
 
             if mode in ("testnet", "live"):
                 if token_id:
@@ -143,14 +143,19 @@ async def execute_decision(
                             clob_order_id = result.order_id
                             if result.fill_price:
                                 fill_price = result.fill_price
-                                slippage = fill_price - entry_price
+                                
+                                alert_manager.check_high_slippage(
+                                    trade_id=0,
+                                    expected_price=entry_price,
+                                    actual_price=fill_price,
+                                    position_value=adjusted_size,
+                                    mode=mode,
+                                )
                             if (
                                 hasattr(result, "filled_size")
                                 and result.filled_size is not None
                             ):
                                 filled_size = result.filled_size
-                            if hasattr(result, "fee") and result.fee is not None:
-                                fee = result.fee
                             logger.info(
                                 f"[{mode.upper()}][{strategy_name}] Order placed: {clob_order_id}"
                             )
@@ -178,6 +183,9 @@ async def execute_decision(
                     )
                 except (ValueError, TypeError):
                     pass
+
+            slippage = abs(fill_price - entry_price) / entry_price if entry_price > 0 else 0.0
+            fee = None
 
             trade = Trade(
                 market_ticker=market_ticker,

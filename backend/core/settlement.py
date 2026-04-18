@@ -238,6 +238,11 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 db.commit()
             except Exception as e:
                 logger.error(f"Failed to commit trade settlements: {e}")
+                alert_manager.check_failed_settlement(
+                    trade_id=0,
+                    reason=f"Failed to commit settlements: {e}",
+                    mode=settings.TRADING_MODE,
+                )
                 db.rollback()
 
         return settled_trades
