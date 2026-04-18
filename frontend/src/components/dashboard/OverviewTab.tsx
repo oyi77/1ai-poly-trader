@@ -82,7 +82,7 @@ function SignalsPanel({ activeSignals, weatherSignals, onSimulateTrade, isSimula
   })
 
   const history: SignalHistoryRow[] = (isLoading || isError) ? [] : (historyData?.items ?? [])
-  const filteredHistory = selectedMode === 'all' ? history : history.filter(h => h.trading_mode === selectedMode)
+  const filteredHistory = selectedMode === 'all' ? history : history.filter(h => h.execution_mode === selectedMode)
 
   return (
     <div className="flex flex-col min-h-0" style={{ height: '50%' }}>
@@ -217,7 +217,7 @@ export function OverviewTab({
   // Filter signals and trades by selected mode
   const filteredActiveSignals = selectedMode === 'all' 
     ? activeSignals 
-    : activeSignals.filter((s: any) => s.trading_mode === selectedMode)
+    : activeSignals.filter((s: any) => s.execution_mode === selectedMode)
   
   const filteredRecentTrades = selectedMode === 'all'
     ? recentTrades
@@ -225,7 +225,7 @@ export function OverviewTab({
   
   const filteredWeatherSignals = selectedMode === 'all'
     ? weatherSignals
-    : weatherSignals.filter((s: any) => s.trading_mode === selectedMode)
+    : weatherSignals.filter((s: any) => s.execution_mode === selectedMode)
   
   const actionableCount = filteredActiveSignals.filter((s: any) => s.actionable).length + filteredWeatherSignals.filter((s: any) => s.actionable).length
 
