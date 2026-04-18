@@ -882,8 +882,8 @@ async def metrics():
 async def get_dashboard(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
-    """Get all dashboard data in one call."""
-    stats = await get_stats(db, _)
+    """Get all dashboard data in one call - returns stats for all 3 modes."""
+    stats = await get_stats(db, _, mode=None)
 
     # Fetch BTC price from microstructure first, fallback to CoinGecko
     btc_price_data = None

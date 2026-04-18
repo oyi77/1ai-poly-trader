@@ -67,6 +67,7 @@ class BotStats(BaseModel):
     paper: dict = {}
     testnet: dict = {}
     live: dict = {}
+    active_mode: str = "paper"
     open_exposure: float = 0.0
     open_trades: int = 0
     settled_trades: int = 0
@@ -397,6 +398,7 @@ async def get_stats(
             "wins": live_wins,
             "win_rate": live_win_rate,
         },
+        active_mode=settings.TRADING_MODE,
         open_exposure=open_exposure_amount,
         open_trades=open_trades_count,
         settled_trades=settled_trades_count,
