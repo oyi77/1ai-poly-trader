@@ -121,6 +121,10 @@ class Trade(Base):
     # Market end date for settlement tracking (when the market expires)
     market_end_date = Column(DateTime, nullable=True, index=True)
 
+    # Fee and slippage tracking
+    fee = Column(Float, nullable=True)
+    slippage = Column(Float, nullable=True)
+
     # Reconciliation fields for blockchain sync
     source = Column(String, nullable=False, default="bot", index=True)
     blockchain_verified = Column(Boolean, nullable=False, default=False)
@@ -436,11 +440,21 @@ class PendingApproval(Base):
 
 
 class AuditLog(Base):
+    """Comprehensive audit log for all money-related operations."""
     __tablename__ = "audit_log"
+    
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    actor = Column(String, default="system")  # "system", "admin", "strategy:btc_5min"
-    action = Column(String)  # "trade_executed", "config_changed", "bot_started", etc.
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    event_type = Column(String, nullable=False, index=True)  # TRADE_CREATED, SETTLEMENT_COMPLETED, POSITION_UPDATED, WALLET_RECONCILED
+    entity_type = Column(String, nullable=False)  # TRADE, POSITION, WALLET, CONFIG
+    entity_id = Column(String, nullable=False, index=True)  # trade_id, position_id, wallet_address
+    old_value = Column(JSON, nullable=True)  # Previous state snapshot
+    new_value = Column(JSON, nullable=True)  # New state snapshot
+    user_id = Column(String, default="system")  # "system", "admin", "strategy:btc_5min"
+    
+    # Legacy fields for backward compatibility
+    actor = Column(String, default="system")
+    action = Column(String, nullable=True)
     details = Column(JSON, nullable=True)
 
 

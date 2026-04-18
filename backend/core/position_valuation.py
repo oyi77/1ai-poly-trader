@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 import httpx
 
 from backend.models.database import Trade
+from backend.core.alert_manager import AlertManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ async def calculate_position_market_value(
             - unrealized_pnl: Difference between market value and cost
             - telemetry: Dict with pricing stats and error details
     """
-    # Query open trades for this mode
+    alert_manager = AlertManager(db)
     mode_trades = db.query(Trade).filter(~Trade.settled, Trade.trading_mode == mode).all()
 
     position_cost = 0.0
@@ -151,6 +152,13 @@ async def calculate_position_market_value(
         logger.warning(warning_msg)
         telemetry["errors"].append(
             {"type": "validation", "message": warning_msg, "timestamp": time.time()}
+        )
+        
+        alert_manager.check_position_discrepancy(
+            position_id=f"{mode}_portfolio",
+            db_value=position_cost,
+            blockchain_value=0.0,
+            mode=mode,
         )
 
     # Circuit breaker: alert if >50% of tickers failed

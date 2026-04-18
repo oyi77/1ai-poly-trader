@@ -274,12 +274,12 @@ class Orchestrator:
 
         original_job = sched_mod.weather_scan_and_trade_job
 
-        async def patched_weather_job():
+        async def patched_weather_job(mode: str = "paper"):
             """Weather job with Telegram dispatch."""
             from backend.core.weather_signals import scan_for_weather_signals
             from backend.core.scheduler import log_event
 
-            signals = await scan_for_weather_signals()
+            signals = await scan_for_weather_signals(mode=mode)
             actionable = [s for s in signals if s.passes_threshold]
 
             log_event(
@@ -307,7 +307,7 @@ class Orchestrator:
                     await _auto_execute_weather(actionable[:3], clob)
 
             try:
-                await original_job()
+                await original_job(mode)
             except Exception as e:
                 logger.debug(
                     f"[orchestrator.patched_weather_job] {type(e).__name__}: Original weather job error (non-fatal): {e}"

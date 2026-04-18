@@ -125,6 +125,8 @@ async def execute_decision(
             clob_order_id = None
             fill_price = entry_price
             filled_size = None
+            fee = None
+            slippage = None
 
             if mode in ("testnet", "live"):
                 if token_id:
@@ -141,11 +143,14 @@ async def execute_decision(
                             clob_order_id = result.order_id
                             if result.fill_price:
                                 fill_price = result.fill_price
+                                slippage = fill_price - entry_price
                             if (
                                 hasattr(result, "filled_size")
                                 and result.filled_size is not None
                             ):
                                 filled_size = result.filled_size
+                            if hasattr(result, "fee") and result.fee is not None:
+                                fee = result.fee
                             logger.info(
                                 f"[{mode.upper()}][{strategy_name}] Order placed: {clob_order_id}"
                             )
@@ -188,12 +193,32 @@ async def execute_decision(
                 confidence=confidence,
                 clob_order_id=clob_order_id,
                 filled_size=filled_size,
+                fee=fee,
+                slippage=slippage,
                 market_type=market_type,
                 market_end_date=market_end_date,
             )
 
             db.add(trade)
             db.flush()
+
+            from backend.models.audit_logger import log_trade_created
+            log_trade_created(
+                db=db,
+                trade_id=trade.id,
+                trade_data={
+                    "market_ticker": market_ticker,
+                    "direction": direction,
+                    "entry_price": fill_price,
+                    "size": adjusted_size,
+                    "trading_mode": mode,
+                    "strategy": strategy_name,
+                    "confidence": confidence,
+                    "edge": edge,
+                    "clob_order_id": clob_order_id,
+                },
+                user_id=f"strategy:{strategy_name}",
+            )
 
             if mode == "paper" and state:
                 state.paper_bankroll = max(

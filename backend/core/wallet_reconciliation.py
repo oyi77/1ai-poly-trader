@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from backend.data.polymarket_clob import PolymarketCLOB
 from backend.models.database import Trade
+from backend.core.alert_manager import AlertManager
 
 logger = logging.getLogger("wallet_reconciler")
 
@@ -71,6 +72,7 @@ class WalletReconciler:
         self.clob = clob_client
         self.db = db
         self.mode = mode
+        self.alert_manager = AlertManager(db)
         
         # Determine wallet address from CLOB client
         if self.clob.builder_address:
@@ -188,14 +190,22 @@ class WalletReconciler:
                 ).first()
                 
                 if existing:
-                    # Trade already in DB - update size if different (position may have changed)
                     if abs(existing.size - size) > 0.01:
+                        from backend.models.audit_logger import log_position_updated
+                        old_size = existing.size
                         self.logger.info(
                             f"Updating position size for {market_slug}: "
                             f"{existing.size} -> {size}"
                         )
                         existing.size = size
                         existing.last_sync_at = datetime.now(timezone.utc)
+                        log_position_updated(
+                            db=self.db,
+                            position_id=f"{market_slug}:{existing.id}",
+                            old_state={"size": old_size, "last_sync_at": None},
+                            new_state={"size": size, "last_sync_at": existing.last_sync_at.isoformat()},
+                            user_id="system:reconciliation",
+                        )
                     else:
                         self.logger.debug(f"Trade {market_slug} already in DB (id={existing.id})")
                     continue
@@ -230,6 +240,21 @@ class WalletReconciler:
                 )
             
             self.db.commit()
+            
+            from backend.models.audit_logger import log_wallet_reconciled
+            log_wallet_reconciled(
+                db=self.db,
+                wallet_address=self.wallet_address,
+                reconciliation_data={
+                    "operation": "import_blockchain_history",
+                    "imported_count": imported,
+                    "total_positions": len(positions),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                user_id="system:reconciliation",
+            )
+            self.db.commit()
+            
             self.logger.info(f"Imported {imported} new trades from blockchain")
             
             return imported
@@ -290,7 +315,18 @@ class WalletReconciler:
                     db_trade.result = "closed"
                     result.closed_count += 1
                 else:
-                    # Position still open - update fields
+                    # Position still open - check for discrepancies
+                    blockchain_pos = blockchain_map[db_trade.market_ticker]
+                    blockchain_size = blockchain_pos.get("initialValue", 0.0)
+                    db_size = db_trade.size or 0.0
+                    
+                    self.alert_manager.check_position_discrepancy(
+                        position_id=db_trade.market_ticker,
+                        db_value=db_size,
+                        blockchain_value=blockchain_size,
+                        mode=self.mode,
+                    )
+                    
                     db_trade.last_sync_at = datetime.now(timezone.utc)
                     db_trade.blockchain_verified = True
                     result.updated_count += 1
@@ -300,6 +336,21 @@ class WalletReconciler:
                     )
             
             self.db.commit()
+            
+            from backend.models.audit_logger import log_wallet_reconciled
+            log_wallet_reconciled(
+                db=self.db,
+                wallet_address=self.wallet_address,
+                reconciliation_data={
+                    "operation": "sync_current_positions",
+                    "updated_count": result.updated_count,
+                    "closed_count": result.closed_count,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                user_id="system:reconciliation",
+            )
+            self.db.commit()
+            
             self.logger.info(
                 f"Position sync: {result.updated_count} updated, {result.closed_count} closed"
             )

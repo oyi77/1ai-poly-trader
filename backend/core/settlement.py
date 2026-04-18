@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.models.database import Trade, BotState
+from backend.core.alert_manager import AlertManager
 
 from backend.core.settlement_helpers import (
     fetch_polymarket_resolution,
@@ -31,6 +32,8 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
         return []
 
     async with _settlement_lock:
+        alert_manager = AlertManager(db)
+        
         try:
             from backend.core.settlement_helpers import reconcile_positions
 
@@ -72,6 +75,11 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                     )
         except Exception as e:
             logger.error(f"Position reconciliation failed: {e}", exc_info=True)
+            alert_manager.check_failed_settlement(
+                trade_id=0,
+                reason=f"Position reconciliation failed: {e}",
+                mode=settings.TRADING_MODE,
+            )
 
         try:
             pending = db.query(Trade).filter(Trade.settled.is_(False)).all()
@@ -141,6 +149,24 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
             if await process_settled_trade(
                 trade, is_settled, settlement_value, pnl, db
             ):
+                from backend.models.audit_logger import log_settlement_completed
+                log_settlement_completed(
+                    db=db,
+                    trade_id=trade.id,
+                    old_state={
+                        "settled": False,
+                        "result": "pending",
+                        "pnl": None,
+                    },
+                    new_state={
+                        "settled": True,
+                        "result": trade.result,
+                        "pnl": trade.pnl,
+                        "settlement_value": settlement_value,
+                        "settlement_time": trade.settlement_time.isoformat() if trade.settlement_time else None,
+                    },
+                    user_id="system:settlement",
+                )
                 settled_trades.append(trade)
                 continue
 

@@ -755,8 +755,13 @@ async def heartbeat_job():
             db.close()
 
 
-async def strategy_cycle_job(strategy_name: str) -> None:
-    """Generic strategy dispatcher — called by APScheduler for each enabled strategy."""
+async def strategy_cycle_job(strategy_name: str, mode: str = "paper") -> None:
+    """Generic strategy dispatcher — called by APScheduler for each enabled strategy.
+    
+    Args:
+        strategy_name: Name of the strategy to run.
+        mode: Trading mode (paper, testnet, live).
+    """
     from backend.core.scheduler import log_event
 
     from backend.strategies.registry import STRATEGY_REGISTRY
@@ -801,9 +806,7 @@ async def strategy_cycle_job(strategy_name: str) -> None:
         from backend.strategies.base import StrategyContext
         from backend.config import settings as _settings
 
-        effective_mode = (
-            config.trading_mode if config.trading_mode else _settings.TRADING_MODE
-        )
+        effective_mode = mode or (config.trading_mode if config.trading_mode else _settings.TRADING_MODE)
 
         ctx = StrategyContext(
             db=db,
@@ -924,8 +927,10 @@ async def sync_live_wallet():
         from backend.data.polymarket_clob import clob_from_settings
 
         clob = clob_from_settings(mode="live")
-        reconciler = WalletReconciler(clob, db, "live")
-        result = await reconciler.full_reconciliation()
+        async with clob:
+            await clob.create_or_derive_api_creds()
+            reconciler = WalletReconciler(clob, db, "live")
+            result = await reconciler.full_reconciliation()
 
         state = db.query(BotState).first()
         if state:

@@ -99,7 +99,7 @@ def schedule_strategy(strategy_name: str, interval_seconds: int, mode: str = "pa
     scheduler.add_job(
         strategy_cycle_job,
         IntervalTrigger(seconds=interval_seconds),
-        args=[strategy_name, mode],
+        kwargs={"strategy_name": strategy_name, "mode": mode},
         id=job_id,
         replace_existing=True,
         max_instances=1,
@@ -200,7 +200,7 @@ def start_scheduler():
         scheduler.add_job(
             scan_and_trade_job,
             IntervalTrigger(seconds=scan_seconds),
-            args=[mode],
+            kwargs={"mode": mode},
             id=f"{mode}_market_scan",
             replace_existing=True,
             max_instances=1,
@@ -213,7 +213,7 @@ def start_scheduler():
             scheduler.add_job(
                 weather_scan_and_trade_job,
                 IntervalTrigger(seconds=weather_seconds),
-                args=[mode],
+                kwargs={"mode": mode},
                 id=f"{mode}_weather_scan",
                 replace_existing=True,
                 max_instances=1,
@@ -295,7 +295,7 @@ def start_scheduler():
             scheduler.add_job(
                 auto_trader_job,
                 IntervalTrigger(seconds=60),
-                args=[mode],
+                kwargs={"mode": mode},
                 id=f"{mode}_auto_trader",
                 replace_existing=True,
                 max_instances=1,
