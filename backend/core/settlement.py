@@ -269,17 +269,43 @@ async def update_bot_state_with_settlements(
             is_real_trade = trade.result in ("win", "loss")
             is_expired_or_push = trade.result in ("expired", "push", "closed")
 
-            if is_real_trade:
-                state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
-                state.bankroll = (state.bankroll or 0.0) + trade.size + trade.pnl
-                state.total_trades = (state.total_trades or 0) + 1
-                if trade.result == "win":
-                    state.winning_trades = (state.winning_trades or 0) + 1
-            elif is_expired_or_push:
-                state.bankroll = (state.bankroll or 0.0) + trade.size
-                logger.info(
-                    f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to {trading_mode} bankroll"
-                )
+            # Route updates to mode-specific fields
+            if trading_mode == "paper":
+                if is_real_trade:
+                    state.paper_pnl = (state.paper_pnl or 0.0) + trade.pnl
+                    state.paper_bankroll = (state.paper_bankroll or 0.0) + trade.size + trade.pnl
+                    state.paper_trades = (state.paper_trades or 0) + 1
+                    if trade.result == "win":
+                        state.paper_wins = (state.paper_wins or 0) + 1
+                elif is_expired_or_push:
+                    state.paper_bankroll = (state.paper_bankroll or 0.0) + trade.size
+                    logger.info(
+                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to paper bankroll"
+                    )
+            elif trading_mode == "testnet":
+                if is_real_trade:
+                    state.testnet_pnl = (state.testnet_pnl or 0.0) + trade.pnl
+                    state.testnet_bankroll = (state.testnet_bankroll or 0.0) + trade.size + trade.pnl
+                    state.testnet_trades = (state.testnet_trades or 0) + 1
+                    if trade.result == "win":
+                        state.testnet_wins = (state.testnet_wins or 0) + 1
+                elif is_expired_or_push:
+                    state.testnet_bankroll = (state.testnet_bankroll or 0.0) + trade.size
+                    logger.info(
+                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to testnet bankroll"
+                    )
+            else:  # live mode
+                if is_real_trade:
+                    state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
+                    state.bankroll = (state.bankroll or 0.0) + trade.size + trade.pnl
+                    state.total_trades = (state.total_trades or 0) + 1
+                    if trade.result == "win":
+                        state.winning_trades = (state.winning_trades or 0) + 1
+                elif is_expired_or_push:
+                    state.bankroll = (state.bankroll or 0.0) + trade.size
+                    logger.info(
+                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to live bankroll"
+                    )
 
             # AGI hook: update Bayesian Kelly posterior on each trade outcome
             if is_real_trade:
