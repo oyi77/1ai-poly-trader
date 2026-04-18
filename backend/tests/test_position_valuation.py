@@ -412,3 +412,99 @@ async def test_missing_market_ticker(test_db, mock_http_client):
     
     # No API calls made
     mock_http_client.get.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Test 14: Down Direction Uses 1 - no_price (Bug Fix Verification)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_down_direction_pricing(test_db, mock_http_client):
+    """
+    Scenario: Trade with direction='down' should use 1 - no_price.
+    Expected: Market value calculated with yes_price (1 - no_price).
+    
+    This test verifies the fix for the bug where down positions
+    were incorrectly using no_price directly instead of 1 - no_price.
+    """
+    trade = Trade(
+        market_ticker="BTC_DOWN_5M",
+        direction="down",
+        entry_price=0.50,
+        size=100.0,
+        settled=False,
+        trading_mode="paper",
+        timestamp=datetime.now(timezone.utc),
+    )
+    test_db.add(trade)
+    test_db.commit()
+    
+    # Mock Gamma API response
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json = MagicMock(return_value=[{"yes_price": 0.65, "no_price": 0.35}])
+    mock_response.raise_for_status = MagicMock()
+    mock_http_client.get = AsyncMock(return_value=mock_response)
+    
+    result = await calculate_position_market_value("paper", test_db, mock_http_client)
+    
+    # For down direction: current_price = 1 - no_price = 1 - 0.35 = 0.65
+    # shares = 100 / 0.50 = 200
+    # market_value = 200 * 0.65 = 130.0
+    assert result["position_cost"] == 100.0
+    assert result["position_market_value"] == 130.0
+    assert result["unrealized_pnl"] == 30.0
+
+
+@pytest.mark.asyncio
+async def test_up_and_down_mixed_positions(test_db, mock_http_client):
+    """
+    Scenario: Multiple trades with mixed up/down directions.
+    Expected: Each direction uses correct pricing formula.
+    """
+    trades = [
+        Trade(
+            market_ticker="BTC_UP_5M",
+            direction="up",
+            entry_price=0.50,
+            size=100.0,
+            settled=False,
+            trading_mode="paper",
+            timestamp=datetime.now(timezone.utc),
+        ),
+        Trade(
+            market_ticker="BTC_DOWN_5M",
+            direction="down",
+            entry_price=0.50,
+            size=100.0,
+            settled=False,
+            trading_mode="paper",
+            timestamp=datetime.now(timezone.utc),
+        ),
+    ]
+    for t in trades:
+        test_db.add(t)
+    test_db.commit()
+    
+    # Mock Gamma API responses
+    async def mock_get(url, timeout=None):
+        response = MagicMock()
+        response.status_code = 200
+        response.raise_for_status = MagicMock()
+        if "BTC_UP_5M" in url:
+            response.json = MagicMock(return_value=[{"yes_price": 0.65, "no_price": 0.35}])
+        elif "BTC_DOWN_5M" in url:
+            response.json = MagicMock(return_value=[{"yes_price": 0.65, "no_price": 0.35}])
+        return response
+    
+    mock_http_client.get = AsyncMock(side_effect=mock_get)
+    
+    result = await calculate_position_market_value("paper", test_db, mock_http_client)
+    
+    # UP: shares=200, mkt_val=200*0.65=130
+    # DOWN: shares=200, mkt_val=200*(1-0.35)=200*0.65=130
+    # Total: 260.0
+    assert result["position_cost"] == 200.0
+    assert result["position_market_value"] == 260.0
+    assert result["unrealized_pnl"] == 60.0

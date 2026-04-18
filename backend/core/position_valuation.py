@@ -103,7 +103,12 @@ async def calculate_position_market_value(
             if direction == "up":
                 current_price = prices.get("yes_price")
             else:
-                current_price = prices.get("no_price")
+                # For "down" positions, use 1 - no_price (equivalent to yes_price)
+                no_price = prices.get("no_price")
+                if no_price is not None:
+                    current_price = 1.0 - no_price
+                else:
+                    current_price = None
 
         # Fallback chain: cached → entry_price → 0.5 (mid-price)
         if current_price is None:
