@@ -24,13 +24,14 @@ export function StatsCards() {
   const mode = selectedMode === 'all' ? stats.mode : selectedMode
   const modeLabel = mode ? mode.toUpperCase() : ''
   const isRunning = stats.isRunning
-  const isSelectedModeActive = selectedMode === 'all' || selectedMode === stats.mode
-  const openExposure = isSelectedModeActive ? stats.openExposure : 0
-  const openTrades = isSelectedModeActive ? stats.openTrades : 0
-  const positionMarketValue = isSelectedModeActive ? (stats.positionMarketValue ?? 0) : 0
+  
+  // Show actual per-mode stats regardless of which mode is active
+  const openExposure = modeData ? (modeData.open_exposure ?? 0) : stats.openExposure
+  const openTrades = modeData ? (modeData.open_trades ?? 0) : stats.openTrades
+  const positionMarketValue = modeData ? (modeData.position_market_value ?? 0) : (stats.positionMarketValue ?? 0)
   const totalEquity = modeData ? modeData.bankroll + positionMarketValue : stats.totalEquity
-  const settledTrades = isSelectedModeActive ? stats.settledTrades : (modeData ? modeData.trades : stats.settledTrades)
-  const unrealizedPnl = isSelectedModeActive ? stats.unrealizedPnl : 0
+  const settledTrades = modeData ? modeData.trades : stats.settledTrades
+  const unrealizedPnl = modeData ? (modeData.unrealized_pnl ?? 0) : stats.unrealizedPnl
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],

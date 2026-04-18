@@ -77,6 +77,10 @@ export interface PnlModeStats {
   trades: number
   wins: number
   win_rate: number
+  open_exposure?: number
+  open_trades?: number
+  unrealized_pnl?: number
+  position_market_value?: number
 }
 
 export interface BotStats {
