@@ -68,7 +68,6 @@ try:
         if not _seed_db.query(BotState).filter_by(mode=mode).first():
             initial_bankroll = _settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
             _seed_db.add(BotState(
-                id=1,
                 mode=mode,
                 bankroll=initial_bankroll,
                 total_trades=0,

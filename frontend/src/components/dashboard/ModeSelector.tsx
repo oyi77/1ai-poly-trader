@@ -1,29 +1,51 @@
 import { useModeFilter } from '../../hooks/useModeFilter'
 import type { ModeFilter } from '../../contexts/ModeFilterContext'
 
-const MODES: ModeFilter[] = ['all', 'paper', 'testnet', 'live']
+const MODES: Array<{ key: ModeFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'paper', label: 'Paper' },
+  { key: 'testnet', label: 'Testnet' },
+  { key: 'live', label: 'Live' },
+]
+
+const MODE_STYLES: Record<ModeFilter, string> = {
+  all: 'bg-neutral-500/10 text-neutral-300 border-neutral-500/30',
+  paper: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  testnet: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  live: 'bg-red-500/10 text-red-400 border-red-500/30',
+}
 
 export function ModeSelector() {
   const { selectedMode, setSelectedMode } = useModeFilter()
-  
+
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b border-neutral-800 bg-neutral-950">
-      <span className="text-[9px] text-neutral-600 uppercase tracking-wider">Mode</span>
-      {MODES.map(mode => (
-        <button
-          key={mode}
-          onClick={() => setSelectedMode(mode)}
-          className={`
-            px-3 py-1 text-[10px] font-mono rounded-full border transition-colors
-            ${mode === selectedMode 
-              ? 'bg-blue-500/20 border-blue-500 text-blue-400' 
-              : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:border-neutral-600'
-            }
-          `}
-        >
-          {mode.charAt(0).toUpperCase() + mode.slice(1)}
-        </button>
-      ))}
+    <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-800 bg-black/40">
+      <div className="text-[10px] text-neutral-500 uppercase tracking-wider mr-2">
+        Mode:
+      </div>
+      <div className="flex gap-2">
+        {MODES.map(({ key, label }) => {
+          const isActive = selectedMode === key
+          return (
+            <button
+              key={key}
+              onClick={() => setSelectedMode(key)}
+              aria-label={`Filter by ${label} mode`}
+              className={`
+                px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider
+                border rounded transition-all
+                ${
+                  isActive
+                    ? MODE_STYLES[key]
+                    : 'border-neutral-700 text-neutral-500 hover:border-neutral-600 hover:text-neutral-400'
+                }
+              `}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

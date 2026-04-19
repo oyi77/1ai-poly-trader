@@ -227,7 +227,10 @@ class Orchestrator:
                 self._settlement_handler = await get_settlement_handler()
                 logger.info("Settlement WebSocket handler started")
             except Exception as e:
-                logger.warning(f"Could not start settlement WebSocket handler: {e}")
+                logger.warning(
+                    f"[orchestrator.start] {type(e).__name__}: Could not start settlement WebSocket handler: {e}",
+                    exc_info=True,
+                )
 
         self._phase2 = init_phase2_modules()
         if self._phase2:
@@ -300,7 +303,8 @@ class Orchestrator:
                         )
                     except Exception as e:
                         logger.warning(
-                            f"[orchestrator.patched_weather_job] {type(e).__name__}: Failed to send weather alert: {e}"
+                            f"[orchestrator.patched_weather_job] {type(e).__name__}: Failed to send weather alert: {e}",
+                            exc_info=True,
                         )
             else:
                 if settings.TRADING_MODE == "paper":
@@ -310,7 +314,8 @@ class Orchestrator:
                 await original_job(mode)
             except Exception as e:
                 logger.debug(
-                    f"[orchestrator.patched_weather_job] {type(e).__name__}: Original weather job error (non-fatal): {e}"
+                    f"[orchestrator.patched_weather_job] {type(e).__name__}: Original weather job error (non-fatal): {e}",
+                    exc_info=True,
                 )
 
         sched_mod.weather_scan_and_trade_job = patched_weather_job
@@ -454,7 +459,8 @@ class Orchestrator:
             return result
         except (httpx.HTTPError, KeyError, IndexError) as e:
             logger.warning(
-                f"[orchestrator._condition_to_token] {type(e).__name__}: Failed to resolve token_id for {condition_id}/{outcome}: {e}"
+                f"[orchestrator._condition_to_token] {type(e).__name__}: Failed to resolve token_id for {condition_id}/{outcome}: {e}",
+                exc_info=True,
             )
             return condition_id
 
@@ -481,7 +487,8 @@ async def _auto_execute_weather(signals: list, clob: Optional[PolymarketCLOB]) -
             )
         except Exception as e:
             logger.warning(
-                f"[orchestrator._auto_execute_weather] {type(e).__name__}: Auto-execute failed: {e}"
+                f"[orchestrator._auto_execute_weather] {type(e).__name__}: Auto-execute failed: {e}",
+                exc_info=True,
             )
 
 
@@ -527,7 +534,8 @@ def init_phase2_modules() -> dict:
             active["whale_listener"] = PolygonListener()
         except Exception as e:
             logger.warning(
-                f"[orchestrator.init_phase2] {type(e).__name__}: PolygonListener init failed: {e}"
+                f"[orchestrator.init_phase2_modules] {type(e).__name__}: PolygonListener init failed: {e}",
+                exc_info=True,
             )
 
     if getattr(settings, "NEWS_FEED_ENABLED", False):
@@ -537,7 +545,8 @@ def init_phase2_modules() -> dict:
             active["news_feed"] = FeedAggregator()
         except Exception as e:
             logger.warning(
-                f"[orchestrator.init_phase2] {type(e).__name__}: FeedAggregator init failed: {e}"
+                f"[orchestrator.init_phase2_modules] {type(e).__name__}: FeedAggregator init failed: {e}",
+                exc_info=True,
             )
 
     if getattr(settings, "AUTO_TRADER_ENABLED", False):
@@ -548,7 +557,8 @@ def init_phase2_modules() -> dict:
             active["auto_trader"] = AutoTrader(RiskManager())
         except Exception as e:
             logger.warning(
-                f"[orchestrator.init_phase2] {type(e).__name__}: AutoTrader init failed: {e}"
+                f"[orchestrator.init_phase2_modules] {type(e).__name__}: AutoTrader init failed: {e}",
+                exc_info=True,
             )
 
     if getattr(settings, "ARBITRAGE_DETECTOR_ENABLED", False):
@@ -558,7 +568,8 @@ def init_phase2_modules() -> dict:
             active["arbitrage"] = ArbitrageDetector()
         except Exception as e:
             logger.warning(
-                f"[orchestrator.init_phase2] {type(e).__name__}: ArbitrageDetector init failed: {e}"
+                f"[orchestrator.init_phase2_modules] {type(e).__name__}: ArbitrageDetector init failed: {e}",
+                exc_info=True,
             )
 
     if getattr(settings, "AGI_PIPELINE_ENABLED", False):
@@ -571,7 +582,8 @@ def init_phase2_modules() -> dict:
             active["agi_research"] = _research
         except Exception as e:
             logger.warning(
-                f"[orchestrator.init_phase2] {type(e).__name__}: AGI research pipeline init failed: {e}"
+                f"[orchestrator.init_phase2_modules] {type(e).__name__}: AGI research pipeline init failed: {e}",
+                exc_info=True,
             )
 
     return active

@@ -1232,7 +1232,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/data/ws_client.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 15. Audit Exception Handling in core/orchestrator.py
+- [x] 15. Audit Exception Handling in core/orchestrator.py
 
   **What to do**:
   - Open `backend/core/orchestrator.py` and locate all 9 bare `except Exception` sites

@@ -150,7 +150,7 @@ class BotState(Base):
     __tablename__ = "bot_state"
 
     id = Column(Integer, primary_key=True)
-    mode = Column(String, primary_key=True, default="paper")
+    mode = Column(String, unique=True, index=True, default="paper")
     bankroll = Column(Float, default=100.0)
     total_trades = Column(Integer, default=0)
     winning_trades = Column(Integer, default=0)
@@ -414,7 +414,7 @@ class JobQueue(Base):
 
 class WhaleTransaction(Base):
     __tablename__ = "whale_transactions"
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True)
     tx_hash = Column(String, unique=True, index=True, nullable=False)
     wallet = Column(String, index=True, nullable=False)
     market_id = Column(String, index=True, nullable=True)
@@ -428,7 +428,7 @@ class WhaleTransaction(Base):
 
 class PendingApproval(Base):
     __tablename__ = "pending_approvals"
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True)
     market_id = Column(String, index=True, nullable=False)
     direction = Column(String, nullable=False)
     size = Column(Float, nullable=False)
@@ -502,7 +502,7 @@ class CalibrationRecord(Base):
 
 class ResearchItemDB(Base):
     __tablename__ = "research_items"
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)
     source = Column(String, nullable=False)
     url = Column(String, nullable=False)

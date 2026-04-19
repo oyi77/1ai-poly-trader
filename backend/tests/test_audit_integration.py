@@ -14,7 +14,7 @@ def test_db():
     Session = sessionmaker(bind=engine)
     session = Session()
     
-    state = BotState(id=1, mode="paper", paper_bankroll=1000.0, is_running=True)
+    state = BotState(mode="paper", paper_bankroll=1000.0, is_running=True)
     session.add(state)
     session.commit()
     
@@ -25,6 +25,20 @@ def test_db():
 @pytest.mark.asyncio
 async def test_trade_creation_logs_audit_event(test_db):
     from backend.core.strategy_executor import execute_decision
+    from backend.core.mode_context import register_context, ModeExecutionContext
+    from backend.core.risk_manager import RiskManager
+    from unittest.mock import AsyncMock
+    
+    # Register execution context for paper mode
+    register_context(
+        "paper",
+        ModeExecutionContext(
+            mode="paper",
+            clob_client=AsyncMock(),
+            risk_manager=RiskManager(),
+            strategy_configs={},
+        ),
+    )
     
     decision = {
         "market_ticker": "BTC-UP-5M",

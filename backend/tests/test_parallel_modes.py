@@ -78,7 +78,6 @@ def seed_bot_states(test_db):
             initial_bankroll = 1000.0 if mode != "testnet" else 100.0
             test_db.add(
                 BotState(
-                    id=1,
                     mode=mode,
                     bankroll=initial_bankroll,
                     paper_bankroll=initial_bankroll if mode == "paper" else None,

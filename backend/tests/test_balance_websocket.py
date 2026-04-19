@@ -14,7 +14,6 @@ def test_stats_endpoint_returns_balance(client, db):
     state = db.query(BotState).filter_by(mode="paper").first()
     if not state:
         state = BotState(
-            id=1,
             mode="paper",
             is_running=False,
             bankroll=2500.0,
@@ -117,7 +116,6 @@ def test_stats_endpoint_calculates_unrealized_pnl(client, db):
     state = db.query(BotState).first()
     if not state:
         state = BotState(
-            id=1,
             mode="paper",
             is_running=False,
             bankroll=10000.0,
@@ -171,7 +169,6 @@ def test_stats_endpoint_handles_missing_botstate(client, db):
     for mode in ["paper", "testnet", "live"]:
         if not db.query(BotState).filter_by(mode=mode).first():
             db.add(BotState(
-                id=1,
                 mode=mode,
                 bankroll=10000.0 if mode != "testnet" else 100.0,
                 total_trades=0,
