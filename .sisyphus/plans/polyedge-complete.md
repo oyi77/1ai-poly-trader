@@ -1381,7 +1381,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/strategies/order_executor.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 17. Audit Exception Handling in core/risk_manager.py
+- [x] 17. Audit Exception Handling in core/risk_manager.py
 
   **What to do**:
   - Open `backend/core/risk_manager.py` and locate all 3 bare `except Exception` sites
@@ -1444,7 +1444,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/risk_manager.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 18. Audit Exception Handling in core/strategy_executor.py
+- [x] 18. Audit Exception Handling in core/strategy_executor.py
 
   **What to do**:
   - Open `backend/core/strategy_executor.py` and locate all 4 bare `except Exception` sites

@@ -310,12 +310,16 @@ async def execute_decision(
 
     except OperationalError as exc:
         logger.error(
-            f"[strategy_executor.execute_decision] OperationalError: execute_decision failed for {market_ticker}: {exc}"
+            f"[strategy_executor.execute_decision] OperationalError: execute_decision failed for {market_ticker}: {exc}",
+            exc_info=True,
         )
         try:
             db.rollback()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"[strategy_executor.execute_decision] {type(e).__name__}: db.rollback failed after OperationalError (non-fatal): {e}",
+                exc_info=True,
+            )
         return None
     except Exception as exc:
         logger.exception(
