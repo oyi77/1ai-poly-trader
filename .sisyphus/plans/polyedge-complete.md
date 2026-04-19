@@ -1507,7 +1507,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/strategy_executor.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 19. Audit Exception Handling in api/main.py
+- [x] 19. Audit Exception Handling in api/main.py
 
   **What to do**:
   - Open `backend/api/main.py` and locate all 10 bare `except Exception` sites

@@ -236,11 +236,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                             f"errors={len(result.errors)}"
                         )
                     except Exception as e:
-                        logger.warning(f"Startup recovery [{mode}] failed: {e}", exc_info=True)
+                        logger.warning(
+                            f"[api.main.lifespan] {type(e).__name__}: Startup recovery [{mode}] failed: {e}",
+                            exc_info=True
+                        )
         finally:
             db.close()
     except Exception as e:
-        logger.warning(f"Wallet reconciliation startup failed: {e}", exc_info=True)
+        logger.warning(
+            f"[api.main.lifespan] {type(e).__name__}: Wallet reconciliation startup failed: {e}",
+            exc_info=True
+        )
 
     from backend.core.scheduler import start_scheduler, log_event
 
@@ -294,7 +300,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     finally:
                         db.close()
         except Exception as e:
-            logger.warning(f"Failed to refresh balance cache: {e}")
+            logger.warning(
+                f"[api.main.refresh_balance_cache] {type(e).__name__}: Failed to refresh balance cache: {e}",
+                exc_info=True
+            )
 
     async def stats_broadcaster():
         from backend.api.ws_manager import stats_ws
@@ -334,7 +343,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     finally:
                         db.close()
             except Exception as e:
-                logger.error(f"Stats broadcaster error: {e}", exc_info=True)
+                logger.error(
+                    f"[api.main.stats_broadcaster] {type(e).__name__}: Stats broadcaster error: {e}",
+                    exc_info=True
+                )
             await asyncio.sleep(1)
 
     logger.info("Creating stats broadcaster background task...")
@@ -460,7 +472,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                                 asyncio.create_task(refresh_balance_cache())
                         except Exception as e:
                             logger.error(
-                                f"Error updating trade status: {e}", exc_info=True
+                                f"[api.main.handle_user_trade] {type(e).__name__}: Error updating trade status: {e}",
+                                exc_info=True
                             )
                         finally:
                             db.close()
@@ -479,7 +492,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         else:
             logger.info("Polymarket WebSocket disabled in settings")
     except Exception as e:
-        logger.error(f"Failed to start Polymarket WebSocket: {e}", exc_info=True)
+        logger.error(
+            f"[api.main.lifespan] {type(e).__name__}: Failed to start Polymarket WebSocket: {e}",
+            exc_info=True
+        )
 
     yield
 
@@ -532,7 +548,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Database connections closed")
     except Exception as e:
         logger.exception(
-            f"[api.main.lifespan] {type(e).__name__}: Error closing database connections: {str(e)}"
+            f"[api.main.lifespan] {type(e).__name__}: Error closing database connections: {e}"
         )
 
     logger.info("Shutdown complete")
@@ -599,7 +615,7 @@ class ConnectionManager:
                 await connection.send_json(message)
             except Exception as e:
                 logger.exception(
-                    f"[api.main.ConnectionManager.broadcast] {type(e).__name__}: Failed to broadcast message to WebSocket connection: {str(e)}"
+                    f"[api.main.ConnectionManager.broadcast] {type(e).__name__}: Failed to broadcast message to WebSocket connection: {e}"
                 )
 
 
@@ -757,6 +773,10 @@ async def health_check(db: Session = Depends(get_db)):
     except Exception as e:
         checks["database"] = {"status": "error", "error": str(e)}
         overall_status = "degraded"
+        logger.error(
+            f"[api.main.health_check] {type(e).__name__}: Database health check failed: {e}",
+            exc_info=True
+        )
 
     redis_url = getattr(settings, "JOB_QUEUE_URL", "")
     if redis_url.startswith("redis://"):
@@ -771,6 +791,10 @@ async def health_check(db: Session = Depends(get_db)):
             checks["redis"] = {"status": "error", "error": str(e)}
             if overall_status == "ok":
                 overall_status = "degraded"
+            logger.warning(
+                f"[api.main.health_check] {type(e).__name__}: Redis health check failed: {e}",
+                exc_info=True
+            )
     else:
         checks["redis"] = {"status": "not_configured", "fallback": "sqlite"}
 
@@ -802,7 +826,10 @@ async def health_check(db: Session = Depends(get_db)):
             overall_status = "degraded"
     except Exception as e:
         healths = []
-        logger.warning("Failed to get strategy health: %s", e)
+        logger.warning(
+            f"[api.main.health_check] {type(e).__name__}: Failed to get strategy health: {e}",
+            exc_info=True
+        )
         if overall_status == "ok":
             overall_status = "degraded"
 
@@ -821,6 +848,10 @@ async def health_check(db: Session = Depends(get_db)):
             # Redis failure is non-critical (SQLite fallback exists)
             if overall_status == "ok":
                 overall_status = "degraded"
+            logger.warning(
+                f"[api.main.health_check] {type(e).__name__}: Redis health check failed (fallback available): {e}",
+                exc_info=True
+            )
     else:
         checks["redis"] = {"status": "not_configured", "fallback": "sqlite"}
 
@@ -843,8 +874,10 @@ async def health_check(db: Session = Depends(get_db)):
         checks["polymarket_clob"] = {"status": "error", "error": str(e)}
         if overall_status == "ok":
             overall_status = "degraded"
-
-    # 4. Strategy heartbeats
+        logger.warning(
+            f"[api.main.health_check] {type(e).__name__}: Polymarket CLOB health check failed (duplicate check): {e}",
+            exc_info=True
+        )
     try:
         from backend.core.heartbeat import get_strategy_health
 
@@ -854,7 +887,10 @@ async def health_check(db: Session = Depends(get_db)):
             overall_status = "degraded"
     except Exception as e:
         healths = []
-        logger.warning("Failed to get strategy health: %s", e)
+        logger.warning(
+            f"[api.main.health_check] {type(e).__name__}: Failed to get strategy health: {e}",
+            exc_info=True
+        )
         if overall_status == "ok":
             overall_status = "degraded"
 
@@ -917,7 +953,8 @@ async def get_dashboard(
             )
     except Exception as e:
         logger.warning(
-            f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch BTC microstructure data, falling back to CoinGecko: {str(e)}"
+            f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch BTC microstructure data, falling back to CoinGecko: {e}",
+            exc_info=True
         )
     if not btc_price_data:
         try:
@@ -933,7 +970,8 @@ async def get_dashboard(
                 )
         except Exception as e:
             logger.warning(
-                f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch BTC price from CoinGecko: {str(e)}"
+                f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch BTC price from CoinGecko: {e}",
+                exc_info=True
             )
 
     # Fetch windows
@@ -958,7 +996,8 @@ async def get_dashboard(
         ]
     except Exception as e:
         logger.warning(
-            f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch active BTC markets: {str(e)}"
+            f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch active BTC markets: {e}",
+            exc_info=True
         )
 
     # Signals — return ALL signals, mark which are actionable
@@ -970,7 +1009,8 @@ async def get_dashboard(
         ]
     except Exception as e:
         logger.warning(
-            f"[api.main.get_dashboard] {type(e).__name__}: Failed to scan for trading signals: {str(e)}"
+            f"[api.main.get_dashboard] {type(e).__name__}: Failed to scan for trading signals: {e}",
+            exc_info=True
         )
 
     # Recent trades (with TradeContext enrichment)
@@ -1091,7 +1131,8 @@ async def get_dashboard(
                     )
         except Exception as e:
             logger.warning(
-                f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch weather forecasts data: {str(e)}"
+                f"[api.main.get_dashboard] {type(e).__name__}: Failed to fetch weather forecasts data: {e}",
+                exc_info=True
             )
 
     return DashboardData(
@@ -1238,7 +1279,10 @@ async def _sync_wallet_background(mode: str, db: Session):
         })
         
     except Exception as e:
-        logger.error(f"Background sync failed for mode={mode}: {e}", exc_info=True)
+        logger.error(
+            f"[api.main._sync_wallet_background] {type(e).__name__}: Background sync failed for mode={mode}: {e}",
+            exc_info=True
+        )
         publish_event("sync_failed", {
             "mode": mode,
             "error": str(e),
@@ -1350,7 +1394,7 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
         market_ws.disconnect(websocket)
     except Exception as e:
         logger.exception(
-            f"[api.main.ws_markets] {type(e).__name__}: Market WebSocket error: {str(e)}"
+            f"[api.main.ws_markets] {type(e).__name__}: Market WebSocket error: {e}"
         )
         market_ws.disconnect(websocket)
 
@@ -1370,7 +1414,7 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
         whale_ws.disconnect(websocket)
     except Exception as e:
         logger.exception(
-            f"[api.main.ws_whales] {type(e).__name__}: Whale WebSocket error: {str(e)}"
+            f"[api.main.ws_whales] {type(e).__name__}: Whale WebSocket error: {e}"
         )
         whale_ws.disconnect(websocket)
 
@@ -1418,7 +1462,7 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
         ws_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(
-            f"[api.main.websocket_events] {type(e).__name__}: Events WebSocket error: {str(e)}"
+            f"[api.main.websocket_events] {type(e).__name__}: Events WebSocket error: {e}"
         )
         ws_manager.disconnect(websocket)
 
@@ -1440,10 +1484,9 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
         logger.info("Stats WebSocket disconnected")
         stats_ws.disconnect(websocket)
     except Exception as e:
-        logger.exception(f"Stats WebSocket error: {e}")
-        stats_ws.disconnect(websocket)
-    except Exception as e:
-        logger.exception(f"Stats WebSocket error: {e}")
+        logger.exception(
+            f"[api.main.websocket_stats] {type(e).__name__}: Stats WebSocket error: {e}"
+        )
         stats_ws.disconnect(websocket)
 
 
