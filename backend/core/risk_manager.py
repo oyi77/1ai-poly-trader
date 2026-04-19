@@ -139,9 +139,7 @@ class RiskManager:
                 breach_reason=breach_reason,
             )
         except Exception as e:
-            logger.exception(
-                f"[risk_manager.check_drawdown] {type(e).__name__}: Drawdown check failed, blocking trade (fail-closed)"
-            )
+            logger.error(f"[risk_manager.check_drawdown] {type(e).__name__}: {e}", exc_info=True)
             return DrawdownStatus(
                 0.0,
                 0.0,
@@ -174,9 +172,7 @@ class RiskManager:
             )
             return daily_pnl <= -self.s.DAILY_LOSS_LIMIT
         except Exception as e:
-            logger.exception(
-                f"[risk_manager._daily_loss_exceeded] {type(e).__name__}: Risk check failed, blocking trade (fail-closed)"
-            )
+            logger.error(f"[risk_manager._daily_loss_exceeded] {type(e).__name__}: {e}", exc_info=True)
             return True
         finally:
             if owns_db:
@@ -202,9 +198,7 @@ class RiskManager:
             )
             return count > 0
         except Exception as e:
-            logger.exception(
-                f"[risk_manager._has_unsettled_trade] {type(e).__name__}: Unsettled trade check failed, blocking trade"
-            )
+            logger.error(f"[risk_manager._has_unsettled_trade] {type(e).__name__}: {e}", exc_info=True)
             return True
         finally:
             if owns_db:
