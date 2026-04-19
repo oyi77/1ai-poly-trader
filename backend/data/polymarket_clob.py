@@ -364,7 +364,7 @@ class PolymarketCLOB:
             return float(resp.json().get("mid", 0.5))
         except Exception as e:
             logger.debug(
-                f"[polymarket_clob.get_mid_price] {type(e).__name__}: midpoint endpoint failed, falling back to order book: {e}",
+                f"[polymarket_clob.get_mid_price] {type(e).__name__}: Midpoint endpoint failed, falling back to order book: {e}",
                 exc_info=True,
             )
             book = await self.get_order_book(token_id)
@@ -777,8 +777,7 @@ class PolymarketCLOB:
                 return trades, has_more
             except Exception as e:
                 logger.error(
-                    f"[polymarket_clob.get_wallet_trades] "
-                    f"Failed to fetch page at offset {off}: {e}",
+                    f"[polymarket_clob.get_wallet_trades._fetch_page] {type(e).__name__}: Failed to fetch page at offset {off}: {e}",
                     exc_info=True
                 )
                 raise
@@ -798,8 +797,8 @@ class PolymarketCLOB:
                 )
             except Exception as e:
                 logger.error(
-                    f"[polymarket_clob.get_wallet_trades] "
-                    f"Circuit breaker or API error: {e}"
+                    f"[polymarket_clob.get_wallet_trades] {type(e).__name__}: Circuit breaker or API error: {e}",
+                    exc_info=True
                 )
                 if all_trades:
                     logger.info(
@@ -832,8 +831,8 @@ class PolymarketCLOB:
                     all_trades.append(record)
                 except (KeyError, ValueError) as e:
                     logger.warning(
-                        f"[polymarket_clob.get_wallet_trades] "
-                        f"Skipping malformed trade record: {e}"
+                        f"[polymarket_clob.get_wallet_trades] {type(e).__name__}: Skipping malformed trade record: {e}",
+                        exc_info=True
                     )
 
             page += 1

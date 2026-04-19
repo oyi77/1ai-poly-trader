@@ -1588,7 +1588,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/api/main.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 20. Frontend Bundle Code Splitting — Lazy-load GlobeView and Heavy Chunks
+- [x] 20. Frontend Bundle Code Splitting — Lazy-load GlobeView and Heavy Chunks
 
   **What to do**:
   - Identify the heaviest chunks in the frontend build:
@@ -1684,7 +1684,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `frontend/src/components/GlobeView.tsx` (or import site), `frontend/vite.config.ts`
   - Pre-commit: `cd frontend && npm run build`
 
-- [ ] 21. Audit Exception Handling in data/polymarket_clob.py
+- [x] 21. Audit Exception Handling in data/polymarket_clob.py
 
   **What to do**:
   - Open `backend/data/polymarket_clob.py` and locate all 10 bare `except Exception` sites
@@ -1753,7 +1753,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/data/polymarket_clob.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 22. Audit Exception Handling in core/settlement_helpers.py
+- [x] 22. Audit Exception Handling in core/settlement_helpers.py
 
   **What to do**:
   - Open `backend/core/settlement_helpers.py` and locate all 12 bare `except Exception` sites
