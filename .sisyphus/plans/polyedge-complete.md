@@ -63,13 +63,13 @@ Close every gap identified during deep research so that PolyEdge has zero broken
 - Market maker inventory: real tracking via database
 
 ### Definition of Done
-- [ ] `cd frontend && npm test` → 0 failures, all pass
-- [ ] `cd frontend && npm run build` → passes, no chunk >500KB
-- [ ] `pytest --tb=short -q` → 528+ pass, 0 fail, <100 warnings
-- [ ] `grep -r "from sqlalchemy.ext.declarative import" backend/` → 0 matches
-- [ ] `grep -r "@app.on_event" backend/` → 0 matches
-- [ ] `grep -r "asyncio.iscoroutinefunction" backend/` → 0 matches
-- [ ] All 4 final verification agents approve
+- [x] `cd frontend && npm test` → 0 failures, all pass
+- [x] `cd frontend && npm run build` → passes, no chunk >500KB
+- [x] `pytest --tb=short -q` → 528+ pass, 0 fail, <100 warnings
+- [x] `grep -r "from sqlalchemy.ext.declarative import" backend/` → 0 matches
+- [x] `grep -r "@app.on_event" backend/` → 0 matches
+- [x] `grep -r "asyncio.iscoroutinefunction" backend/` → 0 matches
+- - [x] All 4 final verification agents approve
 
 ### Must Have
 - All existing tests continue passing after changes
@@ -195,7 +195,7 @@ Max Concurrent: 8 (Wave 1)
 
 ## TODOs
 
-- [x] 1. Fix vitest.config.ts to exclude e2e directory
+- - [x] 1. Fix vitest.config.ts to exclude e2e directory
 
   **What to do**:
   - Add `exclude` or `include` pattern to `frontend/vitest.config.ts` so Vitest only runs `src/test/**/*.test.{ts,tsx}` and ignores `e2e/**/*.spec.ts`
@@ -236,8 +236,8 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `cd frontend && npx vitest run --reporter=verbose 2>&1 | tail -5` → shows 0 failures from e2e files
-  - [ ] `grep -c "include" frontend/vitest.config.ts` → 1
+  - [x] `cd frontend && npx vitest run --reporter=verbose 2>&1 | tail -5` → shows 0 failures from e2e files
+  - [x] `grep -c "include" frontend/vitest.config.ts` → 1
 
   **QA Scenarios**:
 
@@ -269,7 +269,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `frontend/vitest.config.ts`
   - Pre-commit: `cd frontend && npx vitest run`
 
-- [x] 2. Fix OpportunityScanner.test.tsx to mock axios instead of fetch
+- - [x] 2. Fix OpportunityScanner.test.tsx to mock axios instead of fetch
 
   **What to do**:
   - Replace `vi.stubGlobal('fetch', ...)` with a proper mock of the `../api` module's `api.get()` method
@@ -304,7 +304,7 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `cd frontend && npx vitest run src/test/OpportunityScanner.test.tsx` → PASS (1 test, 0 failures)
+  - [x] `cd frontend && npx vitest run src/test/OpportunityScanner.test.tsx` → PASS (1 test, 0 failures)
 
   **QA Scenarios**:
 
@@ -336,7 +336,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `frontend/src/test/OpportunityScanner.test.tsx`
   - Pre-commit: `cd frontend && npx vitest run`
 
-- [x] 3. Fix WhaleActivityFeed.test.tsx to mock axios instead of fetch
+- - [x] 3. Fix WhaleActivityFeed.test.tsx to mock axios instead of fetch
 
   **What to do**:
   - Replace `vi.stubGlobal('fetch', ...)` with a proper mock of the `../api` module's `api.get()` method
@@ -371,7 +371,7 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `cd frontend && npx vitest run src/test/WhaleActivityFeed.test.tsx` → PASS (1 test, 0 failures)
+  - [x] `cd frontend && npx vitest run src/test/WhaleActivityFeed.test.tsx` → PASS (1 test, 0 failures)
 
   **QA Scenarios**:
 
@@ -403,7 +403,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `frontend/src/test/WhaleActivityFeed.test.tsx`
   - Pre-commit: `cd frontend && npx vitest run`
 
-- [x] 4. Fix PendingApprovals.test.tsx to wrap with QueryClientProvider
+- - [x] 4. Fix PendingApprovals.test.tsx to wrap with QueryClientProvider
 
   **What to do**:
   - The `PendingApprovals` component (line 2, 14, 20) uses `useQuery` and `useQueryClient` from `@tanstack/react-query`, which requires a `QueryClientProvider` wrapper
@@ -438,7 +438,7 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `cd frontend && npx vitest run src/test/PendingApprovals.test.tsx` → PASS (3 tests, 0 failures)
+  - [x] `cd frontend && npx vitest run src/test/PendingApprovals.test.tsx` → PASS (3 tests, 0 failures)
 
   **QA Scenarios**:
 
@@ -470,7 +470,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `frontend/src/test/PendingApprovals.test.tsx`
   - Pre-commit: `cd frontend && npx vitest run`
 
-- [x] 5. Fix Pydantic Settings deprecated class Config
+- - [x] 5. Fix Pydantic Settings deprecated class Config
 
   **What to do**:
   - In `backend/config.py` line 183-184, replace inner `class Config: env_file = ".env"` with `model_config = ConfigDict(env_file=".env")` as a class attribute
@@ -507,8 +507,8 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `pytest backend/tests/test_api_health.py -v --tb=short 2>&1 | grep -c "PydanticDeprecatedSince20"` → 0
-  - [ ] `python -c "from backend.config import settings; print(settings.DATABASE_URL)"` → prints default DB URL without warnings
+  - [x] `pytest backend/tests/test_api_health.py -v --tb=short 2>&1 | grep -c "PydanticDeprecatedSince20"` → 0
+  - [x] `python -c "from backend.config import settings; print(settings.DATABASE_URL)"` → prints default DB URL without warnings
 
   **QA Scenarios**:
 
@@ -540,7 +540,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/config.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 6. Fix SQLAlchemy deprecated declarative_base import
+- - [x] 6. Fix SQLAlchemy deprecated declarative_base import
 
   **What to do**:
   - In `backend/models/database.py` line 22, change `from sqlalchemy.ext.declarative import declarative_base` to `from sqlalchemy.orm import declarative_base`
@@ -577,9 +577,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep "from sqlalchemy.ext.declarative import" backend/models/database.py` → 0 matches
-  - [ ] `grep "from sqlalchemy.orm import declarative_base" backend/models/database.py` → 1 match
-  - [ ] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
+  - [x] `grep "from sqlalchemy.ext.declarative import" backend/models/database.py` → 0 matches
+  - [x] `grep "from sqlalchemy.orm import declarative_base" backend/models/database.py` → 1 match
+  - [x] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
 
   **QA Scenarios**:
 
@@ -611,7 +611,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/models/database.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 7. Fix FastAPI deprecated @app.on_event lifecycle to use lifespan
+- - [x] 7. Fix FastAPI deprecated @app.on_event lifecycle to use lifespan
 
   **What to do**:
   - In `backend/api/main.py`, replace the `@app.on_event("startup")` handler (line 263) and `@app.on_event("shutdown")` handler (line 335) with a single `@asynccontextmanager` lifespan function
@@ -655,10 +655,10 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep -c "@app.on_event" backend/api/main.py` → 0
-  - [ ] `grep -c "asynccontextmanager" backend/api/main.py` → 1
-  - [ ] `grep -c "lifespan" backend/api/main.py` → at least 2 (definition + FastAPI constructor)
-  - [ ] `pytest backend/tests/test_api_health.py -v --tb=short` → all pass
+  - [x] `grep -c "@app.on_event" backend/api/main.py` → 0
+  - [x] `grep -c "asynccontextmanager" backend/api/main.py` → 1
+  - [x] `grep -c "lifespan" backend/api/main.py` → at least 2 (definition + FastAPI constructor)
+  - [x] `pytest backend/tests/test_api_health.py -v --tb=short` → all pass
 
   **QA Scenarios**:
 
@@ -700,7 +700,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/api/main.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 8. Fix asyncio.iscoroutinefunction deprecation in 3 files
+- - [x] 8. Fix asyncio.iscoroutinefunction deprecation in 3 files
 
   **What to do**:
   - In Python 3.12+, `asyncio.iscoroutinefunction` is deprecated in favor of `inspect.iscoroutinefunction`
@@ -737,9 +737,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep -rn "asyncio.iscoroutinefunction" backend/` → 0 matches
-  - [ ] `grep -rn "inspect.iscoroutinefunction" backend/` → 3 matches (one per file)
-  - [ ] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
+  - [x] `grep -rn "asyncio.iscoroutinefunction" backend/` → 0 matches
+  - [x] `grep -rn "inspect.iscoroutinefunction" backend/` → 3 matches (one per file)
+  - [x] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
 
   **QA Scenarios**:
 
@@ -780,7 +780,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/retry.py`, `backend/core/errors.py`, `backend/ai/sentiment_analyzer.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 9. Rewrite ARCHITECTURE.md to match actual codebase
+- - [x] 9. Rewrite ARCHITECTURE.md to match actual codebase
 
   **What to do**:
   - The current `ARCHITECTURE.md` describes a completely different product (weather+economics Kalshi bot with a nonexistent file tree like `kalshi_bot/`, `models/weather_model.py`, etc.)
@@ -831,10 +831,10 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `wc -l ARCHITECTURE.md` → between 80 and 200 lines
-  - [ ] `grep -c "kalshi_bot/" ARCHITECTURE.md` → 0 (old fake directory gone)
-  - [ ] `grep -c "weather_model.py" ARCHITECTURE.md` → 0 (old fake file gone)
-  - [ ] Every directory mentioned in ARCHITECTURE.md actually exists (agent verifies with `ls`)
+  - [x] `wc -l ARCHITECTURE.md` → between 80 and 200 lines
+  - [x] `grep -c "kalshi_bot/" ARCHITECTURE.md` → 0 (old fake directory gone)
+  - [x] `grep -c "weather_model.py" ARCHITECTURE.md` → 0 (old fake file gone)
+  - [x] Every directory mentioned in ARCHITECTURE.md actually exists (agent verifies with `ls`)
 
   **QA Scenarios**:
 
@@ -866,7 +866,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `ARCHITECTURE.md`
   - Pre-commit: none
 
-- [x] 10. Rewrite IMPLEMENTATION_GAPS.md with accurate status
+- - [x] 10. Rewrite IMPLEMENTATION_GAPS.md with accurate status
 
   **What to do**:
   - The current `IMPLEMENTATION_GAPS.md` falsely claims "100% Complete" for every category
@@ -905,9 +905,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep -c "100% Complete" IMPLEMENTATION_GAPS.md` → 0 (no blanket claims)
-  - [ ] File mentions "email notification" as explicitly de-scoped
-  - [ ] File mentions market maker inventory as placeholder
+  - [x] `grep -c "100% Complete" IMPLEMENTATION_GAPS.md` → 0 (no blanket claims)
+  - [x] File mentions "email notification" as explicitly de-scoped
+  - [x] File mentions market maker inventory as placeholder
 
   **QA Scenarios**:
 
@@ -938,7 +938,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `IMPLEMENTATION_GAPS.md`
   - Pre-commit: none
 
-- [x] 11. Update README.md to match current reality
+- - [x] 11. Update README.md to match current reality
 
   **What to do**:
   - README.md is partially accurate but has stale sections
@@ -979,9 +979,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] All documentation links in README.md point to existing files
-  - [ ] ASCII architecture diagram mentions backend, frontend, data sources, AI layer
-  - [ ] Quick Start commands work (already verified — just check they're still accurate)
+  - [x] All documentation links in README.md point to existing files
+  - [x] ASCII architecture diagram mentions backend, frontend, data sources, AI layer
+  - [x] Quick Start commands work (already verified — just check they're still accurate)
 
   **QA Scenarios**:
 
@@ -1013,7 +1013,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `README.md`
   - Pre-commit: none
 
-- [x] 12. De-scope email notification with explicit comments and docs note
+- - [x] 12. De-scope email notification with explicit comments and docs note
 
   **What to do**:
   - In `backend/bot/notification_router.py:117-123`, the `_send_email` method is a placeholder that just logs "not implemented"
@@ -1049,9 +1049,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep -c "NotImplementedError" backend/bot/notification_router.py` → 1
-  - [ ] `grep -c "de-scoped\|de_scoped" backend/bot/notification_router.py` → at least 1
-  - [ ] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
+  - [x] `grep -c "NotImplementedError" backend/bot/notification_router.py` → 1
+  - [x] `grep -c "de-scoped\|de_scoped" backend/bot/notification_router.py` → at least 1
+  - [x] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
 
   **QA Scenarios**:
 
@@ -1081,7 +1081,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/bot/notification_router.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 13. Implement real inventory tracking for market maker strategy
+- - [x] 13. Implement real inventory tracking for market maker strategy
 
   **What to do**:
   - In `backend/strategies/market_maker.py:163-166`, inventory is read from `meta.get("current_inventory_usd", 0.0)` which always defaults to 0 since no market metadata provider populates this field
@@ -1125,9 +1125,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep -c "current_inventory_usd" backend/strategies/market_maker.py` → 0 (placeholder metadata key removed)
-  - [ ] `grep -c "ctx.db" backend/strategies/market_maker.py` → at least 1 (uses database for inventory)
-  - [ ] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
+  - [x] `grep -c "current_inventory_usd" backend/strategies/market_maker.py` → 0 (placeholder metadata key removed)
+  - [x] `grep -c "ctx.db" backend/strategies/market_maker.py` → at least 1 (uses database for inventory)
+  - [x] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
 
   **QA Scenarios**:
 
@@ -1160,7 +1160,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/strategies/market_maker.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 14. Fix unawaited CLOBWebSocket._send_subscribe coroutine
+- - [x] 14. Fix unawaited CLOBWebSocket._send_subscribe coroutine
 
   **What to do**:
   - In `backend/data/ws_client.py:72-76`, the `subscribe()` method is synchronous but calls `asyncio.create_task(self._send_subscribe({token_id}))` at line 76
@@ -1197,9 +1197,9 @@ Max Concurrent: 8 (Wave 1)
 
   **Acceptance Criteria**:
 
-  - [ ] `grep -c "asyncio.create_task.*_send_subscribe" backend/data/ws_client.py` → 0
-  - [ ] `grep -c "await self._send_subscribe" backend/data/ws_client.py` → at least 1
-  - [ ] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
+  - [x] `grep -c "asyncio.create_task.*_send_subscribe" backend/data/ws_client.py` → 0
+  - [x] `grep -c "await self._send_subscribe" backend/data/ws_client.py` → at least 1
+  - [x] `pytest backend/tests/ -q --tb=short 2>&1 | tail -3` → all pass
 
   **QA Scenarios**:
 
@@ -1232,7 +1232,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/data/ws_client.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 15. Audit Exception Handling in core/orchestrator.py
+- - [x] 15. Audit Exception Handling in core/orchestrator.py
 
   **What to do**:
   - Open `backend/core/orchestrator.py` and locate all 9 bare `except Exception` sites
@@ -1276,9 +1276,9 @@ Max Concurrent: 8 (Wave 1)
   - The orchestrator is the central coordination module — unstructured error logs here make debugging production trading failures extremely difficult
 
   **Acceptance Criteria**:
-  - [ ] All 9 bare `except Exception` sites have structured logging with module, function, exception type, message
-  - [ ] `grep -c "except Exception" backend/core/orchestrator.py` returns 0 bare catches (all narrowed or structured)
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 9 bare `except Exception` sites have structured logging with module, function, exception type, message
+  - [x] `grep -c "except Exception" backend/core/orchestrator.py` returns 0 bare catches (all narrowed or structured)
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1310,7 +1310,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/orchestrator.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 16. Audit Exception Handling in strategies/order_executor.py
+- - [x] 16. Audit Exception Handling in strategies/order_executor.py
 
   **What to do**:
   - Open `backend/strategies/order_executor.py` and locate all 4 bare `except Exception` sites
@@ -1349,8 +1349,8 @@ Max Concurrent: 8 (Wave 1)
   - Order executor handles real money trades — unstructured exceptions here can hide critical order failures
 
   **Acceptance Criteria**:
-  - [ ] All 4 bare `except Exception` sites have structured logging
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 4 bare `except Exception` sites have structured logging
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1381,7 +1381,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/strategies/order_executor.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 17. Audit Exception Handling in core/risk_manager.py
+- - [x] 17. Audit Exception Handling in core/risk_manager.py
 
   **What to do**:
   - Open `backend/core/risk_manager.py` and locate all 3 bare `except Exception` sites
@@ -1414,8 +1414,8 @@ Max Concurrent: 8 (Wave 1)
   - Risk manager is the safety net for position sizing — silent exceptions here could allow oversized positions
 
   **Acceptance Criteria**:
-  - [ ] All 3 bare `except Exception` sites have structured logging
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 3 bare `except Exception` sites have structured logging
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1444,7 +1444,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/risk_manager.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 18. Audit Exception Handling in core/strategy_executor.py
+- - [x] 18. Audit Exception Handling in core/strategy_executor.py
 
   **What to do**:
   - Open `backend/core/strategy_executor.py` and locate all 4 bare `except Exception` sites
@@ -1477,8 +1477,8 @@ Max Concurrent: 8 (Wave 1)
   - Strategy executor dispatches to all trading strategies — unstructured exceptions could silently skip strategies
 
   **Acceptance Criteria**:
-  - [ ] All 4 bare `except Exception` sites have structured logging
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 4 bare `except Exception` sites have structured logging
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1507,7 +1507,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/strategy_executor.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 19. Audit Exception Handling in api/main.py
+- - [x] 19. Audit Exception Handling in api/main.py
 
   **What to do**:
   - Open `backend/api/main.py` and locate all 10 bare `except Exception` sites
@@ -1543,9 +1543,9 @@ Max Concurrent: 8 (Wave 1)
   - API main is the user-facing surface — poor error responses make the dashboard unusable during failures
 
   **Acceptance Criteria**:
-  - [ ] All 10 bare `except Exception` sites have structured logging
-  - [ ] No API response contract changes (same status codes, same JSON shapes)
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 10 bare `except Exception` sites have structured logging
+  - [x] No API response contract changes (same status codes, same JSON shapes)
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1588,7 +1588,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/api/main.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 20. Frontend Bundle Code Splitting — Lazy-load GlobeView and Heavy Chunks
+- - [x] 20. Frontend Bundle Code Splitting — Lazy-load GlobeView and Heavy Chunks
 
   **What to do**:
   - Identify the heaviest chunks in the frontend build:
@@ -1638,10 +1638,10 @@ Max Concurrent: 8 (Wave 1)
   - vite.config.ts may need manual chunk splitting to prevent vendor libraries from landing in the main bundle
 
   **Acceptance Criteria**:
-  - [ ] `cd frontend && npm run build` → succeeds with no errors
-  - [ ] No single JS chunk exceeds 1MB in `frontend/dist/assets/`
-  - [ ] GlobeView loads lazily (verified via build output showing separate chunk)
-  - [ ] `cd frontend && npm test` → all tests still pass
+  - [x] `cd frontend && npm run build` → succeeds with no errors
+  - [x] No single JS chunk exceeds 1MB in `frontend/dist/assets/`
+  - [x] GlobeView loads lazily (verified via build output showing separate chunk)
+  - [x] `cd frontend && npm test` → all tests still pass
 
   **QA Scenarios**:
 
@@ -1684,7 +1684,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `frontend/src/components/GlobeView.tsx` (or import site), `frontend/vite.config.ts`
   - Pre-commit: `cd frontend && npm run build`
 
-- [x] 21. Audit Exception Handling in data/polymarket_clob.py
+- - [x] 21. Audit Exception Handling in data/polymarket_clob.py
 
   **What to do**:
   - Open `backend/data/polymarket_clob.py` and locate all 10 bare `except Exception` sites
@@ -1723,8 +1723,8 @@ Max Concurrent: 8 (Wave 1)
   - polymarket_clob is the primary data source for Polymarket markets — silent failures here mean the bot trades blind
 
   **Acceptance Criteria**:
-  - [ ] All 10 bare `except Exception` sites have structured logging
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 10 bare `except Exception` sites have structured logging
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1753,7 +1753,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/data/polymarket_clob.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [x] 22. Audit Exception Handling in core/settlement_helpers.py
+- - [x] 22. Audit Exception Handling in core/settlement_helpers.py
 
   **What to do**:
   - Open `backend/core/settlement_helpers.py` and locate all 12 bare `except Exception` sites
@@ -1791,8 +1791,8 @@ Max Concurrent: 8 (Wave 1)
   - Settlement helpers resolve trade outcomes and calculate payouts — silent exceptions here could mean trades are never settled or incorrectly settled
 
   **Acceptance Criteria**:
-  - [ ] All 12 bare `except Exception` sites have structured logging
-  - [ ] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
+  - [x] All 12 bare `except Exception` sites have structured logging
+  - [x] `pytest backend/tests/ -q --tb=short` → 528+ pass, 0 fail
 
   **QA Scenarios**:
 
@@ -1827,19 +1827,19 @@ Max Concurrent: 8 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Rejection → fix → re-run.
 
-- [x] F1. **Plan Compliance Audit** — `oracle`
+- - [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [x] F2. **Code Quality Review** — `unspecified-high`
+- - [x] F2. **Code Quality Review** — `unspecified-high`
   Run `cd frontend && npm run build && npm test`. Run `pytest --tb=short -q` from project root. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [x] F3. **Real Manual QA** — `unspecified-high`
+- - [x] F3. **Real Manual QA** — `unspecified-high`
   Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (frontend tests all pass together, backend tests all pass together). Save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- - [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff (`git diff`). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination: Task N touching Task M's files.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -1872,10 +1872,10 @@ grep -rn "asyncio.iscoroutinefunction" backend/             # Expected: 0 matche
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Frontend: 0 test failures
-- [ ] Backend: 528+ tests passing
-- [ ] Backend: <100 warnings (down from 69,348)
-- [ ] Documentation: ARCHITECTURE.md, README.md, IMPLEMENTATION_GAPS.md accurate
-- [ ] All 4 final verification agents approve
+- - [x] All "Must Have" present
+- - [x] All "Must NOT Have" absent
+- - [x] Frontend: 0 test failures
+- - [x] Backend: 528+ tests passing
+- - [x] Backend: <100 warnings (down from 69,348)
+- - [x] Documentation: ARCHITECTURE.md, README.md, IMPLEMENTATION_GAPS.md accurate
+- - [x] All 4 final verification agents approve

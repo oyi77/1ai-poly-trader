@@ -945,7 +945,7 @@ async def get_dashboard(
             )
             btc_price_data = BtcPriceResponse(
                 price=micro.price,
-                change_24h=micro.momentum_15m * 96,  # rough extrapolation
+                change_24h=(micro.momentum_15m or 0.0) * 96,  # rough extrapolation
                 change_7d=0,
                 market_cap=0,
                 volume_24h=0,
@@ -1467,7 +1467,7 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
         ws_manager.disconnect(websocket)
 
 
-@app.websocket("/ws/stats")
+@app.websocket("/ws/dashboard-data")
 async def websocket_stats(websocket: WebSocket, token: str = ""):
     if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")

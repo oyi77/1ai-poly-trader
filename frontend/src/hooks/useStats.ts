@@ -8,7 +8,7 @@ export function useStats() {
 
   useEffect(() => {
     const apiKey = localStorage.getItem('adminApiKey') || ''
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/stats?token=${apiKey}`
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/dashboard-data?token=${apiKey}`
     
     let ws: WebSocket | null = null
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null

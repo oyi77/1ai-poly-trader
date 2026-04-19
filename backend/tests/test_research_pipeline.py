@@ -1,3 +1,4 @@
+import inspect
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,7 +29,7 @@ class TestResearchPipelineInit:
 
     def test_run_research_cycle_is_async(self):
         p = ResearchPipeline()
-        assert asyncio.iscoroutinefunction(p.run_research_cycle)
+        assert inspect.iscoroutinefunction(p.run_research_cycle)
 
 
 def _make_item(

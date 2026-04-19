@@ -131,10 +131,10 @@ def _compute_calibration_summary(db: Session) -> Optional[CalibrationSummary]:
     correct = sum(1 for s in settled_signals if s.outcome_correct)
     accuracy = correct / total_with_outcome if total_with_outcome > 0 else 0.0
 
-    avg_predicted_edge = sum(abs(s.edge) for s in settled_signals) / total_with_outcome
+    avg_predicted_edge = sum(abs(s.edge or 0.0) for s in settled_signals) / total_with_outcome
     # Actual edge: for correct predictions, edge was real; for incorrect, edge was negative
     avg_actual_edge = (
-        sum(abs(s.edge) if s.outcome_correct else -abs(s.edge) for s in settled_signals)
+        sum(abs(s.edge or 0.0) if s.outcome_correct else -abs(s.edge or 0.0) for s in settled_signals)
         / total_with_outcome
     )
 
@@ -144,7 +144,8 @@ def _compute_calibration_summary(db: Session) -> Optional[CalibrationSummary]:
     for s in settled_signals:
         # Model probability is for UP; actual is 1.0 if UP won, 0.0 if DOWN won
         actual = s.settlement_value if s.settlement_value is not None else 0.5
-        brier_sum += (s.model_probability - actual) ** 2
+        model_prob = s.model_probability if s.model_probability is not None else 0.5
+        brier_sum += (model_prob - actual) ** 2
     brier_score = brier_sum / total_with_outcome
 
     return CalibrationSummary(

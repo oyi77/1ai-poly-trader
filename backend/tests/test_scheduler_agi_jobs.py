@@ -1,3 +1,4 @@
+import inspect
 """Tests for AGI scheduler job wiring (self-review, research pipeline)."""
 
 import asyncio
@@ -125,5 +126,5 @@ class TestSchedulerImportsAGIJobs:
     def test_agi_jobs_importable(self):
         from backend.core.agi_jobs import self_review_job, research_pipeline_job
 
-        assert asyncio.iscoroutinefunction(self_review_job)
-        assert asyncio.iscoroutinefunction(research_pipeline_job)
+        assert inspect.iscoroutinefunction(self_review_job)
+        assert inspect.iscoroutinefunction(research_pipeline_job)
