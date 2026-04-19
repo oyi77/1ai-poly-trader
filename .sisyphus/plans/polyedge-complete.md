@@ -1310,7 +1310,7 @@ Max Concurrent: 8 (Wave 1)
   - Files: `backend/core/orchestrator.py`
   - Pre-commit: `pytest --tb=short -q`
 
-- [ ] 16. Audit Exception Handling in strategies/order_executor.py
+- [x] 16. Audit Exception Handling in strategies/order_executor.py
 
   **What to do**:
   - Open `backend/strategies/order_executor.py` and locate all 4 bare `except Exception` sites

@@ -117,7 +117,8 @@ class LeaderboardScorer:
             return total_value + realized_pnl if total_value > 0 else None
         except (httpx.HTTPError, Exception) as e:
             logger.debug(
-                f"[order_executor._fetch_actual_bankroll] {type(e).__name__}: Failed to fetch positions for {wallet[:10]}...: {e}"
+                f"[order_executor._fetch_actual_bankroll] {type(e).__name__}: Failed to fetch positions for {wallet[:10]}...: {e}",
+                exc_info=True
             )
             return None
 
@@ -132,7 +133,8 @@ class LeaderboardScorer:
             entries = resp.json()
         except (httpx.HTTPError, Exception) as e:
             logger.warning(
-                f"[order_executor.fetch_and_score] Leaderboard data-api unavailable ({type(e).__name__}), trying scraper fallback"
+                f"[order_executor.fetch_and_score] {type(e).__name__}: Leaderboard data-api unavailable: {e}, trying scraper fallback",
+                exc_info=True,
             )
             # Fallback: try the polymarket_scraper
             try:
@@ -166,7 +168,8 @@ class LeaderboardScorer:
                     )
             except Exception as scrape_err:
                 logger.warning(
-                    f"[order_executor] {type(scrape_err).__name__}: Scraper fallback also failed: {scrape_err}"
+                    f"[order_executor.fetch_and_score] {type(scrape_err).__name__}: Scraper fallback also failed: {scrape_err}",
+                    exc_info=True
                 )
 
         if not entries:
@@ -269,7 +272,8 @@ class OrderExecutor:
             return result
         except (httpx.HTTPError, Exception) as e:
             logger.debug(
-                f"[order_executor._fetch_market_meta] {type(e).__name__}: Market meta fetch failed for {condition_id[:12]}: {e}"
+                f"[order_executor._fetch_market_meta] {type(e).__name__}: Market meta fetch failed for {condition_id[:12]}: {e}",
+                exc_info=True
             )
             self._market_cache[condition_id] = None
             return None
