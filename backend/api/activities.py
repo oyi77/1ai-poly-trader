@@ -4,13 +4,13 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from backend.models.database import SessionLocal, ActivityLog
 from backend.core.activity_logger import activity_logger
-from backend.websockets.activity_stream import broadcast_activity
+from backend.websockets.activity_stream import broadcast_activity, activity_manager
 
 logger = logging.getLogger(__name__)
 
@@ -162,3 +162,24 @@ async def create_activity(
     except Exception as e:
         logger.error(f"Failed to create activity: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.websocket("/ws")
+async def websocket_activities_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time activity updates.
+    
+    Connects to /ws/activities (relative to /api/activities prefix = /api/activities/ws)
+    Receives activity updates in real-time as they are logged via POST /api/activities.
+    """
+    await activity_manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive by receiving messages
+            # We don't process incoming messages, just maintain the connection
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await activity_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await activity_manager.disconnect(websocket)

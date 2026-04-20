@@ -171,6 +171,36 @@ async def get_signals(_: str = Depends(require_admin)):
     return [_signal_to_response(s, actionable=s.passes_threshold) for s in signals]
 
 
+@router.post("/api/signals", status_code=201)
+async def create_signal(
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    """Create a new trading signal (e.g., from MiroFish debate engine)."""
+    from backend.models.database import MiroFishSignal
+    
+    signal = MiroFishSignal(
+        market_id=payload.get("market_id", ""),
+        prediction=payload.get("prediction", 0.5),
+        confidence=payload.get("confidence", 0.5),
+        reasoning=payload.get("reasoning", ""),
+        source=payload.get("source", "manual"),
+        weight=payload.get("weight", 1.0)
+    )
+    db.add(signal)
+    db.commit()
+    db.refresh(signal)
+    
+    return {
+        "id": signal.id,
+        "market_id": signal.market_id,
+        "prediction": signal.prediction,
+        "confidence": signal.confidence,
+        "source": signal.source,
+        "created_at": signal.created_at.isoformat()
+    }
+
+
 @router.get("/api/signals/history")
 async def get_signals_history(
     limit: int = 100,

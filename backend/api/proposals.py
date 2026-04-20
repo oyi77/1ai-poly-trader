@@ -31,6 +31,12 @@ class ApprovalRequest(BaseModel):
     reason: str = Field(..., min_length=1, description="Reason must not be empty")
 
 
+class CreateProposalRequest(BaseModel):
+    strategy_name: str
+    change_details: dict
+    expected_impact: str
+
+
 @router.get("", response_model=List[ProposalResponse])
 async def list_proposals(
     status: Optional[str] = "pending",
@@ -60,6 +66,36 @@ async def list_proposals(
         )
         for p in proposals
     ]
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_proposal(
+    request: CreateProposalRequest,
+    db: Session = Depends(get_db)
+):
+    """Create a new strategy proposal."""
+    from datetime import datetime, timezone
+    
+    proposal = DBProposal(
+        strategy_name=request.strategy_name,
+        change_details=request.change_details,
+        expected_impact=request.expected_impact,
+        admin_decision="pending",
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
+    
+    return ProposalResponse(
+        id=proposal.id,
+        strategy_name=proposal.strategy_name,
+        change_details=proposal.change_details,
+        expected_impact=proposal.expected_impact,
+        admin_decision=proposal.admin_decision,
+        created_at=proposal.created_at.isoformat() if proposal.created_at else "",
+        executed_at=proposal.executed_at.isoformat() if proposal.executed_at else None
+    )
 
 
 @router.post("/{proposal_id}/approve", status_code=status.HTTP_200_OK)
