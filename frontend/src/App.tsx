@@ -1,5 +1,6 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { TradeNotifications } from './components/TradeNotifications'
 import { PageLoader } from './components/PageLoader'
 
@@ -8,47 +9,7 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'))
 const Admin = React.lazy(() => import('./pages/Admin'))
 const Activity = React.lazy(() => import('./pages/Activity'))
 const Proposals = React.lazy(() => import('./pages/Proposals'))
-
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-screen bg-black flex items-center justify-center">
-          <div className="text-center border border-red-900 p-8 max-w-md">
-            <div className="text-red-500 text-xs uppercase mb-2 tracking-wider font-mono">
-              Runtime Error
-            </div>
-            <div className="text-neutral-400 text-xs font-mono mb-4 break-words">
-              {this.state.error?.message}
-            </div>
-            <button
-              onClick={() => {
-                this.setState({ hasError: false, error: null })
-                window.location.reload()
-              }}
-              className="px-3 py-1.5 bg-neutral-900 border border-neutral-700 text-neutral-300 text-xs uppercase tracking-wider"
-            >
-              Reload
-            </button>
-          </div>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
+const ErrorTest = React.lazy(() => import('./pages/ErrorTest'))
 
 /**
  * Redirect component for /docs* paths.
@@ -77,6 +38,7 @@ export default function App() {
             <Route path="/admin" element={<Admin />} />
             <Route path="/activity" element={<Activity />} />
             <Route path="/proposals" element={<Proposals />} />
+            <Route path="/error-test" element={<ErrorTest />} />
             {/* Legacy standalone routes → redirect to Dashboard tabs */}
             <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
             <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />
