@@ -77,7 +77,6 @@ class Orchestrator:
                 if not existing:
                     initial_bankroll = settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
                     db.add(BotState(
-                        id=1,
                         mode=mode,
                         bankroll=initial_bankroll,
                         total_trades=0,
