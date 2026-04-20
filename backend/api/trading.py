@@ -249,7 +249,7 @@ async def get_signals_history(
              "outcome_correct": r.outcome_correct,
              "settlement_value": r.settlement_value,
              "settled_at": r.settled_at.isoformat() if r.settled_at else None,
-             "trading_mode": r.execution_mode or "paper",
+              "execution_mode": r.execution_mode or "paper",
          }
          for r in rows
      ]
