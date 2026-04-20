@@ -40,7 +40,7 @@ class RollbackManager:
         db = SessionLocal()
         try:
             config = db.query(StrategyConfig).filter(
-                StrategyConfig.name == strategy_name
+                StrategyConfig.strategy_name == strategy_name
             ).first()
             
             if not config:
@@ -123,7 +123,7 @@ class RollbackManager:
             config_snapshot = snapshot_data['config_snapshot']
             
             config = db.query(StrategyConfig).filter(
-                StrategyConfig.name == strategy_name
+                StrategyConfig.strategy_name == strategy_name
             ).first()
             
             if not config:
@@ -158,6 +158,9 @@ class RollbackManager:
             
             proposal.change_details['rollback_history'].append(rollback_log)
             proposal.admin_decision = 'rolled_back'
+            
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(proposal, 'change_details')
             
             db.commit()
             

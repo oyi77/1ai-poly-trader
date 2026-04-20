@@ -3,7 +3,7 @@
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.models.database import get_db, StrategyProposal as DBProposal, Trade
@@ -28,7 +28,7 @@ class ProposalResponse(BaseModel):
 
 class ApprovalRequest(BaseModel):
     admin_user_id: str
-    reason: str
+    reason: str = Field(..., min_length=1, description="Reason must not be empty")
 
 
 @router.get("", response_model=List[ProposalResponse])

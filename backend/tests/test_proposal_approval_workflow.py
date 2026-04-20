@@ -1,43 +1,10 @@
 """Integration tests for Wave 4d - Proposal Approval UI + Workflows + Backend Enforcement."""
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timezone
 
-from backend.api.main import app
-from backend.models.database import Base, StrategyProposal, get_db
+from backend.models.database import StrategyProposal
 from backend.config import settings
-
-
-@pytest.fixture
-def test_db():
-    """Create a test database."""
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-    
-    app.dependency_overrides[get_db] = override_get_db
-    
-    db = TestingSessionLocal()
-    yield db
-    db.close()
-    
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def client(test_db):
-    """Create a test client."""
-    return TestClient(app)
 
 
 @pytest.fixture
@@ -49,7 +16,7 @@ def admin_headers():
 
 
 @pytest.fixture
-def sample_proposal(test_db):
+def sample_proposal(db):
     """Create a sample proposal in the database."""
     proposal = StrategyProposal(
         strategy_name="btc_oracle",
@@ -58,9 +25,9 @@ def sample_proposal(test_db):
         admin_decision="pending",
         created_at=datetime.now(timezone.utc)
     )
-    test_db.add(proposal)
-    test_db.commit()
-    test_db.refresh(proposal)
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
     return proposal
 
 
@@ -76,7 +43,7 @@ def test_list_pending_proposals(client, admin_headers, sample_proposal):
     assert data[0]["admin_decision"] == "pending"
 
 
-def test_approve_proposal_as_admin(client, admin_headers, sample_proposal, test_db):
+def test_approve_proposal_as_admin(client, admin_headers, sample_proposal, db):
     """Test approving a proposal as admin."""
     response = client.post(
         f"/api/proposals/{sample_proposal.id}/approve",
@@ -89,14 +56,14 @@ def test_approve_proposal_as_admin(client, admin_headers, sample_proposal, test_
     assert data["status"] == "approved"
     assert data["proposal_id"] == sample_proposal.id
     
-    test_db.refresh(sample_proposal)
+    db.refresh(sample_proposal)
     assert sample_proposal.admin_decision == "approved"
     assert sample_proposal.admin_user_id == "admin123"
     assert sample_proposal.admin_decision_reason == "Good improvement based on recent data"
     assert sample_proposal.executed_at is not None
 
 
-def test_reject_proposal_as_admin(client, admin_headers, sample_proposal, test_db):
+def test_reject_proposal_as_admin(client, admin_headers, sample_proposal, db):
     """Test rejecting a proposal as admin."""
     response = client.post(
         f"/api/proposals/{sample_proposal.id}/reject",
@@ -109,7 +76,7 @@ def test_reject_proposal_as_admin(client, admin_headers, sample_proposal, test_d
     assert data["status"] == "rejected"
     assert data["proposal_id"] == sample_proposal.id
     
-    test_db.refresh(sample_proposal)
+    db.refresh(sample_proposal)
     assert sample_proposal.admin_decision == "rejected"
     assert sample_proposal.admin_user_id == "admin123"
     assert sample_proposal.admin_decision_reason == "Not enough data to support this change"
@@ -163,11 +130,11 @@ def test_reject_nonexistent_proposal(client, admin_headers):
     assert response.status_code == 404
 
 
-def test_approve_already_approved_proposal(client, admin_headers, sample_proposal, test_db):
+def test_approve_already_approved_proposal(client, admin_headers, sample_proposal, db):
     """Test that already approved proposals cannot be approved again."""
     sample_proposal.admin_decision = "approved"
     sample_proposal.admin_user_id = "admin123"
-    test_db.commit()
+    db.commit()
     
     response = client.post(
         f"/api/proposals/{sample_proposal.id}/approve",
@@ -178,11 +145,11 @@ def test_approve_already_approved_proposal(client, admin_headers, sample_proposa
     assert response.status_code == 404
 
 
-def test_reject_already_rejected_proposal(client, admin_headers, sample_proposal, test_db):
+def test_reject_already_rejected_proposal(client, admin_headers, sample_proposal, db):
     """Test that already rejected proposals cannot be rejected again."""
     sample_proposal.admin_decision = "rejected"
     sample_proposal.admin_user_id = "admin123"
-    test_db.commit()
+    db.commit()
     
     response = client.post(
         f"/api/proposals/{sample_proposal.id}/reject",
@@ -193,7 +160,7 @@ def test_reject_already_rejected_proposal(client, admin_headers, sample_proposal
     assert response.status_code == 404
 
 
-def test_proposal_workflow_state_transitions(client, admin_headers, test_db):
+def test_proposal_workflow_state_transitions(client, admin_headers, db):
     """Test complete proposal workflow: Draft → Pending → Approved."""
     proposal = StrategyProposal(
         strategy_name="weather_emos",
@@ -202,9 +169,9 @@ def test_proposal_workflow_state_transitions(client, admin_headers, test_db):
         admin_decision="pending",
         created_at=datetime.now(timezone.utc)
     )
-    test_db.add(proposal)
-    test_db.commit()
-    test_db.refresh(proposal)
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
     
     assert proposal.admin_decision == "pending"
     
@@ -216,7 +183,7 @@ def test_proposal_workflow_state_transitions(client, admin_headers, test_db):
     
     assert response.status_code == 200
     
-    test_db.refresh(proposal)
+    db.refresh(proposal)
     assert proposal.admin_decision == "approved"
     assert proposal.admin_user_id == "admin123"
     assert proposal.executed_at is not None
@@ -244,7 +211,7 @@ def test_rejection_requires_reason(client, admin_headers, sample_proposal):
     assert response.status_code in [400, 422]
 
 
-def test_list_proposals_filters_by_status(client, admin_headers, test_db):
+def test_list_proposals_filters_by_status(client, admin_headers, db):
     """Test that listing proposals filters by status correctly."""
     pending_proposal = StrategyProposal(
         strategy_name="strategy1",
@@ -260,8 +227,8 @@ def test_list_proposals_filters_by_status(client, admin_headers, test_db):
         admin_decision="approved",
         created_at=datetime.now(timezone.utc)
     )
-    test_db.add_all([pending_proposal, approved_proposal])
-    test_db.commit()
+    db.add_all([pending_proposal, approved_proposal])
+    db.commit()
     
     response = client.get("/api/proposals?status=pending", headers=admin_headers)
     assert response.status_code == 200

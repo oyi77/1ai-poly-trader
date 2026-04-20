@@ -282,10 +282,10 @@ class TestRollbackManager:
         manager = RollbackManager()
         
         config = StrategyConfig(
-            name="rollback_test",
+            strategy_name="rollback_test",
             enabled=True,
             interval_seconds=300,
-            params={"threshold": 0.8}
+            params='{"threshold": 0.8}'
         )
         db_session.add(config)
         
@@ -297,7 +297,7 @@ class TestRollbackManager:
                     'config_snapshot': {
                         'enabled': True,
                         'interval_seconds': 300,
-                        'params': {'threshold': 0.7},
+                        'params': '{"threshold": 0.7}',
                         'mode': None
                     },
                     'snapshot_at': datetime.now(timezone.utc).isoformat(),
@@ -310,7 +310,7 @@ class TestRollbackManager:
         db_session.add(proposal)
         db_session.commit()
         
-        config.params = {"threshold": 0.9}
+        config.params = '{"threshold": 0.9}'
         db_session.commit()
         
         success = manager.rollback_proposal(proposal.id)
@@ -318,7 +318,8 @@ class TestRollbackManager:
         assert success is True
         
         db_session.refresh(config)
-        assert config.params['threshold'] == 0.7
+        import json
+        assert json.loads(config.params)['threshold'] == 0.7
         
         db_session.refresh(proposal)
         assert proposal.admin_decision == "rolled_back"

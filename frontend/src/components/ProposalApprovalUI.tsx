@@ -52,7 +52,7 @@ export function ProposalApprovalUI({ isAdmin }: ProposalApprovalUIProps) {
   useEffect(() => {
     const wsUrl = getWsUrl('/ws/proposals')
     let ws: WebSocket | null = null
-    let reconnectTimeout: NodeJS.Timeout | null = null
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
     let isClosed = false
 
     const connect = () => {
