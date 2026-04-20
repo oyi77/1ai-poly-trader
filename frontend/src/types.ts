@@ -62,6 +62,7 @@ export interface Signal {
   btc_change_24h: number
   window_end?: string
   actionable: boolean
+  execution_mode?: string
 }
 
 export interface Trade {

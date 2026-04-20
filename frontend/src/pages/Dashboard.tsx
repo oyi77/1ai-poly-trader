@@ -161,10 +161,10 @@ export default function Dashboard() {
           className="shrink-0 border-b border-neutral-800 px-3 py-1.5 flex items-center gap-4 relative"
         >
           <div className="scan-line" />
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
             <Link to="/admin" className="text-[9px] text-neutral-600 hover:text-green-500 uppercase tracking-wider transition-colors mr-1">Admin</Link>
             <h1 className="text-xs font-bold text-neutral-100 uppercase tracking-widest whitespace-nowrap font-mono">TRADING TERMINAL</h1>
-            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase ${unifiedStats.isRunning ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-neutral-800 text-neutral-500 border border-neutral-700'}`}>
+            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border ${unifiedStats.isRunning ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-neutral-800 text-neutral-500 border-neutral-700'}`}>
               {unifiedStats.isRunning ? 'Live' : 'Idle'}
             </span>
             {(() => {

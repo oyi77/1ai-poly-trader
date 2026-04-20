@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, Component, type ReactNode, type ErrorInfo } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useStats } from '../../hooks/useStats'
@@ -11,33 +11,11 @@ import { MicrostructurePanel } from '../MicrostructurePanel'
 import { CalibrationPanel } from '../CalibrationPanel'
 import { WeatherPanel } from '../WeatherPanel'
 import { EdgeDistribution } from '../EdgeDistribution'
+import { ActivityTimeline } from '../ActivityTimeline'
 import { fetchSignalHistory, getSyncStatus, triggerManualSync } from '../../api'
 import { formatCountdown } from '../../utils'
 import type { SignalHistoryRow } from '../../api'
 import type { BtcWindow } from '../../types'
-
-const GlobeView = lazy(() => import('../GlobeView').then(m => ({ default: m.GlobeView })))
-
-// ── Globe Error Boundary ────────────────────────────────────────────────────
-interface GlobeErrorBoundaryState { hasError: boolean }
-class GlobeErrorBoundary extends Component<{ children: ReactNode }, GlobeErrorBoundaryState> {
-  state: GlobeErrorBoundaryState = { hasError: false }
-  static getDerivedStateFromError(): GlobeErrorBoundaryState { return { hasError: true } }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.warn('[GlobeErrorBoundary]', error.message, info.componentStack)
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-black text-neutral-600">
-          <div className="text-[10px] uppercase tracking-wider mb-1">Globe Error</div>
-          <div className="text-[9px] text-neutral-700">3D globe failed to render</div>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
 
 // ── WindowPill Helper ───────────────────────────────────────────────────────────
 
@@ -226,8 +204,6 @@ export function OverviewTab({
   const filteredWeatherSignals = selectedMode === 'all'
     ? weatherSignals
     : weatherSignals.filter((s: any) => s.execution_mode === selectedMode)
-  
-  const actionableCount = filteredActiveSignals.filter((s: any) => s.actionable).length + filteredWeatherSignals.filter((s: any) => s.actionable).length
 
   const [syncRefreshing, setSyncRefreshing] = useState(false)
   const { data: syncStatus, refetch: refetchSyncStatus } = useQuery({
@@ -401,18 +377,8 @@ export function OverviewTab({
       {/* CENTER */}
       <div className="flex flex-col min-h-0 border-r border-neutral-800">
         <div className="relative" style={{ height: '58%' }}>
-          <div className="absolute inset-0">
-            <GlobeErrorBoundary>
-              <Suspense fallback={<div className="w-full h-full flex items-center justify-center bg-black"><span className="text-[10px] text-neutral-600 uppercase tracking-wider">Loading Globe...</span></div>}>
-                <GlobeView forecasts={weatherForecasts} signals={filteredWeatherSignals} />
-              </Suspense>
-            </GlobeErrorBoundary>
-          </div>
-          <div className="absolute top-2 left-2 z-10">
-            <div className="px-2 py-1 bg-black/80 border border-neutral-800 text-[10px]">
-              <span className="text-neutral-500 uppercase tracking-wider mr-2">Markets</span>
-              <span className="text-amber-500 tabular-nums">{actionableCount} actionable</span>
-            </div>
+          <div className="absolute inset-0 w-full h-full overflow-y-auto">
+            <ActivityTimeline />
           </div>
         </div>
         <div className="flex-1 min-h-0 grid grid-cols-3 border-t border-neutral-800">
