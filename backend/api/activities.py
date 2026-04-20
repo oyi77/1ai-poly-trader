@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from backend.models.database import SessionLocal, ActivityLog
 from backend.core.activity_logger import activity_logger
-from backend.websockets.activity_stream import broadcast_activity, activity_manager
+from backend.api_websockets.activity_stream import broadcast_activity, activity_manager
 
 logger = logging.getLogger(__name__)
 

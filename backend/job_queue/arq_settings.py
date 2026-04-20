@@ -2,7 +2,7 @@
 arq Worker configuration for PolyEdge job queue.
 
 Start the worker with:
-    arq backend.queue.arq_settings.WorkerSettings
+    arq backend.job_queue.arq_settings.WorkerSettings
 
 RQ-015: arq-based Redis queue
 """

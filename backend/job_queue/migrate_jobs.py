@@ -1,7 +1,7 @@
 """Migrate existing APScheduler jobs into the persistent JobQueue.
 
 Usage:
-    python -m backend.queue.migrate_jobs
+    python -m backend.job_queue.migrate_jobs
 """
 import asyncio
 import logging

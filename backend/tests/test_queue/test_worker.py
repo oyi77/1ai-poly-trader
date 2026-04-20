@@ -40,7 +40,7 @@ def queue(monkeypatch, tmp_path):
     import backend.models.database as db_mod
 
     monkeypatch.setattr(db_mod, "SessionLocal", TestSession)
-    import backend.queue.sqlite_queue as sq_mod
+    import backend.job_queue.sqlite_queue as sq_mod
 
     monkeypatch.setattr(sq_mod, "SessionLocal", TestSession)
 
@@ -103,7 +103,7 @@ async def test_worker_handles_timeout(queue, monkeypatch):
     import backend.config as cfg_mod
 
     monkeypatch.setattr(cfg_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
-    import backend.queue.worker as wk_mod
+    import backend.job_queue.worker as wk_mod
 
     monkeypatch.setattr(wk_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
 
@@ -143,7 +143,7 @@ async def test_worker_continues_after_timeout(queue, monkeypatch):
     import backend.config as cfg_mod
 
     monkeypatch.setattr(cfg_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
-    import backend.queue.worker as wk_mod
+    import backend.job_queue.worker as wk_mod
 
     monkeypatch.setattr(wk_mod.settings, "JOB_TIMEOUT_SECONDS", 1)
 

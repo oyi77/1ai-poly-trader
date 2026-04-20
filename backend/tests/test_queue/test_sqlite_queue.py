@@ -38,7 +38,7 @@ def queue(monkeypatch, tmp_path):
     # Redirect the module-level SessionLocal used inside AsyncSQLiteQueue
     import backend.models.database as db_mod
     monkeypatch.setattr(db_mod, "SessionLocal", TestSession)
-    import backend.queue.sqlite_queue as sq_mod
+    import backend.job_queue.sqlite_queue as sq_mod
     monkeypatch.setattr(sq_mod, "SessionLocal", TestSession)
 
     q = AsyncSQLiteQueue()

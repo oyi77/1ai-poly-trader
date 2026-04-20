@@ -123,7 +123,7 @@ class RedisQueue(AbstractQueue):
         """
         raise NotImplementedError(
             "arq workers consume jobs internally. "
-            "Start an arq worker using backend.queue.arq_settings:WorkerSettings."
+            "Start an arq worker using backend.job_queue.arq_settings:WorkerSettings."
         )
 
     def complete(self, job_id: str) -> None:

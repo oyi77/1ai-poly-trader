@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.models.database import get_db, StrategyProposal as DBProposal, Trade
 from backend.api.auth import require_admin
 from backend.ai.proposal_generator import ProposalGenerator
-from backend.websockets.proposals import proposal_manager, broadcast_proposal_update
+from backend.api_websockets.proposals import proposal_manager, broadcast_proposal_update
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 """Drain SQLite job queue and migrate to Redis arq queue.
 
 Usage:
-    python -m backend.queue.migrate_to_redis           # SQLite -> Redis
-    python -m backend.queue.migrate_to_redis --reverse # Redis -> SQLite (rollback)
+    python -m backend.job_queue.migrate_to_redis           # SQLite -> Redis
+    python -m backend.job_queue.migrate_to_redis --reverse # Redis -> SQLite (rollback)
 """
 import argparse
 import asyncio

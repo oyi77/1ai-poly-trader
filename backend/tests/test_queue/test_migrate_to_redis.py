@@ -25,7 +25,7 @@ def isolated_session(monkeypatch):
     Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     import backend.models.database as _db_mod
-    import backend.queue.migrate_to_redis as _mig_mod
+    import backend.job_queue.migrate_to_redis as _mig_mod
     monkeypatch.setattr(_db_mod, "SessionLocal", Session)
     monkeypatch.setattr(_mig_mod, "SessionLocal", Session)
 
@@ -63,8 +63,8 @@ def test_migrate_handles_no_redis_gracefully():
     original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
 
     def _blocking_import(name, *args, **kwargs):
-        if name == "backend.queue.redis_queue":
-            raise ImportError("No module named 'backend.queue.redis_queue'")
+        if name == "backend.job_queue.redis_queue":
+            raise ImportError("No module named 'backend.job_queue.redis_queue'")
         return original_import(name, *args, **kwargs)
 
     with patch("builtins.__import__", side_effect=_blocking_import):

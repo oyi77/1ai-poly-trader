@@ -43,7 +43,7 @@ async def test_jobs_survive_simulated_crash(tmp_path, monkeypatch):
     engine1, Session1 = _make_engine_and_session(db_url)
 
     import backend.models.database as db_mod
-    import backend.queue.sqlite_queue as sq_mod
+    import backend.job_queue.sqlite_queue as sq_mod
     monkeypatch.setattr(db_mod, "SessionLocal", Session1)
     monkeypatch.setattr(sq_mod, "SessionLocal", Session1)
 
@@ -107,7 +107,7 @@ async def test_jobs_processed_in_order_after_restart(tmp_path, monkeypatch):
     engine1, Session1 = _make_engine_and_session(db_url)
 
     import backend.models.database as db_mod
-    import backend.queue.sqlite_queue as sq_mod
+    import backend.job_queue.sqlite_queue as sq_mod
     monkeypatch.setattr(db_mod, "SessionLocal", Session1)
     monkeypatch.setattr(sq_mod, "SessionLocal", Session1)
 

@@ -1456,7 +1456,7 @@ async def ws_activities(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
-    from backend.websockets.activity_stream import activity_manager
+    from backend.api_websockets.activity_stream import activity_manager
     
     await activity_manager.connect(websocket)
     try:
