@@ -20,6 +20,8 @@ from typing import Optional
 
 import httpx
 
+from backend.core.activity_logger import activity_logger
+
 logger = logging.getLogger("trading_bot")
 
 GAMMA_HOST = "https://gamma-api.polymarket.com"
@@ -373,6 +375,24 @@ class CopyTraderStrategy(BaseStrategy):
                 copy_entry_price = signal.market_price
                 if copy_direction in ("no", "down") and signal.market_price:
                     copy_entry_price = round(1.0 - signal.market_price, 6)
+                
+                activity_logger.log_entry(
+                    strategy_name="copy_trader",
+                    decision_type="entry",
+                    data={
+                        "market_ticker": signal.source_trade.condition_id,
+                        "whale_address": signal.source_trade.wallet_address,
+                        "trader_score": signal.trader_score,
+                        "our_size": signal.our_size,
+                        "direction": copy_direction,
+                        "market_price": signal.market_price,
+                        "reasoning": signal.reasoning,
+                    },
+                    confidence=confidence,
+                    mode=ctx.mode,
+                    db=ctx.db
+                )
+                
                 result.decisions.append(
                     {
                         "decision": "BUY",

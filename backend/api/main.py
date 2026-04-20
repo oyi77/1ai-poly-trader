@@ -77,6 +77,8 @@ from backend.api.backtest import router as backtest_router
 from backend.api.wallets import router as wallets_router
 from backend.api.analytics import router as analytics_router
 from backend.api.settings import router as settings_router
+from backend.api.activities import router as activities_router
+from backend.api.proposals import router as proposals_router
 from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
@@ -610,6 +612,8 @@ app.include_router(backtest_router)
 app.include_router(wallets_router)
 app.include_router(analytics_router)
 app.include_router(settings_router)
+app.include_router(activities_router)
+app.include_router(proposals_router)
 
 
 # Add metrics middleware for automatic tracking
@@ -1444,6 +1448,26 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
             f"[api.main.ws_whales] {type(e).__name__}: Whale WebSocket error: {e}"
         )
         whale_ws.disconnect(websocket)
+
+
+@app.websocket("/ws/activities")
+async def ws_activities(websocket: WebSocket, token: str = ""):
+    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+    
+    from backend.websockets.activity_stream import activity_manager
+    
+    await activity_manager.connect(websocket)
+    try:
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "heartbeat"})
+    except WebSocketDisconnect:
+        await activity_manager.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"[api.main.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}")
+        await activity_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/events")

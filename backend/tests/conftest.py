@@ -101,8 +101,8 @@ app.dependency_overrides[get_db] = _override_get_db
 @pytest.fixture(scope="session")
 def client():
     """FastAPI TestClient backed by in-memory SQLite."""
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+    # Create a fresh TestClient instance
+    return TestClient(app)
 
 
 @pytest.fixture(scope="session")
@@ -111,3 +111,26 @@ def db():
     session = TestSessionLocal()
     yield session
     session.close()
+
+
+@pytest.fixture(autouse=True)
+def cleanup_proposals_between_tests(db):
+    """Auto-cleanup: delete all cross-feature test tables to avoid contamination."""
+    from backend.models.database import (
+        StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, MiroFishSignal
+    )
+    # Cleanup before test
+    db.query(StrategyProposal).delete()
+    db.query(ActivityLog).delete()
+    db.query(DecisionLog).delete()
+    db.query(MiroFishSignal).delete()
+    db.query(StrategyConfig).delete()
+    db.commit()
+    yield
+    # Cleanup after test
+    db.query(StrategyProposal).delete()
+    db.query(ActivityLog).delete()
+    db.query(DecisionLog).delete()
+    db.query(MiroFishSignal).delete()
+    db.query(StrategyConfig).delete()
+    db.commit()

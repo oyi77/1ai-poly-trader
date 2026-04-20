@@ -13,9 +13,9 @@ from backend.models.database import (
     get_db,
     Signal,
     Trade,
-    BotState,
     TradeContext,
     SettlementEvent,
+    DecisionLog,
 )
 from backend.core.signals import scan_for_signals, TradingSignal
 from backend.core.errors import handle_errors
@@ -460,3 +460,62 @@ async def get_settlements(
         }
         for e in events
     ]
+
+
+@router.get("/debates/{debate_id}/signals")
+def get_debate_signals(
+    debate_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get all participating signals and vote breakdown for a debate.
+    
+    Returns debate transcript with signal votes, bull/bear arguments,
+    and consensus decision. Shows MiroFish participation with equal weight.
+    """
+    decision = db.query(DecisionLog).filter(
+        DecisionLog.id == int(debate_id)
+    ).first()
+    
+    if not decision:
+        raise HTTPException(status_code=404, detail="Debate not found")
+    
+    if not decision.signal_data:
+        return {
+            "debate_id": debate_id,
+            "market_ticker": decision.market_ticker,
+            "strategy": decision.strategy,
+            "decision": decision.decision,
+            "confidence": decision.confidence,
+            "signal_votes": [],
+            "debate_transcript": None,
+        }
+    
+    import json
+    try:
+        signal_data = json.loads(decision.signal_data) if isinstance(decision.signal_data, str) else decision.signal_data
+    except (json.JSONDecodeError, TypeError):
+        signal_data = {}
+    
+    debate_transcript = signal_data.get("debate_transcript", {})
+    signal_votes = debate_transcript.get("signal_votes", [])
+    
+    vote_breakdown = {
+        "total_votes": len(signal_votes),
+        "positive_votes": sum(1 for v in signal_votes if v.get("prediction", 0) > 0.5),
+        "negative_votes": sum(1 for v in signal_votes if v.get("prediction", 0) <= 0.5),
+        "avg_prediction": sum(v.get("prediction", 0) for v in signal_votes) / len(signal_votes) if signal_votes else 0,
+        "avg_confidence": sum(v.get("confidence", 0) for v in signal_votes) / len(signal_votes) if signal_votes else 0,
+    }
+    
+    return {
+        "debate_id": debate_id,
+        "market_ticker": decision.market_ticker,
+        "strategy": decision.strategy,
+        "decision": decision.decision,
+        "confidence": decision.confidence,
+        "created_at": decision.created_at.isoformat() if decision.created_at else None,
+        "signal_votes": signal_votes,
+        "vote_breakdown": vote_breakdown,
+        "debate_transcript": debate_transcript,
+    }

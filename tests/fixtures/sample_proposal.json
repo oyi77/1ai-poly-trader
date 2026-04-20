@@ -1,0 +1,38 @@
+[
+  {
+    "id": "prop_001",
+    "market_id": "0xabc123",
+    "market_name": "Will BTC reach $70k by May 1?",
+    "signal_source": "btc_momentum",
+    "proposed_action": "buy",
+    "proposed_size": 100,
+    "confidence": 0.87,
+    "edge_estimate": 0.05,
+    "created_at": "2026-04-20T10:30:00Z",
+    "status": "pending"
+  },
+  {
+    "id": "prop_002",
+    "market_id": "0xdef456",
+    "market_name": "NYC temperature > 75F on Apr 21?",
+    "signal_source": "weather_emos",
+    "proposed_action": "buy",
+    "proposed_size": 50,
+    "confidence": 0.72,
+    "edge_estimate": 0.03,
+    "created_at": "2026-04-20T10:35:00Z",
+    "status": "approved"
+  },
+  {
+    "id": "prop_003",
+    "market_id": "0xghi789",
+    "market_name": "Polymarket vs Kalshi price gap",
+    "signal_source": "kalshi_arb",
+    "proposed_action": "arbitrage",
+    "proposed_size": 200,
+    "confidence": 0.91,
+    "edge_estimate": 0.08,
+    "created_at": "2026-04-20T10:40:00Z",
+    "status": "rejected"
+  }
+]

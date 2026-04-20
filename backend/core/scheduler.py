@@ -362,6 +362,29 @@ def start_scheduler():
         )
         logger.info(f"Scheduled database backup job every {backup_interval} hour(s)")
 
+    from backend.core.proposal_executor import (
+        execute_approved_proposals_job,
+        measure_impact_and_rollback_job
+    )
+    
+    scheduler.add_job(
+        execute_approved_proposals_job,
+        IntervalTrigger(minutes=30),
+        id="execute_proposals",
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled proposal execution job every 30 minutes")
+    
+    scheduler.add_job(
+        measure_impact_and_rollback_job,
+        IntervalTrigger(hours=2),
+        id="measure_impact_rollback",
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled impact measurement and auto-rollback job every 2 hours")
+
     # Initialize queue worker if enabled
     if settings.JOB_WORKER_ENABLED:
         logger.info("JOB_WORKER_ENABLED=True - initializing queue worker")

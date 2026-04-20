@@ -439,6 +439,50 @@ class PendingApproval(Base):
     decided_at = Column(DateTime, nullable=True)
 
 
+class ActivityLog(Base):
+    """Log of all strategy decisions and trading activity."""
+    __tablename__ = "activity_log"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    strategy_name = Column(String(100), nullable=False, index=True)
+    decision_type = Column(String(50), nullable=False)  # 'entry', 'exit', 'hold', 'adjustment'
+    data = Column(JSON, nullable=False)  # Full decision context
+    confidence_score = Column(Float, nullable=False)  # 0.0-1.0
+    mode = Column(String(20), nullable=False)  # 'paper' or 'live'
+
+
+class StrategyProposal(Base):
+    """Proposed strategy changes awaiting admin approval."""
+    __tablename__ = "strategy_proposal"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    strategy_name = Column(String(100), nullable=False, index=True)
+    change_details = Column(JSON, nullable=False)
+    expected_impact = Column(String(1000), nullable=False)
+    admin_decision = Column(String(20), default="pending")
+    executed_at = Column(DateTime, nullable=True)
+    impact_measured = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    admin_user_id = Column(String(100), nullable=True)
+    admin_decision_reason = Column(Text, nullable=True)
+
+
+class MiroFishSignal(Base):
+    """AI-generated signals from Miro Fish debate engine for prediction markets."""
+    __tablename__ = "mirofish_signal"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    market_id = Column(String(256), nullable=False, index=True, unique=True)
+    prediction = Column(Float, nullable=False)  # 0.0-1.0
+    confidence = Column(Float, nullable=False)  # 0.0-1.0
+    reasoning = Column(Text, nullable=False)
+    source = Column(String(50), default="mirofish", nullable=False)
+    weight = Column(Float, default=1.0, nullable=False)  # Weight in debate engine
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class AuditLog(Base):
     """Comprehensive audit log for all money-related operations."""
     __tablename__ = "audit_log"
