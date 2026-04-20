@@ -76,6 +76,7 @@ from backend.api.system import router as system_router, get_stats, BotStats
 from backend.api.backtest import router as backtest_router
 from backend.api.wallets import router as wallets_router
 from backend.api.analytics import router as analytics_router
+from backend.api.settings import router as settings_router
 from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
@@ -175,6 +176,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("  - Settings already exist or table not found")
     except Exception as e:
         logger.warning(f"Failed to seed settings: {e}", exc_info=True)
+    
+    logger.info("Initializing settings cache...")
+    try:
+        from backend.core.config_service import reload_settings_from_db
+        db = SessionLocal()
+        try:
+            count = reload_settings_from_db(db)
+            logger.info(f"  - Loaded {count} settings into cache")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Failed to initialize settings cache: {e}", exc_info=True)
 
     db = SessionLocal()
     try:
@@ -596,6 +609,7 @@ app.include_router(system_router)
 app.include_router(backtest_router)
 app.include_router(wallets_router)
 app.include_router(analytics_router)
+app.include_router(settings_router)
 
 
 # Add metrics middleware for automatic tracking
