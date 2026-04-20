@@ -27,6 +27,7 @@ import { MarketIntelTab } from '../components/dashboard/MarketIntelTab'
 import { DecisionLogTab } from '../components/dashboard/DecisionLogTab'
 import { EdgeTrackerTab } from '../components/dashboard/EdgeTrackerTab'
 import { SettlementsTab } from '../components/dashboard/SettlementsTab'
+import { ActivityTimeline } from '../components/ActivityTimeline'
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function RefreshBar({ interval }: { interval: number }) {
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 
-const DASHBOARD_TABS = ['Overview', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance', 'Whale Tracker', 'Trading Terminal', 'Market Intel', 'Decision Log', 'Edge Tracker', 'Settlements'] as const
+const DASHBOARD_TABS = ['Overview', 'Activity', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance', 'Whale Tracker', 'Trading Terminal', 'Market Intel', 'Decision Log', 'Edge Tracker', 'Settlements'] as const
 type DashboardTab = typeof DASHBOARD_TABS[number]
 
 export default function Dashboard() {
@@ -248,6 +249,7 @@ export default function Dashboard() {
               onScan={() => scanMutation.mutate()}
             />
           )}
+          {activeTab === 'Activity' && <ActivityTimeline />}
           {activeTab === 'Trades' && <TradesTab />}
           {activeTab === 'Signals' && <SignalsTab />}
           {activeTab === 'Markets' && <MarketsTab />}

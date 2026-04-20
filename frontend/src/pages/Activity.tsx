@@ -1,10 +1,7 @@
 import { NavBar } from '../components/NavBar'
 import { ActivityTimeline } from '../components/ActivityTimeline'
-import { useActivity } from '../hooks/useActivity'
 
 export default function Activity() {
-  const { activities, loading } = useActivity()
-
   return (
     <div className="min-h-screen bg-black text-neutral-100">
       <NavBar title="Activity Log" />
@@ -15,7 +12,7 @@ export default function Activity() {
             Real-time strategy decisions and trading activity
           </p>
         </div>
-        <ActivityTimeline activities={activities} loading={loading} />
+        <ActivityTimeline />
       </div>
     </div>
   )

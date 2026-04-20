@@ -2,10 +2,10 @@ export interface ActivityLog {
   id: number;
   timestamp: string; // ISO 8601
   strategy_name: string;
-  decision_type: 'entry' | 'exit' | 'hold' | 'adjustment';
+  decision_type: 'long' | 'short' | 'hold';
   data: Record<string, any>;
   confidence_score: number;
-  mode: 'paper' | 'live';
+  trading_mode: 'paper' | 'live';
 }
 
 export interface MiroFishSignal {
