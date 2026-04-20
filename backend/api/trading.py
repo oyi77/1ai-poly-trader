@@ -83,6 +83,15 @@ class TradeResponse(BaseModel):
     confidence: Optional[float] = None
 
 
+class CreateSignalRequest(BaseModel):
+    market_id: str
+    prediction: float
+    confidence: float
+    reasoning: str
+    source: str
+    weight: float = 1.0
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -173,19 +182,19 @@ async def get_signals(_: str = Depends(require_admin)):
 
 @router.post("/api/signals", status_code=201)
 async def create_signal(
-    payload: dict,
+    request: CreateSignalRequest,
     db: Session = Depends(get_db),
 ):
     """Create a new trading signal (e.g., from MiroFish debate engine)."""
     from backend.models.database import MiroFishSignal
     
     signal = MiroFishSignal(
-        market_id=payload.get("market_id", ""),
-        prediction=payload.get("prediction", 0.5),
-        confidence=payload.get("confidence", 0.5),
-        reasoning=payload.get("reasoning", ""),
-        source=payload.get("source", "manual"),
-        weight=payload.get("weight", 1.0)
+        market_id=request.market_id,
+        prediction=request.prediction,
+        confidence=request.confidence,
+        reasoning=request.reasoning,
+        source=request.source,
+        weight=request.weight
     )
     db.add(signal)
     db.commit()

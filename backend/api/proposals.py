@@ -20,7 +20,7 @@ class ProposalResponse(BaseModel):
     id: int
     strategy_name: str
     change_details: dict
-    expected_impact: str
+    expected_impact: float
     admin_decision: str
     created_at: str
     executed_at: Optional[str] = None
@@ -34,7 +34,7 @@ class ApprovalRequest(BaseModel):
 class CreateProposalRequest(BaseModel):
     strategy_name: str
     change_details: dict
-    expected_impact: str
+    expected_impact: float
 
 
 @router.get("", response_model=List[ProposalResponse])
