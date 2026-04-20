@@ -617,6 +617,20 @@ class Setting(Base):
         return f"<Setting(key={self.key}, type={self.type}, value={self.value[:50]}...)>"
 
 
+class SystemSettings(Base):
+    """System settings for runtime configuration (MiroFish, strategies, risk params)."""
+    
+    __tablename__ = "system_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, nullable=False, index=True)
+    value = Column(JSON, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    def __repr__(self):
+        return f"<SystemSettings(key={self.key}, value={self.value})>"
+
+
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)

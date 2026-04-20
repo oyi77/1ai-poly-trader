@@ -1,161 +1,172 @@
-"""Settings API endpoints (admin-only)."""
+"""Settings API endpoints for system configuration."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 import logging
 
 from backend.api.auth import require_admin
-from backend.models.database import get_db, Setting
-from backend.core.config_service import reload_settings_from_db
+from backend.models.database import get_db, SystemSettings
+from backend.config import settings as app_settings
 
 logger = logging.getLogger("trading_bot")
 
-router = APIRouter(prefix="/api/admin/settings", tags=["settings"])
+router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
-class SettingResponse(BaseModel):
-    """Single setting response."""
-    id: int
-    key: str
-    value: str
-    description: Optional[str]
-    type: str
-    created_at: datetime
-    updated_at: datetime
-    updated_by_user_id: str
+class SettingsResponse(BaseModel):
+    mirofish_enabled: bool
+    mirofish_api_url: Optional[str]
+    mirofish_api_key: Optional[str]
+    strategies: Dict[str, bool]
+    risk_params: Dict[str, Any]
+    trading_mode: str
 
 
-class SettingUpdateRequest(BaseModel):
-    """Single setting update in bulk request."""
-    key: str
-    value: str
+class SettingsUpdateRequest(BaseModel):
+    mirofish_enabled: Optional[bool] = None
+    mirofish_api_url: Optional[str] = None
+    mirofish_api_key: Optional[str] = None
+    strategies: Optional[Dict[str, bool]] = None
+    risk_params: Optional[Dict[str, Any]] = None
+    trading_mode: Optional[str] = None
 
 
-@router.get("", response_model=List[SettingResponse])
-async def list_settings(
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
-):
-    """
-    Get all settings from database.
-    
-    Returns:
-        List of all settings with metadata
-    
-    Auth:
-        Requires admin authentication (401 if not authenticated, 403 if not admin)
-    """
+class ToggleResponse(BaseModel):
+    enabled: bool
+    message: str
+
+
+def _get_setting(db: Session, key: str, default: Any = None) -> Any:
+    setting = db.query(SystemSettings).filter(SystemSettings.key == key).first()
+    if setting:
+        return setting.value
+    return default
+
+
+def _set_setting(db: Session, key: str, value: Any):
+    setting = db.query(SystemSettings).filter(SystemSettings.key == key).first()
+    if setting:
+        setting.value = value
+        setting.updated_at = datetime.now(timezone.utc)
+    else:
+        setting = SystemSettings(key=key, value=value)
+        db.add(setting)
+
+
+@router.get("", response_model=SettingsResponse)
+async def get_settings(db: Session = Depends(get_db)):
     try:
-        settings = db.query(Setting).order_by(Setting.key).all()
-        return [
-            SettingResponse(
-                id=s.id,
-                key=s.key,
-                value=s.value,
-                description=s.description,
-                type=s.type,
-                created_at=s.created_at,
-                updated_at=s.updated_at,
-                updated_by_user_id=s.updated_by_user_id or "system",
-            )
-            for s in settings
-        ]
+        mirofish_enabled = _get_setting(db, "mirofish_enabled", False)
+        mirofish_api_url = _get_setting(db, "mirofish_api_url", None)
+        mirofish_api_key = _get_setting(db, "mirofish_api_key", None)
+        strategies = _get_setting(db, "strategies_enabled", {})
+        risk_params = _get_setting(db, "risk_params", {
+            "max_position_size": app_settings.MAX_TRADE_SIZE,
+            "max_daily_loss": app_settings.DAILY_LOSS_LIMIT,
+            "max_total_pending": app_settings.MAX_TOTAL_PENDING_TRADES,
+        })
+        trading_mode = _get_setting(db, "trading_mode", app_settings.TRADING_MODE)
+        
+        return SettingsResponse(
+            mirofish_enabled=mirofish_enabled,
+            mirofish_api_url=mirofish_api_url,
+            mirofish_api_key=mirofish_api_key,
+            strategies=strategies,
+            risk_params=risk_params,
+            trading_mode=trading_mode,
+        )
     except Exception as e:
-        logger.error(f"Failed to list settings: {e}", exc_info=True)
+        logger.error(f"Failed to get settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve settings")
 
 
-@router.get("/{key}", response_model=SettingResponse)
-async def get_setting(
-    key: str,
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
-):
-    """
-    Get a single setting by key.
-    
-    Args:
-        key: Setting key (e.g., "MIROFISH_API_TIMEOUT")
-    
-    Returns:
-        Setting with metadata
-    
-    Auth:
-        Requires admin authentication (401 if not authenticated, 403 if not admin)
-    """
-    setting = db.query(Setting).filter(Setting.key == key).first()
-    if not setting:
-        raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
-    
-    return SettingResponse(
-        id=setting.id,
-        key=setting.key,
-        value=setting.value,
-        description=setting.description,
-        type=setting.type,
-        created_at=setting.created_at,
-        updated_at=setting.updated_at,
-        updated_by_user_id=setting.updated_by_user_id or "system",
-    )
-
-
-@router.post("")
+@router.put("")
 async def update_settings(
-    updates: List[SettingUpdateRequest],
+    updates: SettingsUpdateRequest,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin)
 ):
-    """
-    Bulk update settings and automatically reload cache.
-    
-    Args:
-        updates: List of key-value pairs to update
-    
-    Returns:
-        Status with count of updated settings
-    
-    Auth:
-        Requires admin authentication (401 if not authenticated, 403 if not admin)
-    
-    Note:
-        - Updates are atomic (all or nothing)
-        - Cache is automatically reloaded after successful update
-        - Unknown keys are ignored (no error)
-    """
     try:
-        updated_count = 0
-        now = datetime.now(timezone.utc)
+        if updates.mirofish_enabled is not None:
+            _set_setting(db, "mirofish_enabled", updates.mirofish_enabled)
         
-        for update in updates:
-            setting = db.query(Setting).filter(Setting.key == update.key).first()
-            if setting:
-                setting.value = update.value
-                setting.updated_at = now
-                setting.updated_by_user_id = "admin"
-                updated_count += 1
-            else:
-                logger.warning(f"Setting key '{update.key}' not found, skipping")
+        if updates.mirofish_api_url is not None:
+            _set_setting(db, "mirofish_api_url", updates.mirofish_api_url)
+        
+        if updates.mirofish_api_key is not None:
+            _set_setting(db, "mirofish_api_key", updates.mirofish_api_key)
+        
+        if updates.strategies is not None:
+            _set_setting(db, "strategies_enabled", updates.strategies)
+        
+        if updates.risk_params is not None:
+            _set_setting(db, "risk_params", updates.risk_params)
+        
+        if updates.trading_mode is not None:
+            if updates.trading_mode not in ["paper", "testnet", "live"]:
+                raise HTTPException(status_code=400, detail="Invalid trading mode")
+            _set_setting(db, "trading_mode", updates.trading_mode)
         
         db.commit()
+        logger.info("Settings updated successfully")
         
-        # Automatically reload cache after successful update
-        cache_count = reload_settings_from_db(db)
-        
-        logger.info(
-            f"Updated {updated_count} settings, reloaded {cache_count} into cache"
-        )
-        
-        return {
-            "status": "ok",
-            "updated": updated_count,
-            "cache_reloaded": cache_count,
-            "message": f"Updated {updated_count} settings and reloaded cache",
-        }
+        return {"status": "ok", "message": "Settings updated successfully"}
     
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to update settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update settings")
+
+
+@router.post("/mirofish/toggle", response_model=ToggleResponse)
+async def toggle_mirofish(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    try:
+        current = _get_setting(db, "mirofish_enabled", False)
+        new_state = not current
+        _set_setting(db, "mirofish_enabled", new_state)
+        db.commit()
+        
+        logger.info(f"MiroFish toggled: {current} -> {new_state}")
+        
+        return ToggleResponse(
+            enabled=new_state,
+            message=f"MiroFish {'enabled' if new_state else 'disabled'}"
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to toggle MiroFish: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to toggle MiroFish")
+
+
+@router.post("/strategy/{name}/toggle", response_model=ToggleResponse)
+async def toggle_strategy(
+    name: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    try:
+        strategies = _get_setting(db, "strategies_enabled", {})
+        current = strategies.get(name, False)
+        new_state = not current
+        strategies[name] = new_state
+        _set_setting(db, "strategies_enabled", strategies)
+        db.commit()
+        
+        logger.info(f"Strategy '{name}' toggled: {current} -> {new_state}")
+        
+        return ToggleResponse(
+            enabled=new_state,
+            message=f"Strategy '{name}' {'enabled' if new_state else 'disabled'}"
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to toggle strategy '{name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to toggle strategy '{name}'")

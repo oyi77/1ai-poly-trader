@@ -28,6 +28,8 @@ import { DecisionLogTab } from '../components/dashboard/DecisionLogTab'
 import { EdgeTrackerTab } from '../components/dashboard/EdgeTrackerTab'
 import { SettlementsTab } from '../components/dashboard/SettlementsTab'
 import { ActivityTimeline } from '../components/ActivityTimeline'
+import Settings from './Settings'
+import BrainGraph from '../components/BrainGraph'
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
 
@@ -63,7 +65,7 @@ function RefreshBar({ interval }: { interval: number }) {
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 
-const DASHBOARD_TABS = ['Overview', 'Activity', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance', 'Whale Tracker', 'Trading Terminal', 'Market Intel', 'Decision Log', 'Edge Tracker', 'Settlements'] as const
+const DASHBOARD_TABS = ['Overview', 'Activity', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance', 'Whale Tracker', 'Trading Terminal', 'Market Intel', 'Decision Log', 'Edge Tracker', 'Settlements', 'Settings', 'Brain'] as const
 type DashboardTab = typeof DASHBOARD_TABS[number]
 
 export default function Dashboard() {
@@ -262,6 +264,8 @@ export default function Dashboard() {
           {activeTab === 'Decision Log' && <DecisionLogTab />}
           {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
           {activeTab === 'Settlements' && <SettlementsTab />}
+          {activeTab === 'Settings' && <Settings />}
+          {activeTab === 'Brain' && <BrainGraph />}
         </div>
 
         {/* FOOTER */}

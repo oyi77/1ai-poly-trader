@@ -79,6 +79,7 @@ from backend.api.analytics import router as analytics_router
 from backend.api.settings import router as settings_router
 from backend.api.activities import router as activities_router
 from backend.api.proposals import router as proposals_router
+from backend.api.brain import router as brain_router
 from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
@@ -614,6 +615,7 @@ app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(activities_router)
 app.include_router(proposals_router)
+app.include_router(brain_router)
 
 
 # Add metrics middleware for automatic tracking
@@ -1469,6 +1471,26 @@ async def ws_activities(websocket: WebSocket, token: str = ""):
     except Exception as e:
         logger.exception(f"[api.main.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}")
         await activity_manager.disconnect(websocket)
+
+
+@app.websocket("/ws/brain")
+async def ws_brain(websocket: WebSocket, token: str = ""):
+    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+    
+    from backend.api_websockets.brain_stream import brain_manager
+    
+    await brain_manager.connect(websocket)
+    try:
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "heartbeat"})
+    except WebSocketDisconnect:
+        await brain_manager.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"[api.main.ws_brain] {type(e).__name__}: Brain WebSocket error: {e}")
+        await brain_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/events")
