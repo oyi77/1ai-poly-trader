@@ -44,7 +44,7 @@ export function StatsCards() {
 
   return (
     <div className="flex items-center gap-3">
-      {modeLabel && (
+      {selectedMode !== 'all' && modeLabel && (
         <>
           <span className={`text-[9px] font-bold uppercase tracking-wider px-1 ${
             mode === 'paper' ? 'text-neutral-500 border border-neutral-700' :
