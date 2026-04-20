@@ -458,13 +458,14 @@ class StrategyProposal(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     strategy_name = Column(String(100), nullable=False, index=True)
-    change_details = Column(JSON, nullable=False)  # What should change
-    expected_impact = Column(String(1000), nullable=False)  # Impact description
-    admin_decision = Column(String(20), default="pending")  # 'pending', 'approved', 'rejected'
+    change_details = Column(JSON, nullable=False)
+    expected_impact = Column(String(1000), nullable=False)
+    admin_decision = Column(String(20), default="pending")
     executed_at = Column(DateTime, nullable=True)
-    impact_measured = Column(JSON, nullable=True)  # Results after execution
+    impact_measured = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     admin_user_id = Column(String(100), nullable=True)
+    admin_decision_reason = Column(Text, nullable=True)
 
 
 class MiroFishSignal(Base):

@@ -452,12 +452,13 @@ Be specific and actionable. Do not suggest vague improvements."""
         finally:
             db.close()
     
-    def approve_proposal(self, proposal_id: int, admin_user_id: str) -> bool:
+    def approve_proposal(self, proposal_id: int, admin_user_id: str, reason: str) -> bool:
         """Approve a proposal (requires admin).
         
         Args:
             proposal_id: Database ID of proposal
             admin_user_id: ID of admin user approving
+            reason: Reason for approval
         
         Returns:
             True if approved successfully, False otherwise
@@ -478,11 +479,12 @@ Be specific and actionable. Do not suggest vague improvements."""
             
             proposal.admin_decision = "approved"
             proposal.admin_user_id = admin_user_id
+            proposal.admin_decision_reason = reason
             proposal.executed_at = datetime.now(timezone.utc)
             
             db.commit()
             
-            self.logger.info(f"Proposal {proposal_id} approved by {admin_user_id}")
+            self.logger.info(f"Proposal {proposal_id} approved by {admin_user_id}: {reason}")
             
             return True
             
@@ -493,12 +495,13 @@ Be specific and actionable. Do not suggest vague improvements."""
         finally:
             db.close()
     
-    def reject_proposal(self, proposal_id: int, admin_user_id: str) -> bool:
+    def reject_proposal(self, proposal_id: int, admin_user_id: str, reason: str) -> bool:
         """Reject a proposal (requires admin).
         
         Args:
             proposal_id: Database ID of proposal
             admin_user_id: ID of admin user rejecting
+            reason: Reason for rejection
         
         Returns:
             True if rejected successfully, False otherwise
@@ -519,10 +522,11 @@ Be specific and actionable. Do not suggest vague improvements."""
             
             proposal.admin_decision = "rejected"
             proposal.admin_user_id = admin_user_id
+            proposal.admin_decision_reason = reason
             
             db.commit()
             
-            self.logger.info(f"Proposal {proposal_id} rejected by {admin_user_id}")
+            self.logger.info(f"Proposal {proposal_id} rejected by {admin_user_id}: {reason}")
             
             return True
             

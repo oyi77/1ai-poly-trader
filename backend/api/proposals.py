@@ -2,13 +2,14 @@
 
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.models.database import get_db, StrategyProposal as DBProposal, Trade
 from backend.api.auth import require_admin
 from backend.ai.proposal_generator import ProposalGenerator
+from backend.websockets.proposals import proposal_manager, broadcast_proposal_update
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class ProposalResponse(BaseModel):
 
 class ApprovalRequest(BaseModel):
     admin_user_id: str
+    reason: str
 
 
 @router.get("", response_model=List[ProposalResponse])
@@ -73,13 +75,26 @@ async def approve_proposal(
     """
     generator = ProposalGenerator()
     
-    success = generator.approve_proposal(proposal_id, request.admin_user_id)
+    success = generator.approve_proposal(
+        proposal_id, 
+        request.admin_user_id,
+        request.reason
+    )
     
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Proposal {proposal_id} not found or already processed"
         )
+    
+    proposal = db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
+    if proposal:
+        await broadcast_proposal_update({
+            "id": proposal.id,
+            "strategy_name": proposal.strategy_name,
+            "admin_decision": proposal.admin_decision,
+            "admin_user_id": proposal.admin_user_id,
+        })
     
     return {"status": "approved", "proposal_id": proposal_id}
 
@@ -97,13 +112,26 @@ async def reject_proposal(
     """
     generator = ProposalGenerator()
     
-    success = generator.reject_proposal(proposal_id, request.admin_user_id)
+    success = generator.reject_proposal(
+        proposal_id, 
+        request.admin_user_id,
+        request.reason
+    )
     
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Proposal {proposal_id} not found or already processed"
         )
+    
+    proposal = db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
+    if proposal:
+        await broadcast_proposal_update({
+            "id": proposal.id,
+            "strategy_name": proposal.strategy_name,
+            "admin_decision": proposal.admin_decision,
+            "admin_user_id": proposal.admin_user_id,
+        })
     
     return {"status": "rejected", "proposal_id": proposal_id}
 
@@ -140,3 +168,62 @@ async def generate_proposal(
         "change_type": proposal.change_type,
         "confidence": proposal.confidence
     }
+
+
+@router.get("/{proposal_id}/impact")
+async def get_proposal_impact(
+    proposal_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get impact metrics for an executed proposal."""
+    measurer = ImpactMeasurer()
+    impact_data = measurer.get_proposal_impact(proposal_id)
+    
+    if not impact_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No impact data found for proposal {proposal_id}"
+        )
+    
+    return impact_data
+
+
+@router.post("/{proposal_id}/rollback", status_code=status.HTTP_200_OK)
+async def rollback_proposal(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(require_admin)
+):
+    """Rollback a proposal to restore previous strategy config (admin only)."""
+    rollback_mgr = RollbackManager()
+    
+    if not rollback_mgr.can_rollback(proposal_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Proposal {proposal_id} cannot be rolled back (not approved or no snapshot)"
+        )
+    
+    success = rollback_mgr.rollback_proposal(proposal_id)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rollback proposal {proposal_id}"
+        )
+    
+    return {
+        "status": "rolled_back",
+        "proposal_id": proposal_id,
+        "message": "Strategy configuration restored to previous state"
+    }
+
+
+@router.websocket("/ws")
+async def proposals_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time proposal updates."""
+    await proposal_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await proposal_manager.disconnect(websocket)
