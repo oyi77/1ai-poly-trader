@@ -468,16 +468,18 @@ class StrategyProposal(Base):
 
 
 class MiroFishSignal(Base):
-    """AI-generated signals from Miro Fish debate engine."""
+    """AI-generated signals from Miro Fish debate engine for prediction markets."""
     __tablename__ = "mirofish_signal"
     
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    prediction_topic = Column(String(200), nullable=False)
+    market_id = Column(String(256), nullable=False, index=True, unique=True)
+    prediction = Column(Float, nullable=False)  # 0.0-1.0
     confidence = Column(Float, nullable=False)  # 0.0-1.0
-    report = Column(JSON, nullable=False)  # Full signal data
-    debate_weight = Column(Float, default=1.0)  # Weight in debate engine
-    processed = Column(Boolean, default=False)
+    reasoning = Column(Text, nullable=False)
+    source = Column(String(50), default="mirofish", nullable=False)
+    weight = Column(Float, default=1.0, nullable=False)  # Weight in debate engine
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class AuditLog(Base):
