@@ -6,13 +6,23 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from backend.models.database import SessionLocal, ActivityLog
 from backend.core.activity_logger import activity_logger
+from backend.websockets.activity_stream import broadcast_activity
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
+
+
+class CreateActivityRequest(BaseModel):
+    strategy_name: str
+    decision_type: str
+    data: dict
+    confidence_score: float
+    mode: str = "paper"
 
 
 def get_db():
@@ -110,4 +120,45 @@ async def get_activity_by_id(
         raise
     except Exception as e:
         logger.error(f"Failed to retrieve activity {activity_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("")
+async def create_activity(
+    request: CreateActivityRequest,
+    db: Session = Depends(get_db)
+):
+    """Create a new activity log entry and broadcast to WebSocket clients."""
+    try:
+        activity_id = activity_logger.log_entry(
+            strategy_name=request.strategy_name,
+            decision_type=request.decision_type,
+            data=request.data,
+            confidence=request.confidence_score,
+            mode=request.mode,
+            db=db
+        )
+        
+        if not activity_id:
+            raise HTTPException(status_code=500, detail="Failed to create activity log")
+        
+        activity = db.query(ActivityLog).filter(ActivityLog.id == activity_id).first()
+        
+        response_data = {
+            "id": activity.id,
+            "timestamp": activity.timestamp.isoformat(),
+            "strategy_name": activity.strategy_name,
+            "decision_type": activity.decision_type,
+            "data": activity.data,
+            "confidence_score": activity.confidence_score,
+            "mode": activity.mode
+        }
+        
+        await broadcast_activity(response_data)
+        
+        return response_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create activity: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

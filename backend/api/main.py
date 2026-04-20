@@ -1448,6 +1448,26 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
         whale_ws.disconnect(websocket)
 
 
+@app.websocket("/ws/activities")
+async def ws_activities(websocket: WebSocket, token: str = ""):
+    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+    
+    from backend.websockets.activity_stream import activity_manager
+    
+    await activity_manager.connect(websocket)
+    try:
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "heartbeat"})
+    except WebSocketDisconnect:
+        await activity_manager.disconnect(websocket)
+    except Exception as e:
+        logger.exception(f"[api.main.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}")
+        await activity_manager.disconnect(websocket)
+
+
 @app.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket, token: str = ""):
     if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
