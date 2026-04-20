@@ -8,9 +8,10 @@ export default defineConfig({
   workers: 1, // Single worker for debugging
   reporter: 'list',
   use: {
-    baseURL: 'https://polyedge.aitradepulse.com',
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5174',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    timeout: 60000, // 60s timeout for long operations
   },
 
   projects: [
@@ -26,5 +27,11 @@ export default defineConfig({
     },
   ],
 
-  // Using PM2-managed production server via tunnel - no local webServer needed
+  // Local webServer for development, production server via tunnel in CI
+  webServer: process.env.CI ? undefined : {
+    command: 'npm run preview',
+    url: 'http://localhost:5174',
+    reuseExistingServer: true,
+    timeout: 120000,
+  }
 })
