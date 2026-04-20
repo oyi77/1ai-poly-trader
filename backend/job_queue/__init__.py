@@ -5,7 +5,7 @@ Provides abstract interfaces for queue and cache operations with pluggable
 backends (SQLite for Phase 1, Redis for Phase 2).
 
 Usage:
-    from backend.queue import create_queue, create_cache
+    from backend.job_queue import create_queue, create_cache
 
     queue = create_queue()
     cache = create_cache()
@@ -23,20 +23,20 @@ Usage:
         cache.set(f"job:{job_id}", True, ttl_seconds=300)
 """
 
-from backend.queue.abstract import (
+from backend.job_queue.abstract import (
     AbstractQueue,
     AbstractCache,
     Job,
     create_queue,
     create_cache,
 )
-from backend.queue.handlers import (
+from backend.job_queue.handlers import (
     market_scan,
     settlement_check,
     signal_generation,
     weather_scan,
 )
-from backend.queue.worker import Worker
+from backend.job_queue.worker import Worker
 
 __all__ = [
     "AbstractQueue",

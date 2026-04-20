@@ -9,7 +9,7 @@ RQ-015: arq-based Redis queue
 from arq.connections import RedisSettings
 
 from backend.config import settings
-from backend.queue import handlers as h
+from backend.job_queue import handlers as h
 
 
 async def market_scan(ctx, payload):

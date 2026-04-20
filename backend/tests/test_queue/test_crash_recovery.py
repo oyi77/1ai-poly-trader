@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from backend.models.database import Base, JobQueue
-from backend.queue.sqlite_queue import AsyncSQLiteQueue
+from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 
 
 # ---------------------------------------------------------------------------

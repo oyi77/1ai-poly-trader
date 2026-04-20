@@ -10,7 +10,7 @@ import time
 import pytest
 
 from backend.cache.redis_cache import CircuitBreaker, RedisCache
-from backend.queue.sqlite_cache import SQLiteCache
+from backend.job_queue.sqlite_cache import SQLiteCache
 
 
 # ---------------------------------------------------------------------------

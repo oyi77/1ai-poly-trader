@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from backend.models.database import Base, JobQueue
-from backend.queue.migrate_to_redis import rollback_redis_to_sqlite, migrate_sqlite_to_redis
+from backend.job_queue.migrate_to_redis import rollback_redis_to_sqlite, migrate_sqlite_to_redis
 
 
 # ---------------------------------------------------------------------------

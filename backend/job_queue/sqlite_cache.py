@@ -12,7 +12,7 @@ import time
 import threading
 from typing import Optional, Any
 
-from backend.queue.abstract import AbstractCache
+from backend.job_queue.abstract import AbstractCache
 from backend.config import settings
 
 

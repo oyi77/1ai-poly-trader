@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any
 
-from backend.queue.abstract import AbstractQueue, Job
+from backend.job_queue.abstract import AbstractQueue, Job
 
 logger = logging.getLogger("trading_bot")
 

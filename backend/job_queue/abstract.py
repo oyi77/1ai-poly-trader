@@ -226,10 +226,10 @@ def create_queue() -> AbstractQueue:
     from backend.config import settings
 
     if settings.JOB_QUEUE_URL.startswith("redis://"):
-        from backend.queue.redis_queue import RedisQueue
+        from backend.job_queue.redis_queue import RedisQueue
         return RedisQueue(settings.JOB_QUEUE_URL)
 
-    from backend.queue.sqlite_queue import AsyncSQLiteQueue
+    from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
     return AsyncSQLiteQueue()
 
 
@@ -246,10 +246,10 @@ def create_cache() -> AbstractCache:
     from backend.config import settings
 
     if settings.CACHE_URL.startswith("redis://"):
-        from backend.queue.sqlite_cache import SQLiteCache
+        from backend.job_queue.sqlite_cache import SQLiteCache
         from backend.cache.redis_cache import RedisCache
         fallback = SQLiteCache()
         return RedisCache(redis_url=settings.CACHE_URL, fallback=fallback)
 
-    from backend.queue.sqlite_cache import SQLiteCache
+    from backend.job_queue.sqlite_cache import SQLiteCache
     return SQLiteCache()

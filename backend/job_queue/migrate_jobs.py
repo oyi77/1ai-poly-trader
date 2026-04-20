@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import List, Dict, Any
 
-from backend.queue.sqlite_queue import AsyncSQLiteQueue
+from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 
 logger = logging.getLogger("trading_bot.migrate_jobs")
 logging.basicConfig(level=logging.INFO)

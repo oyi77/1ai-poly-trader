@@ -11,7 +11,7 @@ from typing import Optional, Any
 from redis import Redis
 from redis.exceptions import RedisError
 
-from backend.queue.abstract import AbstractCache
+from backend.job_queue.abstract import AbstractCache
 
 logger = logging.getLogger("trading_bot")
 

@@ -12,8 +12,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 import logging
 
 from backend.config import settings
-from backend.queue.worker import Worker
-from backend.queue.sqlite_queue import AsyncSQLiteQueue
+from backend.job_queue.worker import Worker
+from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 
 from backend.core.scheduling_strategies import (
     scan_and_trade_job,

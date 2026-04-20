@@ -20,7 +20,7 @@ from sqlalchemy import select, case, update, func
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.models.database import SessionLocal, JobQueue
-from backend.queue.abstract import AbstractQueue, Job
+from backend.job_queue.abstract import AbstractQueue, Job
 
 
 class AsyncSQLiteQueue(AbstractQueue):

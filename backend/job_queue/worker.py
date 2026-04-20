@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Set
 
 from backend.config import settings
-from backend.queue.abstract import AbstractQueue, Job
+from backend.job_queue.abstract import AbstractQueue, Job
 from backend.monitoring.queue_metrics import get_queue_metrics, JobTimer
 
 
@@ -190,7 +190,7 @@ class Worker:
             Exception: If handler execution fails
         """
         # Import handlers to avoid circular dependencies
-        from backend.queue import handlers
+        from backend.job_queue import handlers
 
         # Dispatch based on job type
         if job.job_type == "market_scan":

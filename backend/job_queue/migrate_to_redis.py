@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import Dict
 
-from backend.queue.sqlite_queue import AsyncSQLiteQueue
+from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 from backend.models.database import SessionLocal, JobQueue
 
 logger = logging.getLogger("trading_bot.migrate_to_redis")
@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 async def migrate_sqlite_to_redis() -> Dict[str, int]:
     """Drain pending SQLite jobs and enqueue them into Redis via arq."""
     try:
-        from backend.queue.redis_queue import RedisQueue
+        from backend.job_queue.redis_queue import RedisQueue
         from backend.config import settings
     except ImportError as e:
         logger.error(f"RedisQueue unavailable: {e}")
