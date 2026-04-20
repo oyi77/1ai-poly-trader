@@ -439,6 +439,47 @@ class PendingApproval(Base):
     decided_at = Column(DateTime, nullable=True)
 
 
+class ActivityLog(Base):
+    """Log of all strategy decisions and trading activity."""
+    __tablename__ = "activity_log"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    strategy_name = Column(String(100), nullable=False, index=True)
+    decision_type = Column(String(50), nullable=False)  # 'entry', 'exit', 'hold', 'adjustment'
+    data = Column(JSON, nullable=False)  # Full decision context
+    confidence_score = Column(Float, nullable=False)  # 0.0-1.0
+    mode = Column(String(20), nullable=False)  # 'paper' or 'live'
+
+
+class StrategyProposal(Base):
+    """Proposed strategy changes awaiting admin approval."""
+    __tablename__ = "strategy_proposal"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    strategy_name = Column(String(100), nullable=False, index=True)
+    change_details = Column(JSON, nullable=False)  # What should change
+    expected_impact = Column(String(1000), nullable=False)  # Impact description
+    admin_decision = Column(String(20), default="pending")  # 'pending', 'approved', 'rejected'
+    executed_at = Column(DateTime, nullable=True)
+    impact_measured = Column(JSON, nullable=True)  # Results after execution
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    admin_user_id = Column(String(100), nullable=True)
+
+
+class MiroFishSignal(Base):
+    """AI-generated signals from Miro Fish debate engine."""
+    __tablename__ = "mirofish_signal"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    prediction_topic = Column(String(200), nullable=False)
+    confidence = Column(Float, nullable=False)  # 0.0-1.0
+    report = Column(JSON, nullable=False)  # Full signal data
+    debate_weight = Column(Float, default=1.0)  # Weight in debate engine
+    processed = Column(Boolean, default=False)
+
+
 class AuditLog(Base):
     """Comprehensive audit log for all money-related operations."""
     __tablename__ = "audit_log"
