@@ -115,10 +115,22 @@ def db():
 
 @pytest.fixture(autouse=True)
 def cleanup_proposals_between_tests(db):
-    """Auto-cleanup: delete all proposals before each test to avoid cross-test contamination."""
-    from backend.models.database import StrategyProposal
+    """Auto-cleanup: delete all cross-feature test tables to avoid contamination."""
+    from backend.models.database import (
+        StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, MiroFishSignal
+    )
+    # Cleanup before test
     db.query(StrategyProposal).delete()
+    db.query(ActivityLog).delete()
+    db.query(DecisionLog).delete()
+    db.query(MiroFishSignal).delete()
+    db.query(StrategyConfig).delete()
     db.commit()
     yield
+    # Cleanup after test
     db.query(StrategyProposal).delete()
+    db.query(ActivityLog).delete()
+    db.query(DecisionLog).delete()
+    db.query(MiroFishSignal).delete()
+    db.query(StrategyConfig).delete()
     db.commit()
