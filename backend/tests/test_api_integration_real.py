@@ -82,7 +82,7 @@ class TestFeature4ProposalAPI:
         payload = {
             "strategy_name": "btc_momentum",
             "change_details": {"new_rsi_threshold": 70},
-            "expected_impact": "10% improvement in win rate"
+            "expected_impact": 0.10
         }
         
         response = client.post("/api/proposals", json=payload)
@@ -134,7 +134,7 @@ class TestFullWorkflowViaAPI:
         proposal_payload = {
             "strategy_name": "weather_emos",
             "change_details": {"model_version": "v2"},
-            "expected_impact": "Improve accuracy"
+            "expected_impact": 0.15
         }
         
         proposal_response = client.post("/api/proposals", json=proposal_payload)
