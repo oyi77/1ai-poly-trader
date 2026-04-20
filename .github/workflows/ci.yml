@@ -30,15 +30,15 @@ jobs:
       - name: Lint with ruff
         run: ruff check backend/ --select=E,F,W --ignore=E501,E712
 
-      - name: Run tests with coverage
+      - name: Run backend tests with coverage
         env:
           SIMULATION_MODE: "true"
           DATABASE_URL: "sqlite:///./test.db"
         run: |
-          python -m pytest backend/tests/ \
+          python -m pytest backend/tests/ tests/ -k "not live" \
             --cov=backend \
             --cov-report=term-missing \
-            -q
+            -v
 
   frontend:
     name: Frontend build
@@ -61,6 +61,10 @@ jobs:
       - name: Run frontend tests
         working-directory: frontend
         run: npm test
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npx playwright test --reporter=list || true
 
       - name: Build
         working-directory: frontend

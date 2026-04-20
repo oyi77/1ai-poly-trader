@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2026-04-20T10:30:00Z",
+    "strategy_name": "btc_momentum",
+    "decision_type": "entry",
+    "confidence_score": 0.87,
+    "mode": "paper",
+    "data": {"price": 65000, "rsi": 72}
+  },
+  {
+    "timestamp": "2026-04-20T10:35:00Z",
+    "strategy_name": "weather_emos",
+    "decision_type": "entry",
+    "confidence_score": 0.72,
+    "mode": "paper",
+    "data": {"temperature": 78.5, "ensemble_mean": 78.2}
+  },
+  {
+    "timestamp": "2026-04-20T10:40:00Z",
+    "strategy_name": "copy_trader",
+    "decision_type": "exit",
+    "confidence_score": 0.65,
+    "mode": "paper",
+    "data": {"whale_address": "0x123abc", "position_size": 100}
+  },
+  {
+    "timestamp": "2026-04-20T10:45:00Z",
+    "strategy_name": "kalshi_arb",
+    "decision_type": "entry",
+    "confidence_score": 0.91,
+    "mode": "paper",
+    "data": {"polymarket_price": 0.55, "kalshi_price": 0.58}
+  },
+  {
+    "timestamp": "2026-04-20T10:50:00Z",
+    "strategy_name": "market_maker",
+    "decision_type": "quote",
+    "confidence_score": 0.78,
+    "mode": "paper",
+    "data": {"bid": 0.52, "ask": 0.58, "spread": 0.06}
+  }
+]

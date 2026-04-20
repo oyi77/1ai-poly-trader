@@ -1,0 +1,32 @@
+[
+  {
+    "id": "sig_001",
+    "market_id": "0xabc123",
+    "strategy": "btc_momentum",
+    "signal_type": "buy",
+    "confidence": 0.87,
+    "edge": 0.05,
+    "timestamp": "2026-04-20T10:30:00Z",
+    "metadata": {"rsi": 72, "vwap_diff": 0.02}
+  },
+  {
+    "id": "sig_002",
+    "market_id": "0xdef456",
+    "strategy": "weather_emos",
+    "signal_type": "buy",
+    "confidence": 0.72,
+    "edge": 0.03,
+    "timestamp": "2026-04-20T10:35:00Z",
+    "metadata": {"ensemble_mean": 78.2, "std_dev": 2.1}
+  },
+  {
+    "id": "sig_003",
+    "market_id": "0xghi789",
+    "strategy": "kalshi_arb",
+    "signal_type": "arbitrage",
+    "confidence": 0.91,
+    "edge": 0.08,
+    "timestamp": "2026-04-20T10:40:00Z",
+    "metadata": {"poly_price": 0.55, "kalshi_price": 0.58}
+  }
+]

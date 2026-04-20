@@ -1,0 +1,16 @@
+[
+  {
+    "id": "audit_001",
+    "event_type": "trade_executed",
+    "user": "system",
+    "timestamp": "2026-04-20T10:30:00Z",
+    "details": {"trade_id": "t_001", "market": "BTC", "size": 100, "price": 0.55}
+  },
+  {
+    "id": "audit_002",
+    "event_type": "signal_approved",
+    "user": "admin",
+    "timestamp": "2026-04-20T10:35:00Z",
+    "details": {"signal_id": "sig_001", "confidence": 0.87}
+  }
+]
