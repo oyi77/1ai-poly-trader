@@ -1069,6 +1069,7 @@ async def get_dashboard(
             or getattr(t, "signal_source", None),
             confidence=(contexts[t.id].confidence if t.id in contexts else None)
             or getattr(t, "confidence", None),
+            trading_mode=t.trading_mode,
         )
         for t in trades
     ]

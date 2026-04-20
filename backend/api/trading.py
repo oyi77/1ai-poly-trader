@@ -64,6 +64,7 @@ class SignalResponse(BaseModel):
     btc_change_24h: float = 0.0
     window_end: Optional[datetime] = None
     actionable: bool = False
+    execution_mode: str = "paper"
 
 
 class TradeResponse(BaseModel):
@@ -81,6 +82,7 @@ class TradeResponse(BaseModel):
     strategy: Optional[str] = None
     signal_source: Optional[str] = None
     confidence: Optional[float] = None
+    trading_mode: str = "paper"
 
 
 class CreateSignalRequest(BaseModel):
@@ -116,6 +118,7 @@ def _signal_to_response(s: TradingSignal, actionable: bool = False) -> SignalRes
         btc_change_24h=s.btc_change_24h,
         window_end=s.market.window_end,
         actionable=actionable,
+        execution_mode="paper",
     )
 
 
@@ -303,6 +306,7 @@ async def get_trades(
             settled=t.settled,
             result=t.result,
             pnl=t.pnl,
+            trading_mode=t.trading_mode,
         )
         trade_dict = trade_dict.model_dump()
         trade_dict["strategy"] = (ctx.strategy if ctx else None) or getattr(
