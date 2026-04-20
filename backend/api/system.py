@@ -1227,3 +1227,34 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
         raise HTTPException(
             status_code=500, detail="Strategy run failed — check server logs"
         )
+
+
+@router.get("/api/health/mirofish")
+async def get_mirofish_health():
+    """Get MiroFish service health status with circuit breaker state."""
+    try:
+        from backend.services.mirofish_monitor import get_monitor
+        
+        monitor = get_monitor()
+        metrics = monitor.get_health_metrics()
+        state_info = monitor.get_state_info()
+        
+        return {
+            "status": metrics.status,
+            "latency_ms": round(metrics.latency_ms, 2),
+            "error_rate": round(metrics.error_rate, 2),
+            "circuit_breaker_state": metrics.circuit_breaker_state,
+            "total_requests": metrics.total_requests,
+            "failed_requests": metrics.failed_requests,
+            "consecutive_failures": metrics.consecutive_failures,
+            "last_success_time": metrics.last_success_time,
+            "last_failure_time": metrics.last_failure_time,
+            "state_info": state_info
+        }
+    except Exception as e:
+        logger.error(f"Failed to get MiroFish health: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "circuit_breaker_state": "UNKNOWN"
+        }
