@@ -310,55 +310,9 @@ async def change_admin_password(
 
 
 # ============================================================================
-# Admin Settings Routes
+# Admin Settings Routes (DEPRECATED - moved to backend/api/settings.py)
 # ============================================================================
-
-
-@router.get("/settings")
-async def get_admin_settings(_: None = Depends(require_admin)):
-    """Return all configurable settings grouped by category."""
-    return _get_grouped_settings()
-
-
-@router.post("/settings")
-async def update_admin_settings(body: SettingsUpdate, _: None = Depends(require_admin)):
-    """Update settings at runtime and persist to .env file."""
-    env_updates = {}
-
-    for field, value in body.updates.items():
-        if not hasattr(settings, field):
-            continue
-        # Skip if secret placeholder sent back
-        if str(value) == "****":
-            continue
-        # Type coerce
-        current = getattr(settings, field)
-        if isinstance(current, bool):
-            value = str(value).lower() in ("true", "1", "yes")
-        elif isinstance(current, int):
-            value = int(value)
-        elif isinstance(current, float):
-            value = float(value)
-        setattr(settings, field, value)
-        # Strip characters that could corrupt .env format
-        safe_value = str(value).replace("\n", "").replace("\r", "").replace("\x00", "")
-        # For string fields that are comma-separated lists (cities, origins, etc.),
-        # strip any trailing key=value injections (chars after unexpected = in list values)
-        if isinstance(current, str) and "," in safe_value and "=" in safe_value:
-            safe_value = safe_value.split("=")[0].rstrip()
-        env_updates[field] = safe_value
-
-    _persist_env_updates(env_updates)
-
-    from backend.core.scheduler import reschedule_jobs
-
-    scheduler_result = reschedule_jobs()
-
-    return {
-        "status": "ok",
-        "message": f"Updated {len(env_updates)} settings",
-        "scheduler": scheduler_result,
-    }
+# Old endpoints removed to avoid conflict with new database-backed settings API
 
 
 # ============================================================================

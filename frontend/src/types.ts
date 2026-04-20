@@ -33,6 +33,17 @@ export interface BtcWindow {
   spread: number
 }
 
+export interface Setting {
+  id: number
+  key: string
+  value: string
+  description: string | null
+  type: string
+  created_at: string
+  updated_at: string
+  updated_by_user_id: string
+}
+
 export interface Signal {
   market_ticker: string
   market_title: string

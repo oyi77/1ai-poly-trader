@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal } from './types'
+import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting } from './types'
 
 // Empty string = relative URL (uses vite proxy in preview, same-origin in prod)
 // Set VITE_API_URL to override (e.g. for local dev pointing at remote API)
@@ -258,13 +258,13 @@ export async function changeAdminPassword(newPassword: string): Promise<{ status
 }
 
 // Admin API (uses adminApi which injects Authorization header)
-export async function fetchAdminSettings(): Promise<Record<string, Record<string, unknown>>> {
-  const { data } = await adminApi.get('/admin/settings')
+export async function fetchAdminSettings(): Promise<Setting[]> {
+  const { data } = await adminApi.get<Setting[]>('/admin/settings')
   return data
 }
 
-export async function updateAdminSettings(updates: Record<string, unknown>): Promise<{ status: string; message: string }> {
-  const { data } = await adminApi.post('/admin/settings', { updates })
+export async function updateAdminSettings(updates: Array<{ key: string; value: string }>): Promise<{ status: string; message: string; updated: number }> {
+  const { data } = await adminApi.post('/admin/settings', updates)
   return data
 }
 
