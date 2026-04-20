@@ -70,6 +70,17 @@ class DebateArgument:
 
 
 @dataclass
+class SignalVote:
+    """A signal's vote in the debate (advisory only)."""
+    
+    source: str
+    prediction: float
+    confidence: float
+    reasoning: str
+    weight: float = 1.0
+
+
+@dataclass
 class DebateResult:
     """Final result of the Bull/Bear/Judge debate."""
 
@@ -84,6 +95,7 @@ class DebateResult:
     market_question: str = ""
     market_price: float = 0.0
     data_sources: list[str] = field(default_factory=list)
+    signal_votes: list[SignalVote] = field(default_factory=list)
 
     def to_transcript_dict(self) -> dict:
         """Serialize the full debate transcript to a JSON-serializable dict.
@@ -102,6 +114,15 @@ class DebateResult:
                 "raw_response": arg.raw_response,
             }
 
+        def _signal_to_dict(sig: SignalVote) -> dict:
+            return {
+                "source": sig.source,
+                "prediction": sig.prediction,
+                "confidence": sig.confidence,
+                "reasoning": sig.reasoning,
+                "weight": sig.weight,
+            }
+
         return {
             "debate_transcript": {
                 "bull_arguments": [_arg_to_dict(a) for a in self.bull_arguments],
@@ -114,6 +135,7 @@ class DebateResult:
                 },
                 "rounds_completed": self.rounds_completed,
                 "latency_ms": self.latency_ms,
+                "signal_votes": [_signal_to_dict(s) for s in self.signal_votes],
             },
             "market_question": self.market_question,
             "market_price": self.market_price,
@@ -358,6 +380,42 @@ async def _call_agent(
         return None
 
 
+def update_debate_with_signals(
+    debate_result: DebateResult,
+    signal_votes: list[SignalVote],
+) -> DebateResult:
+    """
+    Integrate external signal votes into debate result (advisory only).
+    
+    Signals participate as advisory votes with equal weight (1.0).
+    They do NOT override the debate consensus - they are added to the transcript
+    for transparency and logged for audit purposes.
+    
+    Args:
+        debate_result: Original debate result from run_debate()
+        signal_votes: List of external signal votes (e.g., MiroFish)
+    
+    Returns:
+        Updated DebateResult with signal_votes appended
+    """
+    if not signal_votes:
+        return debate_result
+    
+    debate_result.signal_votes = signal_votes
+    
+    for sig in signal_votes:
+        source_label = sig.source or "unknown"
+        logger.info(
+            "[debate_engine.update_debate_with_signals] signal=%s pred=%.3f conf=%.2f weight=%.1f",
+            source_label,
+            sig.prediction,
+            sig.confidence,
+            sig.weight,
+        )
+    
+    return debate_result
+
+
 async def run_debate(
     question: str,
     market_price: float,
@@ -366,6 +424,7 @@ async def run_debate(
     context: str = "",
     max_rounds: int = MAX_DEBATE_ROUNDS,
     data_sources: list[str] | None = None,
+    signal_votes: list[SignalVote] | None = None,
 ) -> DebateResult | None:
     """
     Run a Bull/Bear/Judge debate on a prediction market question.
@@ -545,7 +604,7 @@ async def run_debate(
         latency_ms,
     )
 
-    return DebateResult(
+    result = DebateResult(
         consensus_probability=consensus_prob,
         confidence=consensus_conf,
         reasoning=consensus_reasoning,
@@ -557,4 +616,7 @@ async def run_debate(
         market_question=question,
         market_price=market_price,
         data_sources=data_sources or [],
+        signal_votes=signal_votes or [],
     )
+    
+    return result
