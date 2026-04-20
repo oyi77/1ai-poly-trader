@@ -165,6 +165,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Initializing database...")
 
     init_db()
+    
+    logger.info("Seeding initial settings...")
+    try:
+        from backend.scripts.seed_settings import seed_settings
+        if seed_settings():
+            logger.info("  - Settings table seeded with defaults")
+        else:
+            logger.info("  - Settings already exist or table not found")
+    except Exception as e:
+        logger.warning(f"Failed to seed settings: {e}", exc_info=True)
 
     db = SessionLocal()
     try:
@@ -1221,6 +1231,9 @@ async def get_sync_status(
     def compute_status(last_sync_at: Optional[datetime]) -> str:
         if not last_sync_at:
             return "stale"
+        # Make last_sync_at timezone-aware if it's naive
+        if last_sync_at.tzinfo is None:
+            last_sync_at = last_sync_at.replace(tzinfo=timezone.utc)
         elapsed = (now - last_sync_at).total_seconds()
         return "healthy" if elapsed < 120 else "stale"
     

@@ -555,6 +555,24 @@ class AlertConfig(Base):
         )
 
 
+class Setting(Base):
+    """Application settings persisted in database."""
+    
+    __tablename__ = "settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=False)
+    description = Column(String, nullable=True)
+    type = Column(String, default="string")  # string, int, bool, float
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), index=True)
+    updated_by_user_id = Column(String, nullable=True, default="system")
+    
+    def __repr__(self):
+        return f"<Setting(key={self.key}, type={self.type}, value={self.value[:50]}...)>"
+
+
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
