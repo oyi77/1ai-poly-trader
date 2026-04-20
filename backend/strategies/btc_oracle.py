@@ -19,6 +19,7 @@ import httpx
 from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult
 from backend.core.market_scanner import MarketInfo
 from backend.core.decisions import record_decision
+from backend.core.activity_logger import activity_logger
 
 logger = logging.getLogger("trading_bot")
 
@@ -168,12 +169,14 @@ class BtcOracleStrategy(BaseStrategy):
             edge = abs(oracle_implied - market_mid) - min_edge
 
             decision = "BUY" if edge > 0 else "SKIP"
+            confidence_score = min(1.0, max(0.0, edge + min_edge))
+            
             record_decision(
                 ctx.db,
                 self.name,
                 market.ticker,
                 decision,
-                confidence=min(1.0, max(0.0, edge + min_edge)),
+                confidence=confidence_score,
                 signal_data={
                     "oracle_price": btc_price,
                     "market_mid": market_mid,
@@ -185,6 +188,23 @@ class BtcOracleStrategy(BaseStrategy):
                 reason=f"oracle_edge={edge:.3f} btc=${btc_price:,.0f} t={minutes_remaining:.1f}min",
             )
             result.decisions_recorded += 1
+            
+            activity_logger.log_entry(
+                strategy_name=self.name,
+                decision_type="entry" if decision == "BUY" else "hold",
+                data={
+                    "market_ticker": market.ticker,
+                    "oracle_price": btc_price,
+                    "market_mid": market_mid,
+                    "direction": direction,
+                    "edge": edge,
+                    "minutes_remaining": minutes_remaining,
+                    "question": market.question,
+                },
+                confidence=confidence_score,
+                mode=ctx.mode,
+                db=ctx.db
+            )
 
             if decision == "BUY":
                 result.trades_attempted += 1

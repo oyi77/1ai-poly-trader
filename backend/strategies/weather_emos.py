@@ -34,6 +34,7 @@ import httpx
 from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult
 from backend.core.market_scanner import MarketInfo
 from backend.core.decisions import record_decision
+from backend.core.activity_logger import activity_logger
 
 logger = logging.getLogger("trading_bot")
 
@@ -481,16 +482,36 @@ class WeatherEMOSStrategy(BaseStrategy):
             elif decision == "BUY":
                 signal_data["trade_side"] = "YES"
 
+            confidence_score = min(1.0, abs(edge))
+            
             record_decision(
                 ctx.db,
                 self.name,
                 market.ticker,
                 decision,
-                confidence=min(1.0, abs(edge)),
+                confidence=confidence_score,
                 signal_data=signal_data,
                 reason=f"EMOS: calibrated_p={calibrated_p:.3f} market={market_mid:.3f} edge={edge:+.3f}",
             )
             result.decisions_recorded += 1
+            
+            activity_logger.log_entry(
+                strategy_name=self.name,
+                decision_type="entry" if decision == "BUY" else "hold",
+                data={
+                    "market_ticker": market.ticker,
+                    "city": city,
+                    "threshold_f": threshold_f,
+                    "calibrated_p": calibrated_p,
+                    "market_mid": market_mid,
+                    "edge": edge,
+                    "calibration_n": cal_state.n,
+                    "question": market.question,
+                },
+                confidence=confidence_score,
+                mode=ctx.mode,
+                db=ctx.db
+            )
 
             if decision == "BUY":
                 result.trades_attempted += 1
