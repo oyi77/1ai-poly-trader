@@ -83,9 +83,9 @@ export function AITab() {
     setProviderSaving(true)
     setProviderStatus(null)
     try {
-      const updates: Record<string, unknown> = {}
+      const updates: Array<{ key: string; value: string }> = []
       for (const [k, v] of Object.entries(providerFields)) {
-        if (v !== '') updates[k] = v
+        if (v !== '') updates.push({ key: k, value: String(v) })
       }
       await updateAdminSettings(updates)
       setProviderStatus({ ok: true, message: 'Provider saved' })
@@ -118,11 +118,11 @@ export function AITab() {
     setApplyStatus(null)
     try {
       const s = result.suggestions
-      const updates: Record<string, unknown> = {}
-      if (s.kelly_fraction != null) updates['KELLY_FRACTION'] = s.kelly_fraction
-      if (s.min_edge_threshold != null) updates['MIN_EDGE_THRESHOLD'] = s.min_edge_threshold
-      if (s.max_trade_size != null) updates['MAX_TRADE_SIZE'] = s.max_trade_size
-      if (s.daily_loss_limit != null) updates['DAILY_LOSS_LIMIT'] = s.daily_loss_limit
+      const updates: Array<{ key: string; value: string }> = []
+      if (s.kelly_fraction != null) updates.push({ key: 'KELLY_FRACTION', value: String(s.kelly_fraction) })
+      if (s.min_edge_threshold != null) updates.push({ key: 'MIN_EDGE_THRESHOLD', value: String(s.min_edge_threshold) })
+      if (s.max_trade_size != null) updates.push({ key: 'MAX_TRADE_SIZE', value: String(s.max_trade_size) })
+      if (s.daily_loss_limit != null) updates.push({ key: 'DAILY_LOSS_LIMIT', value: String(s.daily_loss_limit) })
       await updateAdminSettings(updates)
       setApplyStatus({ ok: true, message: 'Settings applied successfully' })
       qc.invalidateQueries({ queryKey: ['admin-settings'] })

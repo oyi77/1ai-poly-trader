@@ -1519,5 +1519,6 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
 
 if __name__ == "__main__":
     import uvicorn
+    from backend.core.config_service import get_setting
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8100")))
+    uvicorn.run(app, host="0.0.0.0", port=int(get_setting("PORT", default="8100")))

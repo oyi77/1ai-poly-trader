@@ -1,18 +1,6 @@
 {
-  "active_plan": "/home/openclaw/projects/polyedge/.sisyphus/plans/position-market-value-fix.md",
-  "started_at": "2026-04-18T10:17:01.739Z",
-  "completed_at": "2026-04-18T11:16:36.567Z",
-  "session_ids": [
-    "ses_2642e646dffeJAxbB5oApSozL4"
-  ],
-  "plan_name": "position-market-value-fix",
-  "agent": "sisyphus-junior",
-  "last_resumed": "2026-04-18T11:16:36.567Z",
-  "status": "complete",
-  "tasks_completed": 6,
-  "tasks_total": 6,
-  "completion_percentage": 100,
-  "final_verification_passed": true,
-  "duration_hours": 0.98,
-  "notes": "All 6 tasks completed: position valuation module extracted, fallback pricing implemented, error handling added, unit tests written, E2E tests passing, production validation complete. Position market value now displays correctly ($15.84 instead of $0.0). All 4 review agents approved."
+  "active_plan": "/home/openclaw/projects/polyedge/.sisyphus/plans/master-execution-plan.md",
+  "started_at": "2026-04-20T08:14:06.834Z",
+  "session_ids": ["ses_2598f37cbffeFNwUrrYMiXOg5j"],
+  "plan_name": "master-execution-plan"
 }

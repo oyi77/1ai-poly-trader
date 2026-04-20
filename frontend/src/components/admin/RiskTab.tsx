@@ -42,8 +42,10 @@ export function RiskTab() {
     setSaving(true)
     setStatus(null)
     try {
-      const updates: Record<string, unknown> = {}
-      for (const [k, v] of changed) updates[k] = parseFloat(v) || v
+      const updates: Array<{ key: string; value: string }> = []
+      for (const [k, v] of changed) {
+        updates.push({ key: k, value: String(parseFloat(v) || v) })
+      }
       await updateAdminSettings(updates)
       setStatus({ ok: true, message: `Saved ${changed.length} parameter(s)` })
       setValues({})
