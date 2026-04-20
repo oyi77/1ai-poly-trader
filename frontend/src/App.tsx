@@ -6,6 +6,8 @@ import { PageLoader } from './components/PageLoader'
 const Landing = React.lazy(() => import('./pages/Landing'))
 const Dashboard = React.lazy(() => import('./pages/Dashboard'))
 const Admin = React.lazy(() => import('./pages/Admin'))
+const Activity = React.lazy(() => import('./pages/Activity'))
+const Proposals = React.lazy(() => import('./pages/Proposals'))
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -73,6 +75,8 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/activity" element={<Activity />} />
+            <Route path="/proposals" element={<Proposals />} />
             {/* Legacy standalone routes → redirect to Dashboard tabs */}
             <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
             <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />
