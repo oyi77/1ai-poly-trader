@@ -378,7 +378,7 @@ async def weather_scan_and_trade_job(mode: str):
             # Still update heartbeat so watchdog knows we ran
             hb_db = SessionLocal()
             try:
-                _update_hb(hb_db, "weather_emos")
+                _update_hb("weather_emos")
             finally:
                 hb_db.close()
             return
@@ -492,7 +492,7 @@ async def weather_scan_and_trade_job(mode: str):
             else:
                 log_event("info", f"[{mode.upper()}] No new weather trades executed")
 
-            _update_hb(db, "weather_emos")
+            _update_hb("weather_emos")
 
         finally:
             db.close()
