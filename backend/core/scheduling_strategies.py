@@ -668,7 +668,7 @@ async def auto_trader_job(mode: str):
             skipped = 0
             for sig in signals:
                 token_id = getattr(sig, "token_id", None)
-                if auto_trader_mode in ("testnet", "live") and not token_id:
+                if mode in ("testnet", "live") and not token_id:
                     sig.executed = True
                     skipped += 1
                     continue
@@ -702,7 +702,7 @@ async def auto_trader_job(mode: str):
                         "token_id": token_id,
                         "platform": "polymarket",
                     }
-                    exec_result = await execute_decision(decision, "auto_trader", mode=auto_trader_mode, db=db)
+                    exec_result = await execute_decision(decision, "auto_trader", mode=mode, db=db)
                     if exec_result is not None:
                         sig.executed = True
                         executed += 1
