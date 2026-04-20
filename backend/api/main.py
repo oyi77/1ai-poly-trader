@@ -78,6 +78,7 @@ from backend.api.wallets import router as wallets_router
 from backend.api.analytics import router as analytics_router
 from backend.api.settings import router as settings_router
 from backend.api.activities import router as activities_router
+from backend.api.proposals import router as proposals_router
 from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
@@ -612,6 +613,7 @@ app.include_router(wallets_router)
 app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(activities_router)
+app.include_router(proposals_router)
 
 
 # Add metrics middleware for automatic tracking
