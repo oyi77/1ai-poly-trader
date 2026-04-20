@@ -82,7 +82,8 @@ async def get_activities(
                 "decision_type": activity.decision_type,
                 "data": activity.data,
                 "confidence_score": activity.confidence_score,
-                "mode": activity.mode
+                "mode": activity.mode,
+                "trading_mode": activity.mode
             })
         
         return {
@@ -114,7 +115,8 @@ async def get_activity_by_id(
             "decision_type": activity.decision_type,
             "data": activity.data,
             "confidence_score": activity.confidence_score,
-            "mode": activity.mode
+            "mode": activity.mode,
+            "trading_mode": activity.mode
         }
     except HTTPException:
         raise
@@ -151,7 +153,8 @@ async def create_activity(
             "decision_type": activity.decision_type,
             "data": activity.data,
             "confidence_score": activity.confidence_score,
-            "mode": activity.mode
+            "mode": activity.mode,
+            "trading_mode": activity.mode
         }
         
         await broadcast_activity(response_data)
