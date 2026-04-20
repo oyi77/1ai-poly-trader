@@ -16,19 +16,8 @@ import { ModeSelector } from '../components/dashboard/ModeSelector'
 // Dashboard tab components
 import { OverviewTab } from '../components/dashboard/OverviewTab'
 import { TradesTab } from '../components/dashboard/TradesTab'
-import { SignalsTab } from '../components/dashboard/SignalsTab'
 import { MarketsTab } from '../components/dashboard/MarketsTab'
-import { LeaderboardTab } from '../components/dashboard/LeaderboardTab'
-import { DecisionsTab } from '../components/dashboard/DecisionsTab'
 import { PerformanceTab } from '../components/dashboard/PerformanceTab'
-import { WhaleTrackerTab } from '../components/dashboard/WhaleTrackerTab'
-import { TradingTerminalTab } from '../components/dashboard/TradingTerminalTab'
-import { MarketIntelTab } from '../components/dashboard/MarketIntelTab'
-import { DecisionLogTab } from '../components/dashboard/DecisionLogTab'
-import { EdgeTrackerTab } from '../components/dashboard/EdgeTrackerTab'
-import { SettlementsTab } from '../components/dashboard/SettlementsTab'
-import { ActivityTimeline } from '../components/ActivityTimeline'
-import Settings from './Settings'
 import BrainGraph from '../components/BrainGraph'
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
@@ -65,7 +54,7 @@ function RefreshBar({ interval }: { interval: number }) {
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 
-const DASHBOARD_TABS = ['Overview', 'Activity', 'Trades', 'Signals', 'Markets', 'Leaderboard', 'Decisions', 'Performance', 'Whale Tracker', 'Trading Terminal', 'Market Intel', 'Decision Log', 'Edge Tracker', 'Settlements', 'Settings', 'Brain'] as const
+const DASHBOARD_TABS = ['Overview', 'Performance', 'Brain', 'Trades', 'Markets'] as const
 type DashboardTab = typeof DASHBOARD_TABS[number]
 
 export default function Dashboard() {
@@ -251,21 +240,10 @@ export default function Dashboard() {
               onScan={() => scanMutation.mutate()}
             />
           )}
-          {activeTab === 'Activity' && <ActivityTimeline />}
-          {activeTab === 'Trades' && <TradesTab />}
-          {activeTab === 'Signals' && <SignalsTab />}
-          {activeTab === 'Markets' && <MarketsTab />}
-          {activeTab === 'Leaderboard' && <LeaderboardTab />}
-          {activeTab === 'Decisions' && <DecisionsTab />}
           {activeTab === 'Performance' && <PerformanceTab />}
-          {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
-          {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
-          {activeTab === 'Market Intel' && <MarketIntelTab />}
-          {activeTab === 'Decision Log' && <DecisionLogTab />}
-          {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
-          {activeTab === 'Settlements' && <SettlementsTab />}
-          {activeTab === 'Settings' && <Settings />}
           {activeTab === 'Brain' && <BrainGraph />}
+          {activeTab === 'Trades' && <TradesTab />}
+          {activeTab === 'Markets' && <MarketsTab />}
         </div>
 
         {/* FOOTER */}

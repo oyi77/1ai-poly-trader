@@ -15,6 +15,11 @@ import { RiskTab } from '../components/admin/RiskTab'
 import { AITab } from '../components/admin/AITab'
 import { DebateMonitorTab } from '../components/admin/DebateMonitorTab'
 import PendingApprovals from './PendingApprovals'
+import { TradingTerminalTab } from '../components/dashboard/TradingTerminalTab'
+import { WhaleTrackerTab } from '../components/dashboard/WhaleTrackerTab'
+import { EdgeTrackerTab } from '../components/dashboard/EdgeTrackerTab'
+import { DecisionLogTab } from '../components/dashboard/DecisionLogTab'
+import { SettlementsTab } from '../components/dashboard/SettlementsTab'
 
 function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
   const [password, setPassword] = useState('')
@@ -69,7 +74,7 @@ function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
   )
 }
 
-const TABS = ['System', 'Backtest', 'Risk', 'Credentials', 'Strategies', 'Settings', 'Copy Trader', 'Telegram', 'Market Watch', 'Wallet Config', 'AI', 'Debate Monitor', 'Pending Approvals'] as const
+const TABS = ['System', 'Settings', 'Trading Terminal', 'Whale Tracker', 'Edge Tracker', 'Decision Log', 'Settlements', 'Backtest', 'Risk', 'Credentials', 'Strategies', 'Copy Trader', 'Telegram', 'Market Watch', 'Wallet Config', 'AI', 'Debate Monitor', 'Pending Approvals'] as const
 type Tab = typeof TABS[number]
 
 function ApiKeyBar() {
@@ -144,11 +149,16 @@ export default function Admin() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 max-w-100vw">
         {activeTab === 'System' && <SystemStatus />}
+        {activeTab === 'Settings' && <SettingsEditor />}
+        {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
+        {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
+        {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
+        {activeTab === 'Decision Log' && <DecisionLogTab />}
+        {activeTab === 'Settlements' && <SettlementsTab />}
         {activeTab === 'Backtest' && <Backtest />}
         {activeTab === 'Risk' && <RiskTab />}
         {activeTab === 'Credentials' && <CredentialsTab />}
         {activeTab === 'Strategies' && <StrategiesTab />}
-        {activeTab === 'Settings' && <SettingsEditor />}
         {activeTab === 'Copy Trader' && <CopyTraderMonitor />}
         {activeTab === 'Telegram' && <TelegramTab />}
         {activeTab === 'Market Watch' && <MarketWatchTab />}
