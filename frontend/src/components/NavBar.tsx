@@ -29,6 +29,14 @@ export function NavBar({ title }: { title: string }) {
         >
           Admin
         </Link>
+        <Link
+          to="/mirofish"
+          className={`text-[10px] uppercase tracking-wider transition-colors ${
+            location.pathname === '/mirofish' ? 'text-green-500' : 'text-neutral-500 hover:text-green-500'
+          }`}
+        >
+          MiroFish
+        </Link>
         <a
           href="/docs/"
           className="text-[10px] uppercase tracking-wider transition-colors text-neutral-500 hover:text-green-500"

@@ -10,6 +10,7 @@ const Admin = React.lazy(() => import('./pages/Admin'))
 const Activity = React.lazy(() => import('./pages/Activity'))
 const Proposals = React.lazy(() => import('./pages/Proposals'))
 const ErrorTest = React.lazy(() => import('./pages/ErrorTest'))
+const MiroFish = React.lazy(() => import('./pages/MiroFish'))
 
 /**
  * Redirect component for /docs* paths.
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="/activity" element={<Activity />} />
             <Route path="/proposals" element={<Proposals />} />
             <Route path="/error-test" element={<ErrorTest />} />
+            <Route path="/mirofish" element={<MiroFish />} />
             {/* Legacy standalone routes → redirect to Dashboard tabs */}
             <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
             <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />

@@ -469,6 +469,6 @@ async def test_defaults_when_no_database_or_env():
         with patch.dict(os.environ, {}, clear=True):
             client = MiroFishClient()
             
-            assert client.api_url == "https://api.mirofish.ai"
+            assert client.api_url == "https://polyedge-mirofish-api.aitradepulse.com"
             assert client.api_key == ""
             assert client.timeout == 30.0

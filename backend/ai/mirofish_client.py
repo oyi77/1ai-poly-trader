@@ -131,7 +131,7 @@ class MiroFishClient:
         
         # Apply defaults
         if not self.api_url:
-            self.api_url = "https://api.mirofish.ai"
+            self.api_url = "https://polyedge-mirofish-api.aitradepulse.com"
         if not self.api_key:
             self.api_key = ""
         if not self.timeout:
