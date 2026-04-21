@@ -1,5 +1,5 @@
 from datetime import timezone
-"""Integration tests for /api/dashboard, /api/stats, and /api/signals endpoints.
+"""Integration tests for /api/v1/dashboard, /api/v1/stats, and /api/v1/signals endpoints.
 
 Uses the shared conftest.py fixtures (client, db) backed by in-memory SQLite.
 External API calls (microstructure, BTC markets, signals) are mocked so tests
@@ -41,17 +41,17 @@ def _mock_btc_price():
 
 
 # ---------------------------------------------------------------------------
-# /api/stats
+# /api/v1/stats
 # ---------------------------------------------------------------------------
 
 
 class TestStatsEndpoint:
     def test_stats_returns_200(self, client):
-        resp = client.get("/api/stats")
+        resp = client.get("/api/v1/stats")
         assert resp.status_code == 200
 
     def test_stats_has_expected_keys(self, client):
-        resp = client.get("/api/stats")
+        resp = client.get("/api/v1/stats")
         data = resp.json()
         required_keys = {
             "bankroll",
@@ -65,23 +65,23 @@ class TestStatsEndpoint:
             assert key in data, f"Missing key: {key}"
 
     def test_stats_bankroll_is_numeric(self, client):
-        resp = client.get("/api/stats")
+        resp = client.get("/api/v1/stats")
         data = resp.json()
         assert isinstance(data["bankroll"], (int, float))
         assert data["bankroll"] >= 0
 
     def test_stats_total_trades_is_int(self, client):
-        resp = client.get("/api/stats")
+        resp = client.get("/api/v1/stats")
         data = resp.json()
         assert isinstance(data["total_trades"], int)
 
     def test_stats_win_rate_in_range(self, client):
-        resp = client.get("/api/stats")
+        resp = client.get("/api/v1/stats")
         data = resp.json()
         assert 0.0 <= data["win_rate"] <= 1.0
 
     def test_stats_has_paper_and_live_dicts(self, client):
-        resp = client.get("/api/stats")
+        resp = client.get("/api/v1/stats")
         data = resp.json()
         assert "paper" in data
         assert "live" in data
@@ -90,7 +90,7 @@ class TestStatsEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# /api/dashboard
+# /api/v1/dashboard
 # ---------------------------------------------------------------------------
 
 
@@ -110,7 +110,7 @@ class TestDashboardEndpoint:
             "backend.api.main.scan_for_signals",
             AsyncMock(return_value=[]),
         ):
-            return client.get("/api/dashboard")
+            return client.get("/api/v1/dashboard")
 
     def test_dashboard_returns_200(self, client):
         resp = self._get_dashboard(client)
@@ -175,7 +175,7 @@ class TestDashboardEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# /api/signals — via trading router
+# /api/v1/signals — via trading router
 # ---------------------------------------------------------------------------
 
 
@@ -188,7 +188,7 @@ class TestSignalsEndpoint:
             "backend.core.signals.fetch_active_btc_markets",
             AsyncMock(return_value=[]),
         ):
-            resp = client.get("/api/signals")
+            resp = client.get("/api/v1/signals")
         assert resp.status_code == 200
 
     def test_signals_returns_list(self, client):
@@ -199,7 +199,7 @@ class TestSignalsEndpoint:
             "backend.core.signals.fetch_active_btc_markets",
             AsyncMock(return_value=[]),
         ):
-            resp = client.get("/api/signals")
+            resp = client.get("/api/v1/signals")
         data = resp.json()
         assert isinstance(data, list)
 
@@ -212,19 +212,19 @@ class TestSignalsEndpoint:
             "backend.core.signals.compute_btc_microstructure",
             AsyncMock(return_value=_mock_micro()),
         ):
-            resp = client.get("/api/signals")
+            resp = client.get("/api/v1/signals")
         assert resp.status_code == 200
         assert resp.json() == []
 
 
 # ---------------------------------------------------------------------------
-# /api/health — smoke test (already covered in test_api_health.py)
+# /api/v1/health — smoke test (already covered in test_api_health.py)
 # ---------------------------------------------------------------------------
 
 
 class TestHealthSmoke:
     def test_health_ok(self, client):
-        resp = client.get("/api/health")
+        resp = client.get("/api/v1/health")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] in ("ok", "degraded")
