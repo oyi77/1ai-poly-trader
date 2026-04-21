@@ -48,17 +48,6 @@ export function useBrainGraph(): UseBrainGraphResult {
 
   const { data, status } = useWebSocket<BrainGraphData>(getWsUrl('/ws/brain'), { topic: 'brain' })
 
-  useEffect(() => {
-    if (data) {
-      setGraphData(data)
-      setLoading(false)
-      
-      if (data.debate_id) {
-        fetchDebateTranscript(data.debate_id)
-      }
-    }
-  }, [data, fetchDebateTranscript])
-
   const fetchDebateTranscript = useCallback(async (debateId: string) => {
     try {
       const response = await retryFetch(`/api/brain/debate/${debateId}`)
@@ -70,6 +59,17 @@ export function useBrainGraph(): UseBrainGraphResult {
       console.error('Failed to fetch debate transcript:', err)
     }
   }, [])
+
+  useEffect(() => {
+    if (data) {
+      setGraphData(data)
+      setLoading(false)
+      
+      if (data.debate_id) {
+        fetchDebateTranscript(data.debate_id)
+      }
+    }
+  }, [data, fetchDebateTranscript])
 
   return {
     graphData,
