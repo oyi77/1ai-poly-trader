@@ -173,6 +173,20 @@ Configure bot behavior. Key settings:
 | **Kelly Fraction** | How aggressive to bet (higher = riskier) | 0.05-0.15 |
 | **Daily Loss Limit** | Stop trading if you lose this much in a day | $10-20 |
 | **Auto Approve** | Automatically place trades without asking | Keep OFF until comfortable |
+| **MiroFish Integration** | External AI debate system for signal analysis | Optional, test connection first |
+
+#### MiroFish Setup (Optional)
+
+MiroFish provides AI-powered signal analysis through a dual debate system:
+
+1. **Enable MiroFish**: Toggle the MiroFish switch in Settings
+2. **Enter Credentials**:
+   - API URL: Your MiroFish endpoint (e.g., `https://api.mirofish.ai`)
+   - API Key: Your authentication key (masked for security)
+3. **Test Connection**: Click "Test Connection" to verify credentials
+4. **Fallback Behavior**: If MiroFish fails, the bot automatically uses local debate
+
+The bot will show a green checkmark when connection succeeds. You must test successfully before enabling MiroFish.
 
 ### API Keys Tab
 

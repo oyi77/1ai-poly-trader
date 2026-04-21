@@ -149,6 +149,20 @@ Redis is used for:
 | `BACKUP_RETENTION_DAYS` | `7` | Backup retention period |
 | `BACKUP_VERIFICATION_ENABLED` | `True` | Enable backup verification |
 
+## MiroFish Integration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MIROFISH_API_URL` | `https://api.mirofish.example/v1` | MiroFish API endpoint |
+| `MIROFISH_API_KEY` | None | MiroFish authentication key |
+| `MIROFISH_API_TIMEOUT` | `10` | API request timeout (seconds) |
+
+MiroFish provides dual debate system integration:
+- When enabled: Routes debate requests to MiroFish API for AI-powered signal analysis
+- When disabled or on failure: Falls back to local debate engine automatically
+- Credentials stored in database with priority: Database → Environment → Defaults
+- Test connection via Settings UI before enabling
+
 ## Admin Settings
 
 | Variable | Default | Description |
