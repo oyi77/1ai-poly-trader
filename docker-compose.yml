@@ -1,6 +1,20 @@
 version: "3.8"
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -11,8 +25,13 @@ services:
       - .env
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./tradingbot.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_ENABLED=${REDIS_ENABLED:-true}
     volumes:
       - ./tradingbot.db:/app/tradingbot.db
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -30,3 +49,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  redis_data:

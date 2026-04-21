@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from backend.models.database import get_db, StrategyProposal as DBProposal, Trade
 from backend.api.auth import require_admin
 from backend.ai.proposal_generator import ProposalGenerator
-from backend.api_websockets.proposals import proposal_manager, broadcast_proposal_update
+from backend.api_websockets.proposals import broadcast_proposal_update
+from backend.api.validation import (
+    ProposalCreateRequest as ValidatedProposalCreate,
+    ProposalApprovalRequest as ValidatedProposalApproval,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,7 @@ async def list_proposals(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_proposal(
-    request: CreateProposalRequest,
+    request: ValidatedProposalCreate,
     db: Session = Depends(get_db)
 ):
     """Create a new strategy proposal."""
@@ -101,7 +105,7 @@ async def create_proposal(
 @router.post("/{proposal_id}/approve", status_code=status.HTTP_200_OK)
 async def approve_proposal(
     proposal_id: int,
-    request: ApprovalRequest,
+    request: ValidatedProposalApproval,
     db: Session = Depends(get_db),
     _admin: dict = Depends(require_admin)
 ):
@@ -138,7 +142,7 @@ async def approve_proposal(
 @router.post("/{proposal_id}/reject", status_code=status.HTTP_200_OK)
 async def reject_proposal(
     proposal_id: int,
-    request: ApprovalRequest,
+    request: ValidatedProposalApproval,
     db: Session = Depends(get_db),
     _admin: dict = Depends(require_admin)
 ):
@@ -257,9 +261,18 @@ async def rollback_proposal(
 @router.websocket("/ws")
 async def proposals_websocket(websocket: WebSocket):
     """WebSocket endpoint for real-time proposal updates."""
-    await proposal_manager.connect(websocket)
+    from backend.api.ws_manager_v2 import topic_manager
+    
+    await websocket.accept()
+    
     try:
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "proposals")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await proposal_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)

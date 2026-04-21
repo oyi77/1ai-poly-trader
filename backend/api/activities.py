@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from backend.models.database import SessionLocal, ActivityLog
 from backend.core.activity_logger import activity_logger
-from backend.api_websockets.activity_stream import broadcast_activity, activity_manager
+from backend.api_websockets.activity_stream import broadcast_activity
 
 logger = logging.getLogger(__name__)
 
@@ -175,14 +175,21 @@ async def websocket_activities_endpoint(websocket: WebSocket):
     Connects to /ws/activities (relative to /api/activities prefix = /api/activities/ws)
     Receives activity updates in real-time as they are logged via POST /api/activities.
     """
-    await activity_manager.connect(websocket)
+    from backend.api.ws_manager_v2 import topic_manager
+    
+    await websocket.accept()
+    
     try:
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "activities")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
         while True:
-            # Keep connection alive by receiving messages
-            # We don't process incoming messages, just maintain the connection
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await activity_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        await activity_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)

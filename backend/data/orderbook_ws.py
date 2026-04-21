@@ -120,7 +120,7 @@ class OrderBookManager:
     Usage:
         mgr = OrderBookManager()
         await mgr.subscribe("token_id_1")
-        asyncio.create_task(mgr.connect())
+        await mgr.connect()
         book = mgr.get_book("token_id_1")
         await mgr.disconnect()
     """

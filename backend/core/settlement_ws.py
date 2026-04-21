@@ -11,6 +11,7 @@ from typing import Optional, Set
 
 from backend.data.ws_client import CLOBWebSocket, SettlementEvent
 from backend.models.database import SessionLocal, Trade
+from backend.core.task_manager import TaskManager
 
 logger = logging.getLogger("trading_bot")
 
@@ -27,11 +28,12 @@ class SettlementWebSocketHandler:
         await handler.stop()
     """
 
-    def __init__(self):
+    def __init__(self, task_manager: Optional[TaskManager] = None):
         self._ws: Optional[CLOBWebSocket] = None
         self._running = False
         self._token_id_to_ticker: dict[str, str] = {}
         self._background_tasks: Set[asyncio.Task] = set()
+        self._task_manager = task_manager
 
     async def start(self) -> None:
         """Start the settlement WebSocket listener."""
@@ -40,7 +42,10 @@ class SettlementWebSocketHandler:
         self._ws = CLOBWebSocket(
             on_settlement=self._handle_settlement,
         )
-        task = asyncio.create_task(self._ws.run())
+        if self._task_manager:
+            task = await self._task_manager.create_task(self._ws.run(), name="settlement_ws_run")
+        else:
+            task = asyncio.create_task(self._ws.run())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         logger.info("[SettlementWS] Started settlement WebSocket handler")
@@ -72,9 +77,19 @@ class SettlementWebSocketHandler:
         """Subscribe to a new market's settlement events."""
         self._token_id_to_ticker[token_id] = market_ticker
         if self._ws and self._ws.is_connected:
-            task = asyncio.create_task(self._ws.subscribe(token_id))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            if self._task_manager:
+                asyncio.create_task(self._create_subscribe_task(token_id))
+            else:
+                task = asyncio.create_task(self._ws.subscribe(token_id))
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+    
+    async def _create_subscribe_task(self, token_id: str) -> None:
+        task = await self._task_manager.create_task(
+            self._ws.subscribe(token_id), name=f"settlement_ws_subscribe_{token_id}"
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def _handle_settlement(self, event: SettlementEvent) -> None:
         """Handle a market_resolved event from WebSocket."""
@@ -83,12 +98,21 @@ class SettlementWebSocketHandler:
             f"outcome={event.outcome}, market={event.market_address}"
         )
 
-        # Map token_id to market_ticker
         ticker = self._token_id_to_ticker.get(event.token_id, event.token_id)
 
-        # Schedule the settlement to run in async context (keep ref to prevent GC)
-        task = asyncio.create_task(
-            self._settle_trade(event.token_id, ticker, event.outcome)
+        if self._task_manager:
+            asyncio.create_task(self._create_settle_task(event.token_id, ticker, event.outcome))
+        else:
+            task = asyncio.create_task(
+                self._settle_trade(event.token_id, ticker, event.outcome)
+            )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+    
+    async def _create_settle_task(self, token_id: str, ticker: str, outcome: str) -> None:
+        task = await self._task_manager.create_task(
+            self._settle_trade(token_id, ticker, outcome),
+            name=f"settlement_ws_settle_{token_id}"
         )
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)

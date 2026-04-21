@@ -33,10 +33,10 @@ engine = create_engine(
     settings.DATABASE_URL,
     connect_args={"check_same_thread": False} if _is_sqlite else {},
     pool_pre_ping=True,
-    pool_size=20 if _is_sqlite else 10,
-    max_overflow=30 if _is_sqlite else 20,
-    pool_recycle=1800,
-    pool_timeout=60,
+    pool_size=20,
+    max_overflow=10,
+    pool_recycle=3600,
+    pool_timeout=30,
 )
 
 
@@ -481,6 +481,34 @@ class MiroFishSignal(Base):
     weight = Column(Float, default=1.0, nullable=False)  # Weight in debate engine
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class PerformanceMetric(Base):
+    """Performance metrics for request timing, database queries, WebSocket latency, and system resources."""
+    
+    __tablename__ = "performance_metrics"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True, nullable=False)
+    metric_type = Column(String, nullable=False, index=True)
+    endpoint = Column(String, nullable=True, index=True)
+    method = Column(String, nullable=True)
+    status_code = Column(Integer, nullable=True)
+    duration_ms = Column(Float, nullable=True)
+    query_type = Column(String, nullable=True)
+    query_duration_ms = Column(Float, nullable=True)
+    ws_message_type = Column(String, nullable=True)
+    ws_latency_ms = Column(Float, nullable=True)
+    memory_usage_mb = Column(Float, nullable=True)
+    memory_percent = Column(Float, nullable=True)
+    cpu_percent = Column(Float, nullable=True)
+    user_agent = Column(String, nullable=True)
+    error_message = Column(String, nullable=True)
+    
+    __table_args__ = (
+        Index('idx_metrics_type_timestamp', 'metric_type', 'timestamp'),
+        Index('idx_metrics_endpoint_timestamp', 'endpoint', 'timestamp'),
+    )
 
 
 class AuditLog(Base):

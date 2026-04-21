@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
 from backend.config import settings
+from backend.core.circuit_breaker_pybreaker import kalshi_breaker
 
 logger = logging.getLogger("trading_bot")
 
@@ -70,14 +71,17 @@ class KalshiClient:
             path: API path after /trade-api/v2 (e.g., "/markets")
             params: Query parameters (not included in signature)
         """
-        full_path = f"/trade-api/v2{path}"
-        url = f"{BASE_URL}{path}"
-        headers = self._sign_request("GET", full_path)
+        async def _fetch():
+            full_path = f"/trade-api/v2{path}"
+            url = f"{BASE_URL}{path}"
+            headers = self._sign_request("GET", full_path)
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            return response.json()
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                return response.json()
+        
+        return await kalshi_breaker.call(_fetch)
 
     async def get_markets(self, params: Optional[Dict[str, Any]] = None) -> dict:
         """Fetch markets with optional filters."""

@@ -172,9 +172,8 @@ class WalletReconciler:
             
             imported = 0
             for pos in positions:
-                # Skip redeemable positions (already settled)
-                if pos.get("redeemable", False):
-                    continue
+                # Import both open and redeemable (settled) positions
+                is_redeemable = pos.get("redeemable", False)
                 
                 # Use asset (token_id) as market_ticker (enables CLOB API midpoint lookup)
                 market_slug = pos["asset"]
@@ -185,8 +184,7 @@ class WalletReconciler:
                 # Check if trade already exists by market_ticker
                 existing = self.db.query(Trade).filter(
                     (Trade.market_ticker == market_slug) &
-                    (Trade.trading_mode == self.mode) &
-                    (~Trade.settled)
+                    (Trade.trading_mode == self.mode)
                 ).first()
                 
                 if existing:
@@ -210,7 +208,6 @@ class WalletReconciler:
                         self.logger.debug(f"Trade {market_slug} already in DB (id={existing.id})")
                     continue
                 
-                # New position not in DB - import it as external
                 new_trade = Trade(
                     market_ticker=market_slug,
                     platform="polymarket",
@@ -219,17 +216,15 @@ class WalletReconciler:
                     size=size,
                     timestamp=datetime.now(timezone.utc),
                     trading_mode=self.mode,
-                    
-                    # Reconciliation fields - mark as external since we found it on blockchain
-                    source="external",                   # Position found on-chain, not in DB
-                    blockchain_verified=True,            # Came from blockchain
-                    settlement_source="data_api",        # From Polymarket Data API
+                    settled=is_redeemable,
+                    result="closed" if is_redeemable else None,
+                    source="external",
+                    blockchain_verified=True,
+                    settlement_source="data_api" if is_redeemable else None,
                     external_import_at=datetime.now(timezone.utc),
-                    
-                    # Default values for required fields
-                    model_probability=0.5,  # Unknown for external positions
+                    model_probability=0.5,
                     market_price_at_entry=avg_price,
-                    edge_at_entry=0.0,  # Unknown for external positions
+                    edge_at_entry=0.0,
                 )
                 
                 self.db.add(new_trade)

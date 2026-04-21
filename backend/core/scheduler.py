@@ -14,6 +14,7 @@ import logging
 from backend.config import settings
 from backend.job_queue.worker import Worker
 from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
+from backend.core.task_manager import TaskManager
 
 from backend.core.scheduling_strategies import (
     scan_and_trade_job,
@@ -32,17 +33,17 @@ from backend.core.auto_improve import auto_improve_job
 from backend.core.strategy_ranker import strategy_ranking_job
 from backend.core.agi_jobs import self_review_job, research_pipeline_job
 from backend.core.db_backup import backup_job
+from backend.core.cache_cleanup import cache_cleanup_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trading_bot")
 
-# Global scheduler instance
 scheduler: Optional[AsyncIOScheduler] = None
 
-# Global queue and worker instances
 queue: Optional[AsyncSQLiteQueue] = None
 worker: Optional[Worker] = None
 worker_task: Optional[asyncio.Task] = None
+task_manager: Optional[TaskManager] = None
 
 # Event log for terminal display (in-memory, last 200 events)
 event_log: List[dict] = []
@@ -362,6 +363,15 @@ def start_scheduler():
         )
         logger.info(f"Scheduled database backup job every {backup_interval} hour(s)")
 
+    scheduler.add_job(
+        cache_cleanup_job,
+        IntervalTrigger(hours=1),
+        id="cache_cleanup",
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled cache cleanup job every 1 hour")
+
     from backend.core.proposal_executor import (
         execute_approved_proposals_job,
         measure_impact_and_rollback_job
@@ -389,9 +399,15 @@ def start_scheduler():
     if settings.JOB_WORKER_ENABLED:
         logger.info("JOB_WORKER_ENABLED=True - initializing queue worker")
 
-        # Create queue and worker instances
+        global queue, worker, worker_task, task_manager
         queue = AsyncSQLiteQueue(max_workers=settings.DB_EXECUTOR_MAX_WORKERS)
-        worker = Worker(queue, max_concurrent=settings.MAX_CONCURRENT_JOBS)
+        
+        from backend.api.main import app
+        if hasattr(app.state, 'task_manager'):
+            task_manager = app.state.task_manager
+            worker = Worker(queue, max_concurrent=settings.MAX_CONCURRENT_JOBS, task_manager=task_manager)
+        else:
+            worker = Worker(queue, max_concurrent=settings.MAX_CONCURRENT_JOBS)
 
         jobs_to_remove = [f"{mode}_market_scan" for mode in modes] + ["settlement_check"]
         for job_id in jobs_to_remove:
@@ -403,8 +419,12 @@ def start_scheduler():
             except Exception as e:
                 logger.warning(f"Could not remove job '{job_id}': {e}")
 
-        # Start worker in background
-        worker_task = asyncio.create_task(worker.start())
+        if task_manager:
+            worker_task = asyncio.create_task(
+                task_manager.create_task(worker.start(), name="queue_worker")
+            )
+        else:
+            worker_task = asyncio.create_task(worker.start())
         logger.info("Queue worker started in background")
 
         log_event(
@@ -561,3 +581,19 @@ async def run_manual_settlement():
     """Trigger a manual settlement check."""
     log_event("info", "Manual settlement triggered")
     await settlement_job()
+
+# Add monitoring job
+async def monitoring_job():
+    """Run production monitoring checks"""
+    from backend.core.monitoring import run_monitoring_check
+    from backend.models.database import get_db
+    
+    db = next(get_db())
+    try:
+        health = await run_monitoring_check(db)
+        logger.info(f"✅ Monitoring check: {health['database']['healthy']}")
+        return health
+    except Exception as e:
+        logger.error(f"❌ Monitoring check failed: {e}")
+    finally:
+        db.close()

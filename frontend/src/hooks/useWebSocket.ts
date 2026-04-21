@@ -8,12 +8,20 @@ export interface UseWebSocketResult<T = unknown> {
   sendMessage: (msg: string) => void;
 }
 
-export function useWebSocket<T = unknown>(url: string): UseWebSocketResult<T> {
+export interface UseWebSocketOptions {
+  topic?: string;
+}
+
+export function useWebSocket<T = unknown>(
+  url: string,
+  options?: UseWebSocketOptions
+): UseWebSocketResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [status, setStatus] = useState<WSStatus>('connecting');
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<number>(0);
   const closedByUser = useRef(false);
+  const topic = options?.topic;
 
   const connect = useCallback(() => {
     setStatus('connecting');
@@ -23,6 +31,10 @@ export function useWebSocket<T = unknown>(url: string): UseWebSocketResult<T> {
       ws.onopen = () => {
         retryRef.current = 0;
         setStatus('open');
+        
+        if (topic) {
+          ws.send(JSON.stringify({ action: 'subscribe', topic }));
+        }
       };
       ws.onmessage = (evt) => {
         try {
@@ -42,7 +54,7 @@ export function useWebSocket<T = unknown>(url: string): UseWebSocketResult<T> {
     } catch {
       setStatus('error');
     }
-  }, [url]);
+  }, [url, topic]);
 
   useEffect(() => {
     closedByUser.current = false;

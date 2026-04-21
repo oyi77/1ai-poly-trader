@@ -16,6 +16,7 @@ from typing import Optional, Set
 from backend.config import settings
 from backend.job_queue.abstract import AbstractQueue, Job
 from backend.monitoring.queue_metrics import get_queue_metrics, JobTimer
+from backend.core.task_manager import TaskManager
 
 
 logger = logging.getLogger("trading_bot")
@@ -40,13 +41,14 @@ class Worker:
         _db_executor: Thread pool for cleanup operations
     """
 
-    def __init__(self, queue: AbstractQueue, max_concurrent: Optional[int] = None):
+    def __init__(self, queue: AbstractQueue, max_concurrent: Optional[int] = None, task_manager: Optional[TaskManager] = None):
         """
         Initialize the worker.
 
         Args:
             queue: Queue instance for job management
             max_concurrent: Maximum concurrent jobs (defaults to settings.MAX_CONCURRENT_JOBS)
+            task_manager: Optional TaskManager for tracking background tasks
         """
         self._queue = queue
         self._max_concurrent = max_concurrent or settings.MAX_CONCURRENT_JOBS
@@ -54,6 +56,7 @@ class Worker:
         self._running = False
         self._db_executor = ThreadPoolExecutor(max_workers=1)
         self._active_tasks: Set[asyncio.Task] = set()
+        self._task_manager = task_manager
 
         logger.info(
             f"Worker initialized with max_concurrent={self._max_concurrent}, "
@@ -118,7 +121,12 @@ class Worker:
                     f"priority={job.priority}, payload={job.payload}"
                 )
 
-                task = asyncio.create_task(self._process_job(job))
+                if self._task_manager:
+                    task = await self._task_manager.create_task(
+                        self._process_job(job), name=f"worker_job_{job_id}"
+                    )
+                else:
+                    task = asyncio.create_task(self._process_job(job))
                 self._active_tasks.add(task)
                 task.add_done_callback(self._active_tasks.discard)
 

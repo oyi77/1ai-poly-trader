@@ -94,6 +94,9 @@ class CreateSignalRequest(BaseModel):
     weight: float = 1.0
 
 
+from backend.api.validation import SignalCreateRequest as ValidatedSignalCreateRequest
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -185,7 +188,7 @@ async def get_signals(_: str = Depends(require_admin)):
 
 @router.post("/api/signals", status_code=201)
 async def create_signal(
-    request: CreateSignalRequest,
+    request: ValidatedSignalCreateRequest,
     db: Session = Depends(get_db),
 ):
     """Create a new trading signal (e.g., from MiroFish debate engine)."""

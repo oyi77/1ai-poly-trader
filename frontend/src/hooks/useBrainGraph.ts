@@ -45,7 +45,7 @@ export function useBrainGraph(): UseBrainGraphResult {
   const [transcript, setTranscript] = useState<DebateTranscript[]>([])
   const [loading, setLoading] = useState(true)
 
-  const { data, status } = useWebSocket<BrainGraphData>(getWsUrl('/ws/brain'))
+  const { data, status } = useWebSocket<BrainGraphData>(getWsUrl('/ws/brain'), { topic: 'brain' })
 
   useEffect(() => {
     if (data) {

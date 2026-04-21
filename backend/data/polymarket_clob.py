@@ -31,6 +31,7 @@ from py_clob_client.clob_types import (
 )
 
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.core.circuit_breaker_pybreaker import polymarket_breaker
 
 logger = logging.getLogger("trading_bot")
 
@@ -64,16 +65,26 @@ async def _check_and_claim_idempotency(key: str) -> bool:
     # Check DB for cross-process/restart duplicates
     from backend.models.database import SessionLocal, Trade
 
-    db = SessionLocal()
+    from backend.core.circuit_breaker_pybreaker import db_breaker
+    
+    def _db_query():
+        db = SessionLocal()
+        try:
+            existing = db.query(Trade).filter(Trade.clob_idempotency_key == key).first()
+            return existing
+        finally:
+            db.close()
+    
     try:
-        existing = db.query(Trade).filter(Trade.clob_idempotency_key == key).first()
+        existing = db_breaker.call(_db_query)
         if existing is not None:
             async with _inflight_lock:
                 _inflight_keys.discard(key)
             return True
         return False
-    finally:
-        db.close()
+    except Exception as e:
+        logger.warning(f"DB circuit breaker open or query failed: {e}")
+        return False
 
 
 def _release_idempotency_key(key: str) -> None:
@@ -372,13 +383,16 @@ class PolymarketCLOB:
 
     async def get_market(self, condition_id: str) -> Optional[dict]:
         """Get market data from Gamma API."""
-        try:
+        async def _fetch_market():
             resp = await self._http.get(
                 f"{GAMMA_HOST}/markets", params={"conditionId": condition_id}
             )
             resp.raise_for_status()
             data = resp.json()
             return data[0] if data else None
+        
+        try:
+            return await polymarket_breaker.call(_fetch_market)
         except Exception as e:
             logger.warning(
                 f"[polymarket_clob.get_market] {type(e).__name__}: Failed to fetch market {condition_id}: {e}",
@@ -388,11 +402,14 @@ class PolymarketCLOB:
 
     async def get_leaderboard(self, window: str = "30d") -> list[dict]:
         """Get Polymarket trader leaderboard."""
-        resp = await self._http.get(
-            f"{DATA_HOST}/leaderboard", params={"window": window}
-        )
-        resp.raise_for_status()
-        return resp.json()
+        async def _fetch_leaderboard():
+            resp = await self._http.get(
+                f"{DATA_HOST}/leaderboard", params={"window": window}
+            )
+            resp.raise_for_status()
+            return resp.json()
+        
+        return await polymarket_breaker.call(_fetch_leaderboard)
 
     async def get_trader_trades(self, wallet: str, limit: int = 100) -> list[dict]:
         """Get recent trades for a wallet address."""

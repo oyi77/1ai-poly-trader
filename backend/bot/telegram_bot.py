@@ -111,10 +111,17 @@ class PolyEdgeBot:
         self._app.add_handler(CommandHandler("pnl", self._cmd_pnl))
         self._app.add_handler(CallbackQueryHandler(self._handle_callback))
 
-        # Start polling in background
         await self._app.initialize()
         await self._app.start()
-        asyncio.create_task(self._app.updater.start_polling(drop_pending_updates=True))
+        
+        from backend.api.main import app
+        if hasattr(app.state, 'task_manager'):
+            await app.state.task_manager.create_task(
+                self._app.updater.start_polling(drop_pending_updates=True),
+                name="telegram_bot_polling"
+            )
+        else:
+            asyncio.create_task(self._app.updater.start_polling(drop_pending_updates=True))
         logger.info(f"Telegram bot started — admins: {self.admin_ids}")
 
     async def stop(self):

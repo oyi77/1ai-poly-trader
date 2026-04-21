@@ -1,25 +1,26 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
-import { SettingsEditor } from '../components/admin/SettingsEditor'
-import { SystemStatus } from '../components/admin/SystemStatus'
-import { CopyTraderMonitor } from '../components/admin/CopyTraderMonitor'
-import { Backtest } from './Backtest'
 import { useAuth } from '../hooks/useAuth'
 import { getAdminApiKey, setAdminApiKey } from '../api'
-import { StrategiesTab } from '../components/admin/StrategiesTab'
-import { MarketWatchTab } from '../components/admin/MarketWatchTab'
-import { WalletConfigTab } from '../components/admin/WalletConfigTab'
-import { CredentialsTab } from '../components/admin/CredentialsTab'
-import { TelegramTab } from '../components/admin/TelegramTab'
-import { RiskTab } from '../components/admin/RiskTab'
-import { AITab } from '../components/admin/AITab'
-import { DebateMonitorTab } from '../components/admin/DebateMonitorTab'
-import PendingApprovals from './PendingApprovals'
-import { TradingTerminalTab } from '../components/dashboard/TradingTerminalTab'
-import { WhaleTrackerTab } from '../components/dashboard/WhaleTrackerTab'
-import { EdgeTrackerTab } from '../components/dashboard/EdgeTrackerTab'
-import { DecisionLogTab } from '../components/dashboard/DecisionLogTab'
-import { SettlementsTab } from '../components/dashboard/SettlementsTab'
+
+const SettingsEditor = lazy(() => import('../components/admin/SettingsEditor').then(m => ({ default: m.SettingsEditor })))
+const SystemStatus = lazy(() => import('../components/admin/SystemStatus').then(m => ({ default: m.SystemStatus })))
+const CopyTraderMonitor = lazy(() => import('../components/admin/CopyTraderMonitor').then(m => ({ default: m.CopyTraderMonitor })))
+const Backtest = lazy(() => import('./Backtest').then(m => ({ default: m.Backtest })))
+const StrategiesTab = lazy(() => import('../components/admin/StrategiesTab').then(m => ({ default: m.StrategiesTab })))
+const MarketWatchTab = lazy(() => import('../components/admin/MarketWatchTab').then(m => ({ default: m.MarketWatchTab })))
+const WalletConfigTab = lazy(() => import('../components/admin/WalletConfigTab').then(m => ({ default: m.WalletConfigTab })))
+const CredentialsTab = lazy(() => import('../components/admin/CredentialsTab').then(m => ({ default: m.CredentialsTab })))
+const TelegramTab = lazy(() => import('../components/admin/TelegramTab').then(m => ({ default: m.TelegramTab })))
+const RiskTab = lazy(() => import('../components/admin/RiskTab').then(m => ({ default: m.RiskTab })))
+const AITab = lazy(() => import('../components/admin/AITab').then(m => ({ default: m.AITab })))
+const DebateMonitorTab = lazy(() => import('../components/admin/DebateMonitorTab').then(m => ({ default: m.DebateMonitorTab })))
+const PendingApprovals = lazy(() => import('./PendingApprovals'))
+const TradingTerminalTab = lazy(() => import('../components/dashboard/TradingTerminalTab').then(m => ({ default: m.TradingTerminalTab })))
+const WhaleTrackerTab = lazy(() => import('../components/dashboard/WhaleTrackerTab').then(m => ({ default: m.WhaleTrackerTab })))
+const EdgeTrackerTab = lazy(() => import('../components/dashboard/EdgeTrackerTab').then(m => ({ default: m.EdgeTrackerTab })))
+const DecisionLogTab = lazy(() => import('../components/dashboard/DecisionLogTab').then(m => ({ default: m.DecisionLogTab })))
+const SettlementsTab = lazy(() => import('../components/dashboard/SettlementsTab').then(m => ({ default: m.SettlementsTab })))
 
 function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
   const [password, setPassword] = useState('')

@@ -204,6 +204,10 @@ class Settings(BaseSettings):
     CACHE_URL: str = "sqlite:///./cache.db"  # or "redis://localhost:6379/0"
     CACHE_TTL_SECONDS: int = 300  # 5 minutes
 
+    # Redis Pub/Sub for WebSocket (multi-instance support)
+    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_ENABLED: bool = False  # Enable for multi-instance deployments
+
     # Web Search Provider Settings
     # Primary: "tavily", "crw", "duckduckgo", "exa", "serper"
     # Fallback: "duckduckgo" (free, no API key required)

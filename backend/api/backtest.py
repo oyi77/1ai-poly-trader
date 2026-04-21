@@ -17,6 +17,7 @@ from backend.strategies.registry import (
     load_all_strategies,
 )
 from backend.api.auth import require_admin
+from backend.api.validation import BacktestRunRequest as ValidatedBacktestRunRequest
 
 logger = logging.getLogger("trading_bot")
 
@@ -55,7 +56,7 @@ def _parse_date(date_str: Optional[str], fallback: datetime) -> datetime:
 
 @router.post("/api/backtest/run")
 async def run_backtest_endpoint(
-    body: BacktestRunRequest,
+    body: ValidatedBacktestRunRequest,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ):

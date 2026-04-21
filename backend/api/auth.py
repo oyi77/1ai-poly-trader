@@ -9,6 +9,7 @@ import os
 
 from backend.config import settings
 from backend.models.database import get_db, BotState, Trade, Signal
+from backend.api.validation import CredentialsUpdateRequest as ValidatedCredentialsUpdate
 
 logger = logging.getLogger("trading_bot")
 
@@ -379,7 +380,7 @@ async def switch_mode(body: ModeSwitch, _: None = Depends(require_admin)):
 
 
 @router.post("/credentials")
-async def update_credentials(body: CredentialsUpdate, _: None = Depends(require_admin)):
+async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends(require_admin)):
     """Update Polymarket trading credentials, persist to .env, and hot-reload settings."""
     all_fields = {
         "POLYMARKET_PRIVATE_KEY": body.private_key,

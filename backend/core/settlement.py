@@ -46,10 +46,29 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 for trade_id in trades_to_close:
                     trade = db.query(Trade).filter(Trade.id == trade_id).first()
                     if trade and not trade.settled:
-                        trade.settled = True
-                        trade.result = "closed"
-                        trade.settlement_time = now
-                        trade.pnl = 0.0
+                        is_resolved, settlement_value = await fetch_polymarket_resolution(
+                            trade.market_ticker,
+                            event_slug=getattr(trade, "event_slug", None)
+                        )
+                        
+                        if is_resolved and settlement_value is not None:
+                            pnl = calculate_pnl(trade, settlement_value)
+                            await process_settled_trade(
+                                trade, True, settlement_value, pnl, db
+                            )
+                            logger.info(
+                                f"Position reconciliation: trade {trade.id} settled with resolution (pnl=${pnl:+.2f})"
+                            )
+                        else:
+                            trade.settled = True
+                            trade.result = "closed"
+                            trade.settlement_time = now
+                            trade.pnl = 0.0
+                            trade.settlement_value = None
+                            logger.info(
+                                f"Position reconciliation: trade {trade.id} closed without resolution (position gone)"
+                            )
+                        
                         closed_count += 1
 
                         try:
@@ -60,8 +79,8 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                                 {
                                     "trade_id": trade.id,
                                     "market_ticker": trade.market_ticker,
-                                    "result": "closed",
-                                    "pnl": 0.0,
+                                    "result": trade.result,
+                                    "pnl": trade.pnl or 0.0,
                                     "mode": getattr(trade, "trading_mode", "paper"),
                                 },
                             )
@@ -71,7 +90,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 if closed_count > 0:
                     db.commit()
                     logger.info(
-                        f"Position reconciliation: marked {closed_count} trades as closed"
+                        f"Position reconciliation: processed {closed_count} trades"
                     )
         except Exception as e:
             logger.error(f"Position reconciliation failed: {e}", exc_info=True)

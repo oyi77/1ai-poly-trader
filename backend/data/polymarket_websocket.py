@@ -209,11 +209,15 @@ class PolymarketWebSocket:
             # Send subscription message
             await self._send_subscription()
 
-            # Reset reconnect delay on successful connection
             self._reconnect_delay = self.config.reconnect_delay
 
-            # Start heartbeat
-            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+            from backend.api.main import app
+            if hasattr(app.state, 'task_manager'):
+                self._heartbeat_task = await app.state.task_manager.create_task(
+                    self._heartbeat_loop(), name="polymarket_ws_heartbeat"
+                )
+            else:
+                self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
             # Receive messages
             try:

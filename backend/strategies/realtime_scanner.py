@@ -306,8 +306,13 @@ class RealtimeScannerStrategy(BaseStrategy):
         self._ws_client = CLOBWebSocket(on_price=on_price)
         self._running = True
 
-        # Start WebSocket in background (store task reference for cleanup)
-        self._ws_task = asyncio.create_task(self._ws_client.run())
+        from backend.api.main import app
+        if hasattr(app.state, 'task_manager'):
+            self._ws_task = await app.state.task_manager.create_task(
+                self._ws_client.run(), name="realtime_scanner_ws"
+            )
+        else:
+            self._ws_task = asyncio.create_task(self._ws_client.run())
 
         logger.info(f"[{self.name}] WebSocket tracking started")
 

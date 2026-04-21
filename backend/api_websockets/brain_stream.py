@@ -9,83 +9,64 @@ Broadcasts events when:
 
 import logging
 import asyncio
-from typing import Set, Dict, Any
+from typing import Dict, Any
 from datetime import datetime, timezone
-
-from fastapi import WebSocket
+from backend.core.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 
-
-class BrainConnectionManager:
-    """Manages WebSocket connections for brain graph streaming."""
-    
-    def __init__(self):
-        self.active_connections: Set[WebSocket] = set()
-        self._lock = asyncio.Lock()
-    
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        async with self._lock:
-            self.active_connections.add(websocket)
-        logger.info(f"Brain WebSocket connected. Total clients: {len(self.active_connections)}")
-    
-    async def disconnect(self, websocket: WebSocket):
-        async with self._lock:
-            self.active_connections.discard(websocket)
-        logger.info(f"Brain WebSocket disconnected. Total clients: {len(self.active_connections)}")
-    
-    async def broadcast(self, message: Dict[str, Any]):
-        if not self.active_connections:
-            logger.debug("No active brain connections to broadcast to")
-            return
-        
-        logger.debug(f"Broadcasting brain event to {len(self.active_connections)} clients")
-        
-        connections = list(self.active_connections)
-        
-        tasks = []
-        for connection in connections:
-            task = asyncio.create_task(self._send_to_client(connection, message))
-            tasks.append(task)
-        
-        if tasks:
-            await asyncio.wait(tasks, timeout=1.0)
-    
-    async def _send_to_client(self, websocket: WebSocket, message: Dict[str, Any]):
-        try:
-            await websocket.send_json(message)
-        except Exception as e:
-            logger.warning(f"Failed to send to brain client: {e}")
-            await self.disconnect(websocket)
+# Global task manager instance (set by main.py on startup)
+_task_manager: TaskManager | None = None
 
 
-brain_manager = BrainConnectionManager()
+def set_task_manager(tm: TaskManager) -> None:
+    """Set the global task manager instance."""
+    global _task_manager
+    _task_manager = tm
+
+
+def get_task_manager() -> TaskManager | None:
+    """Get the global task manager instance."""
+    return _task_manager
 
 
 async def broadcast_signal_received(signal_data: Dict[str, Any]):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "signal_received",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "node": signal_data.get("source", "unknown"),
         "data": signal_data
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_signal_received")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued signal_received broadcast: {signal_data.get('source')}")
 
 
 async def broadcast_debate_started(market_id: str, nodes: list):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "debate_started",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "nodes": nodes,
         "market_id": market_id
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_debate_started")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued debate_started broadcast: {market_id}")
 
 
 async def broadcast_debate_ended(market_id: str, consensus: float, confidence: float):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "debate_ended",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -93,44 +74,68 @@ async def broadcast_debate_ended(market_id: str, consensus: float, confidence: f
         "consensus": consensus,
         "confidence": confidence
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_debate_ended")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued debate_ended broadcast: {market_id}")
 
 
 async def broadcast_trade_executed(trade_data: Dict[str, Any]):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "trade_executed",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "node": "trade_executor",
         "data": trade_data
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_trade_executed")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued trade_executed broadcast: trade_id={trade_data.get('id')}")
 
 
 async def broadcast_proposal_generated(proposal_data: Dict[str, Any]):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "proposal_generated",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "node": "proposal_generator",
         "data": proposal_data
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_proposal_generated")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued proposal_generated broadcast: {proposal_data.get('strategy_name')}")
 
 
 async def broadcast_node_status_change(node_id: str, status: str):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "node_status_change",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "node_id": node_id,
         "status": status
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_node_status_change")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued node_status_change broadcast: {node_id} -> {status}")
 
 
 async def broadcast_edge_activation(from_node: str, to_node: str, active: bool):
+    from backend.api.ws_manager_v2 import topic_manager
+    
     message = {
         "type": "edge_activation",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -138,5 +143,9 @@ async def broadcast_edge_activation(from_node: str, to_node: str, active: bool):
         "to_node": to_node,
         "active": active
     }
-    asyncio.create_task(brain_manager.broadcast(message))
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(topic_manager.broadcast("brain", message), name="broadcast_edge_activation")
+    else:
+        asyncio.create_task(topic_manager.broadcast("brain", message))
     logger.debug(f"Queued edge_activation broadcast: {from_node} -> {to_node} (active={active})")

@@ -11,6 +11,10 @@ import logging
 from backend.models.database import get_db, WalletConfig, BotState, SessionLocal
 from backend.api.auth import require_admin
 from backend.config import settings
+from backend.api.validation import (
+    WalletConfigCreateRequest as ValidatedWalletConfigCreate,
+    WalletConfigUpdateRequest as ValidatedWalletConfigUpdate,
+)
 
 logger = logging.getLogger("trading_bot")
 router = APIRouter(tags=["wallets"])
@@ -83,7 +87,7 @@ async def list_wallet_configs(
 
 @router.post("/api/wallets/config")
 async def create_wallet_config(
-    body: WalletConfigCreate,
+    body: ValidatedWalletConfigCreate,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ):
@@ -112,7 +116,7 @@ async def create_wallet_config(
 @router.put("/api/wallets/config/{config_id}")
 async def update_wallet_config(
     config_id: int,
-    body: WalletConfigUpdate,
+    body: ValidatedWalletConfigUpdate,
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ):

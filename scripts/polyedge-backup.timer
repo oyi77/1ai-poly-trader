@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Database Backup Timer
+Requires=polyedge-backup.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

@@ -1,21 +1,42 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    visualizer({
+      filename: './dist/stats.html',
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+    })
+  ],
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
-          'vendor-charts': ['recharts'],
-          'vendor-ui': ['framer-motion', 'lucide-react'],
-          'vendor-maps': ['mapbox-gl', 'react-map-gl', 'react-simple-maps', 'leaflet', 'react-leaflet', 'd3-geo'],
-          'vendor-three': ['three'],
-          'vendor-globe': ['react-globe.gl'],
-          'vendor-three-globe': ['three-globe'],
-          'vendor-globe-gl': ['globe.gl']
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('@tanstack/react-query')) {
+              return 'vendor-react'
+            }
+            if (id.includes('recharts')) {
+              return 'vendor-charts'
+            }
+            if (id.includes('framer-motion') || id.includes('lucide-react')) {
+              return 'vendor-ui'
+            }
+            if (id.includes('mapbox-gl') || id.includes('react-map-gl') || id.includes('react-simple-maps') || id.includes('leaflet') || id.includes('react-leaflet') || id.includes('d3-geo')) {
+              return 'vendor-maps'
+            }
+            if (id.includes('three') && !id.includes('three-globe')) {
+              return 'vendor-three'
+            }
+            if (id.includes('react-globe.gl') || id.includes('three-globe') || id.includes('globe.gl')) {
+              return 'vendor-globe'
+            }
+          }
         },
       },
     },

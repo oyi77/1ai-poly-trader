@@ -39,6 +39,7 @@ structlog>=24.1.0
 # Utils
 python-dotenv==1.0.0
 orjson==3.9.10
+psutil>=5.9.0
 
 # Polymarket auth & execution
 eth-account>=0.11.0
@@ -56,6 +57,12 @@ respx>=0.21
 # Phase 2: Redis cache and queue
 redis>=5.0.0
 arq>=0.25.0
+
+# Rate limiting
+slowapi>=0.1.9
+
+# Circuit breakers
+pybreaker>=1.0.0
 
 # Dev
 ruff>=0.3

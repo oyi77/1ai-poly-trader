@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
@@ -13,12 +13,13 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import { ModeFilterProvider } from '../contexts/ModeFilterContext'
 import { ModeSelector } from '../components/dashboard/ModeSelector'
 
-// Dashboard tab components
-import { OverviewTab } from '../components/dashboard/OverviewTab'
-import { TradesTab } from '../components/dashboard/TradesTab'
-import { MarketsTab } from '../components/dashboard/MarketsTab'
-import { PerformanceTab } from '../components/dashboard/PerformanceTab'
-import BrainGraph from '../components/BrainGraph'
+// Dashboard tab components - lazy loaded for code splitting
+import { lazy } from 'react'
+const OverviewTab = lazy(() => import('../components/dashboard/OverviewTab').then(m => ({ default: m.OverviewTab })))
+const TradesTab = lazy(() => import('../components/dashboard/TradesTab').then(m => ({ default: m.TradesTab })))
+const MarketsTab = lazy(() => import('../components/dashboard/MarketsTab').then(m => ({ default: m.MarketsTab })))
+const PerformanceTab = lazy(() => import('../components/dashboard/PerformanceTab').then(m => ({ default: m.PerformanceTab })))
+const BrainGraph = lazy(() => import('../components/BrainGraph'))
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('Overview')
 
   const unifiedStats = useStats()
-  const { status: wsStatus } = useWebSocket(getWsUrl('/ws/markets'))
+  const { status: wsStatus } = useWebSocket(getWsUrl('/ws/markets'), { topic: 'markets' })
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
@@ -154,12 +155,12 @@ export default function Dashboard() {
           <div className="scan-line" />
           <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
             <Link to="/admin" className="text-[9px] text-neutral-600 hover:text-green-500 uppercase tracking-wider transition-colors mr-1">Admin</Link>
-            <h1 className="text-xs font-bold text-neutral-100 uppercase tracking-widest whitespace-nowrap font-mono">TRADING TERMINAL</h1>
+            <h1 className="text-xs font-bold text-neutral-100 uppercase tracking-widest whitespace-nowrap font-mono">PolyEdge</h1>
             <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border ${unifiedStats.isRunning ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-neutral-800 text-neutral-500 border-neutral-700'}`}>
               {unifiedStats.isRunning ? 'Live' : 'Idle'}
             </span>
             {(() => {
-              const mode = data?.stats?.trading_mode || 'paper'
+              const mode = unifiedStats.mode || 'paper'
               const cfg: Record<string, { label: string; cls: string }> = {
                 paper: { label: 'Paper', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
                 testnet: { label: 'Testnet', cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
@@ -222,28 +223,30 @@ export default function Dashboard() {
 
         {/* TAB CONTENT */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          {activeTab === 'Overview' && (
-            <OverviewTab
-              data={data}
-              equityCurve={equityCurve}
-              activeSignals={activeSignals}
-              recentTrades={recentTrades}
-              weatherSignals={weatherSignals}
-              weatherForecasts={weatherForecasts}
-              calibration={calibration}
-              windows={windows}
-              micro={micro ?? null}
-              onSimulateTrade={(ticker) => tradeMutation.mutate(ticker)}
-              isSimulating={tradeMutation.isPending}
-              onStart={() => startMutation.mutate()}
-              onStop={() => stopMutation.mutate()}
-              onScan={() => scanMutation.mutate()}
-            />
-          )}
-          {activeTab === 'Performance' && <PerformanceTab />}
-          {activeTab === 'Brain' && <BrainGraph />}
-          {activeTab === 'Trades' && <TradesTab />}
-          {activeTab === 'Markets' && <MarketsTab />}
+          <Suspense fallback={<div className="flex items-center justify-center h-full text-neutral-500">Loading...</div>}>
+            {activeTab === 'Overview' && (
+              <OverviewTab
+                data={data}
+                equityCurve={equityCurve}
+                activeSignals={activeSignals}
+                recentTrades={recentTrades}
+                weatherSignals={weatherSignals}
+                weatherForecasts={weatherForecasts}
+                calibration={calibration}
+                windows={windows}
+                micro={micro ?? null}
+                onSimulateTrade={(ticker) => tradeMutation.mutate(ticker)}
+                isSimulating={tradeMutation.isPending}
+                onStart={() => startMutation.mutate()}
+                onStop={() => stopMutation.mutate()}
+                onScan={() => scanMutation.mutate()}
+              />
+            )}
+            {activeTab === 'Performance' && <PerformanceTab />}
+            {activeTab === 'Brain' && <BrainGraph />}
+            {activeTab === 'Trades' && <TradesTab />}
+            {activeTab === 'Markets' && <MarketsTab />}
+          </Suspense>
         </div>
 
         {/* FOOTER */}

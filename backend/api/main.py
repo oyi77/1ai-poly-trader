@@ -18,6 +18,8 @@ from contextlib import asynccontextmanager
 import asyncio
 import os
 import time
+import signal
+import sys
 from collections import deque
 
 from backend.config import settings
@@ -51,12 +53,8 @@ from backend.data.btc_markets import fetch_active_btc_markets
 from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
 from backend.core.errors import handle_errors
 from backend.core.event_bus import event_bus, publish_event
-from backend.api.ws_manager import (
-    market_ws,
-    whale_ws,
-    broadcast_market_tick,
-    broadcast_whale_tick,
-)
+from backend.api.ws_manager_v2 import topic_manager
+from backend.api.connection_limits import connection_limiter
 from backend.api.auth import router as auth_router, require_admin
 from backend.api.markets import router as markets_router, _weather_signal_to_response
 from backend.api.trading import (
@@ -80,6 +78,8 @@ from backend.api.settings import router as settings_router
 from backend.api.activities import router as activities_router
 from backend.api.proposals import router as proposals_router
 from backend.api.brain import router as brain_router
+from backend.api.errors import router as errors_router
+from backend.api.metrics_endpoint import router as metrics_router
 from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
@@ -157,12 +157,68 @@ def _seed_strategy_configs() -> None:
         db.close()
 
 
+class GracefulShutdownHandler:
+    """Handles graceful shutdown on SIGTERM/SIGINT with timeout."""
+    
+    def __init__(self, app: FastAPI):
+        self.app = app
+        self.shutdown_event = asyncio.Event()
+        self.shutdown_timeout = 30.0
+        self.start_time = None
+        
+    def _signal_handler(self, signum, frame):
+        """Signal handler for SIGTERM and SIGINT."""
+        sig_name = signal.Signals(signum).name
+        logger.info(f"Received {sig_name} signal, initiating graceful shutdown...")
+        self.start_time = time.time()
+        self.shutdown_event.set()
+    
+    def register_handlers(self):
+        """Register signal handlers for SIGTERM and SIGINT."""
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        logger.info("Signal handlers registered for SIGTERM and SIGINT")
+    
+    async def wait_for_shutdown(self):
+        """Wait for shutdown signal or timeout."""
+        try:
+            await asyncio.wait_for(
+                self.shutdown_event.wait(),
+                timeout=self.shutdown_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Shutdown timeout ({self.shutdown_timeout}s) reached")
+    
+    def get_elapsed_time(self) -> float:
+        """Get elapsed time since shutdown started."""
+        if self.start_time is None:
+            return 0.0
+        return time.time() - self.start_time
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # --- Startup ---
     from datetime import datetime as _dt, timezone as _tz
+    from backend.core.task_manager import TaskManager
 
     app.state.start_time = _dt.now(_tz.utc)
+    app.state.task_manager = TaskManager()
+    
+    logger.info("Initializing connection limiter...")
+    await connection_limiter.initialize_redis(settings.REDIS_URL if settings.REDIS_ENABLED else None)
+    app.state.connection_limiter = connection_limiter
+    
+    # Initialize graceful shutdown handler
+    shutdown_handler = GracefulShutdownHandler(app)
+    shutdown_handler.register_handlers()
+    app.state.shutdown_handler = shutdown_handler
+    
+    from backend.api_websockets import brain_stream, activity_stream, proposals
+    brain_stream.set_task_manager(app.state.task_manager)
+    activity_stream.set_task_manager(app.state.task_manager)
+    proposals.set_task_manager(app.state.task_manager)
+    
     logger.info("=" * 60)
     logger.info("BTC 5-MIN TRADING BOT v3.0")
     logger.info("=" * 60)
@@ -332,8 +388,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
 
     async def stats_broadcaster():
-        from backend.api.ws_manager import stats_ws
-
         logger.info("Stats broadcaster task started")
 
         await refresh_balance_cache()
@@ -342,9 +396,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         while True:
             try:
-                if stats_ws.active_connections:
-                    logger.debug(
-                        f"Broadcasting stats to {len(stats_ws.active_connections)} clients"
+                connection_count = topic_manager.get_topic_subscriber_count("stats")
+                if connection_count > 0:
+                    logger.info(
+                        f"Broadcasting stats to {connection_count} clients"
                     )
 
                     now = time.time()
@@ -355,19 +410,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     try:
                         # Get stats for all 3 modes
                         stats = await get_stats(db, None, mode=None)
-                        await stats_ws.broadcast(
+                        await topic_manager.broadcast(
+                            "stats",
                             {
                                 "type": "stats_update",
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                                "data": {
-                                    "paper": stats.paper,
-                                    "testnet": stats.testnet,
-                                    "live": stats.live,
-                                },
+                                "data": stats.model_dump(mode='json'),
                             }
                         )
                     finally:
                         db.close()
+                else:
+                    logger.debug(f"No active WebSocket connections, skipping broadcast")
             except Exception as e:
                 logger.error(
                     f"[api.main.stats_broadcaster] {type(e).__name__}: Stats broadcaster error: {e}",
@@ -375,8 +429,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 )
             await asyncio.sleep(1)
 
+    logger.info("Initializing Redis pub/sub for WebSocket...")
+    await topic_manager.initialize_redis()
+    
     logger.info("Creating stats broadcaster background task...")
-    stats_task = asyncio.create_task(stats_broadcaster())
+    stats_task = await app.state.task_manager.create_task(
+        stats_broadcaster(), name="stats_broadcaster"
+    )
     logger.info("Stats broadcaster task created")
 
     from backend.data.polymarket_websocket import (
@@ -413,11 +472,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
                 def handle_orderbook(snapshot):
                     logger.debug(f"Orderbook update: {snapshot.asset_id}")
-                    asyncio.create_task(
-                        orderbook_cache.update(
-                            snapshot.asset_id, snapshot.bids, snapshot.asks
+                    
+                    async def update_orderbook():
+                        await app.state.task_manager.create_task(
+                            orderbook_cache.update(
+                                snapshot.asset_id, snapshot.bids, snapshot.asks
+                            ),
+                            name=f"orderbook_update_{snapshot.asset_id}"
                         )
-                    )
+                    
+                    asyncio.create_task(update_orderbook())
                     publish_event(
                         "orderbook_update",
                         {
@@ -444,7 +508,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 market_ws.on_orderbook(handle_orderbook)
                 market_ws.on_trade(handle_trade)
 
-                market_ws_task = asyncio.create_task(market_ws.connect())
+                market_ws_task = await app.state.task_manager.create_task(
+                    market_ws.connect(), name="polymarket_market_ws"
+                )
                 logger.info(
                     f"Polymarket WebSocket started for {len(asset_ids)} markets"
                 )
@@ -495,7 +561,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                                     db.commit()
                                     logger.info(f"Trade {trade_id} confirmed on-chain")
 
-                                asyncio.create_task(refresh_balance_cache())
+                                async def refresh_task():
+                                    await app.state.task_manager.create_task(
+                                        refresh_balance_cache(), name="refresh_balance_cache"
+                                    )
+                                
+                                asyncio.create_task(refresh_task())
                         except Exception as e:
                             logger.error(
                                 f"[api.main.handle_user_trade] {type(e).__name__}: Error updating trade status: {e}",
@@ -507,7 +578,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     user_ws.on_user_order(handle_user_order)
                     user_ws.on_user_trade(handle_user_trade)
 
-                    user_ws_task = asyncio.create_task(user_ws.connect())
+                    user_ws_task = await app.state.task_manager.create_task(
+                        user_ws.connect(), name="polymarket_user_ws"
+                    )
                     logger.info(
                         f"Polymarket User WebSocket started for {len(condition_ids)} markets"
                     )
@@ -525,59 +598,117 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
 
-    logger.info("Shutting down Polymarket WebSocket...")
-    if market_ws_task:
-        await shutdown_market_websocket()
-        market_ws_task.cancel()
-        try:
-            await market_ws_task
-        except asyncio.CancelledError:
-            pass
-        logger.info("Polymarket WebSocket shut down")
-
-    if user_ws_task:
-        await shutdown_user_websocket()
-        user_ws_task.cancel()
-        try:
-            await user_ws_task
-        except asyncio.CancelledError:
-            pass
-        logger.info("Polymarket User WebSocket shut down")
-
-    logger.info("Cancelling stats broadcaster task...")
-    stats_task.cancel()
+    shutdown_handler = getattr(app.state, 'shutdown_handler', None)
+    shutdown_start = time.time()
+    
+    logger.info("=" * 60)
+    logger.info("GRACEFUL SHUTDOWN SEQUENCE INITIATED")
+    logger.info("=" * 60)
+    
     try:
-        await stats_task
-    except asyncio.CancelledError:
-        logger.info("Stats broadcaster task cancelled")
-        pass
+        logger.info("1. Stopping new request acceptance...")
+        app.state.shutting_down = True
+        logger.info("   ✓ New requests blocked")
+        
+        logger.info("2. Waiting for active requests to complete (max 5s)...")
+        active_requests = getattr(app.state, 'active_requests', 0)
+        wait_start = time.time()
+        while active_requests > 0 and (time.time() - wait_start) < 5.0:
+            await asyncio.sleep(0.1)
+            active_requests = getattr(app.state, 'active_requests', 0)
+        if active_requests > 0:
+            logger.warning(f"   ⚠ {active_requests} active requests still pending after 5s")
+        else:
+            logger.info("   ✓ All active requests completed")
+        
+        logger.info("3. Closing WebSocket connections...")
+        ws_count = len(ws_manager.active_connections)
+        for ws in ws_manager.active_connections[:]:
+            try:
+                await ws.close(code=1001, reason="Server shutting down")
+            except Exception as e:
+                logger.debug(f"Error closing WebSocket: {e}")
+        logger.info(f"   ✓ Closed {ws_count} WebSocket connections")
+        
+        logger.info("4. Shutting down Redis pub/sub...")
+        try:
+            await topic_manager.shutdown_redis()
+            logger.info("   ✓ Redis pub/sub shut down")
+        except Exception as e:
+            logger.warning(f"   ⚠ Error shutting down Redis: {e}")
+        
+        logger.info("5. Shutting down connection limiter...")
+        try:
+            await connection_limiter.shutdown()
+            logger.info("   ✓ Connection limiter shut down")
+        except Exception as e:
+            logger.warning(f"   ⚠ Error shutting down connection limiter: {e}")
+        
+        logger.info("6. Shutting down Polymarket WebSocket...")
+        if market_ws_task:
+            try:
+                await shutdown_market_websocket()
+                market_ws_task.cancel()
+                try:
+                    await market_ws_task
+                except asyncio.CancelledError:
+                    pass
+                logger.info("   ✓ Polymarket market WebSocket shut down")
+            except Exception as e:
+                logger.warning(f"   ⚠ Error shutting down market WebSocket: {e}")
 
-    # --- Shutdown ---
-    from backend.core.scheduler import stop_scheduler, scheduler as _scheduler
+        if user_ws_task:
+            try:
+                await shutdown_user_websocket()
+                user_ws_task.cancel()
+                try:
+                    await user_ws_task
+                except asyncio.CancelledError:
+                    pass
+                logger.info("   ✓ Polymarket user WebSocket shut down")
+            except Exception as e:
+                logger.warning(f"   ⚠ Error shutting down user WebSocket: {e}")
 
-    logger.info("Shutdown initiated — stopping scheduler...")
-    app.state.shutting_down = True
+        logger.info("6. Shutting down TaskManager...")
+        try:
+            task_count = len(app.state.task_manager.tasks)
+            await app.state.task_manager.shutdown()
+            logger.info(f"   ✓ TaskManager shut down ({task_count} tasks cancelled)")
+        except Exception as e:
+            logger.warning(f"   ⚠ Error shutting down TaskManager: {e}")
 
-    # Stop APScheduler gracefully (sets running=False immediately, cancels worker task)
-    stop_scheduler()
+        logger.info("7. Stopping scheduler...")
+        try:
+            from backend.core.scheduler import stop_scheduler
+            stop_scheduler()
+            logger.info("   ✓ Scheduler stopped")
+        except Exception as e:
+            logger.warning(f"   ⚠ Error stopping scheduler: {e}")
 
-    # Give in-flight strategy jobs a grace period to complete before closing DB.
-    # scheduler.shutdown(wait=False) cancels the scheduler but doesn't await running
-    # coroutines. A 3-second grace period covers the typical strategy cycle duration.
-    await asyncio.sleep(3.0)
+        logger.info("8. Waiting for in-flight jobs (max 3s)...")
+        await asyncio.sleep(3.0)
+        logger.info("   ✓ Grace period complete")
 
-    # Close database connections
-    try:
-        from backend.models.database import engine
+        logger.info("9. Closing database connections...")
+        try:
+            from backend.models.database import engine
+            engine.dispose()
+            logger.info("   ✓ Database connections closed")
+        except Exception as e:
+            logger.warning(f"   ⚠ Error closing database: {e}")
 
-        engine.dispose()
-        logger.info("Database connections closed")
     except Exception as e:
-        logger.exception(
-            f"[api.main.lifespan] {type(e).__name__}: Error closing database connections: {e}"
+        logger.error(
+            f"[api.main.lifespan] {type(e).__name__}: Error during shutdown sequence: {e}",
+            exc_info=True
         )
-
-    logger.info("Shutdown complete")
+    
+    elapsed = time.time() - shutdown_start
+    logger.info("=" * 60)
+    logger.info(f"SHUTDOWN COMPLETE (took {elapsed:.1f}s)")
+    logger.info("=" * 60)
+    
+    sys.exit(0)
 
 
 app = FastAPI(
@@ -616,6 +747,8 @@ app.include_router(settings_router)
 app.include_router(activities_router)
 app.include_router(proposals_router)
 app.include_router(brain_router)
+app.include_router(errors_router)
+app.include_router(metrics_router)
 
 
 # Add metrics middleware for automatic tracking
@@ -923,6 +1056,20 @@ async def health_check(db: Session = Depends(get_db)):
         )
         if overall_status == "ok":
             overall_status = "degraded"
+
+    try:
+        from backend.models.database import engine
+        pool = engine.pool
+        checks["db_pool"] = {
+            "status": "ok",
+            "pool_size": pool.size(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+            "queue_size": pool.size() - pool.checkedout() - pool.overflow(),
+        }
+    except Exception as e:
+        checks["db_pool"] = {"status": "error", "error": str(e)}
+        logger.warning(f"Failed to get pool stats: {e}")
 
     bot_state = db.query(BotState).first()
     return {
@@ -1419,18 +1566,28 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
     if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return
-    await market_ws.connect(websocket)
+    
+    await websocket.accept()
+    
     try:
+        # Wait for subscription message
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "markets")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
+        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
     except WebSocketDisconnect:
-        market_ws.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(
             f"[api.main.ws_markets] {type(e).__name__}: Market WebSocket error: {e}"
         )
-        market_ws.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/whales")
@@ -1439,18 +1596,28 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
     if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return
-    await whale_ws.connect(websocket)
+    
+    await websocket.accept()
+    
     try:
+        # Wait for subscription message
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "whales")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
+        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
     except WebSocketDisconnect:
-        whale_ws.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(
             f"[api.main.ws_whales] {type(e).__name__}: Whale WebSocket error: {e}"
         )
-        whale_ws.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/activities")
@@ -1459,18 +1626,25 @@ async def ws_activities(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
-    from backend.api_websockets.activity_stream import activity_manager
+    await websocket.accept()
     
-    await activity_manager.connect(websocket)
     try:
+        # Wait for subscription message
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "activities")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
+        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
     except WebSocketDisconnect:
-        await activity_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(f"[api.main.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}")
-        await activity_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/brain")
@@ -1479,18 +1653,25 @@ async def ws_brain(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
-    from backend.api_websockets.brain_stream import brain_manager
+    await websocket.accept()
     
-    await brain_manager.connect(websocket)
     try:
+        # Wait for subscription message
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "brain")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
+        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
     except WebSocketDisconnect:
-        await brain_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(f"[api.main.ws_brain] {type(e).__name__}: Brain WebSocket error: {e}")
-        await brain_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/events")
@@ -1498,47 +1679,55 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
     if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return
-    await ws_manager.connect(websocket)
+    
+    await websocket.accept()
 
     try:
-        await websocket.send_json(
-            {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "type": "success",
-                "message": "Connected to BTC trading bot",
-            }
-        )
-
-        from backend.core.scheduler import get_recent_events
-
-        for event in get_recent_events(20):
-            await websocket.send_json(event)
-
-        last_event_count = len(get_recent_events(200))
-        while True:
-            await asyncio.sleep(2)
-
-            current_events = get_recent_events(200)
-            if len(current_events) > last_event_count:
-                new_events = current_events[last_event_count - len(current_events) :]
-                for event in new_events:
-                    await websocket.send_json(event)
-                last_event_count = len(current_events)
-
+        # Wait for subscription message
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "events")
+            await topic_manager.subscribe(websocket, topic)
+            
             await websocket.send_json(
                 {
-                    "type": "heartbeat",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "type": "subscribed",
+                    "topic": topic,
+                    "message": "Connected to BTC trading bot",
                 }
             )
 
+            from backend.core.scheduler import get_recent_events
+
+            for event in get_recent_events(20):
+                await websocket.send_json(event)
+
+            last_event_count = len(get_recent_events(200))
+            while True:
+                await asyncio.sleep(2)
+
+                current_events = get_recent_events(200)
+                if len(current_events) > last_event_count:
+                    new_events = current_events[last_event_count - len(current_events) :]
+                    for event in new_events:
+                        await websocket.send_json(event)
+                    last_event_count = len(current_events)
+
+                await websocket.send_json(
+                    {
+                        "type": "heartbeat",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+
     except WebSocketDisconnect:
-        ws_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(
             f"[api.main.websocket_events] {type(e).__name__}: Events WebSocket error: {e}"
         )
-        ws_manager.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
 
 
 @app.websocket("/ws/dashboard-data")
@@ -1547,21 +1736,26 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
 
-    from backend.api.ws_manager import stats_ws
-
-    await stats_ws.connect(websocket)
+    await websocket.accept()
 
     try:
+        # Wait for subscription message
+        data = await websocket.receive_json()
+        if data.get("action") == "subscribe":
+            topic = data.get("topic", "stats")
+            await topic_manager.subscribe(websocket, topic)
+            await websocket.send_json({"type": "subscribed", "topic": topic})
+        
         while True:
             await asyncio.sleep(60)
     except WebSocketDisconnect:
         logger.info("Stats WebSocket disconnected")
-        stats_ws.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
     except Exception as e:
         logger.exception(
             f"[api.main.websocket_stats] {type(e).__name__}: Stats WebSocket error: {e}"
         )
-        stats_ws.disconnect(websocket)
+        await topic_manager.disconnect(websocket)
 
 
 if __name__ == "__main__":
