@@ -5,6 +5,8 @@ import { Settings as SettingsIcon, Zap, TrendingUp, Shield, Activity } from 'luc
 
 interface SettingsData {
   mirofish_enabled: boolean
+  mirofish_api_url?: string
+  mirofish_api_key?: string
   strategies: {
     [key: string]: boolean
   }
@@ -15,6 +17,12 @@ interface SettingsData {
     min_edge_threshold: number
   }
   trading_mode: 'paper' | 'testnet' | 'live'
+}
+
+interface TestConnectionState {
+  testing: boolean
+  success: boolean | null
+  error: string | null
 }
 
 const STRATEGIES = [
@@ -34,6 +42,11 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [testConnection, setTestConnection] = useState<TestConnectionState>({
+    testing: false,
+    success: null,
+    error: null,
+  })
 
   useEffect(() => {
     loadSettings()
@@ -192,7 +205,7 @@ export default function Settings() {
           transition={{ delay: 0.1 }}
           className="bg-neutral-900 border border-neutral-800 rounded-lg p-6"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <Zap className={`w-6 h-6 ${settings.mirofish_enabled ? 'text-green-500' : 'text-neutral-600'}`} />
               <div>
@@ -214,6 +227,55 @@ export default function Settings() {
               />
             </button>
           </div>
+
+          {/* MiroFish Credentials */}
+          {settings.mirofish_enabled && (
+            <div className="border-t border-neutral-800 pt-4 space-y-3">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1.5">API URL</label>
+                <input
+                  type="text"
+                  value={settings.mirofish_api_url || ''}
+                  onChange={(e) => updateSettings({ mirofish_api_url: e.target.value })}
+                  disabled={saving}
+                  placeholder="https://api.mirofish.ai"
+                  className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-100 placeholder-neutral-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1.5">API Key</label>
+                <input
+                  type="password"
+                  value={settings.mirofish_api_key || ''}
+                  onChange={(e) => updateSettings({ mirofish_api_key: e.target.value })}
+                  disabled={saving}
+                  placeholder="••••••••••••••••"
+                  className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-100 placeholder-neutral-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+                />
+              </div>
+
+              {/* Test Connection Button */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={testMiroFishConnection}
+                  disabled={testConnection.testing || saving}
+                  className="px-4 py-2 bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs uppercase tracking-wider rounded hover:border-green-500/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {testConnection.testing ? 'Testing...' : 'Test Connection'}
+                </button>
+                
+                {testConnection.success === true && (
+                  <span className="text-green-500 text-xs flex items-center gap-1">
+                    <span className="text-lg">✓</span> Connected
+                  </span>
+                )}
+                
+                {testConnection.success === false && testConnection.error && (
+                  <span className="text-red-400 text-xs">{testConnection.error}</span>
+                )}
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Strategy Grid */}
