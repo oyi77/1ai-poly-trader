@@ -2,6 +2,7 @@
 
 import pytest
 import httpx
+import os
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 
@@ -13,18 +14,48 @@ from backend.ai.mirofish_client import (
 
 
 @pytest.fixture
-def mock_settings():
-    with patch("backend.core.config_service.get_setting") as mock:
-        mock.side_effect = lambda key, default: {
-            "MIROFISH_API_URL": "https://test.mirofish.ai",
-            "MIROFISH_API_KEY": "test_key_123",
-            "MIROFISH_API_TIMEOUT": 10.0,
-        }.get(key, default)
-        yield mock
+def mock_db_settings():
+    """Mock database settings for MiroFish client initialization."""
+    with patch("backend.models.database.SessionLocal") as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        
+        settings_map = {
+            "mirofish_api_url": "https://test.mirofish.ai",
+            "mirofish_api_key": "test_key_123",
+            "mirofish_api_timeout": 10.0,
+        }
+        
+        query_count = [0]
+        query_keys = ["mirofish_api_url", "mirofish_api_key", "mirofish_api_timeout"]
+        
+        def mock_query(model):
+            mock_query_obj = MagicMock()
+            
+            def mock_filter(condition):
+                mock_filter_obj = MagicMock()
+                current_key = query_keys[query_count[0] % len(query_keys)]
+                query_count[0] += 1
+                
+                def mock_first():
+                    if current_key in settings_map:
+                        result = MagicMock()
+                        result.value = settings_map[current_key]
+                        return result
+                    return None
+                
+                mock_filter_obj.first = mock_first
+                return mock_filter_obj
+            
+            mock_query_obj.filter = mock_filter
+            return mock_query_obj
+        
+        mock_session.query = mock_query
+        yield mock_session
 
 
 @pytest.fixture
-def client(mock_settings):
+def client(mock_db_settings):
     return MiroFishClient()
 
 
@@ -51,7 +82,7 @@ def mock_response_data():
 
 
 @pytest.mark.asyncio
-async def test_client_initialization(mock_settings):
+async def test_client_initialization(mock_db_settings):
     client = MiroFishClient()
     
     assert client.api_url == "https://test.mirofish.ai"
@@ -391,9 +422,53 @@ async def test_fetch_signals_logs_metrics(client, mock_response_data, caplog):
 
 
 @pytest.mark.asyncio
-async def test_settings_integration_from_config_service(mock_settings):
-    client = MiroFishClient()
+async def test_database_priority_over_env_vars(mock_db_settings):
+    """Verify database settings take priority over environment variables."""
+    import os
     
-    mock_settings.assert_any_call("MIROFISH_API_URL", "https://api.mirofish.ai")
-    mock_settings.assert_any_call("MIROFISH_API_KEY", "")
-    mock_settings.assert_any_call("MIROFISH_API_TIMEOUT", 30.0)
+    with patch.dict(os.environ, {
+        "MIROFISH_API_URL": "https://env.mirofish.ai",
+        "MIROFISH_API_KEY": "env_key",
+        "MIROFISH_API_TIMEOUT": "5.0",
+    }):
+        client = MiroFishClient()
+        
+        assert client.api_url == "https://test.mirofish.ai"
+        assert client.api_key == "test_key_123"
+        assert client.timeout == 10.0
+
+
+@pytest.mark.asyncio
+async def test_env_vars_fallback_when_no_database():
+    """Verify environment variables are used when database has no settings."""
+    with patch("backend.models.database.SessionLocal") as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_session.query.return_value.filter.return_value.first.return_value = None
+        
+        with patch.dict(os.environ, {
+            "MIROFISH_API_URL": "https://env.mirofish.ai",
+            "MIROFISH_API_KEY": "env_key",
+            "MIROFISH_API_TIMEOUT": "15.0",
+        }):
+            client = MiroFishClient()
+            
+            assert client.api_url == "https://env.mirofish.ai"
+            assert client.api_key == "env_key"
+            assert client.timeout == 15.0
+
+
+@pytest.mark.asyncio
+async def test_defaults_when_no_database_or_env():
+    """Verify defaults are used when neither database nor env vars are set."""
+    with patch("backend.models.database.SessionLocal") as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_session.query.return_value.filter.return_value.first.return_value = None
+        
+        with patch.dict(os.environ, {}, clear=True):
+            client = MiroFishClient()
+            
+            assert client.api_url == "https://api.mirofish.ai"
+            assert client.api_key == ""
+            assert client.timeout == 30.0

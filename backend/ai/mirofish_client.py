@@ -56,24 +56,97 @@ class MiroFishClient:
     ):
         """Initialize MiroFish client.
         
+        Priority: Database → Environment Variables → Defaults
+        
         Args:
             api_url: MiroFish API base URL (from settings if None)
             api_key: API authentication key (from settings if None)
             timeout: Request timeout in seconds (from settings if None)
         """
-        from backend.core.config_service import get_setting
+        import os
+        from backend.models.database import SessionLocal, SystemSettings
         
-        self.api_url = api_url or get_setting("MIROFISH_API_URL", "https://api.mirofish.ai")
-        self.api_key = api_key or get_setting("MIROFISH_API_KEY", "")
-        self.timeout = timeout or get_setting("MIROFISH_API_TIMEOUT", 30.0)
+        # Initialize with provided values or defaults
+        self.api_url = api_url
+        self.api_key = api_key
+        self.timeout = timeout
+        
+        # Try to read from database first
+        db_source = None
+        try:
+            db = SessionLocal()
+            try:
+                # Query database for credentials
+                if not self.api_url:
+                    db_url = db.query(SystemSettings).filter(
+                        SystemSettings.key == "mirofish_api_url"
+                    ).first()
+                    if db_url:
+                        self.api_url = db_url.value
+                        db_source = "database"
+                
+                if not self.api_key:
+                    db_key = db.query(SystemSettings).filter(
+                        SystemSettings.key == "mirofish_api_key"
+                    ).first()
+                    if db_key:
+                        self.api_key = db_key.value
+                        if not db_source:
+                            db_source = "database"
+                
+                if not self.timeout:
+                    db_timeout = db.query(SystemSettings).filter(
+                        SystemSettings.key == "mirofish_api_timeout"
+                    ).first()
+                    if db_timeout:
+                        self.timeout = float(db_timeout.value)
+                        if not db_source:
+                            db_source = "database"
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Failed to read MiroFish settings from database: {e}")
+        
+        # Fall back to environment variables
+        env_source = None
+        if not self.api_url:
+            self.api_url = os.getenv("MIROFISH_API_URL")
+            if self.api_url:
+                env_source = "environment"
+        
+        if not self.api_key:
+            self.api_key = os.getenv("MIROFISH_API_KEY")
+            if self.api_key and not env_source:
+                env_source = "environment"
+        
+        if not self.timeout:
+            timeout_env = os.getenv("MIROFISH_API_TIMEOUT")
+            if timeout_env:
+                try:
+                    self.timeout = float(timeout_env)
+                    if not env_source:
+                        env_source = "environment"
+                except ValueError:
+                    logger.warning(f"Invalid MIROFISH_API_TIMEOUT: {timeout_env}")
+        
+        # Apply defaults
+        if not self.api_url:
+            self.api_url = "https://api.mirofish.ai"
+        if not self.api_key:
+            self.api_key = ""
+        if not self.timeout:
+            self.timeout = 30.0
+        
+        # Log which source was used
+        source_msg = db_source or env_source or "defaults"
+        logger.info(
+            f"MiroFish client initialized: url={self.api_url}, timeout={self.timeout}s, "
+            f"credentials_source={source_msg}"
+        )
         
         self._client: Optional[httpx.AsyncClient] = None
         self._consecutive_failures = 0
         self._circuit_open = False
-        
-        logger.info(
-            f"MiroFish client initialized: url={self.api_url}, timeout={self.timeout}s"
-        )
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create async HTTP client."""

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 import logging
+import asyncio
 
 from backend.api.auth import require_admin
 from backend.models.database import get_db, SystemSettings
@@ -37,6 +38,18 @@ class SettingsUpdateRequest(BaseModel):
 class ToggleResponse(BaseModel):
     enabled: bool
     message: str
+
+
+class TestMiroFishRequest(BaseModel):
+    api_url: str
+    api_key: str
+
+
+class TestMiroFishResponse(BaseModel):
+    success: bool
+    message: str
+    signals_count: Optional[int] = None
+    error: Optional[str] = None
 
 
 def _get_setting(db: Session, key: str, default: Any = None) -> Any:
@@ -225,3 +238,84 @@ async def toggle_strategy(
         db.rollback()
         logger.error(f"Failed to toggle strategy '{name}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to toggle strategy '{name}'")
+
+
+@router.post("/test-mirofish", response_model=TestMiroFishResponse)
+async def test_mirofish(
+    request: TestMiroFishRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    """Test MiroFish API connection with provided credentials.
+    
+    Validates that the provided API URL and key can successfully fetch signals.
+    Does not save credentials to database.
+    """
+    try:
+        from backend.ai.mirofish_client import MiroFishClient
+        
+        logger.info(f"Testing MiroFish connection: {request.api_url}")
+        
+        client = MiroFishClient(
+            api_url=request.api_url,
+            api_key=request.api_key
+        )
+        
+        # Test fetch_signals with timeout
+        try:
+            signals = await asyncio.wait_for(
+                client.fetch_signals(market="polymarket"),
+                timeout=10.0
+            )
+            
+            logger.info(f"MiroFish test successful: {len(signals)} signals fetched")
+            
+            return TestMiroFishResponse(
+                success=True,
+                message=f"Connection successful. Fetched {len(signals)} signals.",
+                signals_count=len(signals)
+            )
+            
+        except asyncio.TimeoutError:
+            logger.warning("MiroFish test timed out after 10 seconds")
+            return TestMiroFishResponse(
+                success=False,
+                message="Connection test timed out after 10 seconds",
+                error="timeout"
+            )
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"MiroFish test failed: {error_msg}", exc_info=True)
+            
+            # Determine error type without exposing sensitive details
+            if "401" in error_msg or "unauthorized" in error_msg.lower():
+                return TestMiroFishResponse(
+                    success=False,
+                    message="Authentication failed. Check your API key.",
+                    error="authentication"
+                )
+            elif "404" in error_msg or "not found" in error_msg.lower():
+                return TestMiroFishResponse(
+                    success=False,
+                    message="API endpoint not found. Check your API URL.",
+                    error="not_found"
+                )
+            elif "connection" in error_msg.lower():
+                return TestMiroFishResponse(
+                    success=False,
+                    message="Connection failed. Check your API URL and network.",
+                    error="connection"
+                )
+            else:
+                return TestMiroFishResponse(
+                    success=False,
+                    message="Connection test failed. Please check your credentials.",
+                    error="unknown"
+                )
+    
+    except Exception as e:
+        logger.error(f"Unexpected error during MiroFish test: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to test MiroFish connection"
+        )
