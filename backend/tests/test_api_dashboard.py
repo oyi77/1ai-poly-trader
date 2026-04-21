@@ -227,4 +227,4 @@ class TestHealthSmoke:
         resp = client.get("/api/v1/health")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] in ("ok", "degraded")
+        assert data["status"] in ("healthy", "unhealthy")
