@@ -13,8 +13,6 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import { ModeFilterProvider } from '../contexts/ModeFilterContext'
 import { ModeSelector } from '../components/dashboard/ModeSelector'
 
-// Dashboard tab components - lazy loaded for code splitting
-import { lazy } from 'react'
 const OverviewTab = lazy(() => import('../components/dashboard/OverviewTab').then(m => ({ default: m.OverviewTab })))
 const TradesTab = lazy(() => import('../components/dashboard/TradesTab').then(m => ({ default: m.TradesTab })))
 const MarketsTab = lazy(() => import('../components/dashboard/MarketsTab').then(m => ({ default: m.MarketsTab })))

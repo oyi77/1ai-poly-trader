@@ -52,8 +52,7 @@ listener = CircuitBreakerListener()
 # Database circuit breaker
 db_breaker = pybreaker.CircuitBreaker(
     fail_max=5,
-    timeout_duration=60,
-    expected_exception=OperationalError,
+    reset_timeout=60,
     name="database",
     listeners=[listener]
 )
@@ -62,7 +61,7 @@ db_breaker = pybreaker.CircuitBreaker(
 # Polymarket API circuit breaker
 polymarket_breaker = pybreaker.CircuitBreaker(
     fail_max=3,
-    timeout_duration=30,
+    reset_timeout=30,
     name="polymarket_api",
     listeners=[listener]
 )
@@ -71,7 +70,7 @@ polymarket_breaker = pybreaker.CircuitBreaker(
 # Kalshi API circuit breaker
 kalshi_breaker = pybreaker.CircuitBreaker(
     fail_max=3,
-    timeout_duration=30,
+    reset_timeout=30,
     name="kalshi_api",
     listeners=[listener]
 )
@@ -80,7 +79,7 @@ kalshi_breaker = pybreaker.CircuitBreaker(
 # Redis circuit breaker
 redis_breaker = pybreaker.CircuitBreaker(
     fail_max=5,
-    timeout_duration=60,
+    reset_timeout=60,
     name="redis",
     listeners=[listener]
 )
@@ -124,7 +123,7 @@ def get_breaker_status() -> dict[str, dict[str, Any]]:
     
     Returns:
         Dictionary with breaker name as key and status dict as value.
-        Status includes: state, fail_counter, timeout_duration, fail_max
+        Status includes: state, fail_counter, reset_timeout, fail_max
     """
     breakers = {
         "database": db_breaker,
@@ -136,9 +135,9 @@ def get_breaker_status() -> dict[str, dict[str, Any]]:
     status = {}
     for name, breaker in breakers.items():
         status[name] = {
-            "state": breaker.current_state.name,
+            "state": breaker.current_state,
             "fail_counter": breaker.fail_counter,
-            "timeout_duration": breaker.timeout_duration,
+            "reset_timeout": breaker.reset_timeout,
             "fail_max": breaker.fail_max,
         }
     

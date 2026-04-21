@@ -1339,14 +1339,14 @@ class ReadinessStatus(BaseModel):
 
 
 class DetailedHealthStatus(BaseModel):
-    """Detailed system health with all metrics."""
-    status: str  # "healthy" or "unhealthy"
+    status: str
     timestamp: str
     database: dict
     redis: Optional[dict] = None
     disk_space: dict
     memory: dict
     uptime_seconds: Optional[float] = None
+    circuit_breakers: Optional[dict] = None
 
 
 @router.get("/health", response_model=HealthStatus)
@@ -1408,8 +1408,10 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     """
     Comprehensive system health status with full metrics.
     Returns 200 if healthy, 503 if unhealthy.
-    Checks: database, Redis, disk space, memory usage.
+    Checks: database, Redis, disk space, memory usage, circuit breakers.
     """
+    from backend.core.circuit_breaker_pybreaker import get_breaker_status
+    
     timestamp = datetime.now(timezone.utc).isoformat()
     is_healthy = True
     
@@ -1453,7 +1455,9 @@ async def detailed_health_check(db: Session = Depends(get_db)):
             logger.warning(f"Redis health check failed: {e}")
             redis_info["status"] = "disconnected"
             redis_info["error"] = str(e)
-            # Redis is optional, don't mark as unhealthy
+    
+    # Circuit breaker status
+    circuit_breakers = get_breaker_status()
     
     # Disk space check
     disk_info = {
@@ -1529,5 +1533,18 @@ async def detailed_health_check(db: Session = Depends(get_db)):
         redis=redis_info,
         disk_space=disk_info,
         memory=memory_info,
-        uptime_seconds=uptime_seconds
+        uptime_seconds=uptime_seconds,
+        circuit_breakers=circuit_breakers
     )
+
+
+@router.get("/api/system/connection-limits")
+async def get_connection_limits(db: Session = Depends(get_db)):
+    """Get current connection limits and usage metrics."""
+    from backend.api.connection_limits import connection_limiter
+    
+    metrics = await connection_limiter.get_metrics()
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "connection_limits": metrics,
+    }

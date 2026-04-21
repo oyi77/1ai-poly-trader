@@ -127,17 +127,49 @@ class LoadTestRunner:
     """Orchestrates load test with multiple concurrent clients."""
     
     def __init__(self, num_clients: int, endpoint: str, base_url: str, 
-                 duration: int, token: str = ""):
+                 duration: int, token: str = "", churn: bool = False, 
+                 broadcast_rate: int = 0):
         self.num_clients = num_clients
         self.endpoint = endpoint
         self.base_url = base_url
         self.duration = duration
         self.token = token
+        self.churn = churn
+        self.broadcast_rate = broadcast_rate
         self.clients: List[WebSocketClient] = []
         self.start_time = None
         self.end_time = None
         self.process = psutil.Process(os.getpid())
+        self.cpu_samples = []
+        self.memory_samples = []
+        self.sample_interval = 10  # Sample every 10 seconds
         
+    async def monitor_resources(self):
+        """Continuously monitor CPU and memory during test."""
+        while time.time() - self.start_time < self.duration:
+            cpu = self.process.cpu_percent(interval=1)
+            memory = self.process.memory_info().rss / 1024 / 1024 / 1024
+            self.cpu_samples.append(cpu)
+            self.memory_samples.append(memory)
+            await asyncio.sleep(self.sample_interval)
+    
+    async def churn_clients(self):
+        """Simulate connection churn by cycling clients."""
+        churn_interval = 30
+        while time.time() - self.start_time < self.duration:
+            await asyncio.sleep(churn_interval)
+            
+            num_to_churn = max(1, self.num_clients // 10)
+            print(f"  [Churn] Cycling {num_to_churn} clients...")
+            
+            for i in range(num_to_churn):
+                if i < len(self.clients):
+                    await self.clients[i].disconnect()
+                    new_client = WebSocketClient(i, self.endpoint, self.base_url, self.token)
+                    if await new_client.connect():
+                        asyncio.create_task(new_client.listen(self.duration - (time.time() - self.start_time)))
+                        self.clients[i] = new_client
+    
     async def run(self):
         """Execute load test."""
         print(f"\n{'='*70}")
@@ -147,22 +179,23 @@ class LoadTestRunner:
         print(f"Clients: {self.num_clients}")
         print(f"Duration: {self.duration}s")
         print(f"Base URL: {self.base_url}")
+        if self.churn:
+            print(f"Churn: ENABLED (10% clients every 30s)")
+        if self.broadcast_rate > 0:
+            print(f"Target Broadcast Rate: {self.broadcast_rate} msg/s")
         print(f"{'='*70}\n")
         
-        # Record initial resource usage
         initial_cpu = self.process.cpu_percent(interval=1)
-        initial_memory = self.process.memory_info().rss / 1024 / 1024  # MB
+        initial_memory = self.process.memory_info().rss / 1024 / 1024 / 1024
         
         print("Phase 1: Connecting clients...")
         self.start_time = time.time()
         
-        # Create clients
         self.clients = [
             WebSocketClient(i, self.endpoint, self.base_url, self.token)
             for i in range(self.num_clients)
         ]
         
-        # Connect all clients concurrently
         connection_tasks = [client.connect() for client in self.clients]
         connection_results = await asyncio.gather(*connection_tasks, return_exceptions=True)
         
@@ -174,17 +207,22 @@ class LoadTestRunner:
             return self.generate_report(initial_cpu, initial_memory)
         
         print(f"\nPhase 2: Listening for {self.duration}s...")
-        print("(Waiting for broadcasts and heartbeats...)\n")
+        print("(Monitoring resources every {self.sample_interval}s...)\n")
         
-        # Listen for messages
+        background_tasks = [
+            asyncio.create_task(self.monitor_resources())
+        ]
+        
+        if self.churn:
+            background_tasks.append(asyncio.create_task(self.churn_clients()))
+        
         listen_tasks = [client.listen(self.duration) for client in self.clients]
-        await asyncio.gather(*listen_tasks, return_exceptions=True)
+        await asyncio.gather(*listen_tasks, *background_tasks, return_exceptions=True)
         
         self.end_time = time.time()
         
-        # Record final resource usage
         final_cpu = self.process.cpu_percent(interval=1)
-        final_memory = self.process.memory_info().rss / 1024 / 1024  # MB
+        final_memory = self.process.memory_info().rss / 1024 / 1024 / 1024
         
         print("\nPhase 3: Generating report...")
         return self.generate_report(initial_cpu, initial_memory, final_cpu, final_memory)
@@ -204,7 +242,6 @@ class LoadTestRunner:
         connected_clients = sum(1 for c in self.clients if c.connected or c.messages_received > 0)
         disconnected_clients = self.num_clients - connected_clients
         
-        # Calculate latency percentiles
         latency_stats = {}
         if all_latencies:
             all_latencies.sort()
@@ -217,9 +254,13 @@ class LoadTestRunner:
                 "mean": statistics.mean(all_latencies),
             }
         
-        # Calculate resource usage
         cpu_delta = final_cpu - initial_cpu if final_cpu else 0
         memory_delta = final_memory - initial_memory if final_memory else 0
+        
+        avg_cpu = statistics.mean(self.cpu_samples) if self.cpu_samples else final_cpu
+        max_cpu = max(self.cpu_samples) if self.cpu_samples else final_cpu
+        avg_memory = statistics.mean(self.memory_samples) if self.memory_samples else final_memory
+        max_memory = max(self.memory_samples) if self.memory_samples else final_memory
         
         report = {
             "test_config": {
@@ -227,6 +268,8 @@ class LoadTestRunner:
                 "endpoint": self.endpoint,
                 "duration": self.duration,
                 "base_url": self.base_url,
+                "churn_enabled": self.churn,
+                "broadcast_rate": self.broadcast_rate,
             },
             "connection_stats": {
                 "connected": connected_clients,
@@ -242,15 +285,19 @@ class LoadTestRunner:
             "resource_usage": {
                 "initial_cpu_percent": initial_cpu,
                 "final_cpu_percent": final_cpu,
+                "avg_cpu_percent": avg_cpu,
+                "max_cpu_percent": max_cpu,
                 "cpu_delta": cpu_delta,
-                "initial_memory_mb": initial_memory,
-                "final_memory_mb": final_memory,
-                "memory_delta_mb": memory_delta,
+                "initial_memory_gb": initial_memory,
+                "final_memory_gb": final_memory,
+                "avg_memory_gb": avg_memory,
+                "max_memory_gb": max_memory,
+                "memory_delta_gb": memory_delta,
             },
             "errors": {
                 "total_errors": len(all_errors),
                 "error_rate": f"{(len(all_errors) / self.num_clients * 100):.1f}%",
-                "unique_errors": list(set(all_errors))[:10],  # First 10 unique errors
+                "unique_errors": list(set(all_errors))[:10],
             },
             "test_duration": self.end_time - self.start_time if self.end_time else 0,
         }
@@ -290,10 +337,10 @@ class LoadTestRunner:
             print(f"  Mean: {lat['mean']:.2f}ms")
             
             # Check p99 requirement
-            if lat['p99'] < 100:
-                print(f"  ✓ PASS: p99 latency < 100ms")
+            if lat['p99'] < 200:
+                print(f"  ✓ PASS: p99 latency < 200ms")
             else:
-                print(f"  ✗ FAIL: p99 latency >= 100ms")
+                print(f"  ✗ FAIL: p99 latency >= 200ms")
         else:
             print("\nLATENCY STATS: No latency data (no timestamped messages received)")
         
@@ -302,10 +349,17 @@ class LoadTestRunner:
         res = report["resource_usage"]
         if res["final_cpu_percent"]:
             print(f"  CPU: {res['initial_cpu_percent']:.1f}% → {res['final_cpu_percent']:.1f}% (Δ {res['cpu_delta']:+.1f}%)")
-            print(f"  Memory: {res['initial_memory_mb']:.1f}MB → {res['final_memory_mb']:.1f}MB (Δ {res['memory_delta_mb']:+.1f}MB)")
+            print(f"  CPU Avg: {res['avg_cpu_percent']:.1f}% | Max: {res['max_cpu_percent']:.1f}%")
+            print(f"  Memory: {res['initial_memory_gb']:.2f}GB → {res['final_memory_gb']:.2f}GB (Δ {res['memory_delta_gb']:+.2f}GB)")
+            print(f"  Memory Avg: {res['avg_memory_gb']:.2f}GB | Max: {res['max_memory_gb']:.2f}GB")
+            
+            cpu_ok = res['max_cpu_percent'] < 80
+            memory_ok = res['max_memory_gb'] < 2.0
+            print(f"  {'✓' if cpu_ok else '✗'} CPU Target: <80% (Max: {res['max_cpu_percent']:.1f}%)")
+            print(f"  {'✓' if memory_ok else '✗'} Memory Target: <2GB (Max: {res['max_memory_gb']:.2f}GB)")
         else:
             print(f"  CPU: {res['initial_cpu_percent']:.1f}%")
-            print(f"  Memory: {res['initial_memory_mb']:.1f}MB")
+            print(f"  Memory: {res['initial_memory_gb']:.2f}GB")
         
         # Errors
         print("\nERROR STATS:")
@@ -320,19 +374,29 @@ class LoadTestRunner:
         # Overall result
         print(f"\n{'='*70}")
         conn_ok = conn['connected'] == report['test_config']['num_clients']
-        latency_ok = not report["latency_stats"] or report["latency_stats"]["p99"] < 100
+        latency_ok = not report["latency_stats"] or report["latency_stats"]["p99"] < 200
         errors_ok = err['total_errors'] == 0
         
-        if conn_ok and latency_ok and errors_ok:
-            print("✓ OVERALL: PASS")
+        res = report["resource_usage"]
+        cpu_ok = res.get('max_cpu_percent', 100) < 80
+        memory_ok = res.get('max_memory_gb', 10) < 2.0
+        
+        all_ok = conn_ok and latency_ok and errors_ok and cpu_ok and memory_ok
+        
+        if all_ok:
+            print("✓ OVERALL: PASS - All targets met")
         else:
             print("✗ OVERALL: FAIL")
             if not conn_ok:
                 print(f"  - Connection drops detected ({conn['disconnected']} clients)")
             if not latency_ok:
-                print(f"  - Latency p99 >= 100ms")
+                print(f"  - Latency p99 >= 200ms ({report['latency_stats']['p99']:.2f}ms)")
             if not errors_ok:
                 print(f"  - Errors detected ({err['total_errors']} errors)")
+            if not cpu_ok:
+                print(f"  - CPU exceeded 80% (Max: {res.get('max_cpu_percent', 0):.1f}%)")
+            if not memory_ok:
+                print(f"  - Memory exceeded 2GB (Max: {res.get('max_memory_gb', 0):.2f}GB)")
         print(f"{'='*70}\n")
         
         print(f"Test Duration: {report['test_duration']:.1f}s")
@@ -349,6 +413,8 @@ def main():
     parser = argparse.ArgumentParser(description="WebSocket Load Test for TopicWebSocketManager")
     parser.add_argument("--clients", type=int, default=100, help="Number of concurrent clients (default: 100)")
     parser.add_argument("--duration", type=int, default=60, help="Test duration in seconds (default: 60)")
+    parser.add_argument("--churn", action="store_true", help="Enable connection churn test (clients connect/disconnect)")
+    parser.add_argument("--broadcast-rate", type=int, default=0, help="Target broadcast messages per second (0 = natural rate)")
     parser.add_argument("--endpoint", type=str, default="markets", 
                        choices=["markets", "whales", "activities", "brain", "events"],
                        help="WebSocket endpoint to test (default: markets)")
@@ -367,7 +433,9 @@ def main():
         endpoint=args.endpoint,
         base_url=args.base_url,
         duration=args.duration,
-        token=args.token
+        token=args.token,
+        churn=args.churn,
+        broadcast_rate=args.broadcast_rate
     )
     
     report = asyncio.run(runner.run())

@@ -136,7 +136,7 @@ class RedisSubscriber:
         Returns:
             True if connected successfully, False otherwise
         """
-        try:
+        async def _connect():
             self.client = redis.from_url(
                 self.redis_url,
                 encoding="utf-8",
@@ -144,9 +144,12 @@ class RedisSubscriber:
                 socket_connect_timeout=5,
                 socket_keepalive=True,
             )
-            # Test connection
             await self.client.ping()
             self.pubsub = self.client.pubsub()
+            return True
+        
+        try:
+            await redis_breaker.call(_connect)
             self.connected = True
             logger.info(f"Redis subscriber connected to {self.redis_url}")
             return True

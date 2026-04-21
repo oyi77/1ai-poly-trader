@@ -669,7 +669,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             except Exception as e:
                 logger.warning(f"   ⚠ Error shutting down user WebSocket: {e}")
 
-        logger.info("6. Shutting down TaskManager...")
+        logger.info("7. Shutting down TaskManager...")
         try:
             task_count = len(app.state.task_manager.tasks)
             await app.state.task_manager.shutdown()
@@ -677,7 +677,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             logger.warning(f"   ⚠ Error shutting down TaskManager: {e}")
 
-        logger.info("7. Stopping scheduler...")
+        logger.info("8. Stopping scheduler...")
         try:
             from backend.core.scheduler import stop_scheduler
             stop_scheduler()
@@ -685,11 +685,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             logger.warning(f"   ⚠ Error stopping scheduler: {e}")
 
-        logger.info("8. Waiting for in-flight jobs (max 3s)...")
+        logger.info("9. Waiting for in-flight jobs (max 3s)...")
         await asyncio.sleep(3.0)
         logger.info("   ✓ Grace period complete")
 
-        logger.info("9. Closing database connections...")
+        logger.info("10. Closing database connections...")
         try:
             from backend.models.database import engine
             engine.dispose()
@@ -1567,17 +1567,20 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+    
     await websocket.accept()
     
     try:
-        # Wait for subscription message
         data = await websocket.receive_json()
         if data.get("action") == "subscribe":
             topic = data.get("topic", "markets")
             await topic_manager.subscribe(websocket, topic)
             await websocket.send_json({"type": "subscribed", "topic": topic})
         
-        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
@@ -1588,6 +1591,8 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
             f"[api.main.ws_markets] {type(e).__name__}: Market WebSocket error: {e}"
         )
         await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
 
 
 @app.websocket("/ws/whales")
@@ -1597,17 +1602,20 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+    
     await websocket.accept()
     
     try:
-        # Wait for subscription message
         data = await websocket.receive_json()
         if data.get("action") == "subscribe":
             topic = data.get("topic", "whales")
             await topic_manager.subscribe(websocket, topic)
             await websocket.send_json({"type": "subscribed", "topic": topic})
         
-        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
@@ -1618,6 +1626,8 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
             f"[api.main.ws_whales] {type(e).__name__}: Whale WebSocket error: {e}"
         )
         await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
 
 
 @app.websocket("/ws/activities")
@@ -1626,17 +1636,20 @@ async def ws_activities(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+    
     await websocket.accept()
     
     try:
-        # Wait for subscription message
         data = await websocket.receive_json()
         if data.get("action") == "subscribe":
             topic = data.get("topic", "activities")
             await topic_manager.subscribe(websocket, topic)
             await websocket.send_json({"type": "subscribed", "topic": topic})
         
-        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
@@ -1645,6 +1658,8 @@ async def ws_activities(websocket: WebSocket, token: str = ""):
     except Exception as e:
         logger.exception(f"[api.main.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}")
         await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
 
 
 @app.websocket("/ws/brain")
@@ -1653,17 +1668,20 @@ async def ws_brain(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+    
     await websocket.accept()
     
     try:
-        # Wait for subscription message
         data = await websocket.receive_json()
         if data.get("action") == "subscribe":
             topic = data.get("topic", "brain")
             await topic_manager.subscribe(websocket, topic)
             await websocket.send_json({"type": "subscribed", "topic": topic})
         
-        # Keep connection alive with heartbeats
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "heartbeat"})
@@ -1672,6 +1690,8 @@ async def ws_brain(websocket: WebSocket, token: str = ""):
     except Exception as e:
         logger.exception(f"[api.main.ws_brain] {type(e).__name__}: Brain WebSocket error: {e}")
         await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
 
 
 @app.websocket("/ws/events")
@@ -1680,10 +1700,14 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+    
     await websocket.accept()
 
     try:
-        # Wait for subscription message
         data = await websocket.receive_json()
         if data.get("action") == "subscribe":
             topic = data.get("topic", "events")
@@ -1728,6 +1752,8 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
             f"[api.main.websocket_events] {type(e).__name__}: Events WebSocket error: {e}"
         )
         await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
 
 
 @app.websocket("/ws/dashboard-data")
@@ -1736,10 +1762,14 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
         await websocket.close(code=1008, reason="Unauthorized")
         return
 
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+
     await websocket.accept()
 
     try:
-        # Wait for subscription message
         data = await websocket.receive_json()
         if data.get("action") == "subscribe":
             topic = data.get("topic", "stats")
@@ -1756,6 +1786,8 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
             f"[api.main.websocket_stats] {type(e).__name__}: Stats WebSocket error: {e}"
         )
         await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
 
 
 if __name__ == "__main__":

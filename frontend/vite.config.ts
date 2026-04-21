@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
+import viteCompression from 'vite-plugin-compression'
 
 export default defineConfig({
   plugins: [
@@ -10,19 +11,34 @@ export default defineConfig({
       open: false,
       gzipSize: true,
       brotliSize: true,
-    })
+    }),
+    viteCompression({
+      algorithm: 'gzip',
+      ext: '.gz',
+    }),
+    viteCompression({
+      algorithm: 'brotliCompress',
+      ext: '.br',
+    }),
   ],
   build: {
     chunkSizeWarningLimit: 500,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('@tanstack/react-query')) {
-              return 'vendor-react'
-            }
             if (id.includes('recharts')) {
               return 'vendor-charts'
+            }
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('@tanstack/react-query')) {
+              return 'vendor-react'
             }
             if (id.includes('framer-motion') || id.includes('lucide-react')) {
               return 'vendor-ui'

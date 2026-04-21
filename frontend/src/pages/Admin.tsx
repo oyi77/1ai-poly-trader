@@ -149,24 +149,26 @@ export default function Admin() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 max-w-100vw">
-        {activeTab === 'System' && <SystemStatus />}
-        {activeTab === 'Settings' && <SettingsEditor />}
-        {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
-        {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
-        {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
-        {activeTab === 'Decision Log' && <DecisionLogTab />}
-        {activeTab === 'Settlements' && <SettlementsTab />}
-        {activeTab === 'Backtest' && <Backtest />}
-        {activeTab === 'Risk' && <RiskTab />}
-        {activeTab === 'Credentials' && <CredentialsTab />}
-        {activeTab === 'Strategies' && <StrategiesTab />}
-        {activeTab === 'Copy Trader' && <CopyTraderMonitor />}
-        {activeTab === 'Telegram' && <TelegramTab />}
-        {activeTab === 'Market Watch' && <MarketWatchTab />}
-        {activeTab === 'Wallet Config' && <WalletConfigTab />}
-        {activeTab === 'AI' && <AITab />}
-        {activeTab === 'Debate Monitor' && <DebateMonitorTab />}
-        {activeTab === 'Pending Approvals' && <PendingApprovals />}
+        <Suspense fallback={<div className="flex items-center justify-center h-full text-neutral-500">Loading...</div>}>
+          {activeTab === 'System' && <SystemStatus />}
+          {activeTab === 'Settings' && <SettingsEditor />}
+          {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
+          {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
+          {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
+          {activeTab === 'Decision Log' && <DecisionLogTab />}
+          {activeTab === 'Settlements' && <SettlementsTab />}
+          {activeTab === 'Backtest' && <Backtest />}
+          {activeTab === 'Risk' && <RiskTab />}
+          {activeTab === 'Credentials' && <CredentialsTab />}
+          {activeTab === 'Strategies' && <StrategiesTab />}
+          {activeTab === 'Copy Trader' && <CopyTraderMonitor />}
+          {activeTab === 'Telegram' && <TelegramTab />}
+          {activeTab === 'Market Watch' && <MarketWatchTab />}
+          {activeTab === 'Wallet Config' && <WalletConfigTab />}
+          {activeTab === 'AI' && <AITab />}
+          {activeTab === 'Debate Monitor' && <DebateMonitorTab />}
+          {activeTab === 'Pending Approvals' && <PendingApprovals />}
+        </Suspense>
       </div>
     </div>
   )
