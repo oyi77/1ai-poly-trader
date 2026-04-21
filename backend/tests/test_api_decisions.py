@@ -75,15 +75,15 @@ class TestDecisionsExport:
         settings.ADMIN_API_KEY = None
 
     def test_export_returns_200(self, client):
-        resp = client.get("/api/v1/api/decisions/export")
+        resp = client.get("/api/v1/decisions/export")
         assert resp.status_code == 200
 
     def test_export_content_type_ndjson(self, client):
-        resp = client.get("/api/v1/api/decisions/export")
+        resp = client.get("/api/v1/decisions/export")
         assert "ndjson" in resp.headers.get("content-type", "")
 
     def test_export_disposition_header(self, client):
-        resp = client.get("/api/v1/api/decisions/export")
+        resp = client.get("/api/v1/decisions/export")
         disposition = resp.headers.get("content-disposition", "")
         assert "decisions.jsonl" in disposition
 
