@@ -22,6 +22,9 @@ _metrics: Dict[str, Any] = {
     # System metrics
     "api_requests_total": 0,
     "api_errors_total": 0,
+    "api_timeouts_total": 0,
+    "db_timeouts_total": 0,
+    "external_api_timeouts_total": 0,
     "scans_total": 0,
     "settlements_total": 0,
     
@@ -94,6 +97,16 @@ def increment_api_errors() -> None:
     _increment_metric("api_errors_total")
 
 
+def increment_timeouts(timeout_type: str = "api") -> None:
+    """Record a timeout event."""
+    if timeout_type == "api":
+        _increment_metric("api_timeouts_total")
+    elif timeout_type == "database":
+        _increment_metric("db_timeouts_total")
+    elif timeout_type == "external_api":
+        _increment_metric("external_api_timeouts_total")
+
+
 def increment_scans() -> None:
     """Record a market scan."""
     _increment_metric("scans_total")
@@ -160,6 +173,18 @@ def get_metrics() -> str:
             "# HELP polyedge_api_errors_total Total API errors",
             "# TYPE polyedge_api_errors_total counter",
             f"polyedge_api_errors_total {_metrics['api_errors_total']}",
+            "",
+            "# HELP polyedge_api_timeouts_total Total API request timeouts",
+            "# TYPE polyedge_api_timeouts_total counter",
+            f"polyedge_api_timeouts_total {_metrics['api_timeouts_total']}",
+            "",
+            "# HELP polyedge_db_timeouts_total Total database query timeouts",
+            "# TYPE polyedge_db_timeouts_total counter",
+            f"polyedge_db_timeouts_total {_metrics['db_timeouts_total']}",
+            "",
+            "# HELP polyedge_external_api_timeouts_total Total external API call timeouts",
+            "# TYPE polyedge_external_api_timeouts_total counter",
+            f"polyedge_external_api_timeouts_total {_metrics['external_api_timeouts_total']}",
             "",
             "# HELP polyedge_scans_total Total market scans",
             "# TYPE polyedge_scans_total counter",

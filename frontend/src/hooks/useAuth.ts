@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getAdminApiKey, setAdminApiKey } from '../api'
+import { retryFetch } from '../utils/retryFetch'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -15,14 +16,22 @@ export function useAuth(): AuthState {
   const [authRequired, setAuthRequired] = useState(false)
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/admin/auth-required`)
+    let cancelled = false
+    
+    retryFetch(`${API_BASE}/api/admin/auth-required`)
       .then(r => r.json())
-      .then((d: { auth_required: boolean }) => setAuthRequired(d.auth_required))
+      .then((d: { auth_required: boolean }) => {
+        if (!cancelled) setAuthRequired(d.auth_required)
+      })
       .catch(() => {})
+    
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const login = async (password: string): Promise<void> => {
-    const res = await fetch(`${API_BASE}/api/admin/login`, {
+    const res = await retryFetch(`${API_BASE}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),

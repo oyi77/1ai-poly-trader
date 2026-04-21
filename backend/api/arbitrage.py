@@ -15,7 +15,7 @@ router = APIRouter(tags=["arbitrage"])
 _arb_cache: Dict = {"timestamp": 0.0, "data": []}
 
 
-@router.get("/api/arbitrage/opportunities")
+@router.get("/arbitrage/opportunities")
 async def get_arbitrage_opportunities(_: None = Depends(require_admin)):
     """Live arbitrage scan over recent Polymarket Gamma markets, cached 60s."""
     now = _time.time()

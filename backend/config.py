@@ -222,6 +222,11 @@ class Settings(BaseSettings):
     WEBSEARCH_MAX_RESULTS: int = 5
     WEBSEARCH_TIMEOUT_SECONDS: float = 15.0
 
+    # Request Timeout Settings
+    API_REQUEST_TIMEOUT: float = 30.0  # API request timeout in seconds
+    DATABASE_QUERY_TIMEOUT: float = 10.0  # Database query timeout in seconds
+    EXTERNAL_API_TIMEOUT: float = 15.0  # External API call timeout in seconds
+
     @model_validator(mode="after")
     def _validate_trading_credentials(self) -> "Settings":
         import logging

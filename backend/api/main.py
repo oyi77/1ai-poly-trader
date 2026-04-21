@@ -80,6 +80,7 @@ from backend.api.proposals import router as proposals_router
 from backend.api.brain import router as brain_router
 from backend.api.errors import router as errors_router
 from backend.api.metrics_endpoint import router as metrics_router
+from backend.api.alerts import router as alerts_router
 from backend.core.wallet_reconciliation import WalletReconciler
 
 from pydantic import BaseModel
@@ -728,27 +729,31 @@ app.add_middleware(
 )
 
 from backend.api.rate_limiter import RateLimiterMiddleware
+from backend.api.versioning import APIVersionMiddleware
+from backend.api.timeout_middleware import TimeoutMiddleware
 
+app.add_middleware(TimeoutMiddleware)
 app.add_middleware(RateLimiterMiddleware, requests_per_minute=100)
+app.add_middleware(APIVersionMiddleware)
 
-# Include routers
-app.include_router(auth_router)
-app.include_router(markets_router)
-app.include_router(trading_router)
-app.include_router(copy_trading_router)
-app.include_router(arbitrage_router)
-app.include_router(market_intel_router)
-app.include_router(auto_trader_router)
-app.include_router(system_router)
-app.include_router(backtest_router)
-app.include_router(wallets_router)
-app.include_router(analytics_router)
-app.include_router(settings_router)
-app.include_router(activities_router)
-app.include_router(proposals_router)
-app.include_router(brain_router)
-app.include_router(errors_router)
-app.include_router(metrics_router)
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(markets_router, prefix="/api/v1")
+app.include_router(trading_router, prefix="/api/v1")
+app.include_router(copy_trading_router, prefix="/api/v1")
+app.include_router(arbitrage_router, prefix="/api/v1")
+app.include_router(market_intel_router, prefix="/api/v1")
+app.include_router(auto_trader_router, prefix="/api/v1")
+app.include_router(system_router, prefix="/api/v1")
+app.include_router(backtest_router, prefix="/api/v1")
+app.include_router(wallets_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
+app.include_router(activities_router, prefix="/api/v1")
+app.include_router(proposals_router, prefix="/api/v1")
+app.include_router(brain_router, prefix="/api/v1")
+app.include_router(errors_router, prefix="/api/v1")
+app.include_router(metrics_router, prefix="/api/v1")
+app.include_router(alerts_router, prefix="/api/v1")
 
 
 # Add metrics middleware for automatic tracking
@@ -924,7 +929,7 @@ async def root():
     }
 
 
-@app.get("/api/health")
+@app.get("/api/v1/health")
 async def health_check(db: Session = Depends(get_db)):
     """Return system health including per-strategy heartbeat and dependency status."""
     checks = {}
@@ -1096,7 +1101,7 @@ async def metrics():
     return get_metrics()
 
 
-@app.get("/api/dashboard", response_model=DashboardData)
+@app.get("/api/v1/dashboard", response_model=DashboardData)
 async def get_dashboard(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -1378,7 +1383,7 @@ class SyncStatusAllResponse(BaseModel):
     live: SyncStatusResponse
 
 
-@app.get("/api/admin/sync-status", response_model=SyncStatusAllResponse)
+@app.get("/api/v1/admin/sync-status", response_model=SyncStatusAllResponse)
 async def get_sync_status(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin)

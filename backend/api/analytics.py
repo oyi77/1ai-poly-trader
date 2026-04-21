@@ -11,7 +11,7 @@ from backend.models.database import SessionLocal
 
 logger = logging.getLogger("trading_bot.analytics")
 
-router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 def get_db():

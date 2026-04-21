@@ -54,7 +54,7 @@ def _parse_date(date_str: Optional[str], fallback: datetime) -> datetime:
     return datetime.fromisoformat(date_str)
 
 
-@router.post("/api/backtest/run")
+@router.post("/backtest/run")
 async def run_backtest_endpoint(
     body: ValidatedBacktestRunRequest,
     db: Session = Depends(get_db),
@@ -213,7 +213,7 @@ async def run_backtest_endpoint(
     }
 
 
-@router.get("/api/backtest/strategies")
+@router.get("/backtest/strategies")
 async def get_backtest_strategies(_: None = Depends(require_admin)):
     """Get all available strategies for backtesting."""
     strategies = get_all_strategies()
@@ -242,7 +242,7 @@ async def get_backtest_strategies(_: None = Depends(require_admin)):
     return {"strategies": result}
 
 
-@router.get("/api/backtest/history")
+@router.get("/backtest/history")
 async def get_backtest_history(
     limit: int = 10,
     offset: int = 0,

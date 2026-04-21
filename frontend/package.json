@@ -9,7 +9,8 @@
     "build:docs": "cd ../polyedge-docs && npm install && npm run build && cp -r build ../frontend/dist/docs",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.17.9",
@@ -40,9 +41,14 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/ui": "^4.1.2",
     "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
     "jsdom": "^29.0.2",
     "postcss": "^8.4.33",
     "rollup-plugin-visualizer": "^7.0.1",

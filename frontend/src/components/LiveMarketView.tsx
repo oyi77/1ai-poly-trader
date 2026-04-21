@@ -13,7 +13,7 @@ const TICK_BUFFER = 10;
 const DEFAULT_WS_URL = getWsUrl('/ws/markets');
 
 export default function LiveMarketView({ url = DEFAULT_WS_URL }: { url?: string }) {
-  const { data, status } = useWebSocket<MarketTick>(url, { topic: 'markets' });
+  const { data, status, reconnectAttempt, maxReconnectAttempts } = useWebSocket<MarketTick>(url, { topic: 'markets' });
   const [ticks, setTicks] = useState<MarketTick[]>([]);
   const prevRef = useRef<MarketTick | null>(null);
 
@@ -24,8 +24,9 @@ export default function LiveMarketView({ url = DEFAULT_WS_URL }: { url?: string 
     }
   }, [data]);
 
-  const connected = status === 'open';
-  const disconnected = status === 'closed' || status === 'error';
+  const connected = status === 'connected';
+  const disconnected = status === 'disconnected';
+  const reconnecting = status === 'reconnecting';
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
@@ -42,8 +43,14 @@ export default function LiveMarketView({ url = DEFAULT_WS_URL }: { url?: string 
         </span>
       </div>
 
+      {reconnecting && (
+        <p className="text-yellow-400 text-sm mb-2">
+          Reconnecting... (attempt {reconnectAttempt}/{maxReconnectAttempts})
+        </p>
+      )}
+
       {disconnected && (
-        <p className="text-red-400 text-sm mb-2">WebSocket disconnected — reconnecting…</p>
+        <p className="text-red-400 text-sm mb-2">WebSocket disconnected — max reconnection attempts reached</p>
       )}
 
       {ticks.length === 0 ? (

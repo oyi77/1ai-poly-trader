@@ -66,7 +66,7 @@ export function WeatherPanel({ forecasts, signals }: Props) {
         const citySignals = signalsByCity.get(f.city_key) || []
         const actionable = citySignals.filter(s => s.actionable)
         const bestEdge = citySignals.length > 0
-          ? citySignals.reduce((a, b) => Math.abs(a.edge) > Math.abs(b.edge) ? a : b)
+          ? citySignals.reduce((a, b) => Math.abs(a.edge ?? 0) > Math.abs(b.edge ?? 0) ? a : b)
           : null
 
         return (
@@ -91,11 +91,11 @@ export function WeatherPanel({ forecasts, signals }: Props) {
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {bestEdge && (
-                <span className={`text-[10px] tabular-nums ${bestEdge.edge > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {bestEdge.edge > 0 ? '+' : ''}{((bestEdge.edge ?? 0) * 100).toFixed(1)}%
+                <span className={`text-[10px] tabular-nums ${(bestEdge.edge ?? 0) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {(bestEdge.edge ?? 0) > 0 ? '+' : ''}{((bestEdge.edge ?? 0) * 100).toFixed(1)}%
                 </span>
               )}
-              {citySignals.length > 0 && citySignals[0].platform && (
+              {citySignals.length > 0 && citySignals[0]?.platform && (
                 <span className={`platform-badge ${
                   platformStyles[citySignals[0].platform.toLowerCase()]?.badge || 'bg-neutral-800 text-neutral-400 border-neutral-700'
                 }`}>

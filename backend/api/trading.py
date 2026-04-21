@@ -178,7 +178,7 @@ def _compute_calibration_summary(db: Session) -> Optional[CalibrationSummary]:
 # ============================================================================
 
 
-@router.get("/api/signals", response_model=List[SignalResponse])
+@router.get("/signals", response_model=List[SignalResponse])
 @handle_errors(default_response=[])
 async def get_signals(_: str = Depends(require_admin)):
     """Get current BTC trading signals."""
@@ -186,7 +186,7 @@ async def get_signals(_: str = Depends(require_admin)):
     return [_signal_to_response(s, actionable=s.passes_threshold) for s in signals]
 
 
-@router.post("/api/signals", status_code=201)
+@router.post("/signals", status_code=201)
 async def create_signal(
     request: ValidatedSignalCreateRequest,
     db: Session = Depends(get_db),
@@ -216,7 +216,7 @@ async def create_signal(
     }
 
 
-@router.get("/api/signals/history")
+@router.get("/signals/history")
 async def get_signals_history(
     limit: int = 100,
     offset: int = 0,
@@ -259,7 +259,7 @@ async def get_signals_history(
     return {"items": items, "total": total}
 
 
-@router.get("/api/signals/actionable", response_model=List[SignalResponse])
+@router.get("/signals/actionable", response_model=List[SignalResponse])
 @handle_errors(default_response=[])
 async def get_actionable_signals(_: str = Depends(require_admin)):
     """Get only signals that pass the edge threshold."""
@@ -273,7 +273,7 @@ async def get_actionable_signals(_: str = Depends(require_admin)):
 # ============================================================================
 
 
-@router.get("/api/trades", response_model=List[TradeResponse])
+@router.get("/trades", response_model=List[TradeResponse])
 async def get_trades(
     limit: int = 50,
     status: Optional[str] = None,
@@ -326,7 +326,7 @@ async def get_trades(
     return result_list
 
 
-@router.get("/api/equity-curve")
+@router.get("/equity-curve")
 async def get_equity_curve(
     db: Session = Depends(get_db), _: str = Depends(require_admin)
 ):
@@ -353,7 +353,7 @@ async def get_equity_curve(
     return curve
 
 
-@router.post("/api/simulate-trade")
+@router.post("/simulate-trade")
 async def simulate_trade(
     signal_ticker: str, db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -404,7 +404,7 @@ async def simulate_trade(
     return {"status": "ok", "trade_id": result["id"], "size": result["size"]}
 
 
-@router.post("/api/settle-trades")
+@router.post("/settle-trades")
 async def settle_trades_endpoint(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -433,7 +433,7 @@ async def settle_trades_endpoint(
 # ============================================================================
 
 
-@router.get("/api/calibration")
+@router.get("/calibration")
 async def get_calibration(
     db: Session = Depends(get_db), _: str = Depends(require_admin)
 ):
@@ -480,7 +480,7 @@ async def get_calibration(
 # ============================================================================
 
 
-@router.get("/api/settlements")
+@router.get("/settlements")
 async def get_settlements(
     limit: int = 100,
     offset: int = 0,

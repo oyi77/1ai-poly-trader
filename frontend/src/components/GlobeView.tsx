@@ -99,14 +99,14 @@ export function GlobeView({ forecasts, signals }: Props) {
       : Object.keys(CITY_COORDS)
 
     return keys.map(key => {
-      const coords = CITY_COORDS[key] || CITY_COORDS[key.toLowerCase()] || { lat: 0, lng: 0, name: key, region: 'Other' }
+      const coords = CITY_COORDS[key] || CITY_COORDS[key?.toLowerCase()] || { lat: 0, lng: 0, name: key, region: 'Other' }
       const forecast = forecasts.find(f => f.city_key === key) || null
       const citySignals = signals.filter(s => s.city_key === key)
       const actionableSignals = citySignals.filter(s => s.actionable)
       const bestSignal = actionableSignals.length > 0
-        ? actionableSignals.reduce((a, b) => Math.abs(a.edge) > Math.abs(b.edge) ? a : b)
+        ? actionableSignals.reduce((a, b) => Math.abs(a.edge ?? 0) > Math.abs(b.edge ?? 0) ? a : b)
         : citySignals.length > 0
-          ? citySignals.reduce((a, b) => Math.abs(a.edge) > Math.abs(b.edge) ? a : b)
+          ? citySignals.reduce((a, b) => Math.abs(a.edge ?? 0) > Math.abs(b.edge ?? 0) ? a : b)
           : null
 
       return {
@@ -125,7 +125,7 @@ export function GlobeView({ forecasts, signals }: Props) {
   const arcs = useMemo(() => buildRegionArcs(markers), [markers])
 
   const actionableCount = markers.filter(m => m.hasActionable).length
-  const signalCount = markers.filter(m => m.bestSignal).length
+  const signalCount = markers.filter(m => m.bestSignal !== null).length
 
   useEffect(() => {
     if (globeRef.current) {

@@ -100,7 +100,7 @@ class WeatherSignalResponse(BaseModel):
 # ============================================================================
 
 
-@router.get("/api/btc/price", response_model=Optional[BtcPriceResponse])
+@router.get("/btc/price", response_model=Optional[BtcPriceResponse])
 @handle_errors(default_response=None)
 async def get_btc_price():
     """Get current BTC price and momentum data."""
@@ -118,7 +118,7 @@ async def get_btc_price():
     )
 
 
-@router.get("/api/btc/windows", response_model=List[BtcWindowResponse])
+@router.get("/btc/windows", response_model=List[BtcWindowResponse])
 @handle_errors(default_response=[])
 async def get_btc_windows():
     """Get upcoming BTC 5-min windows with prices."""
@@ -150,7 +150,7 @@ async def get_btc_windows():
 # ============================================================================
 
 
-@router.get("/api/kalshi/status")
+@router.get("/kalshi/status")
 async def get_kalshi_status():
     """Test Kalshi API authentication and return connection status."""
     from backend.data.kalshi_client import KalshiClient, kalshi_credentials_present
@@ -180,7 +180,7 @@ async def get_kalshi_status():
 # ============================================================================
 
 
-@router.get("/api/weather/forecasts", response_model=List[WeatherForecastResponse])
+@router.get("/weather/forecasts", response_model=List[WeatherForecastResponse])
 async def get_weather_forecasts():
     """Get ensemble forecasts for configured cities."""
     if not settings.WEATHER_ENABLED:
@@ -216,7 +216,7 @@ async def get_weather_forecasts():
         return []
 
 
-@router.get("/api/weather/markets", response_model=List[WeatherMarketResponse])
+@router.get("/weather/markets", response_model=List[WeatherMarketResponse])
 async def get_weather_markets():
     """Get active weather temperature markets."""
     if not settings.WEATHER_ENABLED:
@@ -262,7 +262,7 @@ async def get_weather_markets():
         return []
 
 
-@router.get("/api/weather/signals", response_model=List[WeatherSignalResponse])
+@router.get("/weather/signals", response_model=List[WeatherSignalResponse])
 async def get_weather_signals():
     """Get current weather trading signals."""
     if not settings.WEATHER_ENABLED:
@@ -304,7 +304,7 @@ def _weather_signal_to_response(s) -> WeatherSignalResponse:
 # ============================================================================
 
 
-@router.get("/api/polymarket/markets")
+@router.get("/polymarket/markets")
 async def get_polymarket_markets(
     offset: int = 0, limit: int = 100, category: str | None = None
 ):
@@ -357,7 +357,7 @@ class MarketWatchCreate(BaseModel):
     enabled: Optional[bool] = True
 
 
-@router.get("/api/markets/watch")
+@router.get("/markets/watch")
 async def list_market_watches(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
@@ -380,7 +380,7 @@ async def list_market_watches(
     }
 
 
-@router.post("/api/markets/watch")
+@router.post("/markets/watch")
 async def create_market_watch(
     body: MarketWatchCreate,
     db: Session = Depends(get_db),
@@ -413,7 +413,7 @@ async def create_market_watch(
     }
 
 
-@router.delete("/api/markets/watch/{watch_id}")
+@router.delete("/markets/watch/{watch_id}")
 async def delete_market_watch(
     watch_id: int,
     db: Session = Depends(get_db),

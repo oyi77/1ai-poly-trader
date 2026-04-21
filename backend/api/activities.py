@@ -14,7 +14,7 @@ from backend.api_websockets.activity_stream import broadcast_activity
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/activities", tags=["activities"])
+router = APIRouter(prefix="/activities", tags=["activities"])
 
 
 class CreateActivityRequest(BaseModel):

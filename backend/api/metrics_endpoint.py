@@ -34,7 +34,7 @@ class HistoricalMetrics(BaseModel):
     metrics: Dict
 
 
-@router.get("/api/system/metrics", response_model=MetricsSummary)
+@router.get("/system/metrics", response_model=MetricsSummary)
 async def get_system_metrics(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin)
@@ -61,7 +61,7 @@ async def get_system_metrics(
     )
 
 
-@router.get("/api/system/metrics/history", response_model=HistoricalMetrics)
+@router.get("/system/metrics/history", response_model=HistoricalMetrics)
 async def get_historical_metrics(
     metric_type: str = Query("request", description="Metric type: request, db_query, websocket, system"),
     hours: int = Query(24, ge=1, le=168, description="Hours of history (1-168)"),
@@ -203,7 +203,7 @@ async def get_historical_metrics(
         )
 
 
-@router.post("/api/system/metrics/cleanup")
+@router.post("/system/metrics/cleanup")
 async def cleanup_old_metrics(
     days: int = Query(30, ge=1, le=365, description="Delete metrics older than N days"),
     db: Session = Depends(get_db),

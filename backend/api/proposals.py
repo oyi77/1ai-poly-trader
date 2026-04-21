@@ -17,7 +17,7 @@ from backend.api.validation import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/proposals", tags=["proposals"])
+router = APIRouter(prefix="/proposals", tags=["proposals"])
 
 
 class ProposalResponse(BaseModel):

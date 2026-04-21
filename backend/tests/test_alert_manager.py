@@ -31,13 +31,18 @@ class TestAlertManager:
         manager = AlertManager(test_db)
         
         configs = test_db.query(AlertConfig).all()
-        assert len(configs) == 4
+        assert len(configs) == 9
         
         types = {c.alert_type for c in configs}
         assert "NEGATIVE_BALANCE" in types
         assert "POSITION_DISCREPANCY" in types
         assert "FAILED_SETTLEMENT" in types
         assert "HIGH_SLIPPAGE" in types
+        assert "CIRCUIT_BREAKER" in types
+        assert "ERROR_RATE" in types
+        assert "MEMORY_USAGE" in types
+        assert "DISK_SPACE" in types
+        assert "CONNECTION_POOL" in types
     
     def test_check_negative_balance_triggers_alert(self, test_db):
         manager = AlertManager(test_db)
@@ -248,3 +253,135 @@ class TestAlertManager:
         
         alerts = test_db.query(Alert).filter_by(entity_id="0xdef").all()
         assert len(alerts) == 2
+    
+    def test_circuit_breaker_alert(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_circuit_breaker("polymarket_api", "open")
+        
+        assert alert is not None
+        assert alert.alert_type == "CIRCUIT_BREAKER"
+        assert alert.severity == "CRITICAL"
+        assert "polymarket_api" in alert.message
+        assert alert.resolved is False
+    
+    def test_circuit_breaker_no_alert_when_closed(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_circuit_breaker("polymarket_api", "closed")
+        
+        assert alert is None
+    
+    def test_error_rate_alert(self, test_db):
+        manager = AlertManager(test_db)
+        
+        for _ in range(15):
+            manager.record_error()
+        
+        alert = manager.check_error_rate()
+        
+        assert alert is not None
+        assert alert.alert_type == "ERROR_RATE"
+        assert "15 errors/minute" in alert.message
+    
+    def test_error_rate_no_alert_below_threshold(self, test_db):
+        manager = AlertManager(test_db)
+        
+        for _ in range(5):
+            manager.record_error()
+        
+        alert = manager.check_error_rate()
+        
+        assert alert is None
+    
+    def test_memory_usage_alert(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_memory_usage(85.0)
+        
+        assert alert is not None
+        assert alert.alert_type == "MEMORY_USAGE"
+        assert alert.severity == "HIGH"
+        assert "85.0%" in alert.message
+    
+    def test_memory_usage_no_alert_below_threshold(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_memory_usage(75.0)
+        
+        assert alert is None
+    
+    def test_disk_space_alert(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_disk_space(5.0)
+        
+        assert alert is not None
+        assert alert.alert_type == "DISK_SPACE"
+        assert alert.severity == "CRITICAL"
+        assert "5.0%" in alert.message
+    
+    def test_disk_space_no_alert_above_threshold(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_disk_space(15.0)
+        
+        assert alert is None
+    
+    def test_connection_pool_alert(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_connection_pool(pool_size=20, active_connections=20)
+        
+        assert alert is not None
+        assert alert.alert_type == "CONNECTION_POOL"
+        assert "20/20" in alert.message
+    
+    def test_connection_pool_no_alert_below_limit(self, test_db):
+        manager = AlertManager(test_db)
+        
+        alert = manager.check_connection_pool(pool_size=20, active_connections=15)
+        
+        assert alert is None
+    
+    def test_alert_cooldown_prevents_spam(self, test_db):
+        manager = AlertManager(test_db)
+        manager.cooldown_seconds = 5
+        
+        alert1 = manager.check_memory_usage(85.0)
+        alert2 = manager.check_memory_usage(85.0)
+        
+        assert alert1 is not None
+        assert alert2 is None
+    
+    def test_get_recent_alerts_with_filters(self, test_db):
+        manager = AlertManager(test_db)
+        
+        manager.check_memory_usage(85.0)
+        manager.check_disk_space(5.0)
+        manager.check_connection_pool(20, 20)
+        
+        all_alerts = manager.get_recent_alerts(limit=10)
+        assert len(all_alerts) == 3
+        
+        critical_alerts = manager.get_recent_alerts(severity="CRITICAL")
+        assert len(critical_alerts) == 2
+        
+        memory_alerts = manager.get_recent_alerts(alert_type="MEMORY_USAGE")
+        assert len(memory_alerts) == 1
+    
+    def test_get_alert_stats(self, test_db):
+        manager = AlertManager(test_db)
+        
+        manager.check_memory_usage(85.0)
+        manager.check_disk_space(5.0)
+        manager.check_connection_pool(20, 20)
+        
+        stats = manager.get_alert_stats()
+        
+        assert stats["total_unresolved"] == 3
+        assert "MEMORY_USAGE" in stats["by_type"]
+        assert "DISK_SPACE" in stats["by_type"]
+        assert "CONNECTION_POOL" in stats["by_type"]
+        assert "CRITICAL" in stats["by_severity"]
+        assert "HIGH" in stats["by_severity"]

@@ -22,6 +22,8 @@ from sqlalchemy import event
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect
+from sqlalchemy.pool import StaticPool
+import asyncio
 
 from backend.config import settings
 
@@ -58,6 +60,36 @@ configure_sqlite_wal(engine)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+async def execute_with_timeout(db_operation, timeout: float = None):
+    """
+    Execute a database operation with timeout.
+    
+    Args:
+        db_operation: Callable that performs the database operation
+        timeout: Timeout in seconds (defaults to DATABASE_QUERY_TIMEOUT from settings)
+    
+    Returns:
+        Result of the database operation
+        
+    Raises:
+        asyncio.TimeoutError: If operation exceeds timeout
+    """
+    if timeout is None:
+        timeout = settings.DATABASE_QUERY_TIMEOUT
+    
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(db_operation),
+            timeout=timeout
+        )
+        return result
+    except asyncio.TimeoutError:
+        logger.error(f"Database query timeout after {timeout}s")
+        from backend.monitoring.metrics import increment_timeouts
+        increment_timeouts(timeout_type="database")
+        raise
 
 
 class Trade(Base):
@@ -657,6 +689,29 @@ class SystemSettings(Base):
     
     def __repr__(self):
         return f"<SystemSettings(key={self.key}, value={self.value})>"
+
+
+class ErrorLog(Base):
+    """Centralized error logging with structured context."""
+    
+    __tablename__ = "error_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True, nullable=False)
+    error_type = Column(String(255), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    endpoint = Column(String(255), nullable=True, index=True)
+    method = Column(String(10), nullable=True)
+    user_id = Column(String(255), nullable=True, index=True)
+    stack_trace = Column(Text, nullable=True)
+    status_code = Column(Integer, nullable=True)
+    request_id = Column(String(255), nullable=True, index=True)
+    details = Column(Text, nullable=True)
+    
+    __table_args__ = (
+        Index('idx_error_logs_type_timestamp', 'error_type', 'timestamp'),
+        Index('idx_error_logs_endpoint_timestamp', 'endpoint', 'timestamp'),
+    )
 
 
 def init_db():

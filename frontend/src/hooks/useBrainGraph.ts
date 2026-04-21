@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { getWsUrl } from '../api'
+import { retryFetch } from '../utils/retryFetch'
 
 export interface BrainNode {
   id: string
@@ -36,7 +37,7 @@ export interface DebateTranscript {
 export interface UseBrainGraphResult {
   graphData: BrainGraphData | null
   transcript: DebateTranscript[]
-  status: 'connecting' | 'open' | 'closed' | 'error'
+  status: 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
   loading: boolean
 }
 
@@ -56,11 +57,11 @@ export function useBrainGraph(): UseBrainGraphResult {
         fetchDebateTranscript(data.debate_id)
       }
     }
-  }, [data])
+  }, [data, fetchDebateTranscript])
 
   const fetchDebateTranscript = useCallback(async (debateId: string) => {
     try {
-      const response = await fetch(`/api/brain/debate/${debateId}`)
+      const response = await retryFetch(`/api/brain/debate/${debateId}`)
       if (response.ok) {
         const data = await response.json()
         setTranscript(data.transcript || [])

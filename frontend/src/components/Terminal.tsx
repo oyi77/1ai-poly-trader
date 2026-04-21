@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Play, Pause, RefreshCw } from 'lucide-react'
 import { getWsUrl } from '../api'
+import { retryFetch } from '../utils/retryFetch'
 
 interface LogEntry {
   timestamp: string
@@ -32,21 +33,18 @@ export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Fetch initial events
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/events?limit=30`)
+      const res = await retryFetch(`${API_URL}/api/events?limit=30`)
       if (res.ok) {
         const contentType = res.headers.get('content-type') || ''
         if (!contentType.includes('application/json')) {
-          // API returned HTML (e.g. nginx fallback) — terminal unavailable
           return
         }
         const events = await res.json()
         setLogs(events.filter((e: LogEntry) => e.type !== 'heartbeat'))
       }
     } catch {
-      // Silently ignore fetch/parse errors — terminal degrades gracefully
     }
   }, [])
 

@@ -12,6 +12,7 @@ from backend.core.risk_manager import RiskManager
 from backend.core.event_bus import _broadcast_event
 from backend.core.mode_context import get_context
 from backend.core.alert_manager import AlertManager
+from backend.core.validation import TradeValidator, SignalValidator, ValidationError, log_validation_error
 from sqlalchemy import or_
 from sqlalchemy.exc import OperationalError
 
@@ -187,6 +188,27 @@ async def execute_decision(
             slippage = abs(fill_price - entry_price) / entry_price if entry_price > 0 else 0.0
             fee = None
 
+            trade_data = {
+                "market_ticker": market_ticker,
+                "platform": platform,
+                "direction": direction,
+                "entry_price": fill_price,
+                "size": adjusted_size,
+                "model_probability": model_probability,
+                "market_price_at_entry": entry_price,
+                "edge_at_entry": edge,
+                "trading_mode": mode,
+                "confidence": confidence,
+                "result": "pending",
+            }
+            
+            try:
+                TradeValidator.validate_trade_data(trade_data)
+            except ValidationError as e:
+                log_validation_error(e, context=f"execute_decision:{strategy_name}")
+                logger.error(f"[{strategy_name}] Trade validation failed: {e.message}")
+                return None
+
             trade = Trade(
                 market_ticker=market_ticker,
                 platform=platform,
@@ -241,6 +263,23 @@ async def execute_decision(
             elif mode == "live" and state:
                 state.bankroll = max(0.0, (state.bankroll or 0.0) - adjusted_size)
                 state.total_trades = (state.total_trades or 0) + 1
+
+            signal_data = {
+                "direction": direction,
+                "model_probability": model_probability,
+                "market_price": entry_price,
+                "edge": edge,
+                "confidence": confidence,
+                "kelly_fraction": 0.0,
+                "suggested_size": adjusted_size,
+            }
+            
+            try:
+                SignalValidator.validate_signal_data(signal_data)
+            except ValidationError as e:
+                log_validation_error(e, context=f"execute_decision:signal:{strategy_name}")
+                logger.error(f"[{strategy_name}] Signal validation failed: {e.message}")
+                return None
 
             signal_record = Signal(
                 market_ticker=market_ticker,

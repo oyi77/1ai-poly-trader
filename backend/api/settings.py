@@ -13,7 +13,7 @@ from backend.config import settings as app_settings
 
 logger = logging.getLogger("trading_bot")
 
-router = APIRouter(prefix="/api/settings", tags=["settings"])
+router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 class SettingsResponse(BaseModel):
@@ -89,26 +89,55 @@ async def update_settings(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin)
 ):
+    from backend.models.audit_logger import log_audit_event
+    
     try:
+        # Track changes for audit logging
+        changes = {}
+        
         if updates.mirofish_enabled is not None:
+            old_value = _get_setting(db, "mirofish_enabled", False)
             _set_setting(db, "mirofish_enabled", updates.mirofish_enabled)
+            changes["mirofish_enabled"] = {"old": old_value, "new": updates.mirofish_enabled}
         
         if updates.mirofish_api_url is not None:
+            old_value = _get_setting(db, "mirofish_api_url", None)
             _set_setting(db, "mirofish_api_url", updates.mirofish_api_url)
+            changes["mirofish_api_url"] = {"old": old_value, "new": "[REDACTED]"}
         
         if updates.mirofish_api_key is not None:
+            old_value = _get_setting(db, "mirofish_api_key", None)
             _set_setting(db, "mirofish_api_key", updates.mirofish_api_key)
+            changes["mirofish_api_key"] = {"old": "[REDACTED]", "new": "[REDACTED]"}
         
         if updates.strategies is not None:
+            old_value = _get_setting(db, "strategies_enabled", {})
             _set_setting(db, "strategies_enabled", updates.strategies)
+            changes["strategies_enabled"] = {"old": old_value, "new": updates.strategies}
         
         if updates.risk_params is not None:
+            old_value = _get_setting(db, "risk_params", {})
             _set_setting(db, "risk_params", updates.risk_params)
+            changes["risk_params"] = {"old": old_value, "new": updates.risk_params}
         
         if updates.trading_mode is not None:
             if updates.trading_mode not in ["paper", "testnet", "live"]:
                 raise HTTPException(status_code=400, detail="Invalid trading mode")
+            old_value = _get_setting(db, "trading_mode", app_settings.TRADING_MODE)
             _set_setting(db, "trading_mode", updates.trading_mode)
+            changes["trading_mode"] = {"old": old_value, "new": updates.trading_mode}
+        
+        # Log audit event for configuration changes
+        if changes:
+            log_audit_event(
+                db=db,
+                event_type="CONFIG_UPDATED",
+                entity_type="SYSTEM_SETTINGS",
+                entity_id="global",
+                old_value={"changes": {k: v["old"] for k, v in changes.items()}},
+                new_value={"changes": {k: v["new"] for k, v in changes.items()}},
+                user_id="admin",
+            )
         
         db.commit()
         logger.info("Settings updated successfully")
@@ -128,10 +157,23 @@ async def toggle_mirofish(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin)
 ):
+    from backend.models.audit_logger import log_audit_event
+    
     try:
         current = _get_setting(db, "mirofish_enabled", False)
         new_state = not current
         _set_setting(db, "mirofish_enabled", new_state)
+        
+        log_audit_event(
+            db=db,
+            event_type="MIROFISH_TOGGLE",
+            entity_type="CONFIG",
+            entity_id="mirofish_enabled",
+            old_value={"enabled": current},
+            new_value={"enabled": new_state},
+            user_id="admin",
+        )
+        
         db.commit()
         
         logger.info(f"MiroFish toggled: {current} -> {new_state}")
@@ -152,12 +194,25 @@ async def toggle_strategy(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin)
 ):
+    from backend.models.audit_logger import log_audit_event
+    
     try:
         strategies = _get_setting(db, "strategies_enabled", {})
         current = strategies.get(name, False)
         new_state = not current
         strategies[name] = new_state
         _set_setting(db, "strategies_enabled", strategies)
+        
+        log_audit_event(
+            db=db,
+            event_type="STRATEGY_TOGGLE",
+            entity_type="STRATEGY_CONFIG",
+            entity_id=name,
+            old_value={"enabled": current},
+            new_value={"enabled": new_state},
+            user_id="admin",
+        )
+        
         db.commit()
         
         logger.info(f"Strategy '{name}' toggled: {current} -> {new_state}")

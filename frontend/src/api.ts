@@ -1,8 +1,6 @@
 import axios from 'axios'
 import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting } from './types'
 
-// Empty string = relative URL (uses vite proxy in preview, same-origin in prod)
-// Set VITE_API_URL to override (e.g. for local dev pointing at remote API)
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 /**
@@ -21,13 +19,13 @@ export function getWsUrl(path: string): string {
 }
 
 export const api = axios.create({
-  baseURL: `${API_BASE}/api`,
+  baseURL: `${API_BASE}/api/v1`,
   timeout: 15000,
 })
 
 // Admin API instance — injects Authorization header from localStorage
 export const adminApi = axios.create({
-  baseURL: `${API_BASE}/api`,
+  baseURL: `${API_BASE}/api/v1`,
   timeout: 15000,
 })
 

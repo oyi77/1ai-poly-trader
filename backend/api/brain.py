@@ -21,7 +21,7 @@ from backend.api.auth import require_admin
 
 logger = logging.getLogger("trading_bot.brain_api")
 
-router = APIRouter(prefix="/api/brain", tags=["brain"])
+router = APIRouter(prefix="/brain", tags=["brain"])
 
 
 # --- Response Models ---

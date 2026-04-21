@@ -22,7 +22,7 @@ logger = logging.getLogger("trading_bot")
 router = APIRouter(tags=["market_intel"])
 
 
-@router.get("/api/edge-performance")
+@router.get("/edge-performance")
 async def get_edge_performance(
     track: str | None = None,
     days: int = 7,
@@ -105,7 +105,7 @@ async def get_edge_performance(
     }
 
 
-@router.get("/api/whales/transactions")
+@router.get("/whales/transactions")
 async def get_whale_transactions(limit: int = 50, _: None = Depends(require_admin)):
     """Return recent whale transactions from DB."""
     db = SessionLocal()
@@ -133,7 +133,7 @@ async def get_whale_transactions(limit: int = 50, _: None = Depends(require_admi
         db.close()
 
 
-@router.get("/api/news/feed")
+@router.get("/news/feed")
 async def get_news_feed(_: None = Depends(require_admin)):
     """Return aggregated news feed from multiple sources."""
     try:
@@ -155,7 +155,7 @@ async def get_news_feed(_: None = Depends(require_admin)):
         return {"error": str(e), "items": []}
 
 
-@router.get("/api/predictions/{market_id}")
+@router.get("/predictions/{market_id}")
 async def get_prediction(market_id: str, _: None = Depends(require_admin)):
     """Return AI prediction for a specific market."""
     from backend.ai.prediction_engine import PredictionEngine

@@ -19,6 +19,7 @@ from backend.models.database import (
     AILog,
     DecisionLog,
     StrategyConfig,
+    AuditLog,
     engine,
 )
 from backend.api.auth import require_admin
@@ -94,7 +95,7 @@ class EventResponse(BaseModel):
 # ============================================================================
 
 
-@router.get("/api/stats", response_model=BotStats)
+@router.get("/stats", response_model=BotStats)
 async def get_stats(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
@@ -487,7 +488,7 @@ async def get_stats(
 # ============================================================================
 
 
-@router.get("/api/stats/strategies")
+@router.get("/stats/strategies")
 async def get_strategy_stats(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -533,7 +534,7 @@ async def get_strategy_stats(
     }
 
 
-@router.get("/api/ai/status")
+@router.get("/ai/status")
 async def get_ai_status(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -565,9 +566,24 @@ async def get_ai_status(
 
 
 @router.post("/api/ai/toggle")
-async def toggle_ai(_: None = Depends(require_admin)):
+async def toggle_ai(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     """Toggle AI-enhanced signals on/off."""
+    from backend.models.audit_logger import log_audit_event
+    
+    old_value = settings.AI_ENABLED
     settings.AI_ENABLED = not settings.AI_ENABLED
+    
+    log_audit_event(
+        db=db,
+        event_type="AI_TOGGLE",
+        entity_type="CONFIG",
+        entity_id="ai_enabled",
+        old_value={"enabled": old_value},
+        new_value={"enabled": settings.AI_ENABLED},
+        user_id="admin",
+    )
+    db.commit()
+    
     logger.info("AI signals %s", "ENABLED" if settings.AI_ENABLED else "DISABLED")
     return {"enabled": settings.AI_ENABLED}
 
@@ -680,7 +696,7 @@ class BacktestRequest(BaseModel):
     slippage_bps: int = 5  # basis points
 
 
-@router.post("/api/backtest")
+@router.post("/backtest")
 async def run_backtest(
     body: BacktestRequest,
     db: Session = Depends(get_db),
@@ -929,7 +945,7 @@ async def list_decisions(
     }
 
 
-@router.get("/api/decisions/export")
+@router.get("/decisions/export")
 async def export_decisions(
     format: str = "jsonl",
     strategy: str | None = None,
@@ -981,7 +997,7 @@ async def export_decisions(
     )
 
 
-@router.get("/api/decisions/{decision_id}")
+@router.get("/decisions/{decision_id}")
 async def get_decision(
     decision_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -1120,7 +1136,7 @@ async def get_strategy(
     }
 
 
-@router.put("/api/strategies/{name}")
+@router.put("/strategies/{name}")
 async def update_strategy(
     name: str,
     body: ValidatedStrategyConfigRequest,
@@ -1129,12 +1145,22 @@ async def update_strategy(
 ):
     """Update a strategy's config (enabled, interval, params)."""
     from backend.strategies.registry import STRATEGY_REGISTRY
+    from backend.models.audit_logger import log_audit_event
 
     if name not in STRATEGY_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
 
     cfg = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
-    if not cfg:
+    
+    old_state = None
+    if cfg:
+        old_state = {
+            "enabled": cfg.enabled,
+            "interval_seconds": cfg.interval_seconds,
+            "params": _json.loads(cfg.params) if cfg.params else {},
+            "trading_mode": cfg.trading_mode,
+        }
+    else:
         cfg = StrategyConfig(strategy_name=name)
         db.add(cfg)
 
@@ -1153,10 +1179,26 @@ async def update_strategy(
             )
         cfg.trading_mode = body.trading_mode
 
+    new_state = {
+        "enabled": cfg.enabled,
+        "interval_seconds": cfg.interval_seconds,
+        "params": _json.loads(cfg.params) if cfg.params else {},
+        "trading_mode": cfg.trading_mode,
+    }
+
+    log_audit_event(
+        db=db,
+        event_type="STRATEGY_CONFIG_UPDATED",
+        entity_type="STRATEGY_CONFIG",
+        entity_id=name,
+        old_value=old_state,
+        new_value=new_state,
+        user_id="admin",
+    )
+
     db.commit()
     db.refresh(cfg)
 
-    # Reschedule the APScheduler job if interval changed or strategy was toggled
     if body.interval_seconds is not None or body.enabled is not None:
         from backend.core.scheduler import schedule_strategy, unschedule_strategy
 
@@ -1175,7 +1217,7 @@ async def update_strategy(
     }
 
 
-@router.post("/api/strategies/{name}/run-now")
+@router.post("/strategies/{name}/run-now")
 async def run_strategy_now(name: str, _: None = Depends(require_admin)):
     """Trigger an immediate strategy run."""
     from backend.strategies.registry import STRATEGY_REGISTRY
@@ -1264,7 +1306,7 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
         )
 
 
-@router.get("/api/health/mirofish")
+@router.get("/health/mirofish")
 async def get_mirofish_health():
     """Get MiroFish service health status with circuit breaker state."""
     try:
@@ -1319,6 +1361,86 @@ async def get_db_pool_stats(_: None = Depends(require_admin)):
     except Exception as e:
         logger.error(f"Failed to get pool stats: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get pool stats: {str(e)}")
+
+
+class AuditLogResponse(BaseModel):
+    id: int
+    timestamp: datetime
+    event_type: str
+    entity_type: str
+    entity_id: str
+    old_value: Optional[dict]
+    new_value: Optional[dict]
+    user_id: str
+
+
+@router.get("/system/audit-logs", response_model=List[AuditLogResponse])
+async def get_audit_logs(
+    event_type: Optional[str] = Query(None, description="Filter by event type"),
+    entity_type: Optional[str] = Query(None, description="Filter by entity type"),
+    entity_id: Optional[str] = Query(None, description="Filter by entity ID"),
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    since: Optional[str] = Query(None, description="Filter logs since timestamp (ISO format)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of logs to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """
+    Retrieve audit logs for configuration changes and system events.
+    
+    Returns audit trail entries with filtering and pagination support.
+    """
+    try:
+        query = db.query(AuditLog)
+        
+        if event_type:
+            query = query.filter(AuditLog.event_type == event_type)
+        
+        if entity_type:
+            query = query.filter(AuditLog.entity_type == entity_type)
+        
+        if entity_id:
+            query = query.filter(AuditLog.entity_id == entity_id)
+        
+        if user_id:
+            query = query.filter(AuditLog.user_id == user_id)
+        
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                query = query.filter(AuditLog.timestamp >= since_dt)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid timestamp format")
+        
+        total = query.count()
+        
+        logs = (
+            query.order_by(AuditLog.timestamp.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        
+        return [
+            AuditLogResponse(
+                id=log.id,
+                timestamp=log.timestamp,
+                event_type=log.event_type,
+                entity_type=log.entity_type,
+                entity_id=log.entity_id,
+                old_value=log.old_value,
+                new_value=log.new_value,
+                user_id=log.user_id,
+            )
+            for log in logs
+        ]
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve audit logs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve audit logs")
 
 
 # ============================================================================

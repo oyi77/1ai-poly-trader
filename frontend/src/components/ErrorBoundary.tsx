@@ -1,4 +1,5 @@
 import React, { ReactNode, ErrorInfo } from 'react';
+import { retryFetch } from '../utils/retryFetch';
 
 interface Props {
   children: ReactNode;
@@ -37,7 +38,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private reportErrorToBackend = async (error: Error, errorInfo: ErrorInfo) => {
     try {
-      const response = await fetch('/api/errors/frontend', {
+      const response = await retryFetch('/api/errors/frontend', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

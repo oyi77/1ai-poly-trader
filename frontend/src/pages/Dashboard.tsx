@@ -63,7 +63,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('Overview')
 
   const unifiedStats = useStats()
-  const { status: wsStatus } = useWebSocket(getWsUrl('/ws/markets'), { topic: 'markets' })
+  const { status: wsStatus, reconnectAttempt, maxReconnectAttempts } = useWebSocket(getWsUrl('/ws/markets'), { topic: 'markets' })
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
@@ -254,9 +254,20 @@ export default function Dashboard() {
             <RefreshBar interval={10000} />
             <span className="text-[10px] text-neutral-700 font-mono">Copy · Weather · Kalshi · BTC Oracle · BTC 5m</span>
             <div className="flex items-center gap-1">
-              <span className={`inline-block w-1.5 h-1.5 rounded-full ${wsStatus === 'open' ? 'bg-green-500' : 'bg-red-400'}`} />
-              <span className={`text-[10px] font-mono ${wsStatus === 'open' ? 'text-neutral-600' : 'text-red-400'}`}>
-                {wsStatus === 'open' ? 'Connected' : wsStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+                wsStatus === 'connected' ? 'bg-green-500' : 
+                wsStatus === 'reconnecting' ? 'bg-yellow-500' : 
+                'bg-red-400'
+              }`} />
+              <span className={`text-[10px] font-mono ${
+                wsStatus === 'connected' ? 'text-neutral-600' : 
+                wsStatus === 'reconnecting' ? 'text-yellow-400' : 
+                'text-red-400'
+              }`}>
+                {wsStatus === 'connected' ? 'Connected' : 
+                 wsStatus === 'connecting' ? 'Connecting...' : 
+                 wsStatus === 'reconnecting' ? `Reconnecting (${reconnectAttempt}/${maxReconnectAttempts})` :
+                 'Disconnected'}
               </span>
             </div>
           </div>

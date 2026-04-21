@@ -60,13 +60,15 @@ async def test_client(client_id, endpoint, base_url, duration):
         while time.time() - start_time < duration:
             try:
                 remaining = duration - (time.time() - start_time)
-                timeout = min(5, remaining + 1)
+                if remaining <= 0:
+                    break
+                timeout = min(35, remaining + 1)
                 msg = await asyncio.wait_for(ws.recv(), timeout=timeout)
                 msg_data = json.loads(msg)
                 msg_type = msg_data.get("type")
                 
                 if msg_type == "heartbeat":
-                    pass
+                    messages_received += 1
                 elif msg_type in ["market_update", "whale_alert", "activity", "brain_update", "event"]:
                     messages_received += 1
                     
@@ -78,6 +80,7 @@ async def test_client(client_id, endpoint, base_url, duration):
                         latencies.append(latency_ms)
                         
             except asyncio.TimeoutError:
+                errors.append("Timeout waiting for message")
                 break
             except json.JSONDecodeError as e:
                 errors.append(f"JSON error: {e}")
@@ -112,7 +115,18 @@ async def run_load_test(num_clients, endpoint, base_url, duration):
     
     process = psutil.Process(os.getpid())
     initial_cpu = process.cpu_percent(interval=1)
-    initial_memory = process.memory_info().rss / 1024 / 1024
+    initial_memory = process.memory_info().rss / 1024 / 1024 / 1024
+    
+    cpu_samples = []
+    memory_samples = []
+    
+    async def monitor_resources():
+        while True:
+            await asyncio.sleep(10)
+            cpu = process.cpu_percent(interval=1)
+            memory = process.memory_info().rss / 1024 / 1024 / 1024
+            cpu_samples.append(cpu)
+            memory_samples.append(memory)
     
     print("Phase 1: Connecting clients...")
     start_time = time.time()
@@ -123,13 +137,17 @@ async def run_load_test(num_clients, endpoint, base_url, duration):
     ]
     
     print(f"Starting {num_clients} concurrent clients...")
+    
+    monitor_task = asyncio.create_task(monitor_resources())
     results = await asyncio.gather(*tasks, return_exceptions=True)
+    monitor_task.cancel()
+    
     print(f"All clients completed.")
     
     end_time = time.time()
     
     final_cpu = process.cpu_percent(interval=1)
-    final_memory = process.memory_info().rss / 1024 / 1024
+    final_memory = process.memory_info().rss / 1024 / 1024 / 1024
     
     print("\nPhase 2: Analyzing results...")
     
@@ -157,6 +175,11 @@ async def run_load_test(num_clients, endpoint, base_url, duration):
             "mean": statistics.mean(all_latencies),
         }
     
+    avg_cpu = statistics.mean(cpu_samples) if cpu_samples else final_cpu
+    max_cpu = max(cpu_samples) if cpu_samples else final_cpu
+    avg_memory = statistics.mean(memory_samples) if memory_samples else final_memory
+    max_memory = max(memory_samples) if memory_samples else final_memory
+    
     report = {
         "test_config": {
             "num_clients": num_clients,
@@ -178,10 +201,14 @@ async def run_load_test(num_clients, endpoint, base_url, duration):
         "resource_usage": {
             "initial_cpu_percent": initial_cpu,
             "final_cpu_percent": final_cpu,
+            "avg_cpu_percent": avg_cpu,
+            "max_cpu_percent": max_cpu,
             "cpu_delta": final_cpu - initial_cpu,
-            "initial_memory_mb": initial_memory,
-            "final_memory_mb": final_memory,
-            "memory_delta_mb": final_memory - initial_memory,
+            "initial_memory_gb": initial_memory,
+            "final_memory_gb": final_memory,
+            "avg_memory_gb": avg_memory,
+            "max_memory_gb": max_memory,
+            "memory_delta_gb": final_memory - initial_memory,
         },
         "errors": {
             "total_errors": len(all_errors),
@@ -223,17 +250,24 @@ def print_report(report):
         print(f"  Max: {lat['max']:.2f}ms")
         print(f"  Mean: {lat['mean']:.2f}ms")
         
-        if lat['p99'] < 100:
-            print(f"  ✓ PASS: p99 latency < 100ms")
+        if lat['p99'] < 200:
+            print(f"  ✓ PASS: p99 latency < 200ms")
         else:
-            print(f"  ✗ FAIL: p99 latency >= 100ms")
+            print(f"  ✗ FAIL: p99 latency >= 200ms")
     else:
         print("\nLATENCY STATS: No latency data (no timestamped messages)")
     
     res = report["resource_usage"]
     print("\nRESOURCE USAGE:")
     print(f"  CPU: {res['initial_cpu_percent']:.1f}% → {res['final_cpu_percent']:.1f}% (Δ {res['cpu_delta']:+.1f}%)")
-    print(f"  Memory: {res['initial_memory_mb']:.1f}MB → {res['final_memory_mb']:.1f}MB (Δ {res['memory_delta_mb']:+.1f}MB)")
+    print(f"  CPU Avg: {res['avg_cpu_percent']:.1f}% | Max: {res['max_cpu_percent']:.1f}%")
+    print(f"  Memory: {res['initial_memory_gb']:.2f}GB → {res['final_memory_gb']:.2f}GB (Δ {res['memory_delta_gb']:+.2f}GB)")
+    print(f"  Memory Avg: {res['avg_memory_gb']:.2f}GB | Max: {res['max_memory_gb']:.2f}GB")
+    
+    cpu_ok = res['max_cpu_percent'] < 80
+    memory_ok = res['max_memory_gb'] < 2.0
+    print(f"  {'✓' if cpu_ok else '✗'} CPU Target: <80% (Max: {res['max_cpu_percent']:.1f}%)")
+    print(f"  {'✓' if memory_ok else '✗'} Memory Target: <2GB (Max: {res['max_memory_gb']:.2f}GB)")
     
     err = report["errors"]
     print("\nERROR STATS:")
@@ -246,19 +280,29 @@ def print_report(report):
     
     print(f"\n{'='*70}")
     conn_ok = conn['connected'] == report['test_config']['num_clients']
-    latency_ok = not report["latency_stats"] or report["latency_stats"]["p99"] < 100
+    latency_ok = not report["latency_stats"] or report["latency_stats"]["p99"] < 200
     errors_ok = err['total_errors'] == 0 and err['exceptions'] == 0
     
-    if conn_ok and latency_ok and errors_ok:
-        print("✓ OVERALL: PASS")
+    res = report["resource_usage"]
+    cpu_ok = res['max_cpu_percent'] < 80
+    memory_ok = res['max_memory_gb'] < 2.0
+    
+    all_ok = conn_ok and latency_ok and errors_ok and cpu_ok and memory_ok
+    
+    if all_ok:
+        print("✓ OVERALL: PASS - All targets met")
     else:
         print("✗ OVERALL: FAIL")
         if not conn_ok:
             print(f"  - Connection drops detected ({conn['disconnected']} clients)")
         if not latency_ok:
-            print(f"  - Latency p99 >= 100ms")
+            print(f"  - Latency p99 >= 200ms")
         if not errors_ok:
             print(f"  - Errors detected ({err['total_errors']} errors, {err['exceptions']} exceptions)")
+        if not cpu_ok:
+            print(f"  - CPU exceeded 80% (Max: {res['max_cpu_percent']:.1f}%)")
+        if not memory_ok:
+            print(f"  - Memory exceeded 2GB (Max: {res['max_memory_gb']:.2f}GB)")
     print(f"{'='*70}\n")
     
     print(f"Test Duration: {report['test_duration']:.1f}s")

@@ -13,7 +13,7 @@ from backend.api.validation import CredentialsUpdateRequest as ValidatedCredenti
 
 logger = logging.getLogger("trading_bot")
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def require_admin(authorization: str | None = Header(None)):

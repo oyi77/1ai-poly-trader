@@ -91,8 +91,8 @@ class WebSocketClient:
                     
                     if msg_type == "heartbeat":
                         self.last_heartbeat = time.time()
+                        self.messages_received += 1
                     elif msg_type in ["market_update", "whale_alert", "activity", "brain_update", "event"]:
-                        # Calculate latency if timestamp present
                         if "timestamp" in data:
                             sent_time = data["timestamp"]
                             if isinstance(sent_time, str):

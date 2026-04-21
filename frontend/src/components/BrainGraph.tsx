@@ -202,9 +202,9 @@ export default function BrainGraph() {
             <span className="text-xs font-bold text-neutral-100 uppercase tracking-wider">Brain Status</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`inline-block w-2 h-2 rounded-full ${status === 'open' ? 'bg-green-500' : 'bg-red-400'}`} />
-            <span className={`text-[10px] font-mono ${status === 'open' ? 'text-neutral-400' : 'text-red-400'}`}>
-              {status === 'open' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
+            <span className={`inline-block w-2 h-2 rounded-full ${status === 'connected' ? 'bg-green-500' : 'bg-red-400'}`} />
+            <span className={`text-[10px] font-mono ${status === 'connected' ? 'text-neutral-400' : 'text-red-400'}`}>
+              {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
             </span>
           </div>
         </div>

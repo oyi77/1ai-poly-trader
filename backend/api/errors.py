@@ -7,10 +7,11 @@ from datetime import datetime, timezone
 import logging
 
 from backend.models.database import get_db
+from backend.core.error_logger import get_error_logger
 
 logger = logging.getLogger("trading_bot")
 
-router = APIRouter(prefix="/api/errors", tags=["errors"])
+router = APIRouter(prefix="/errors", tags=["errors"])
 
 
 class FrontendErrorReport(BaseModel):
@@ -26,16 +27,7 @@ async def report_frontend_error(
     error_report: FrontendErrorReport,
     db: Session = Depends(get_db),
 ):
-    """
-    Receive and log frontend errors from ErrorBoundary.
-    
-    Args:
-        error_report: Error details from frontend
-        db: Database session
-    
-    Returns:
-        Confirmation of error receipt
-    """
+    """Receive and log frontend errors from ErrorBoundary."""
     try:
         logger.error(
             f"Frontend Error: {error_report.message}",
@@ -57,3 +49,57 @@ async def report_frontend_error(
             "status": "error",
             "message": "Failed to process error report",
         }
+
+
+@router.get("/system/errors")
+async def get_system_errors(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    """Get last N system errors with full context."""
+    error_logger = get_error_logger(db)
+    errors = await error_logger.get_recent_errors(limit=limit)
+    return {
+        "count": len(errors),
+        "errors": errors,
+    }
+
+
+@router.get("/system/aggregation")
+async def get_error_aggregation(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    """Get error aggregation by type and endpoint."""
+    error_logger = get_error_logger(db)
+    aggregation = await error_logger.get_error_aggregation(limit=limit)
+    return aggregation
+
+
+@router.get("/system/rate")
+async def get_error_rate(
+    db: Session = Depends(get_db),
+):
+    """Get current error rate (errors per minute)."""
+    error_logger = get_error_logger(db)
+    rate = await error_logger.get_error_rate()
+    return {
+        "errors_per_minute": rate,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.post("/system/cleanup")
+async def cleanup_old_errors(
+    days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """Delete errors older than specified days."""
+    error_logger = get_error_logger(db)
+    deleted = await error_logger.cleanup_old_errors(days=days)
+    return {
+        "deleted": deleted,
+        "days_retained": days,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+

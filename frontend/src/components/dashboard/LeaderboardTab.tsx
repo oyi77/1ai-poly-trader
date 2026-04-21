@@ -37,20 +37,20 @@ export function LeaderboardTab() {
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(t =>
-        t.wallet.toLowerCase().includes(q) ||
+        t.wallet?.toLowerCase().includes(q) ||
         (t.pseudonym && t.pseudonym.toLowerCase().includes(q))
       )
     }
 
     // Filters
     const profitThreshold = minProfit ? parseFloat(minProfit) : null
-    if (profitThreshold != null) result = result.filter(t => t.profit_30d >= profitThreshold)
+    if (profitThreshold != null) result = result.filter(t => (t.profit_30d ?? 0) >= profitThreshold)
 
     const wrThreshold = minWinRate ? parseFloat(minWinRate) / 100 : null
-    if (wrThreshold != null) result = result.filter(t => t.win_rate >= wrThreshold)
+    if (wrThreshold != null) result = result.filter(t => (t.win_rate ?? 0) >= wrThreshold)
 
     const tradeThreshold = minTrades ? parseInt(minTrades) : null
-    if (tradeThreshold != null) result = result.filter(t => t.total_trades >= tradeThreshold)
+    if (tradeThreshold != null) result = result.filter(t => (t.total_trades ?? 0) >= tradeThreshold)
 
     // Sort
     result.sort((a, b) => {

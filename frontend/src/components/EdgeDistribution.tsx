@@ -38,13 +38,17 @@ export function EdgeDistribution({ btcSignals, weatherSignals }: Props) {
     BUCKETS.forEach(b => { counts[b] = { btc: 0, weather: 0 } })
 
     btcSignals.forEach(s => {
-      const bucket = getBucket(s.edge)
-      counts[bucket].btc++
+      if (s.edge != null) {
+        const bucket = getBucket(s.edge)
+        counts[bucket].btc++
+      }
     })
 
     weatherSignals.forEach(s => {
-      const bucket = getBucket(s.edge)
-      counts[bucket].weather++
+      if (s.edge != null) {
+        const bucket = getBucket(s.edge)
+        counts[bucket].weather++
+      }
     })
 
     return BUCKETS.map(bucket => ({
