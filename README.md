@@ -26,6 +26,7 @@ A full-stack automated prediction market trading bot targeting **Polymarket** an
 
 - **Multi-Strategy Engine** — 9 strategies running in parallel with per-strategy risk isolation
 - **AI Ensemble** — Claude + Groq LLM providers for sentiment analysis and signal synthesis
+- **MiroFish Integration** — External dual debate system with automatic fallback to local debate engine
 - **Multi-Platform Trading** — Polymarket (CLOB SDK) and Kalshi (REST API) simultaneously
 - **Edge Detection** — Identifies mispriced markets with configurable edge thresholds
 - **Kelly Criterion Sizing** — Fractional Kelly position sizing with per-trade and portfolio caps
@@ -129,6 +130,7 @@ Starts the backend API + Redis. See `docker-compose.yml` for configuration.
 
 - **[User Guide](docs/user-guide.md)** - Beginner-friendly dashboard walkthrough
 - **[How It Works](docs/how-it-works.md)** - Detailed explanation of BTC and weather strategies
+- **[MiroFish Integration](docs/mirofish-integration.md)** - External debate system setup and API reference
 - **[API Reference](docs/api.md)** - Complete API endpoint documentation
 - **[Configuration](docs/configuration.md)** - All settings and environment variables
 - **[Data Sources](docs/data-sources.md)** - Description of all data providers
