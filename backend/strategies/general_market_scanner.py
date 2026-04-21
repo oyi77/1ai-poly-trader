@@ -61,12 +61,28 @@ async def _run_debate_gate(
     category: str,
     context: str,
     data_sources: list[str] | None = None,
+    db: Optional[object] = None,
 ) -> Optional[object]:
-    """Run debate engine; returns DebateResult or None on failure."""
+    """Run debate with routing (MiroFish or local); returns DebateResult or None on failure."""
     try:
-        from backend.ai.debate_engine import run_debate
+        from backend.ai.debate_router import run_debate_with_routing
 
-        return await run_debate(
+        if db is None:
+            logger.warning(
+                "[general_scanner._run_debate_gate] No database session provided, falling back to local debate"
+            )
+            from backend.ai.debate_engine import run_debate
+            return await run_debate(
+                question=question,
+                market_price=market_price,
+                volume=volume,
+                category=category,
+                context=context,
+                data_sources=data_sources,
+            )
+
+        return await run_debate_with_routing(
+            db=db,
             question=question,
             market_price=market_price,
             volume=volume,
@@ -76,7 +92,7 @@ async def _run_debate_gate(
         )
     except Exception as exc:
         logger.warning(
-            "[general_scanner._run_debate_gate] %s: %s",
+            "[general_scanner._run_debate_gate] %s: %s - routing decision",
             type(exc).__name__,
             exc,
         )
@@ -648,6 +664,7 @@ class GeneralMarketScanner(BaseStrategy):
                     category=next(iter(market_categories), "general"),
                     context=enriched_context,
                     data_sources=data_sources,
+                    db=ctx.db,
                 )
                 if debate_result is not None:
                     debate_prob = float(debate_result.consensus_probability)

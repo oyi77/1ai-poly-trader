@@ -67,8 +67,56 @@ export default function Settings() {
     }
   }
 
+  async function testMiroFishConnection() {
+    if (!settings?.mirofish_api_url || !settings?.mirofish_api_key) {
+      setTestConnection({
+        testing: false,
+        success: false,
+        error: 'Please enter both API URL and API Key',
+      })
+      return
+    }
+
+    try {
+      setTestConnection({ testing: true, success: null, error: null })
+      const { data } = await adminApi.post('/settings/test-mirofish', {
+        api_url: settings.mirofish_api_url,
+        api_key: settings.mirofish_api_key,
+      })
+      
+      if (data.success) {
+        setTestConnection({ testing: false, success: true, error: null })
+      } else {
+        setTestConnection({
+          testing: false,
+          success: false,
+          error: data.error || 'Connection failed',
+        })
+      }
+    } catch (err: any) {
+      setTestConnection({
+        testing: false,
+        success: false,
+        error: err.response?.data?.detail || 'Connection test failed',
+      })
+    }
+  }
+
   async function toggleMiroFish() {
     if (!settings) return
+    
+    // Prevent enabling without valid credentials
+    if (!settings.mirofish_enabled) {
+      if (!settings.mirofish_api_url || !settings.mirofish_api_key) {
+        setError('Please enter API URL and API Key, then test the connection before enabling')
+        return
+      }
+      if (testConnection.success !== true) {
+        setError('Please test the connection successfully before enabling MiroFish')
+        return
+      }
+    }
+    
     await updateSettings({ mirofish_enabled: !settings.mirofish_enabled })
   }
 
