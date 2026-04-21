@@ -6,13 +6,15 @@
   "phase2_completed_at": "2026-04-21T06:50:42.891Z",
   "phase3_started_at": "2026-04-21T06:52:41.448Z",
   "phase3_completed_at": "2026-04-21T07:30:17.284Z",
+  "completed_at": "2026-04-21T07:31:56.354Z",
   "session_ids": [
     "ses_2538c4741ffeJVx5vL5Z3lO1P1",
     "ses_25181db7bffetNCnS20HMkehri"
   ],
   "plan_name": "comprehensive-codebase-hardening",
-  "status": "phase3_complete",
-  "phase": 3,
+  "status": "complete",
+  "phase": "all_complete",
   "tasks_completed": 49,
-  "tasks_total": 49
+  "tasks_total": 49,
+  "duration_hours": 8.8
 }
