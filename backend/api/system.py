@@ -565,7 +565,7 @@ async def get_ai_status(
     }
 
 
-@router.post("/api/ai/toggle")
+@router.post("/ai/toggle")
 async def toggle_ai(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     """Toggle AI-enhanced signals on/off."""
     from backend.models.audit_logger import log_audit_event
@@ -593,7 +593,7 @@ async def toggle_ai(db: Session = Depends(get_db), _: None = Depends(require_adm
 # ============================================================================
 
 
-@router.post("/api/bot/start")
+@router.post("/bot/start")
 async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import start_scheduler, log_event, is_scheduler_running
 
@@ -615,7 +615,7 @@ async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
     return {"status": "started", "is_running": True}
 
 
-@router.post("/api/bot/stop")
+@router.post("/bot/stop")
 async def stop_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import log_event
 
@@ -638,7 +638,7 @@ class ResetRequest(BaseModel):
     confirm: bool = False
 
 
-@router.post("/api/bot/reset")
+@router.post("/bot/reset")
 async def reset_bot(
     body: ResetRequest, db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -757,7 +757,7 @@ async def run_backtest(
         )
 
 
-@router.get("/api/backtest/quick")
+@router.get("/backtest/quick")
 async def quick_backtest(
     days_back: int = 30,
     initial_bankroll: float = 1000.0,
@@ -802,7 +802,7 @@ async def quick_backtest(
 # ============================================================================
 
 
-@router.get("/api/events", response_model=List[EventResponse])
+@router.get("/events", response_model=List[EventResponse])
 async def get_events(limit: int = 50, _: None = Depends(require_admin)):
     from backend.core.scheduler import get_recent_events
 
@@ -819,7 +819,7 @@ async def get_events(limit: int = 50, _: None = Depends(require_admin)):
     ]
 
 
-@router.post("/api/run-scan")
+@router.post("/run-scan")
 async def run_scan(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     from backend.core.scheduler import run_manual_scan, log_event
 
@@ -874,7 +874,7 @@ _ALLOWED_DECISION_SORT = {
 }
 
 
-@router.get("/api/decisions")
+@router.get("/decisions")
 async def list_decisions(
     strategy: str | None = None,
     decision: str | None = None,
@@ -1034,7 +1034,7 @@ async def get_decision(
 # ============================================================================
 
 
-@router.get("/api/signal-config")
+@router.get("/signal-config")
 async def get_signal_config():
     """Return current signal approval settings (no auth required, no secrets)."""
     return {
@@ -1049,7 +1049,7 @@ async def get_signal_config():
 # ============================================================================
 
 
-@router.get("/api/strategies")
+@router.get("/strategies")
 async def list_strategies(
     db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
@@ -1102,7 +1102,7 @@ class StrategyUpdateRequest(BaseModel):
     trading_mode: Optional[str] = None
 
 
-@router.get("/api/strategies/{name}")
+@router.get("/strategies/{name}")
 async def get_strategy(
     name: str,
     db: Session = Depends(get_db),
@@ -1337,7 +1337,7 @@ async def get_mirofish_health():
         }
 
 
-@router.get("/api/system/db-pool-stats")
+@router.get("/system/db-pool-stats")
 async def get_db_pool_stats(_: None = Depends(require_admin)):
     """Get database connection pool statistics."""
     from backend.models.database import engine
@@ -1660,7 +1660,7 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/api/system/connection-limits")
+@router.get("/system/connection-limits")
 async def get_connection_limits(db: Session = Depends(get_db)):
     """Get current connection limits and usage metrics."""
     from backend.api.connection_limits import connection_limiter
