@@ -23,20 +23,11 @@ export default defineConfig({
   ],
   build: {
     chunkSizeWarningLimit: 500,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            if (id.includes('recharts')) {
-              return 'vendor-charts'
-            }
             if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('@tanstack/react-query')) {
               return 'vendor-react'
             }
