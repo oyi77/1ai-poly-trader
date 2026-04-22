@@ -18,7 +18,7 @@ export function useAuth(): AuthState {
   useEffect(() => {
     let cancelled = false
     
-    retryFetch(`${API_BASE}/api/admin/auth-required`)
+    retryFetch(`${API_BASE}/api/v1/admin/auth-required`)
       .then(r => r.json())
       .then((d: { auth_required: boolean }) => {
         if (!cancelled) setAuthRequired(d.auth_required)
@@ -31,7 +31,7 @@ export function useAuth(): AuthState {
   }, [])
 
   const login = async (password: string): Promise<void> => {
-    const res = await retryFetch(`${API_BASE}/api/admin/login`, {
+    const res = await retryFetch(`${API_BASE}/api/v1/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
