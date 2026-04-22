@@ -4,7 +4,6 @@ import type { BotStats } from '../types'
 
 export function useStats() {
   const [wsStats, setWsStats] = useState<BotStats | null>(null)
-  const [wsConnected, setWsConnected] = useState(false)
 
   useEffect(() => {
     const apiKey = localStorage.getItem('adminApiKey') || ''
@@ -16,9 +15,7 @@ export function useStats() {
     const connect = () => {
       ws = new WebSocket(wsUrl)
       
-      ws.onopen = () => {
-        setWsConnected(true)
-      }
+      ws.onopen = () => {}
       
       ws.onmessage = (event) => {
         try {
@@ -31,12 +28,9 @@ export function useStats() {
         }
       }
       
-      ws.onerror = () => {
-        setWsConnected(false)
-      }
+      ws.onerror = () => {}
       
       ws.onclose = () => {
-        setWsConnected(false)
         reconnectTimeout = setTimeout(connect, 3000)
       }
     }
@@ -53,14 +47,13 @@ export function useStats() {
   }, [])
 
   const { data: fallbackData, isLoading, error } = useQuery({
-    queryKey: ['stats-fallback'],
+    queryKey: ['stats-unified'],
     queryFn: async () => {
       const { fetchDashboard } = await import('../api')
       const dashboard = await fetchDashboard()
       return dashboard.stats
     },
-    refetchInterval: wsConnected ? false : 10000,
-    enabled: !wsConnected,
+    refetchInterval: 10000,
   })
 
   const stats = wsStats || fallbackData || ({
