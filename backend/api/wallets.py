@@ -72,7 +72,7 @@ def _row_to_dict(r: WalletConfig) -> dict:
 # ============================================================================
 
 
-@router.get("/wallets/config")
+@router.get("/config")
 async def list_wallet_configs(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
@@ -85,7 +85,7 @@ async def list_wallet_configs(
     }
 
 
-@router.post("/wallets/config")
+@router.post("/config")
 async def create_wallet_config(
     body: ValidatedWalletConfigCreate,
     db: Session = Depends(get_db),
@@ -113,7 +113,7 @@ async def create_wallet_config(
     return _row_to_dict(row)
 
 
-@router.put("/wallets/config/{config_id}")
+@router.put("/config/{config_id}")
 async def update_wallet_config(
     config_id: int,
     body: ValidatedWalletConfigUpdate,
@@ -139,7 +139,7 @@ async def update_wallet_config(
     return _row_to_dict(row)
 
 
-@router.delete("/wallets/config/{config_id}")
+@router.delete("/config/{config_id}")
 async def delete_wallet_config(
     config_id: int,
     db: Session = Depends(get_db),
@@ -160,7 +160,7 @@ async def delete_wallet_config(
 # ============================================================================
 
 
-@router.post("/wallets/create")
+@router.post("/create")
 async def create_wallet(_: None = Depends(require_admin)):
     """Generate a new wallet keypair."""
     try:
@@ -184,7 +184,7 @@ async def create_wallet(_: None = Depends(require_admin)):
 # ============================================================================
 
 
-@router.get("/wallets/active")
+@router.get("/active")
 async def get_active_wallet(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
@@ -194,7 +194,7 @@ async def get_active_wallet(
     return {"active_wallet": state.active_wallet if state else None}
 
 
-@router.put("/wallets/active")
+@router.put("/active")
 async def set_active_wallet(
     body: ActiveWalletSet,
     db: Session = Depends(get_db),
@@ -222,7 +222,7 @@ async def set_active_wallet(
 # ============================================================================
 
 
-@router.get("/wallets/{address}/balance")
+@router.get("/{address}/balance")
 async def get_wallet_balance(
     address: str,
     db: Session = Depends(get_db),
@@ -331,7 +331,7 @@ async def get_wallet_balance(
     }
 
 
-@router.put("/wallets/{address}/balance")
+@router.put("/{address}/balance")
 async def update_wallet_balance(
     address: str,
     body: BalanceUpdate,

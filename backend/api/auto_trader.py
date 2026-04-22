@@ -12,7 +12,7 @@ logger = logging.getLogger("trading_bot")
 router = APIRouter(tags=["auto_trader"])
 
 
-@router.get("/auto-trader/pending")
+@router.get("/pending")
 async def list_pending_approvals(_admin=Depends(require_admin)):
     """List all pending trade approvals."""
     db = SessionLocal()
@@ -41,7 +41,7 @@ async def list_pending_approvals(_admin=Depends(require_admin)):
         db.close()
 
 
-@router.post("/auto-trader/approve/{trade_id}")
+@router.post("/approve/{trade_id}")
 async def approve_pending_trade(trade_id: int, _admin=Depends(require_admin)):
     """Approve a pending trade."""
     db = SessionLocal()
@@ -57,7 +57,7 @@ async def approve_pending_trade(trade_id: int, _admin=Depends(require_admin)):
         db.close()
 
 
-@router.post("/auto-trader/reject/{trade_id}")
+@router.post("/reject/{trade_id}")
 async def reject_pending_trade(trade_id: int, _admin=Depends(require_admin)):
     """Reject a pending trade."""
     db = SessionLocal()
@@ -73,7 +73,7 @@ async def reject_pending_trade(trade_id: int, _admin=Depends(require_admin)):
         db.close()
 
 
-@router.post("/auto-trader/batch-approve")
+@router.post("/batch-approve")
 async def batch_approve_trades(
     trade_ids: list[int],
     _admin=Depends(require_admin),
@@ -102,7 +102,7 @@ async def batch_approve_trades(
         db.close()
 
 
-@router.post("/auto-trader/batch-reject")
+@router.post("/batch-reject")
 async def batch_reject_trades(
     trade_ids: list[int],
     _admin=Depends(require_admin),
@@ -131,7 +131,7 @@ async def batch_reject_trades(
         db.close()
 
 
-@router.post("/auto-trader/clear-all")
+@router.post("/clear-all")
 async def clear_all_approvals(_admin=Depends(require_admin)):
     """Clear (reject) all pending approvals."""
     db = SessionLocal()

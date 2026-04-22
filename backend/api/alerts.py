@@ -10,7 +10,7 @@ from backend.core.alert_manager import AlertManager, get_system_metrics
 router = APIRouter()
 
 
-@router.get("/system/alerts")
+@router.get("/alerts")
 async def get_alerts(
     limit: int = Query(100, ge=1, le=1000),
     alert_type: Optional[str] = None,
@@ -46,14 +46,14 @@ async def get_alerts(
     }
 
 
-@router.get("/system/alerts/stats")
+@router.get("/alerts/stats")
 async def get_alert_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get alert statistics grouped by type and severity."""
     manager = AlertManager(db)
     return manager.get_alert_stats()
 
 
-@router.post("/system/alerts/{alert_id}/resolve")
+@router.post("/alerts/{alert_id}/resolve")
 async def resolve_alert(alert_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Mark an alert as resolved."""
     manager = AlertManager(db)
@@ -65,7 +65,7 @@ async def resolve_alert(alert_id: int, db: Session = Depends(get_db)) -> Dict[st
         return {"success": False, "message": f"Alert {alert_id} not found"}
 
 
-@router.get("/system/metrics")
+@router.get("/metrics")
 async def get_metrics() -> Dict[str, Any]:
     """Get current system metrics (memory, disk, connection pool)."""
     return get_system_metrics()
