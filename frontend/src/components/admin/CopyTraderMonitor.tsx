@@ -39,8 +39,8 @@ export function CopyTraderMonitor() {
 
       {/* Wallet Table */}
       {data.wallet_details.length > 0 ? (
-        <div className="border border-neutral-800">
-          <table className="w-full">
+        <div className="border border-neutral-800 overflow-x-auto">
+          <table className="w-full min-w-[400px]">
             <thead>
               <tr className="border-b border-neutral-800">
                 <th className="text-left text-[9px] text-neutral-500 uppercase tracking-wider px-3 py-2">Wallet</th>

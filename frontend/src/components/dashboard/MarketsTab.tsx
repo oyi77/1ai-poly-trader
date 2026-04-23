@@ -20,7 +20,8 @@ export function MarketsTab() {
         {isLoading ? (
           <div className="px-3 py-6 text-center text-neutral-600 text-[10px]">Loading...</div>
         ) : (
-          <table className="w-full text-[10px] font-mono">
+          <div className="overflow-x-auto">
+          <table className="w-full text-[10px] font-mono min-w-[500px]">
             <thead className="sticky top-0 bg-neutral-950">
               <tr className="border-b border-neutral-800">
                 <th className="text-left px-3 py-1 text-neutral-600 uppercase tracking-wider">Ticker</th>
@@ -43,6 +44,7 @@ export function MarketsTab() {
               {polymarketMarkets.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-neutral-700">No markets</td></tr>}
             </tbody>
           </table>
+          </div>
         )}
       </div>
       <div className="flex items-center gap-4 mt-4 justify-center">

@@ -85,7 +85,7 @@ export function SystemStatus() {
       {/* Mode Toggles */}
       <div className="border border-neutral-800 bg-neutral-900/20 p-4">
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-3">Trading Modes</div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {MODES.map(m => {
             const ready = data[m.credKey]
             const missing = m.missingKey ? data[m.missingKey] : []
@@ -134,7 +134,7 @@ export function SystemStatus() {
       </div>
 
       {/* Bot Status */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="border border-neutral-800 bg-neutral-900/20 p-4">
           <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Active Modes</div>
           <div className="flex gap-1.5 flex-wrap">
@@ -182,7 +182,7 @@ export function SystemStatus() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="border border-neutral-800 bg-neutral-900/20 p-3">
           <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Pending Trades</div>
           <div className="text-lg font-bold text-neutral-200 tabular-nums">{data.pending_trades}</div>
@@ -208,7 +208,7 @@ export function SystemStatus() {
       {/* Feature Flags */}
       <div className="border border-neutral-800 bg-neutral-900/20 p-4">
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-3">Features</div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
             { label: 'Telegram', enabled: data.telegram_configured },
             { label: 'Kalshi', enabled: data.kalshi_enabled },

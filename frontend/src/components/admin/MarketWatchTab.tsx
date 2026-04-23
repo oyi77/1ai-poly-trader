@@ -41,8 +41,8 @@ export function MarketWatchTab() {
       <div className="text-[10px] text-neutral-500 uppercase tracking-wider">
         Market Watch — {total} total
       </div>
-      <div className="border border-neutral-800">
-        <table className="w-full text-[10px] font-mono">
+      <div className="border border-neutral-800 overflow-x-auto">
+        <table className="w-full text-[10px] font-mono min-w-[400px]">
           <thead>
             <tr className="border-b border-neutral-800">
               <th className="text-left px-3 py-1.5 text-neutral-600 uppercase tracking-wider">Ticker</th>
@@ -84,14 +84,14 @@ export function MarketWatchTab() {
       </div>
       <div className="border border-neutral-800 p-3">
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Add Market Watch</div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={ticker}
             onChange={e => setTicker(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
             placeholder="Ticker"
-            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-48 placeholder:text-neutral-700"
+            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-full sm:w-48 placeholder:text-neutral-700"
           />
           <input
             type="text"
@@ -99,7 +99,7 @@ export function MarketWatchTab() {
             onChange={e => setCategory(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
             placeholder="Category (optional)"
-            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-48 placeholder:text-neutral-700"
+            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-full sm:w-48 placeholder:text-neutral-700"
           />
           <button
             onClick={handleAdd}

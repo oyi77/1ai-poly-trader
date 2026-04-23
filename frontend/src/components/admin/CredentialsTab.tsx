@@ -191,7 +191,7 @@ export function CredentialsTab() {
       {/* Mode Switcher */}
       <div className="border border-neutral-800 bg-neutral-900/20 p-4">
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-3">Trading Mode</div>
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
           {(['paper', 'testnet', 'live'] as const).map(mode => {
             const meta = MODE_META[mode]
             const ready = credsReady[mode]
@@ -262,7 +262,7 @@ export function CredentialsTab() {
         <p className="text-[11px] text-neutral-600 mb-3 leading-relaxed">
           Required for proxy wallets (email login). <span className="text-neutral-400 font-mono">sig_type=1</span> returns balance for Polymarket proxy wallets.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={signatureType}
             onChange={e => setSignatureType(parseInt(e.target.value, 10))}

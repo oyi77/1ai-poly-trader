@@ -148,14 +148,14 @@ export default function Dashboard() {
         <motion.header
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 border-b border-neutral-800 px-3 py-1.5 flex items-center gap-4 relative"
+          className="shrink-0 border-b border-neutral-800 px-3 py-1.5 flex items-center gap-4 relative overflow-x-auto scrollbar-none"
         >
           <div className="scan-line" />
           <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
             <Link to="/admin" className="text-[9px] text-neutral-600 hover:text-green-500 uppercase tracking-wider transition-colors mr-1">Admin</Link>
             <h1 className="text-xs font-bold text-neutral-100 uppercase tracking-widest whitespace-nowrap font-mono">PolyEdge</h1>
-            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border ${unifiedStats.isRunning ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-neutral-800 text-neutral-500 border-neutral-700'}`}>
-              {unifiedStats.isRunning ? 'Live' : 'Idle'}
+            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase border ${unifiedStats.isRunning ? 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20' : 'bg-neutral-800 text-neutral-500 border-neutral-700'}`}>
+              {unifiedStats.isRunning ? 'Active' : 'Offline'}
             </span>
             {(() => {
               const mode = unifiedStats.mode || 'paper'
@@ -179,7 +179,7 @@ export default function Dashboard() {
           )}
 
           <div className="flex-1" />
-          <StatsCards />
+          <div className="hidden lg:block"><StatsCards /></div>
 
           <div className="flex items-center gap-2 shrink-0">
             {authRequired && (
@@ -199,16 +199,21 @@ export default function Dashboard() {
           </AnimatePresence>
         </motion.header>
 
+        {/* COMPACT STATS — mobile only */}
+        <div className="lg:hidden shrink-0 border-b border-neutral-800 px-3 py-1 flex items-center gap-3 overflow-x-auto scrollbar-none">
+          <StatsCards />
+        </div>
+
         {/* MODE SELECTOR */}
         <ModeSelector />
 
         {/* TAB BAR */}
-        <div className="shrink-0 border-b border-neutral-800 px-3 flex items-center gap-0">
+        <div className="shrink-0 border-b border-neutral-800 px-3 flex items-center gap-0 overflow-x-auto scrollbar-none">
           {DASHBOARD_TABS.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 text-[10px] uppercase tracking-wider border-b-2 transition-colors ${
+              className={`px-4 py-1.5 text-[10px] uppercase tracking-wider border-b-2 whitespace-nowrap transition-colors ${
                 activeTab === tab
                   ? 'text-green-500 border-green-500'
                   : 'text-neutral-500 border-transparent hover:text-neutral-300'
@@ -248,11 +253,13 @@ export default function Dashboard() {
         </div>
 
         {/* FOOTER */}
-        <footer className="shrink-0 border-t border-neutral-800 px-3 py-0.5 flex items-center justify-between">
-          <span className="text-[10px] text-neutral-700 font-mono">Binance/Coinbase | Open-Meteo | Polymarket + Kalshi</span>
-          <div className="flex items-center gap-3">
+        <footer className="shrink-0 border-t border-neutral-800 px-3 py-0.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 overflow-hidden">
+          <span className="text-[10px] text-neutral-700 font-mono whitespace-nowrap hidden sm:inline">Binance/Coinbase | Open-Meteo | Polymarket + Kalshi</span>
+          <span className="text-[10px] text-neutral-700 font-mono whitespace-nowrap sm:hidden">Binance · Open-Meteo · Polymarket</span>
+          <div className="flex flex-wrap items-center gap-3">
             <RefreshBar interval={10000} />
-            <span className="text-[10px] text-neutral-700 font-mono">Copy · Weather · Kalshi · BTC Oracle · BTC 5m</span>
+            <span className="text-[10px] text-neutral-700 font-mono whitespace-nowrap hidden sm:inline">Copy · Weather · Kalshi · BTC Oracle · BTC 5m</span>
+            <span className="text-[10px] text-neutral-700 font-mono whitespace-nowrap sm:hidden">Copy · Weather · BTC</span>
             <div className="flex items-center gap-1">
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${
                 wsStatus === 'connected' ? 'bg-green-500' : 

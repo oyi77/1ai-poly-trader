@@ -98,7 +98,7 @@ export function PerformanceTab() {
       {/* Key Metrics Grid */}
       <div>
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Key Metrics</div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
            {[
             { label: 'Bankroll', value: `$${bankroll.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, color: 'text-neutral-200' },
             { label: 'Total PNL', value: `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, color: pnl >= 0 ? 'text-green-500' : 'text-red-500' },

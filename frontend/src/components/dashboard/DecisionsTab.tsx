@@ -45,8 +45,8 @@ export function DecisionsTab() {
         <div className="flex-1" />
         <span className="text-[10px] text-neutral-600 tabular-nums">{filtered.length} decisions</span>
       </div>
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <table className="w-full text-[10px] font-mono">
+      <div className="flex-1 overflow-auto min-h-0">
+        <table className="w-full text-[10px] font-mono min-w-[500px]">
           <thead className="sticky top-0 bg-neutral-950">
             <tr className="border-b border-neutral-800">
               <th className="text-left px-2 py-1 text-neutral-600 uppercase tracking-wider">Time</th>

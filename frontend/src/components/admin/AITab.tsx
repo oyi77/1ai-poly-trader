@@ -159,7 +159,7 @@ export function AITab() {
 
         {aiStatus?.enabled ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="border border-neutral-800 p-2">
                 <div className="text-[8px] text-neutral-600 uppercase">Provider</div>
                 <div className="text-[11px] text-neutral-200 font-mono">{aiStatus.provider}</div>
@@ -317,7 +317,8 @@ export function AITab() {
             <div className="text-[11px] text-neutral-600 leading-relaxed mb-4">{result.status}</div>
 
             <div className="text-[11px] text-neutral-400 mb-2">Parameter Adjustments</div>
-            <table className="w-full text-[10px] font-mono">
+            <div className="overflow-x-auto">
+            <table className="w-full text-[10px] font-mono min-w-[300px]">
               <thead>
                 <tr className="border-b border-neutral-800">
                   <th className="text-left px-2 py-1 text-neutral-600">Parameter</th>
@@ -341,6 +342,7 @@ export function AITab() {
                 })}
               </tbody>
             </table>
+            </div>
 
             <div className="text-[11px] text-neutral-400 mb-2 mt-4">Analysis</div>
             {result.analysis && Object.entries(result.analysis).map(([k, v]) => (

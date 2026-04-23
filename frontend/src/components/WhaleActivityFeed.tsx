@@ -74,11 +74,11 @@ export default function WhaleActivityFeed() {
           {items.map(it => (
             <li
               key={it.id}
-              className="flex items-center justify-between bg-gray-900/60 rounded px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-gray-900/60 rounded px-3 py-2 text-xs"
             >
               <code className="text-neutral-400 font-mono">{it.wallet.slice(0, 10)}…</code>
               {it.market_id && (
-                <span className="text-neutral-500 truncate max-w-[30%]">{it.market_id}</span>
+                <span className="text-neutral-500 truncate max-w-[50%]">{it.market_id}</span>
               )}
               <span className="text-green-400 font-semibold">${(it.size_usd ?? 0).toLocaleString()}</span>
               {it.observed_at && (

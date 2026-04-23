@@ -6,7 +6,7 @@ import { ProfitCurveChart } from './ProfitCurveChart'
 import { SelfImprovementMetrics } from './SelfImprovementMetrics'
 import { SystemEfficiencyPanel } from './SystemEfficiencyPanel'
 import { WinningTradesPreview } from './WinningTradesPreview'
-import { adminApi } from '../../api'
+import { adminApi, api } from '../../api'
 
 export interface OverviewTabProps {
   data: any
@@ -42,6 +42,17 @@ export function OverviewTab({
       } catch (error) {
         return []
       }
+    },
+    refetchInterval: 30000,
+  })
+
+  const { data: healthData } = useQuery({
+    queryKey: ['health-detailed'],
+    queryFn: async () => {
+      try {
+        const response = await api.get('/health/detailed')
+        return response.data
+      } catch { return null }
     },
     refetchInterval: 30000,
   })
@@ -89,7 +100,7 @@ export function OverviewTab({
 
   const profitCurveData = equityCurve.map((point: any) => ({
     timestamp: point.timestamp,
-    cumulative_pnl: point.equity - (filteredStats.bankroll - filteredStats.pnl),
+    cumulative_pnl: point.pnl,
   }))
 
   // Count active strategies from data
@@ -104,14 +115,14 @@ export function OverviewTab({
     proposalsGenerated,
     proposalsApproved,
     performanceGain: proposalsApproved > 0 ? ((proposalsApproved / proposalsGenerated) * 100) : 0,
-    lastEvolution: lastProposal?.created_at || new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    lastEvolution: lastProposal?.created_at || null,
   }
 
   const efficiencyData = {
-    avgDecisionTime: 0,
+    avgDecisionTime: healthData?.avg_signal_time_ms ? healthData.avg_signal_time_ms / 1000 : -1,
     signalsProcessed24h: activeSignals?.length || 0,
     tradesExecuted24h: trades24h.length,
-    uptime: 0,
+    uptime: healthData?.uptime_seconds ? Math.min(healthData.uptime_seconds / (30 * 24 * 3600) * 100, 100) : -1,
   }
 
   return (
@@ -189,7 +200,7 @@ export function OverviewTab({
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

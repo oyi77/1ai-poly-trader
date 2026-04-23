@@ -42,8 +42,8 @@ export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreview
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-[10px] font-mono">
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-[10px] font-mono min-w-[400px]">
           <thead className="sticky top-0 bg-neutral-950">
             <tr className="border-b border-neutral-800">
               <th className="px-3 py-1.5 text-left text-neutral-600 uppercase tracking-wider font-normal">Market</th>
@@ -74,7 +74,7 @@ export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreview
                   {(trade.entry_price * 100).toFixed(1)}¢
                 </td>
                 <td className="px-3 py-2 text-right text-neutral-500 tabular-nums">
-                  {(trade.exit_price * 100).toFixed(1)}¢
+                  {trade.exit_price != null ? `${(trade.exit_price * 100).toFixed(1)}¢` : '—'}
                 </td>
                 <td className="px-3 py-2 text-right font-semibold text-green-500 tabular-nums">
                   +${trade.pnl.toFixed(2)}

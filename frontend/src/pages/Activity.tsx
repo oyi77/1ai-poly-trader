@@ -5,7 +5,7 @@ export default function Activity() {
   return (
     <div className="min-h-screen bg-black text-neutral-100">
       <NavBar title="Activity Log" />
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-neutral-100 mb-2">Activity Log</h1>
           <p className="text-sm text-neutral-400">

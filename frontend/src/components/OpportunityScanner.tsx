@@ -74,7 +74,7 @@ export default function OpportunityScanner() {
           {items.map((op, i) => (
             <li
               key={i}
-              className="flex items-center justify-between bg-gray-900/60 rounded px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-gray-900/60 rounded px-3 py-2 text-xs"
             >
               <span className="text-neutral-200 font-medium truncate max-w-[50%]">{op.market_id}</span>
               <span className="text-neutral-500 uppercase">{op.kind}</span>

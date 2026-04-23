@@ -416,6 +416,15 @@ select option {
   color: #e5e5e5;
 }
 
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Refresh countdown bar */
 .refresh-bar {
   height: 2px;

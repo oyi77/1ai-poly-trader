@@ -350,7 +350,7 @@ function ImpactMetrics({ impact }: ImpactMetricsProps) {
   return (
     <div className="mb-4 p-4 bg-neutral-950 border border-neutral-800 rounded">
       <div className="text-sm text-neutral-400 mb-3">Impact Metrics:</div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {Object.entries(impact).map(([key, value]) => (
           <div key={key}>
             <div className="text-xs text-neutral-500 mb-1">

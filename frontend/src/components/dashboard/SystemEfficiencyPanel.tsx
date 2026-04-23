@@ -25,7 +25,7 @@ export function SystemEfficiencyPanel({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -34,7 +34,7 @@ export function SystemEfficiencyPanel({
       >
         <div className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1">Avg Decision Time</div>
         <div className="text-2xl font-bold text-cyan-400 tabular-nums">
-          {formatDecisionTime(avgDecisionTime)}
+          {avgDecisionTime < 0 ? '—' : formatDecisionTime(avgDecisionTime)}
         </div>
         <div className="text-[10px] text-neutral-600 mt-1">Per signal</div>
       </motion.div>
@@ -68,8 +68,8 @@ export function SystemEfficiencyPanel({
         className="border border-neutral-800 bg-neutral-900/30 p-3"
       >
         <div className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1">System Uptime</div>
-        <div className={`text-2xl font-bold tabular-nums ${getUptimeColor(uptime)}`}>
-          {uptime.toFixed(1)}%
+        <div className={`text-2xl font-bold tabular-nums ${uptime < 0 ? 'text-neutral-600' : getUptimeColor(uptime)}`}>
+          {uptime < 0 ? '—' : `${uptime.toFixed(1)}%`}
         </div>
         <div className="text-[10px] text-neutral-600 mt-1">Last 30 days</div>
       </motion.div>

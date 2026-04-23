@@ -46,7 +46,7 @@ export function ActivityTimeline() {
 
   return (
     <div className="flex flex-col h-full" data-testid="activity-timeline">
-      <div className="shrink-0 border-b border-neutral-800 p-3 flex items-center gap-4">
+      <div className="shrink-0 border-b border-neutral-800 p-3 flex flex-wrap items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2">
           <span className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-400'}`} />
           <span className="text-xs text-neutral-500 uppercase tracking-wider">
@@ -101,9 +101,9 @@ export function ActivityTimeline() {
                 key={activity.id || idx}
                 className="bg-neutral-900 border border-neutral-800 rounded p-3 hover:border-neutral-700 transition-colors"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-2 sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
                       <span className="text-[10px] text-neutral-500 font-mono tabular-nums">
                         {formatTimestamp(activity.timestamp)}
                       </span>

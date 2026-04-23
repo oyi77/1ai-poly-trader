@@ -114,8 +114,8 @@ export function WalletConfigTab() {
       <div className="text-[10px] text-neutral-500 uppercase tracking-wider">
         Wallet Config — {total} total
       </div>
-      <div className="border border-neutral-800">
-        <table className="w-full text-[10px] font-mono">
+      <div className="border border-neutral-800 overflow-x-auto">
+        <table className="w-full text-[10px] font-mono min-w-[400px]">
           <thead>
             <tr className="border-b border-neutral-800">
               <th className="text-left px-3 py-1.5 text-neutral-600 uppercase tracking-wider">Address</th>
@@ -164,14 +164,14 @@ export function WalletConfigTab() {
       {/* Track Existing Wallet */}
       <div className="border border-neutral-800 p-3">
         <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Track Existing Wallet</div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={address}
             onChange={e => setAddress(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleTrack()}
             placeholder="0x address"
-            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-64 placeholder:text-neutral-700"
+            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-full sm:w-64 placeholder:text-neutral-700"
           />
           <input
             type="text"
@@ -179,7 +179,7 @@ export function WalletConfigTab() {
             onChange={e => setPseudonym(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleTrack()}
             placeholder="Pseudonym (optional)"
-            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-48 placeholder:text-neutral-700"
+            className="bg-transparent border border-neutral-800 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:border-neutral-600 focus:outline-none w-full sm:w-48 placeholder:text-neutral-700"
           />
           <button
             onClick={handleTrack}

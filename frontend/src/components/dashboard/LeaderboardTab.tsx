@@ -165,11 +165,11 @@ export function LeaderboardTab() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1 overflow-auto min-h-0">
         {isLoading ? (
           <div className="px-3 py-12 text-center text-neutral-700 text-[10px]">Loading leaderboard...</div>
         ) : (
-          <table className="w-full text-[10px] font-mono">
+          <table className="w-full text-[10px] font-mono min-w-[400px]">
             <thead className="sticky top-0 bg-neutral-950">
               <tr className="border-b border-neutral-800">
                 <th className="text-left px-3 py-1.5 text-neutral-600 uppercase tracking-wider w-10">#</th>

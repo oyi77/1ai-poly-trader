@@ -140,15 +140,15 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-black text-neutral-200 font-mono">
       {/* Nav */}
-      <nav className="border-b border-neutral-800 px-6 py-3 flex items-center justify-between sticky top-0 bg-black/95 z-10 backdrop-blur">
-        <span className="text-xs font-bold text-neutral-100 uppercase tracking-[0.3em]">PolyEdge</span>
-        <div className="flex items-center gap-4">
+      <nav className="border-b border-neutral-800 px-4 sm:px-6 py-3 flex items-center gap-3 sticky top-0 bg-black/95 z-10 backdrop-blur overflow-x-auto scrollbar-none">
+        <span className="text-xs font-bold text-neutral-100 uppercase tracking-[0.3em] shrink-0">PolyEdge</span>
+        <div className="flex items-center gap-3 sm:gap-4">
           {navLinks.map(l => (
             l.external ? (
               <a
                 key={l.to}
                 href={l.to}
-                className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors"
+                className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap"
               >
                 {l.label}
               </a>
@@ -156,7 +156,7 @@ export default function Landing() {
               <Link
                 key={l.to}
                 to={l.to}
-                className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors"
+                className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap"
               >
                 {l.label}
               </Link>
@@ -356,27 +356,27 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-800 px-6 py-3 flex items-center justify-between">
-        <span className="text-[10px] text-neutral-700">
+      <footer className="border-t border-neutral-800 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <span className="text-[10px] text-neutral-700 whitespace-nowrap">
           Polymarket · Kalshi · Binance · Coinbase · Open-Meteo
         </span>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 overflow-x-auto scrollbar-none">
           <div className="flex items-center gap-3">
             {navLinks.map(l => (
               l.external ? (
-                <a key={l.to} href={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors">
+                <a key={l.to} href={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors whitespace-nowrap">
                   {l.label}
                 </a>
               ) : (
-                <Link key={l.to} to={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors">
+                <Link key={l.to} to={l.to} className="text-[9px] text-neutral-700 hover:text-neutral-500 uppercase transition-colors whitespace-nowrap">
                   {l.label}
                 </Link>
               )
             ))}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            <span className="text-[10px] text-neutral-600">v3.0.0</span>
+            <span className="text-[10px] text-neutral-600 whitespace-nowrap">v3.0.0</span>
           </div>
         </div>
       </footer>

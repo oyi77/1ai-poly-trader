@@ -65,7 +65,7 @@ export function RiskTab() {
       {grouped.map(({ section, fields }) => (
         <div key={section} className="border border-neutral-800 bg-neutral-900/20 p-4">
           <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-3">{section} Risk</div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {fields.map(f => (
               <div key={f.key}>
                 <div className="text-[10px] text-neutral-400 mb-1">{f.label}</div>
