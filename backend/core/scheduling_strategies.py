@@ -292,12 +292,20 @@ async def _queue_for_approval(
 
 
 async def scan_and_trade_job(mode: str):
-    """Run BTC Oracle strategy. Runs every minute."""
+    """Run BTC Oracle strategy with General Scanner fallback. Runs every minute.
+
+    Priority:
+    1. BTC Oracle — short-duration BTC binary markets
+    2. General Scanner (fallback) — AI-powered edge detection across all markets
+
+    The general scanner is called when BTC Oracle finds no actionable signals,
+    which is common since short-duration BTC markets are rare on Polymarket.
+    """
     from backend.core.scheduler import log_event
     from backend.strategies.btc_oracle import BtcOracleStrategy
     from backend.strategies.base import StrategyContext
 
-    log_event("info", f"[{mode.upper()}] Running BTC Oracle strategy (replaces broken momentum)...")
+    log_event("info", f"[{mode.upper()}] Running market scan...")
 
     db = SessionLocal()
     try:
@@ -319,6 +327,7 @@ async def scan_and_trade_job(mode: str):
             mode=mode,
         )
 
+        # Phase 1: Try BTC Oracle
         strategy = BtcOracleStrategy()
         result = await strategy.run(ctx)
 
@@ -339,14 +348,71 @@ async def scan_and_trade_job(mode: str):
             except Exception as exec_err:
                 log_event("error", f"[{mode.upper()}] BTC Oracle execution failed: {exec_err}")
         else:
-            log_event("info", f"[{mode.upper()}] BTC Oracle: no actionable signals")
+            log_event("info", f"[{mode.upper()}] BTC Oracle: no actionable signals — trying general scanner")
+
+            # Phase 2: Fallback to General Scanner when BTC Oracle finds nothing
+            try:
+                from backend.models.database import StrategyConfig
+
+                gs_config = db.query(StrategyConfig).filter(
+                    StrategyConfig.strategy_name == "general_scanner",
+                    StrategyConfig.enabled.is_(True),
+                ).first()
+
+                if gs_config and settings.AI_ENABLED:
+                    import json as _json
+
+                    gs_params = {}
+                    if gs_config.params:
+                        try:
+                            gs_params = _json.loads(gs_config.params)
+                        except Exception:
+                            pass
+
+                    gs_ctx = StrategyContext(
+                        db=db,
+                        clob=None,
+                        settings=settings,
+                        logger=logger,
+                        params=gs_params,
+                        mode=mode,
+                    )
+
+                    from backend.strategies.general_market_scanner import GeneralMarketScanner
+
+                    gs = GeneralMarketScanner()
+                    gs_result = await gs.run(gs_ctx)
+
+                    gs_buy = [
+                        d
+                        for d in getattr(gs_result, "decisions", [])
+                        if isinstance(d, dict)
+                        and d.get("decision") == "BUY"
+                        and d.get("market_ticker")
+                    ]
+
+                    if gs_buy:
+                        from backend.core.strategy_executor import execute_decisions
+
+                        executed = await execute_decisions(gs_buy, "general_scanner", mode=mode, db=db)
+                        log_event("success", f"[{mode.upper()}] General Scanner: executed {len(executed)} trade(s)")
+                    else:
+                        log_event("info", f"[{mode.upper()}] General Scanner: no actionable signals (errors={len(gs_result.errors)})")
+                else:
+                    if not gs_config:
+                        log_event("info", f"[{mode.upper()}] General Scanner disabled in config")
+                    if not settings.AI_ENABLED:
+                        log_event("info", f"[{mode.upper()}] AI_ENABLED=false, skipping general scanner")
+            except Exception as gs_err:
+                log_event("error", f"[{mode.upper()}] General Scanner fallback error: {gs_err}")
+                logger.exception(f"General Scanner fallback error mode={mode}")
 
         state.last_run = datetime.now(timezone.utc)
         db.commit()
 
     except Exception as e:
-        log_event("error", f"[{mode.upper()}] BTC Oracle error: {str(e)}")
-        logger.exception(f"Error in scan_and_trade_job (btc_oracle) mode={mode}")
+        log_event("error", f"[{mode.upper()}] Market scan error: {str(e)}")
+        logger.exception(f"Error in scan_and_trade_job mode={mode}")
     finally:
         db.close()
 
@@ -836,20 +902,15 @@ async def strategy_cycle_job(strategy_name: str, mode: str = "paper") -> None:
             logger.info(
                 f"[{strategy_name}] effective_mode=live, will execute in BOTH paper+live modes"
             )
-        elif effective_mode == "paper":
-            execution_modes = ["paper"]
+        elif effective_mode in ("paper", "testnet"):
+            execution_modes = [effective_mode]
             logger.info(
-                f"[{strategy_name}] effective_mode=paper, will execute in paper mode only"
-            )
-        elif effective_mode == "testnet":
-            execution_modes = ["testnet"]
-            logger.info(
-                f"[{strategy_name}] effective_mode=testnet, will execute in testnet mode only"
+                f"[{strategy_name}] effective_mode={effective_mode}, will execute in {effective_mode} mode only"
             )
         else:
-            execution_modes = [_settings.TRADING_MODE]
-            logger.warning(
-                f"[{strategy_name}] Unknown effective_mode={effective_mode}, falling back to {_settings.TRADING_MODE}"
+            execution_modes = sorted(_settings.active_modes_set)
+            logger.info(
+                f"[{strategy_name}] No specific mode, will execute in all active modes: {execution_modes}"
             )
 
         for mode in execution_modes:
@@ -894,29 +955,9 @@ async def strategy_cycle_job(strategy_name: str, mode: str = "paper") -> None:
 
 
 async def sync_testnet_wallet():
-    """Reconcile testnet wallet every 60 seconds."""
-    db = SessionLocal()
-    try:
-        from backend.core.wallet_reconciliation import WalletReconciler
-        from backend.data.polymarket_clob import clob_from_settings
-
-        clob = clob_from_settings(mode="testnet")
-        reconciler = WalletReconciler(clob, db, "testnet")
-        result = await reconciler.full_reconciliation()
-
-        state = db.query(BotState).first()
-        if state:
-            state.last_sync_at = result.last_sync_at
-            db.commit()
-
-        logger.info(
-            f"Testnet wallet sync: imported={result.imported_count}, "
-            f"updated={result.updated_count}, closed={result.closed_count}"
-        )
-    except Exception as e:
-        logger.error(f"Testnet wallet sync failed: {e}", exc_info=True)
-    finally:
-        db.close()
+    """Testnet wallet sync — skipped since blockchain wallet is live-only."""
+    logger.debug("Testnet wallet sync skipped (blockchain wallet is live-only)")
+    pass
 
 
 async def sync_live_wallet():

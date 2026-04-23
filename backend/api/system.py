@@ -108,6 +108,8 @@ async def get_stats(
     
     # Use provided mode or current mode as primary
     effective_mode = mode or settings.TRADING_MODE
+    if effective_mode == "all":
+        effective_mode = settings.TRADING_MODE
     if effective_mode == "paper":
         state = paper_state
     elif effective_mode == "testnet":
@@ -167,11 +169,12 @@ async def get_stats(
 
     sync_metadata = None
     
-    if effective_mode in ("testnet", "live"):
+    # Always query live-mode trades from actual DB when aggregating all modes
+    if effective_mode in ("testnet", "live") or mode is None:
         live_settled_trades = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == effective_mode,
+                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
                 Trade.settled
             )
             .scalar()
@@ -180,7 +183,7 @@ async def get_stats(
         live_wins = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == effective_mode,
+                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
                 Trade.settled,
                 Trade.pnl > 0
             )
@@ -190,7 +193,7 @@ async def get_stats(
         live_pnl = (
             db.query(func.sum(Trade.pnl))
             .filter(
-                Trade.trading_mode == effective_mode,
+                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
                 Trade.settled
             )
             .scalar()
@@ -200,7 +203,7 @@ async def get_stats(
         live_open_trades_count = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == effective_mode,
+                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
                 Trade.settled == False
             )
             .scalar()
@@ -209,15 +212,20 @@ async def get_stats(
         
         live_trades = live_settled_trades + live_open_trades_count
         
+        live_bankroll = (
+            live_state.bankroll if live_state and live_state.bankroll is not None else settings.INITIAL_BANKROLL
+        )
+        live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
+        
         orphaned_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == effective_mode, Trade.result == "orphaned")
+            .filter(Trade.trading_mode == (effective_mode if mode is not None else "live"), Trade.result == "orphaned")
             .scalar()
             or 0
         )
         external_imports_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == effective_mode, Trade.source == "external")
+            .filter(Trade.trading_mode == (effective_mode if mode is not None else "live"), Trade.source == "external")
             .scalar()
             or 0
         )
@@ -235,7 +243,7 @@ async def get_stats(
             )
         
         live_bankroll = (
-            state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+            live_state.bankroll if live_state and live_state.bankroll is not None else settings.INITIAL_BANKROLL
         )
         live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
     else:
@@ -252,8 +260,7 @@ async def get_stats(
         .filter(
             Trade.trading_mode == "testnet",
             Trade.settled,
-            Trade.result.in_(["win", "loss"]),
-            Trade.source == "bot"
+            Trade.result.in_(["win", "loss", "closed"])
         )
         .scalar()
         or 0
@@ -263,8 +270,7 @@ async def get_stats(
         .filter(
             Trade.trading_mode == "testnet",
             Trade.settled,
-            Trade.pnl > 0,
-            Trade.source == "bot"
+            Trade.pnl > 0
         )
         .scalar()
         or 0
@@ -273,8 +279,7 @@ async def get_stats(
         db.query(func.sum(Trade.pnl))
         .filter(
             Trade.trading_mode == "testnet",
-            Trade.settled,
-            Trade.source == "bot"
+            Trade.settled
         )
         .scalar()
         or 0.0
@@ -284,8 +289,7 @@ async def get_stats(
         db.query(func.count(Trade.id))
         .filter(
             Trade.trading_mode == "testnet",
-            Trade.settled == False,
-            Trade.source == "bot"
+            Trade.settled == False
         )
         .scalar()
         or 0
@@ -340,13 +344,11 @@ async def get_stats(
     position_cost = mode_unrealized["position_cost"]
     position_market_value = mode_unrealized["position_market_value"]
     
-    # Query settled trades for effective_mode (bot-executed only)
     settled_trades_count = (
         db.query(func.count(Trade.id))
         .filter(
             Trade.settled,
             Trade.trading_mode == effective_mode,
-            Trade.source == "bot"
         )
         .scalar()
         or 0
@@ -357,7 +359,6 @@ async def get_stats(
             Trade.settled,
             Trade.trading_mode == effective_mode,
             Trade.pnl > 0,
-            Trade.source == "bot"
         )
         .scalar()
         or 0
@@ -395,7 +396,31 @@ async def get_stats(
             live_pnl = db_pnl
             pnl_source = "recalculated"
 
-    if effective_mode == "paper":
+    if mode is None:
+        # All-mode view uses live external trades (deduplicated from Polymarket API)
+        # Do NOT sum across modes — trades are consolidated into 'live' mode only
+        display_bankroll = live_bankroll
+        display_trades = live_trades
+        display_wins = live_wins
+        display_win_rate = live_win_rate
+        # Total P&L = settled P&L + unrealized P&L (matches Polymarket All-Time P&L)
+        display_pnl = live_pnl + live_unrealized["unrealized_pnl"]
+        settled_trades_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.settled, Trade.trading_mode == "live")
+            .scalar() or 0
+        )
+        settled_wins_count = (
+            db.query(func.count(Trade.id))
+            .filter(Trade.settled, Trade.trading_mode == "live", Trade.pnl > 0)
+            .scalar() or 0
+        )
+        open_trades_count = live_unrealized["open_trades"]
+        open_exposure_amount = live_unrealized["open_exposure"]
+        unrealized_pnl = live_unrealized["unrealized_pnl"]
+        position_cost = live_unrealized["position_cost"]
+        position_market_value = live_unrealized["position_market_value"]
+    elif effective_mode == "paper":
         display_bankroll = paper_bankroll
         display_trades = paper_trades
         display_wins = paper_wins
@@ -412,7 +437,7 @@ async def get_stats(
         display_trades = live_trades
         display_wins = live_wins
         display_win_rate = live_win_rate
-        display_pnl = live_pnl
+        display_pnl = live_pnl + live_unrealized["unrealized_pnl"]
 
     return BotStats(
         bankroll=display_bankroll,
@@ -433,7 +458,7 @@ async def get_stats(
         testnet_trades=testnet_trades,
         testnet_wins=testnet_wins,
         testnet_win_rate=testnet_win_rate,
-        mode=effective_mode,
+        mode="all" if mode is None else effective_mode,
         pnl_source=pnl_source,
         paper={
             "pnl": paper_pnl,
@@ -594,10 +619,14 @@ async def toggle_ai(db: Session = Depends(get_db), _: None = Depends(require_adm
 
 
 @router.post("/bot/start")
-async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def start_bot(
+    body: dict | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     from backend.core.scheduler import start_scheduler, log_event, is_scheduler_running
 
-    mode = settings.TRADING_MODE
+    mode = (body or {}).get("mode", settings.TRADING_MODE)
     state = db.query(BotState).filter_by(mode=mode).first()
     if state and state.is_running:
         raise HTTPException(
@@ -611,15 +640,19 @@ async def start_bot(db: Session = Depends(get_db), _: None = Depends(require_adm
     if not is_scheduler_running():
         start_scheduler()
 
-    log_event("success", "Trading bot started")
-    return {"status": "started", "is_running": True}
+    log_event("success", f"Trading bot started for mode={mode}")
+    return {"status": "started", "is_running": True, "mode": mode}
 
 
 @router.post("/bot/stop")
-async def stop_bot(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def stop_bot(
+    body: dict | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     from backend.core.scheduler import log_event
 
-    mode = settings.TRADING_MODE
+    mode = (body or {}).get("mode", settings.TRADING_MODE)
     state = db.query(BotState).filter_by(mode=mode).first()
     if state and not state.is_running:
         raise HTTPException(
@@ -630,8 +663,8 @@ async def stop_bot(db: Session = Depends(get_db), _: None = Depends(require_admi
         state.is_running = False
         db.commit()
 
-    log_event("info", "Trading bot paused")
-    return {"status": "stopped", "is_running": False}
+    log_event("info", f"Trading bot paused for mode={mode}")
+    return {"status": "stopped", "is_running": False, "mode": mode}
 
 
 class ResetRequest(BaseModel):
@@ -1669,4 +1702,36 @@ async def get_connection_limits(db: Session = Depends(get_db)):
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "connection_limits": metrics,
+    }
+
+
+@router.post("/redeem")
+async def redeem_positions(
+    _: None = Depends(require_admin),
+    dry_run: bool = Query(True, description="If true, only report what would be redeemed"),
+):
+    from backend.core.auto_redeem import redeem_all_redeemable
+    wallet = settings.POLYMARKET_BUILDER_ADDRESS or ""
+    private_key = settings.POLYMARKET_PRIVATE_KEY or ""
+    if not wallet or not private_key:
+        raise HTTPException(status_code=500, detail="POLYMARKET_BUILDER_ADDRESS or POLYMARKET_PRIVATE_KEY not set")
+    result = redeem_all_redeemable(
+        wallet=wallet,
+        private_key=private_key,
+        builder_api_key=settings.POLYMARKET_BUILDER_API_KEY,
+        builder_secret=settings.POLYMARKET_BUILDER_SECRET,
+        builder_passphrase=settings.POLYMARKET_BUILDER_PASSPHRASE,
+        dry_run=dry_run,
+    )
+    return {
+        "status": "dry_run" if dry_run else "executed",
+        "attempted": result.total_attempted,
+        "redeemed": result.total_redeemed,
+        "failed": result.total_failed,
+        "usdc_recovered": result.total_usdc_recovered,
+        "errors": result.errors,
+        "results": [
+            {"condition_id": r.condition_id, "success": r.success, "tx_hash": r.tx_hash, "error": r.error}
+            for r in result.results
+        ],
     }

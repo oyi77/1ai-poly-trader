@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { updateCredentials, changeAdminPassword, fetchSystemStatus, switchTradingMode } from '../../api'
+import { updateCredentials, changeAdminPassword, fetchSystemStatus, toggleTradingMode } from '../../api'
 import { useAuth } from '../../hooks/useAuth'
 
 const MODE_META = {
@@ -139,10 +139,10 @@ export function CredentialsTab() {
     }
   }
 
-  const handleSwitchMode = async (mode: 'paper' | 'testnet' | 'live') => {
+  const handleToggleMode = async (mode: 'paper' | 'testnet' | 'live', active: boolean) => {
     setSwitchingMode(true)
     try {
-      await switchTradingMode(mode)
+      await toggleTradingMode(mode, active)
       refetchStatus()
       qc.invalidateQueries({ queryKey: ['admin-system'] })
     } finally {
@@ -168,7 +168,7 @@ export function CredentialsTab() {
     { label: 'Relayer Address',   hint: '0x address for relayer auth', value: relayerAddress, setter: setRelayerAddress },
   ]
 
-  const currentMode = sysStatus?.trading_mode ?? 'paper'
+  const activeModes = new Set(sysStatus?.active_modes ?? [sysStatus?.trading_mode ?? 'paper'])
   const sigTypeLabel = sysStatus?.signature_type_label ?? 'EOA (direct wallet)'
   const builderConfigured = sysStatus?.builder_configured ?? false
   const credsReady = {
@@ -195,13 +195,13 @@ export function CredentialsTab() {
           {(['paper', 'testnet', 'live'] as const).map(mode => {
             const meta = MODE_META[mode]
             const ready = credsReady[mode]
-            const active = currentMode === mode
+            const active = activeModes.has(mode)
             const miss = mode !== 'paper' ? missing[mode] : []
             return (
               <button
                 key={mode}
-                disabled={switchingMode || active}
-                onClick={() => handleSwitchMode(mode)}
+                disabled={switchingMode || (active && activeModes.size <= 1)}
+                onClick={() => handleToggleMode(mode, !active)}
                 title={miss.length > 0 ? `Missing: ${miss.join(', ')}` : meta.desc}
                 className={`relative p-3 border text-left transition-colors disabled:cursor-not-allowed ${
                   active

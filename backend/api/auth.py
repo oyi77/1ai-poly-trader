@@ -321,8 +321,9 @@ async def change_admin_password(
 # ============================================================================
 
 
-class ModeSwitch(BaseModel):
+class ModeToggle(BaseModel):
     mode: str
+    active: bool
 
 
 class CredentialsUpdate(BaseModel):
@@ -339,44 +340,52 @@ class CredentialsUpdate(BaseModel):
 
 
 @router.post("/mode")
-async def switch_mode(body: ModeSwitch, _: None = Depends(require_admin)):
-    """Switch trading mode at runtime and persist to .env."""
-    new_mode = body.mode.lower()
-    if new_mode not in ("paper", "testnet", "live"):
+async def toggle_mode(body: ModeToggle, _: None = Depends(require_admin)):
+    mode = body.mode.lower()
+    if mode not in ("paper", "testnet", "live"):
         raise HTTPException(
             status_code=400, detail="mode must be paper, testnet, or live"
         )
 
-    # Validate credentials before allowing mode switch
-    if new_mode == "live":
-        missing = [
-            k
-            for k, v in {
-                "POLYMARKET_PRIVATE_KEY": settings.POLYMARKET_PRIVATE_KEY,
-                "POLYMARKET_API_KEY": settings.POLYMARKET_API_KEY,
-                "POLYMARKET_API_SECRET": settings.POLYMARKET_API_SECRET,
-                "POLYMARKET_API_PASSPHRASE": settings.POLYMARKET_API_PASSPHRASE,
-            }.items()
-            if not v
-        ]
-        if missing:
+    if body.active:
+        if mode == "live":
+            missing = [
+                k for k, v in {
+                    "POLYMARKET_PRIVATE_KEY": settings.POLYMARKET_PRIVATE_KEY,
+                    "POLYMARKET_API_KEY": settings.POLYMARKET_API_KEY,
+                    "POLYMARKET_API_SECRET": settings.POLYMARKET_API_SECRET,
+                    "POLYMARKET_API_PASSPHRASE": settings.POLYMARKET_API_PASSPHRASE,
+                }.items() if not v
+            ]
+            if missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot activate live mode: missing credentials: {missing}",
+                )
+        elif mode == "testnet":
+            if not settings.POLYMARKET_PRIVATE_KEY:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot activate testnet mode: POLYMARKET_PRIVATE_KEY required",
+                )
+
+    active = settings.active_modes_set
+    if body.active:
+        active.add(mode)
+    else:
+        if mode in active and len(active) <= 1:
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot switch to live mode: missing credentials: {missing}",
+                detail="Cannot deactivate the last active mode. At least one mode must be active.",
             )
-    elif new_mode == "testnet":
-        if not settings.POLYMARKET_PRIVATE_KEY:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot switch to testnet mode: POLYMARKET_PRIVATE_KEY required",
-            )
+        active.discard(mode)
 
-    old_mode = settings.TRADING_MODE
-    settings.TRADING_MODE = new_mode
-    _persist_env_updates({"TRADING_MODE": new_mode})
+    new_value = ",".join(sorted(active))
+    settings.ACTIVE_MODES = new_value
+    _persist_env_updates({"ACTIVE_MODES": new_value, "TRADING_MODE": ""})
 
-    logger.info(f"Trading mode switched: {old_mode} → {new_mode}")
-    return {"status": "ok", "mode": new_mode, "previous_mode": old_mode}
+    logger.info(f"Trading mode toggled: {mode}={'ON' if body.active else 'OFF'}, active={sorted(active)}")
+    return {"status": "ok", "mode": mode, "active": body.active, "active_modes": sorted(active)}
 
 
 @router.post("/credentials")
@@ -507,6 +516,7 @@ async def get_admin_system(
 
     return {
         "trading_mode": settings.TRADING_MODE,
+        "active_modes": sorted(settings.active_modes_set),
         "bot_running": state.is_running if state else False,
         "uptime_seconds": int(uptime),
         "pending_trades": pending_trades,

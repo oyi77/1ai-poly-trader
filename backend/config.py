@@ -71,8 +71,9 @@ class Settings(BaseSettings):
     # borderline signals and save tokens.
     MIN_DEBATE_EDGE: float = 0.04
 
-    # Trading mode: "paper", "testnet", or "live"
-    TRADING_MODE: str = "paper"
+    # Trading modes: comma-separated list of active modes (e.g. "paper,testnet")
+    # Each mode can run independently. At least one must be active.
+    ACTIVE_MODES: str = "paper"
 
     # Testnet / network config
     POLYGON_AMOY_RPC: str = "https://rpc-amoy.polygon.technology"
@@ -232,32 +233,46 @@ class Settings(BaseSettings):
         import logging
 
         _logger = logging.getLogger("trading_bot.config")
-        if self.TRADING_MODE == "live":
-            if not self.POLYMARKET_PRIVATE_KEY:
-                raise ValueError(
-                    "TRADING_MODE=live requires POLYMARKET_PRIVATE_KEY to be set. "
-                    "API credentials (api_key, api_secret, api_passphrase) are "
-                    "auto-derived from the private key at startup."
-                )
-        if self.TRADING_MODE == "testnet":
-            if not self.POLYMARKET_PRIVATE_KEY:
-                raise ValueError(
-                    "TRADING_MODE=testnet requires POLYMARKET_PRIVATE_KEY to be set."
-                )
-            if not self.POLYMARKET_BUILDER_API_KEY:
-                _logger.warning(
-                    "TRADING_MODE=testnet without POLYMARKET_BUILDER_API_KEY — "
-                    "CLOB order placement will use standard auth (gas fees apply). "
-                    "Set Builder credentials for gasless trading via Builder Program."
-                )
+        for mode in self.active_modes_set:
+            if mode == "live":
+                if not self.POLYMARKET_PRIVATE_KEY:
+                    raise ValueError(
+                        "ACTIVE_MODES contains 'live' but POLYMARKET_PRIVATE_KEY is not set. "
+                        "API credentials (api_key, api_secret, api_passphrase) are "
+                        "auto-derived from the private key at startup."
+                    )
+            if mode == "testnet":
+                if not self.POLYMARKET_PRIVATE_KEY:
+                    raise ValueError(
+                        "ACTIVE_MODES contains 'testnet' but POLYMARKET_PRIVATE_KEY is not set."
+                    )
+                if not self.POLYMARKET_BUILDER_API_KEY:
+                    _logger.warning(
+                        "ACTIVE_MODES contains 'testnet' without POLYMARKET_BUILDER_API_KEY — "
+                        "CLOB order placement will use standard auth (gas fees apply). "
+                        "Set Builder credentials for gasless trading via Builder Program."
+                    )
         return self
 
     @property
     def SIMULATION_MODE(self) -> bool:
-        """Backward-compat property — True for paper and testnet, False only for live."""
-        return self.TRADING_MODE != "live"
+        return "live" not in self.active_modes_set
 
-    model_config = ConfigDict(env_file=".env")
+    @property
+    def TRADING_MODE(self) -> str:
+        first = self.ACTIVE_MODES.split(",")[0].strip() if self.ACTIVE_MODES else "paper"
+        return first if first in ("paper", "testnet", "live") else "paper"
+
+    @property
+    def active_modes_set(self) -> set[str]:
+        valid = {"paper", "testnet", "live"}
+        modes = {m.strip() for m in self.ACTIVE_MODES.split(",") if m.strip()}
+        return modes & valid or {"paper"}
+
+    def is_mode_active(self, mode: str) -> bool:
+        return mode in self.active_modes_set
+
+    model_config = ConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()

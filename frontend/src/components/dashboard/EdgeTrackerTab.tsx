@@ -19,9 +19,10 @@ export function EdgeTrackerTab() {
     setError(null)
     try {
       const data = await fetchEdgePerformance(days)
-      const filtered = data.tracks.filter((track: any) =>
-        selectedMode === 'all' || track.trading_mode === selectedMode
-      )
+      const filtered = data.tracks.filter((track: any) => {
+        if (track.track_name === 'legacy') return false
+        return selectedMode === 'all' || track.trading_mode === selectedMode
+      })
       setTracks(filtered)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load edge performance')
@@ -31,14 +32,12 @@ export function EdgeTrackerTab() {
   }
 
   const trackColors: Record<string, string> = {
-    legacy: 'bg-neutral-700',
     realtime: 'bg-blue-700',
     whale: 'bg-purple-700',
     commodity: 'bg-green-700',
   }
 
   const trackLabels: Record<string, string> = {
-    legacy: 'Legacy',
     realtime: 'Real-time Scanner',
     whale: 'Whale PNL Tracker',
     commodity: 'Commodity MR',
@@ -189,10 +188,6 @@ export function EdgeTrackerTab() {
         {/* Legend */}
         <div className="mt-6 pt-4 border-t border-neutral-900">
           <div className="flex flex-wrap gap-4 text-[10px] text-neutral-600">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-neutral-700" />
-              <span>Legacy</span>
-            </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 bg-blue-700" />
               <span>Real-time Scanner (Track 1)</span>

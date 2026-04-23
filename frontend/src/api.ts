@@ -257,17 +257,17 @@ export async function changeAdminPassword(newPassword: string): Promise<{ status
 
 // Admin API (uses adminApi which injects Authorization header)
 export async function fetchAdminSettings(): Promise<Setting[]> {
-  const { data } = await adminApi.get<Setting[]>('/admin/settings')
+  const { data } = await adminApi.get<Setting[]>('/settings/list')
   return data
 }
 
 export async function updateAdminSettings(updates: Array<{ key: string; value: string }>): Promise<{ status: string; message: string; updated: number }> {
-  const { data } = await adminApi.post('/admin/settings', updates)
+  const { data } = await adminApi.put('/settings/list', { updates })
   return data
 }
 
-export async function switchTradingMode(mode: 'paper' | 'testnet' | 'live'): Promise<{ status: string; mode: string }> {
-  const { data } = await adminApi.post('/admin/mode', { mode })
+export async function toggleTradingMode(mode: 'paper' | 'testnet' | 'live', active: boolean): Promise<{ status: string; mode: string; active: boolean; active_modes: string[] }> {
+  const { data } = await adminApi.post('/admin/mode', { mode, active })
   return data
 }
 
@@ -299,6 +299,7 @@ export async function updateCredentials(creds: {
 
 export async function fetchSystemStatus(): Promise<{
   trading_mode: string
+  active_modes: string[]
   bot_running: boolean
   uptime_seconds: number
   pending_trades: number
@@ -328,7 +329,7 @@ export async function fetchCopyTraderStatus(): Promise<{
   status: string
   errors: Array<{ source: string; message: string }>
 }> {
-  const { data } = await adminApi.get('/copy-trader/status')
+  const { data } = await adminApi.get('/copy/status')
   return data
 }
 
@@ -341,7 +342,7 @@ export interface CopyTraderPosition {
 }
 
 export async function fetchCopyTraderPositions(): Promise<CopyTraderPosition[]> {
-  const { data } = await adminApi.get<CopyTraderPosition[]>('/copy-trader/positions')
+  const { data } = await adminApi.get<CopyTraderPosition[]>('/copy/positions')
   return data
 }
 
@@ -541,7 +542,7 @@ export async function fetchDecision(id: number): Promise<DecisionLogDetail> {
 
 export function decisionsExportUrl(params?: Record<string, string>): string {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
-  return `${API_BASE}/api/decisions/export${qs}`
+  return `${API_BASE}/api/v1/decisions/export${qs}`
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -711,5 +712,60 @@ export async function triggerManualSync(mode: 'testnet' | 'live'): Promise<{ sta
   const { data } = await adminApi.post<{ status: string; message: string }>('/admin/sync-now', null, {
     params: { mode }
   })
+  return data}
+
+// ── MiroFish Service Management ────────────────────────────────────────────
+
+export interface MiroFishServiceStatus {
+  state: 'running' | 'paused' | 'stopped'
+  started_at: string | null
+  uptime_seconds: number | null
+  last_signal_fetch: string | null
+  total_signals_fetched: number
+  error_message: string | null
+  monitor: {
+    health_status: string
+    latency_ms: number
+    error_rate: number
+    circuit_breaker_state: string
+    total_requests: number
+    failed_requests: number
+    consecutive_failures: number
+    last_success_time: string | null
+    last_failure_time: string | null
+    circuit_breaker_config?: Record<string, unknown>
+  }
+}
+
+export interface MiroFishServiceAction {
+  success: boolean
+  message: string
+  state: string
+  data?: MiroFishServiceStatus
+}
+
+export async function fetchMiroFishStatus(): Promise<MiroFishServiceStatus> {
+  const { data } = await api.get<MiroFishServiceStatus>('/settings/mirofish/status')
   return data
 }
+
+export async function mirofishStart(): Promise<MiroFishServiceAction> {
+  const { data } = await adminApi.post<MiroFishServiceAction>('/settings/mirofish/start')
+  return data
+}
+
+export async function mirofishStop(): Promise<MiroFishServiceAction> {
+  const { data } = await adminApi.post<MiroFishServiceAction>('/settings/mirofish/stop')
+  return data
+}
+
+export async function mirofishPause(): Promise<MiroFishServiceAction> {
+  const { data } = await adminApi.post<MiroFishServiceAction>('/settings/mirofish/pause')
+  return data
+}
+
+export async function mirofishRestart(): Promise<MiroFishServiceAction> {
+  const { data } = await adminApi.post<MiroFishServiceAction>('/settings/mirofish/restart')
+  return data
+}
+

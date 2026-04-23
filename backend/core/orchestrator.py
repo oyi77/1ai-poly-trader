@@ -219,7 +219,7 @@ class Orchestrator:
         start_scheduler()
 
         # Start real-time settlement WebSocket handler
-        if settings.TRADING_MODE in ("paper", "live"):
+        if settings.is_mode_active("paper") or settings.is_mode_active("live"):
             try:
                 from backend.core.settlement_ws import get_settlement_handler
 
@@ -402,11 +402,8 @@ class Orchestrator:
         )
 
     async def on_mode_switch(self, new_mode: str) -> None:
-        """Runtime mode switch — updates CLOB client mode."""
-        settings.TRADING_MODE = new_mode
-        if self._clob:
-            self._clob.mode = new_mode
-        logger.info(f"Trading mode switched to: {new_mode.upper()}")
+        settings.ACTIVE_MODES = new_mode
+        logger.info(f"Trading modes updated to: {new_mode}")
 
     async def _on_pause(self) -> None:
         from backend.core.scheduler import stop_scheduler
