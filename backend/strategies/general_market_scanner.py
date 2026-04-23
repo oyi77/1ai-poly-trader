@@ -676,6 +676,7 @@ class GeneralMarketScanner(BaseStrategy):
                     )
                     ai_prob = debate_prob
                     raw_ai_prob = debate_prob
+                    raw_edge = abs(raw_ai_prob - market_price)
                     if ai_prob > market_price:
                         direction = "yes"
                         edge = ai_prob - market_price

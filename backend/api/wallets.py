@@ -17,7 +17,7 @@ from backend.api.validation import (
 )
 
 logger = logging.getLogger("trading_bot")
-router = APIRouter(tags=["wallets"])
+router = APIRouter(prefix="/wallets", tags=["wallets"])
 
 
 # ============================================================================

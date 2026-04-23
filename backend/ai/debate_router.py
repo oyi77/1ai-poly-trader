@@ -144,6 +144,25 @@ async def run_debate_with_routing(
             data_sources=data_sources,
             signal_votes=signal_votes,
         )
+
+    try:
+        from backend.services.mirofish_service import get_mirofish_service
+        if not get_mirofish_service().is_active():
+            logger.info(
+                "[debate_router] MiroFish service not active - using local DebateEngine"
+            )
+            return await run_debate(
+                question=question,
+                market_price=market_price,
+                volume=volume,
+                category=category,
+                context=context,
+                max_rounds=max_rounds,
+                data_sources=data_sources,
+                signal_votes=signal_votes,
+            )
+    except Exception:
+        pass
     
     # Try MiroFish first
     logger.info("[debate_router] MiroFish enabled - attempting API call")

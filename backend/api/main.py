@@ -301,8 +301,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         
         db = SessionLocal()
         try:
-            for mode in ["testnet", "live"]:
-                if mode == "testnet" or settings.TRADING_MODE == "live":
+            # Only reconcile live mode — there is no separate testnet blockchain,
+            # so reconciling "testnet" re-imports the same live positions with mode=testnet.
+            for mode in ["live"]:
+                if settings.TRADING_MODE in ("live", "paper"):
                     try:
                         clob = clob_from_settings(mode=mode)
                         reconciler = WalletReconciler(clob, db, mode)
@@ -920,6 +922,11 @@ class EventResponse(BaseModel):
 
 
 # Core endpoints
+@app.get("/api/health")
+async def api_health_alias(db: Session = Depends(get_db)):
+    return await health_check(db)
+
+
 @app.get("/")
 async def root():
     return {
@@ -1028,23 +1035,14 @@ async def health_check(db: Session = Depends(get_db)):
         from backend.data.polymarket_clob import clob_from_settings
 
         client = clob_from_settings()
-        ok_resp = client.get_ok()
-        if ok_resp:
-            checks["polymarket_clob"] = {"status": "ok"}
-        else:
-            checks["polymarket_clob"] = {
-                "status": "error",
-                "error": "get_ok returned falsy",
-            }
-            if overall_status == "ok":
-                overall_status = "degraded"
+        balance = client.get_wallet_balance()
+        checks["polymarket_clob"] = {"status": "ok", "balance": str(balance)}
     except Exception as e:
         checks["polymarket_clob"] = {"status": "error", "error": str(e)}
         if overall_status == "ok":
             overall_status = "degraded"
         logger.warning(
-            f"[api.main.health_check] {type(e).__name__}: Polymarket CLOB health check failed (duplicate check): {e}",
-            exc_info=True
+            f"[api.main.health_check] {type(e).__name__}: Polymarket CLOB health check failed: {e}",
         )
     try:
         from backend.core.heartbeat import get_strategy_health
@@ -1228,45 +1226,31 @@ async def get_dashboard(
         for t in trades
     ]
 
-    # Equity curve: track equity at each settled trade
+    # Equity curve: track equity at each settled trade (all modes)
     equity_trades = (
         db.query(Trade).filter(Trade.settled.is_(True)).order_by(Trade.timestamp).all()
     )
     equity_curve = []
     cumulative_pnl = 0
     for trade in equity_trades:
-        if trade.pnl is not None:
-            cumulative_pnl += trade.pnl
-            equity_curve.append(
-                {
-                    "timestamp": trade.timestamp.isoformat(),
-                    "pnl": cumulative_pnl,
-                    "bankroll": settings.INITIAL_BANKROLL + cumulative_pnl,
-                }
-            )
+        trade_pnl = trade.pnl if trade.pnl is not None else 0.0
+        cumulative_pnl += trade_pnl
+        equity_curve.append(
+            {
+                "timestamp": trade.timestamp.isoformat(),
+                "pnl": cumulative_pnl,
+                "bankroll": settings.INITIAL_BANKROLL + cumulative_pnl,
+            }
+        )
 
-    # Append current point with open positions reflected
     bot_state = db.query(BotState).first()
     if bot_state and equity_curve:
-        if settings.TRADING_MODE == "paper":
-            current_bankroll = (
-                bot_state.paper_bankroll
-                if bot_state.paper_bankroll is not None
-                else settings.INITIAL_BANKROLL
-            )
-        elif settings.TRADING_MODE == "testnet":
-            current_bankroll = (
-                bot_state.testnet_bankroll
-                if bot_state.testnet_bankroll is not None
-                else settings.INITIAL_BANKROLL
-            )
-        else:
-            current_bankroll = (
-                bot_state.bankroll
-                if bot_state.bankroll is not None
-                else settings.INITIAL_BANKROLL
-            )
-        open_trades = db.query(Trade).filter(Trade.settled.is_(False)).all()
+        live_state = db.query(BotState).filter_by(mode="live").first()
+        current_bankroll = (
+            live_state.bankroll if live_state and live_state.bankroll is not None
+            else settings.INITIAL_BANKROLL
+        )
+        open_trades = db.query(Trade).filter(Trade.settled.is_(False), Trade.trading_mode == "live").all()
         unrealized = (
             sum((t.pnl or 0) for t in open_trades if t.pnl is not None)
             if open_trades
@@ -1274,7 +1258,7 @@ async def get_dashboard(
         )
         last_point = equity_curve[-1].copy()
         last_point["timestamp"] = datetime.now(timezone.utc).isoformat()
-        last_point["bankroll"] = current_bankroll + unrealized
+        last_point["bankroll"] = current_bankroll + cumulative_pnl + unrealized
         equity_curve.append(last_point)
 
     # Calibration summary
@@ -1497,10 +1481,10 @@ async def sync_now(
         - Sync completion is published via WebSocket events
         - Paper mode is skipped (returns 400)
     """
-    if mode not in ("testnet", "live"):
+    if mode != "live":
         raise HTTPException(
             status_code=400,
-            detail="mode must be 'testnet' or 'live'"
+            detail="mode must be 'live' (no separate testnet blockchain exists)"
         )
     
     if settings.TRADING_MODE == "paper":
@@ -1524,7 +1508,7 @@ async def sync_now(
 @app.get("/api/events/stream")
 async def events_stream(request: Request, token: str = ""):
     """Server-Sent Events stream for real-time trade notifications."""
-    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+    if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     from fastapi.responses import StreamingResponse
     import json as _json
@@ -1559,16 +1543,20 @@ async def events_stream(request: Request, token: str = ""):
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": ", ".join(origins) if origins else "*",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
+             "Access-Control-Allow-Headers": "*",
+             "Access-Control-Allow-Methods": "GET, OPTIONS",
         },
     )
 
 
+@app.get("/api/v1/events/stream")
+async def events_stream_v1(request: Request, token: str = ""):
+    return await events_stream(request, token)
+
 @app.websocket("/ws/markets")
 async def ws_markets(websocket: WebSocket, token: str = ""):
     """WebSocket endpoint for live market price updates."""
-    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+    if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
@@ -1603,7 +1591,7 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
 @app.websocket("/ws/whales")
 async def ws_whales(websocket: WebSocket, token: str = ""):
     """WebSocket endpoint for whale trade notifications."""
-    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+    if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return
     
@@ -1701,7 +1689,7 @@ async def ws_brain(websocket: WebSocket, token: str = ""):
 
 @app.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket, token: str = ""):
-    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+    if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return
     

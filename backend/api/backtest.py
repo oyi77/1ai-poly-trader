@@ -33,7 +33,7 @@ def get_all_strategies() -> dict:
 # Alias for signal model used in queries
 SignalHistoryRow = Signal
 
-router = APIRouter()
+router = APIRouter(prefix="/backtest")
 
 
 class BacktestRunRequest(BaseModel):

@@ -242,14 +242,6 @@ def start_scheduler():
     )
 
     scheduler.add_job(
-        sync_testnet_wallet,
-        IntervalTrigger(seconds=60),
-        id="wallet_sync_testnet",
-        replace_existing=True,
-        max_instances=1,
-    )
-
-    scheduler.add_job(
         sync_live_wallet,
         IntervalTrigger(seconds=30),
         id="wallet_sync_live",

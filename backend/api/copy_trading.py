@@ -11,7 +11,7 @@ from backend.api.auth import require_admin
 import logging
 
 logger = logging.getLogger("trading_bot")
-router = APIRouter(tags=["copy_trading"])
+router = APIRouter(prefix="/copy", tags=["copy_trading"])
 
 
 class ScoredTraderResponse(BaseModel):

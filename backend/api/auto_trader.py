@@ -9,7 +9,7 @@ from backend.api.auth import require_admin
 import logging
 
 logger = logging.getLogger("trading_bot")
-router = APIRouter(tags=["auto_trader"])
+router = APIRouter(prefix="/auto-trader", tags=["auto_trader"])
 
 
 @router.get("/pending")

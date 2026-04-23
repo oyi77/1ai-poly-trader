@@ -9,7 +9,7 @@ from backend.core.arbitrage_detector import ArbitrageDetector
 from backend.core.market_scanner import fetch_all_active_markets
 
 logger = logging.getLogger("trading_bot")
-router = APIRouter(tags=["arbitrage"])
+router = APIRouter(prefix="/arbitrage", tags=["arbitrage"])
 
 # In-memory cache for arbitrage scans (60s TTL)
 _arb_cache: Dict = {"timestamp": 0.0, "data": []}

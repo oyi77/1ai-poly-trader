@@ -165,6 +165,92 @@ async def update_settings(
         raise HTTPException(status_code=500, detail="Failed to update settings")
 
 
+class SettingItemResponse(BaseModel):
+    id: int
+    key: str
+    value: Any
+    description: Optional[str] = None
+    type: str = "string"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    updated_by_user_id: str = "admin"
+
+
+class BulkSettingUpdateRequest(BaseModel):
+    updates: list  # Array of {key: string, value: string}
+
+
+@router.get("/list", response_model=list[SettingItemResponse])
+async def list_all_settings(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    """Return all SystemSettings rows as an array for the SettingsEditor UI."""
+    rows = db.query(SystemSettings).order_by(SystemSettings.key).all()
+    result = []
+    for row in rows:
+        val = row.value
+        if isinstance(val, bool):
+            stype = "bool"
+        elif isinstance(val, int):
+            stype = "int"
+        elif isinstance(val, float):
+            stype = "float"
+        else:
+            stype = "string"
+        result.append(SettingItemResponse(
+            id=row.id,
+            key=row.key,
+            value=str(val) if not isinstance(val, str) else val,
+            description=None,
+            type=stype,
+            created_at=str(row.updated_at) if row.updated_at else None,
+            updated_at=str(row.updated_at) if row.updated_at else None,
+            updated_by_user_id="admin",
+        ))
+    return result
+
+
+@router.put("/list")
+async def bulk_update_settings(
+    body: BulkSettingUpdateRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin)
+):
+    """Bulk update settings from array of {key, value} pairs."""
+    from backend.models.audit_logger import log_audit_event
+    updated = 0
+    for item in body.updates:
+        key = item.get("key")
+        value = item.get("value")
+        if not key:
+            continue
+        # Parse value types
+        row = db.query(SystemSettings).filter(SystemSettings.key == key).first()
+        if row:
+            # Try to preserve type
+            if isinstance(row.value, bool):
+                value = value in ("true", "True", "1", True)
+            elif isinstance(row.value, int):
+                try:
+                    value = int(value)
+                except (ValueError, TypeError):
+                    pass
+            elif isinstance(row.value, float):
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    pass
+            row.value = value
+            row.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(SystemSettings(key=key, value=value))
+        updated += 1
+
+    db.commit()
+    return {"status": "ok", "message": f"Updated {updated} settings", "updated": updated}
+
+
 @router.post("/mirofish/toggle", response_model=ToggleResponse)
 async def toggle_mirofish(
     db: Session = Depends(get_db),
@@ -310,12 +396,89 @@ async def test_mirofish(
                 return TestMiroFishResponse(
                     success=False,
                     message="Connection test failed. Please check your credentials.",
-                    error="unknown"
+                    error=error_msg
                 )
-    
     except Exception as e:
         logger.error(f"Unexpected error during MiroFish test: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Failed to test MiroFish connection"
         )
+
+
+class ServiceActionResponse(BaseModel):
+    success: bool
+    message: str
+    state: str
+    data: Optional[Dict[str, Any]] = None
+
+
+@router.get("/mirofish/status")
+async def get_mirofish_service_status():
+    from backend.services.mirofish_service import get_mirofish_service
+    service = get_mirofish_service()
+    return service.get_status()
+
+
+@router.post("/mirofish/start", response_model=ServiceActionResponse)
+async def mirofish_service_start(_: None = Depends(require_admin)):
+    from backend.services.mirofish_service import get_mirofish_service
+    from backend.models.audit_logger import log_audit_event
+
+    service = get_mirofish_service()
+    result = service.start()
+    logger.info(f"MiroFish service start: {result['message']}")
+
+    return ServiceActionResponse(
+        success=True,
+        message=result["message"],
+        state=result["state"],
+        data=result,
+    )
+
+
+@router.post("/mirofish/stop", response_model=ServiceActionResponse)
+async def mirofish_service_stop(_: None = Depends(require_admin)):
+    from backend.services.mirofish_service import get_mirofish_service
+
+    service = get_mirofish_service()
+    result = service.stop()
+    logger.info(f"MiroFish service stop: {result['message']}")
+
+    return ServiceActionResponse(
+        success=True,
+        message=result["message"],
+        state=result["state"],
+        data=result,
+    )
+
+
+@router.post("/mirofish/pause", response_model=ServiceActionResponse)
+async def mirofish_service_pause(_: None = Depends(require_admin)):
+    from backend.services.mirofish_service import get_mirofish_service
+
+    service = get_mirofish_service()
+    result = service.pause()
+
+    return ServiceActionResponse(
+        success=result["state"] == "paused",
+        message=result["message"],
+        state=result["state"],
+        data=result,
+    )
+
+
+@router.post("/mirofish/restart", response_model=ServiceActionResponse)
+async def mirofish_service_restart(_: None = Depends(require_admin)):
+    from backend.services.mirofish_service import get_mirofish_service
+
+    service = get_mirofish_service()
+    result = service.restart()
+    logger.info(f"MiroFish service restart: {result['message']}")
+
+    return ServiceActionResponse(
+        success=True,
+        message=result["message"],
+        state=result["state"],
+        data=result,
+    )

@@ -107,6 +107,11 @@ class WalletReconciler:
             # 1. Import historical trades from blockchain
             self.logger.info("Starting full reconciliation cycle")
             imported = await self.import_blockchain_history(max_pages=None)
+
+            # 1b. Import REDEEM records from activity API (captures winning trades
+            #     that disappeared from /positions after full redemption)
+            activity_imported = await self.import_activity_redeems()
+            imported += activity_imported
             result.imported_count = imported
             
             # 2. Sync current open positions
@@ -181,10 +186,8 @@ class WalletReconciler:
                 avg_price = pos["avgPrice"]
                 outcome = pos["outcome"]
                 
-                # Check if trade already exists by market_ticker
                 existing = self.db.query(Trade).filter(
-                    (Trade.market_ticker == market_slug) &
-                    (Trade.trading_mode == self.mode)
+                    Trade.market_ticker == market_slug
                 ).first()
                 
                 if existing:
@@ -258,6 +261,96 @@ class WalletReconciler:
             self.logger.error(f"Failed to import blockchain history: {e}", exc_info=True)
             self.db.rollback()
             raise
+
+    async def import_activity_redeems(self) -> int:
+        """
+        Import REDEEM records from the activity API.
+
+        The /positions endpoint only returns current/recent positions. Once a
+        winning position is fully redeemed, it disappears from /positions. The
+        /activity endpoint's REDEEM records are the only way to recover these
+        trades and ensure accurate P&L.
+        """
+        self.logger.info(f"Importing REDEEM activity for {self.wallet_address}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    "https://data-api.polymarket.com/activity",
+                    params={"user": self.wallet_address, "limit": 200},
+                )
+                response.raise_for_status()
+                activities = response.json()
+
+            redeem_records = [a for a in activities if a.get("type") == "REDEEM"]
+            self.logger.info(
+                f"Found {len(redeem_records)} REDEEM records in activity API"
+            )
+
+            imported = 0
+            for record in redeem_records:
+                condition_id = record.get("conditionId", "")
+                title = record.get("title", "")
+                redeem_amount = float(record.get("usdcSize", 0))
+                tx_hash = record.get("transactionHash", "")
+                timestamp_unix = record.get("timestamp", 0)
+
+                if not condition_id:
+                    continue
+
+                slug = record.get("slug", "")
+                event_slug = record.get("eventSlug", "")
+
+                existing = None
+                if slug:
+                    matching_trades = self.db.query(Trade).filter(
+                        (Trade.market_ticker.contains(slug[:40])) &
+                        (Trade.trading_mode == self.mode)
+                    ).all()
+                    if len(matching_trades) == 1:
+                        existing = matching_trades[0]
+
+                if existing is None and title:
+                    matching_trades = self.db.query(Trade).filter(
+                        (Trade.market_ticker.contains(title[:30])) &
+                        (Trade.trading_mode == self.mode)
+                    ).all()
+                    if len(matching_trades) == 1:
+                        existing = matching_trades[0]
+
+                if existing:
+                    if not existing.settled:
+                        existing.settled = True
+                        existing.result = "closed"
+                        existing.settlement_source = "activity_api_redeem"
+                        existing.blockchain_verified = True
+                        if existing.size and existing.size > 0 and existing.entry_price:
+                            existing.pnl = redeem_amount - (existing.size * existing.entry_price)
+                        existing.settlement_time = (
+                            datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
+                            if timestamp_unix else datetime.now(timezone.utc)
+                        )
+                        imported += 1
+                        self.logger.info(
+                            f"Marked as redeemed from activity: {existing.market_ticker} "
+                            f"(amount={redeem_amount})"
+                        )
+                    continue
+
+                if redeem_amount > 0:
+                    self.logger.debug(
+                        f"REDEEM for unmatched position: {title} "
+                        f"(conditionId={condition_id[:16]}..., amount={redeem_amount})"
+                    )
+
+            self.db.commit()
+            self.logger.info(f"Updated {imported} trades from REDEEM activity records")
+            return imported
+
+        except Exception as e:
+            self.logger.error(f"Failed to import activity redeems: {e}", exc_info=True)
+            self.db.rollback()
+            return 0
 
     async def sync_current_positions(self) -> SyncResult:
         """
@@ -377,7 +470,6 @@ class WalletReconciler:
                 # Check if trade exists in DB
                 existing = self.db.query(Trade).filter(
                     (Trade.market_ticker == pos["asset"]) &
-                    (Trade.trading_mode == self.mode) &
                     (~Trade.settled)
                 ).first()
                 
@@ -421,8 +513,7 @@ class WalletReconciler:
         try:
             # Check again if it exists (race condition)
             existing = self.db.query(Trade).filter(
-                (Trade.market_ticker == orphan.market_id) &
-                (Trade.trading_mode == self.mode)
+                Trade.market_ticker == orphan.market_id
             ).first()
             
             if existing:
