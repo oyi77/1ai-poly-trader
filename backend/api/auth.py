@@ -458,18 +458,16 @@ async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends
     except Exception as _e:
         logger.warning(f"Could not restart polyedge-bot: {_e}")
 
-    return {
-        "status": "ok",
-        "updated": list(env_updates.keys()),
-        "restarted_bot": True,
-        "creds_paper": True,
-        "creds_testnet": has_private_key,
-        "creds_live": has_private_key
-        and has_api_key
-        and has_api_secret
-        and has_api_passphrase,
-        "missing_for_testnet": [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"],
-        "missing_for_live": [
+    _sig = settings.POLYMARKET_SIGNATURE_TYPE
+    _creds_live_ok = (
+        has_private_key
+        if _sig in (1, 2)
+        else has_private_key and has_api_key and has_api_secret and has_api_passphrase
+    )
+    _missing_live = (
+        [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"]
+        if _sig in (1, 2)
+        else [
             k
             for k, v in {
                 "POLYMARKET_PRIVATE_KEY": has_private_key,
@@ -478,7 +476,18 @@ async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends
                 "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
             }.items()
             if not v
-        ],
+        ]
+    )
+
+    return {
+        "status": "ok",
+        "updated": list(env_updates.keys()),
+        "restarted_bot": True,
+        "creds_paper": True,
+        "creds_testnet": has_private_key,
+        "creds_live": _creds_live_ok,
+        "missing_for_testnet": [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"],
+        "missing_for_live": _missing_live,
         "builder_configured": has_builder_key,
         "signature_type": settings.POLYMARKET_SIGNATURE_TYPE,
     }
@@ -514,6 +523,33 @@ async def get_admin_system(
     has_api_passphrase = bool(settings.POLYMARKET_API_PASSPHRASE)
     has_builder_key = bool(settings.POLYMARKET_BUILDER_API_KEY)
 
+    # For signature types 1 (Poly-Proxy) and 2 (Poly-EOA), API credentials
+    # are auto-derived from the private key at startup — separate env vars
+    # are NOT required.  For type 0 (EOA), all three must be set explicitly.
+    _sig_type = settings.POLYMARKET_SIGNATURE_TYPE
+    if _sig_type in (1, 2):
+        creds_live_ok = has_private_key
+        missing_for_live = (
+            [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"]
+        )
+    else:
+        creds_live_ok = (
+            has_private_key
+            and has_api_key
+            and has_api_secret
+            and has_api_passphrase
+        )
+        missing_for_live = [
+            k
+            for k, v in {
+                "POLYMARKET_PRIVATE_KEY": has_private_key,
+                "POLYMARKET_API_KEY": has_api_key,
+                "POLYMARKET_API_SECRET": has_api_secret,
+                "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
+            }.items()
+            if not v
+        ]
+
     return {
         "trading_mode": settings.TRADING_MODE,
         "active_modes": sorted(settings.active_modes_set),
@@ -528,21 +564,9 @@ async def get_admin_system(
         # Credential readiness per mode
         "creds_paper": True,  # paper needs no credentials
         "creds_testnet": has_private_key,
-        "creds_live": has_private_key
-        and has_api_key
-        and has_api_secret
-        and has_api_passphrase,
+        "creds_live": creds_live_ok,
         "missing_for_testnet": [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"],
-        "missing_for_live": [
-            k
-            for k, v in {
-                "POLYMARKET_PRIVATE_KEY": has_private_key,
-                "POLYMARKET_API_KEY": has_api_key,
-                "POLYMARKET_API_SECRET": has_api_secret,
-                "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
-            }.items()
-            if not v
-        ],
+        "missing_for_live": missing_for_live,
         # Builder Program & Signature Type
         "builder_configured": has_builder_key,
         "signature_type": settings.POLYMARKET_SIGNATURE_TYPE,
