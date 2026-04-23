@@ -15,8 +15,8 @@ export interface UseWebSocketOptions {
   maxReconnectAttempts?: number;
 }
 
-const MAX_RECONNECT_ATTEMPTS = 10;
-const BACKOFF_CAP_MS = 32000; // 32 seconds
+const MAX_RECONNECT_ATTEMPTS = 3;
+const BACKOFF_CAP_MS = 32000;
 
 export function useWebSocket<T = unknown>(
   url: string,
@@ -30,12 +30,12 @@ export function useWebSocket<T = unknown>(
   const retryTimeoutRef = useRef<number | null>(null);
   const closedByUser = useRef(false);
   const subscribedTopicsRef = useRef<Set<string>>(new Set());
+  const everConnected = useRef(false);
   
   const topic = options?.topic;
   const maxReconnectAttempts = options?.maxReconnectAttempts ?? MAX_RECONNECT_ATTEMPTS;
 
   const resubscribeToTopics = useCallback((ws: WebSocket) => {
-    // Resubscribe to all previously subscribed topics
     subscribedTopicsRef.current.forEach((topic) => {
       ws.send(JSON.stringify({ action: 'subscribe', topic }));
     });
@@ -61,6 +61,7 @@ export function useWebSocket<T = unknown>(
       wsRef.current = ws;
 
       ws.onopen = () => {
+        everConnected.current = true;
         setReconnectAttempt(0);
         setStatus('connected');
         
@@ -92,23 +93,24 @@ export function useWebSocket<T = unknown>(
           return;
         }
 
-        // Calculate exponential backoff with cap
-        const attempt = reconnectAttempt;
-        const backoffMs = Math.min(BACKOFF_CAP_MS, 1000 * Math.pow(2, attempt));
+        if (reconnectAttempt + 1 >= maxReconnectAttempts) {
+          setStatus('disconnected');
+          return;
+        }
+
+        const backoffMs = Math.min(BACKOFF_CAP_MS, 1000 * Math.pow(2, reconnectAttempt));
         
-        setReconnectAttempt(attempt + 1);
+        setReconnectAttempt(prev => prev + 1);
         setStatus('reconnecting');
 
-        // Schedule reconnection
-        retryTimeoutRef.current = setTimeout(() => {
+        retryTimeoutRef.current = window.setTimeout(() => {
           if (!closedByUser.current) {
             connect();
           }
         }, backoffMs);
       };
-    } catch (error) {
+    } catch {
       setStatus('disconnected');
-      console.error('WebSocket connection error:', error);
     }
   }, [url, topic, reconnectAttempt, maxReconnectAttempts, resubscribeToTopics]);
 
