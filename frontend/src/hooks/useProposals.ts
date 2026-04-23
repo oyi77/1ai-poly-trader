@@ -8,7 +8,7 @@ export function useProposals() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['proposals'],
     queryFn: async () => {
-      const response = await retryFetch('/api/proposals')
+      const response = await retryFetch('/api/v1/proposals')
       if (!response.ok) {
         throw new Error('Failed to fetch proposals')
       }
@@ -18,7 +18,7 @@ export function useProposals() {
 
   const approveMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await retryFetch(`/api/proposals/${id}/approve`, {
+      const response = await retryFetch(`/api/v1/proposals/${id}/approve`, {
         method: 'POST',
       })
       if (!response.ok) {
@@ -33,7 +33,7 @@ export function useProposals() {
 
   const rejectMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await retryFetch(`/api/proposals/${id}/reject`, {
+      const response = await retryFetch(`/api/v1/proposals/${id}/reject`, {
         method: 'POST',
       })
       if (!response.ok) {

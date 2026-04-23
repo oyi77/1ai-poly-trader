@@ -179,7 +179,7 @@ describe('ErrorBoundary', () => {
 
       await waitFor(() => {
         expect(fetchMock).toHaveBeenCalledWith(
-          '/api/errors/frontend',
+          '/api/v1/errors/frontend',
           expect.objectContaining({
             method: 'POST',
             headers: {

@@ -50,7 +50,7 @@ export function useBrainGraph(): UseBrainGraphResult {
 
   const fetchDebateTranscript = useCallback(async (debateId: string) => {
     try {
-      const response = await retryFetch(`/api/brain/debate/${debateId}`)
+      const response = await retryFetch(`/api/v1/brain/debate/${debateId}`)
       if (response.ok) {
         const data = await response.json()
         setTranscript(data.transcript || [])

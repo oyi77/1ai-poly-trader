@@ -4,6 +4,9 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import viteCompression from 'vite-plugin-compression'
 
 export default defineConfig({
+  resolve: {
+    dedupe: ['d3-selection'],
+  },
   plugins: [
     react(),
     visualizer({
@@ -28,7 +31,7 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('@tanstack/react-query')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') || id.includes('@tanstack/react-query') || id.includes('reactflow') || id.includes('d3-zoom') || id.includes('d3-selection') || id.includes('d3-transition') || id.includes('d3-drag')) {
               return 'vendor-react'
             }
             if (id.includes('framer-motion') || id.includes('lucide-react')) {

@@ -72,7 +72,8 @@ export function useStats() {
   } as BotStats)
 
   // Use mode-specific stats when available (paper/testnet/live split)
-  const active = stats.mode === 'live' && stats.live
+  const active = stats.mode === 'all' ? null
+    : stats.mode === 'live' && stats.live
     ? stats.live
     : stats.mode === 'testnet' && stats.testnet
       ? stats.testnet
@@ -83,7 +84,9 @@ export function useStats() {
   const trades = active ? active.trades : stats.total_trades
   const bankroll = active ? active.bankroll : stats.bankroll
   const initialBankroll = stats.initial_bankroll || 10000
-  const totalPnl = settledPnl + (stats.unrealized_pnl ?? 0)
+  // When mode='all', stats.total_pnl already includes unrealized P&L from backend
+  // When mode is specific, we need to add unrealized separately
+  const totalPnl = active ? settledPnl + (stats.unrealized_pnl ?? 0) : settledPnl
 
   return {
     stats,

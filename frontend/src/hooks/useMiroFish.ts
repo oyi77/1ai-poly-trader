@@ -6,7 +6,7 @@ export function useMiroFish() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['mirofish-signals'],
     queryFn: async () => {
-      const response = await retryFetch('/api/signals')
+      const response = await retryFetch('/api/v1/signals')
       if (!response.ok) {
         throw new Error('Failed to fetch MiroFish signals')
       }

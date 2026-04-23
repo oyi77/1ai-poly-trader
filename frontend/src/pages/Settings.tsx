@@ -289,7 +289,7 @@ export default function Settings() {
             <TrendingUp className="w-5 h-5 text-green-500" />
             <h2 className="text-sm font-bold text-neutral-100 uppercase tracking-wider">Trading Strategies</h2>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {STRATEGIES.map((strategy) => {
               const Icon = strategy.icon
               const enabled = settings.strategies[strategy.key] ?? false

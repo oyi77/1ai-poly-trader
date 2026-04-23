@@ -31,7 +31,7 @@ export function useTradeEvents(onEvent: (event: TradeEvent) => void) {
     let reconnectTimeout: ReturnType<typeof setTimeout>
 
     const connect = () => {
-      es = new EventSource(`${API_BASE}/api/events/stream${tokenParam}`)
+      es = new EventSource(`${API_BASE}/api/v1/events/stream${tokenParam}`)
 
       es.onmessage = (e) => {
         try {
