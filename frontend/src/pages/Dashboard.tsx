@@ -169,6 +169,11 @@ export default function Dashboard() {
             })()}
           </div>
 
+          <div className="flex items-center gap-3 shrink-0">
+            <Link to="/mirofish" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">MiroFish</Link>
+            <Link to="/activity" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">Activity</Link>
+          </div>
+
           {btcPrice && (
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-sm font-bold tabular-nums text-neutral-100">${(btcPrice.price ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>

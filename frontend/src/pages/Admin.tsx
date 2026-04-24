@@ -120,11 +120,16 @@ export default function Admin() {
 
   return (
     <div className="h-screen bg-black text-neutral-200 flex flex-col overflow-hidden font-mono">
-      <div className="shrink-0 border-b border-neutral-800 px-4 py-2 flex items-center justify-between bg-black">
-        <Link to="/" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors">PolyEdge</Link>
-        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em]">Admin Dashboard</span>
+      <div className="shrink-0 border-b border-neutral-800 px-4 py-2 flex items-center justify-between bg-black gap-2">
+        <Link to="/" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">PolyEdge</Link>
+        <div className="flex items-center gap-3 overflow-x-auto scrollbar-none">
+          <Link to="/dashboard" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">Dashboard</Link>
+          <Link to="/mirofish" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">MiroFish</Link>
+          <Link to="/activity" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">Activity</Link>
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em] whitespace-nowrap">Admin</span>
+        </div>
         {authRequired ? (
-          <button onClick={logout} className="text-[9px] text-neutral-600 hover:text-neutral-400 uppercase tracking-wider transition-colors">Logout</button>
+          <button onClick={logout} className="text-[9px] text-neutral-600 hover:text-neutral-400 uppercase tracking-wider transition-colors whitespace-nowrap">Logout</button>
         ) : (
           <span />
         )}
