@@ -38,8 +38,6 @@ function formatTimestamp(iso: string | null): string {
 
 export default function MiroFish() {
   const queryClient = useQueryClient()
-  const [iframeLoading, setIframeLoading] = useState(true)
-  const [iframeError, setIframeError] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
@@ -292,41 +290,27 @@ export default function MiroFish() {
               </div>
             </div>
           ) : (
-            <>
-              {iframeLoading && (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-green-500 mx-auto mb-3" />
-                    <p className="text-xs text-neutral-500">Loading MiroFish simulation...</p>
-                  </div>
+            <div className="flex-1 flex items-center justify-center bg-neutral-900/50">
+              <div className="text-center max-w-md">
+                <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
+                  <ExternalLink className="w-7 h-7 text-green-400" />
                 </div>
-              )}
-              {iframeError && (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center max-w-sm">
-                    <AlertTriangle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
-                    <h3 className="text-sm font-semibold text-neutral-300 mb-1">UI Unavailable</h3>
-                    <p className="text-xs text-neutral-500 mb-4">
-                      MiroFish service is {state} but the UI failed to load. The signal integration may still be working.
-                    </p>
-                    <button
-                      onClick={() => { setIframeError(false); setIframeLoading(true) }}
-                      className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-300 uppercase tracking-wider hover:border-green-500/40 transition-colors"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                </div>
-              )}
-              <iframe
-                src="https://polyedge-mirofish.aitradepulse.com"
-                className={`flex-1 w-full border-0 ${iframeLoading || iframeError ? 'hidden' : ''}`}
-                title="MiroFish Simulation"
-                onLoad={() => { setIframeLoading(false); setIframeError(false) }}
-                onError={() => { setIframeLoading(false); setIframeError(true) }}
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-              />
-            </>
+                <h2 className="text-lg font-semibold text-neutral-300 mb-2">MiroFish is {state}</h2>
+                <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
+                  Signal integration active. Open the MiroFish simulation dashboard
+                  in a new tab to view predictions and manage agents.
+                </p>
+                <a
+                  href="https://polyedge-mirofish.aitradepulse.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-500/10 border border-green-500/30 rounded text-xs font-bold text-green-400 uppercase tracking-wider hover:bg-green-500/20 hover:border-green-500/50 transition-all"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open MiroFish Dashboard
+                </a>
+              </div>
+            </div>
           )}
         </div>
       </div>
