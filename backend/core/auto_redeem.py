@@ -16,7 +16,6 @@ For standard binary markets: indexSets = [1, 2], parentCollectionId = bytes32(0)
 """
 
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -25,9 +24,11 @@ import httpx
 from web3 import Web3
 from eth_account import Account
 
+from backend.config_extensions import settings
+
 logger = logging.getLogger("auto_redeem")
 
-POLYGON_RPC = os.getenv("POLYGON_RPC_URL", "https://polygon-bor-rpc.publicnode.com")
+POLYGON_RPC = settings.POLYGON_RPC_URL
 RELAYER_URL = "https://relayer-v2.polymarket.com"
 CTF_ADDRESS = Web3.to_checksum_address("0x4D97DCd97eC945f40cF65F87097ACe5EA0476045")
 USDC_POLYGON = Web3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")

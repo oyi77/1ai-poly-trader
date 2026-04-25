@@ -65,6 +65,7 @@ class MiroFishClient:
         """
         import os
         from backend.models.database import SessionLocal, SystemSettings
+        from backend.config_extensions import settings as extended_settings
         
         # Initialize with provided values or defaults
         self.api_url = api_url
@@ -107,7 +108,29 @@ class MiroFishClient:
         except Exception as e:
             logger.warning(f"Failed to read MiroFish settings from database: {e}")
         
-        # Fall back to environment variables
+        # Fall back to extended settings system
+        extended_source = None
+        if not self.api_url:
+            self.api_url = extended_settings.MIROFISH_API_URL
+            if self.api_url:
+                extended_source = "extended_settings"
+        
+        if not self.api_key:
+            self.api_key = extended_settings.MIROFISH_API_KEY
+            if self.api_key and not extended_source:
+                extended_source = "extended_settings"
+        
+        if not self.timeout:
+            timeout_extended = extended_settings.MIROFISH_API_TIMEOUT
+            if timeout_extended:
+                try:
+                    self.timeout = float(timeout_extended)
+                    if not extended_source:
+                        extended_source = "extended_settings"
+                except ValueError:
+                    logger.warning(f"Invalid MIROFISH_API_TIMEOUT in settings: {timeout_extended}")
+        
+        # Finally fall back to environment variables (legacy support)
         env_source = None
         if not self.api_url:
             self.api_url = os.getenv("MIROFISH_API_URL")
@@ -127,7 +150,7 @@ class MiroFishClient:
                     if not env_source:
                         env_source = "environment"
                 except ValueError:
-                    logger.warning(f"Invalid MIROFISH_API_TIMEOUT: {timeout_env}")
+                    logger.warning(f"Invalid MIROFISH_API_TIMEOUT env var: {timeout_env}")
         
         # Apply defaults
         if not self.api_url:
@@ -138,7 +161,7 @@ class MiroFishClient:
             self.timeout = 30.0
         
         # Log which source was used
-        source_msg = db_source or env_source or "defaults"
+        source_msg = db_source or extended_source or env_source or "defaults"
         logger.info(
             f"MiroFish client initialized: url={self.api_url}, timeout={self.timeout}s, "
             f"credentials_source={source_msg}"
@@ -166,7 +189,12 @@ class MiroFishClient:
             await self._client.aclose()
             self._client = None
 
-    async def fetch_signals(self, market: str = "polymarket") -> List[MiroFishSignal]:
+    async def fetch_signals(
+        self,
+        market: str = "polymarket",
+        question: str = "",
+        market_price: float = 0.0,
+    ) -> List[MiroFishSignal]:
         """Fetch prediction signals from MiroFish API.
         
         Args:
@@ -198,8 +226,12 @@ class MiroFishClient:
             )
             return []
         
-        endpoint = f"{self.api_url}/api/signals"
+        endpoint = f"{self.api_url}/api/simulation/signals"
         params = {"market": market}
+        if question:
+            params["question"] = question
+        if market_price > 0:
+            params["market_price"] = str(market_price)
         
         # Retry logic with exponential backoff
         retry_delays = [1.0, 5.0, 10.0]

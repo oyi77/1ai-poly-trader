@@ -2,13 +2,11 @@
 
 import httpx
 import logging
-import os
 from dataclasses import dataclass
 from typing import Optional, List
+from backend.config_extensions import settings
 
 logger = logging.getLogger(__name__)
-
-BRAIN_BASE_URL = "http://localhost:9099"  # berkahkarya-hub API
 
 
 @dataclass
@@ -27,7 +25,7 @@ class BigBrain:
     """
 
     def __init__(self, base_url: str = None, timeout: float = 10.0):
-        self.base_url = base_url or (os.environ.get("BRAIN_API_URL") or BRAIN_BASE_URL)
+        self.base_url = base_url or settings.BRAIN_API_URL
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
 

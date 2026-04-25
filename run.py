@@ -3,12 +3,13 @@
 import os
 import uvicorn
 from backend.models.database import init_db
+from backend.config_extensions import settings
 
 if __name__ == "__main__":
     print("Initializing database...")
     init_db()
 
-    port = int(os.environ.get("PORT", 8000))
+    port = settings.PORT
     print(f"Starting server on http://0.0.0.0:{port}")
     print(f"API docs available at http://localhost:{port}/docs")
 
@@ -16,5 +17,5 @@ if __name__ == "__main__":
         "backend.api.main:app",
         host="0.0.0.0",
         port=port,
-        reload=os.environ.get("RAILWAY_ENVIRONMENT") is None
+        reload=settings.RELOAD_ON_CHANGE
     )

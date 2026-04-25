@@ -63,121 +63,13 @@ class Orchestrator:
             set_bot(self._bot)
 
         from backend.strategies.registry import load_all_strategies
-        from backend.models.database import SessionLocal, StrategyConfig
-        import json
+        from backend.models.database import SessionLocal
 
         load_all_strategies()  # trigger auto-registration
 
         db = SessionLocal()
         try:
-            from backend.models.database import BotState
-            
-            for mode in ["paper", "testnet", "live"]:
-                existing = db.query(BotState).filter_by(mode=mode).first()
-                if not existing:
-                    initial_bankroll = settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
-                    db.add(BotState(
-                        mode=mode,
-                        bankroll=initial_bankroll,
-                        total_trades=0,
-                        winning_trades=0,
-                        total_pnl=0.0,
-                        is_running=False
-                    ))
             db.commit()
-            logger.info("BotState rows initialized for all 3 modes")
-            
-            defaults = [
-                (
-                    "copy_trader",
-                    True,
-                    60,
-                    {"max_wallets": 20, "min_score": 60.0, "poll_interval": 60},
-                ),
-                (
-                    "weather_emos",
-                    False,
-                    300,
-                    {
-                        "min_edge": 0.05,
-                        "max_position_usd": 100,
-                        "calibration_window_days": 40,
-                    },
-                ),
-                (
-                    "kalshi_arb",
-                    False,
-                    30,
-                    {"min_edge": 0.02, "allow_live_execution": False},
-                ),
-                (
-                    "btc_oracle",
-                    False,
-                    30,
-                    {"min_edge": 0.03, "max_minutes_to_resolution": 10},
-                ),
-                (
-                    "btc_5m",
-                    False,
-                    60,
-                    {
-                        "WARNING": "Dedicated BTC scan job — controlled by SCAN_INTERVAL_SECONDS setting, not this config."
-                    },
-                ),
-                (
-                    "btc_momentum",
-                    False,
-                    60,
-                    {
-                        "WARNING": "EXPERIMENTAL — documented -49.5% live ROI. Do not enable without re-validation."
-                    },
-                ),
-                (
-                    "general_scanner",
-                    False,
-                    300,
-                    {"min_volume": 50000, "min_edge": 0.05, "max_position_usd": 150},
-                ),
-                (
-                    "bond_scanner",
-                    False,
-                    180,
-                    {"min_price": 0.92, "max_price": 0.98, "max_position_usd": 200},
-                ),
-                (
-                    "realtime_scanner",
-                    False,
-                    60,
-                    {"min_edge": 0.03, "max_position_usd": 100},
-                ),
-                (
-                    "whale_pnl_tracker",
-                    False,
-                    120,
-                    {"min_wallet_pnl": 10000, "max_position_usd": 100},
-                ),
-                ("market_maker", False, 30, {"spread": 0.02, "max_position_usd": 200}),
-            ]
-            added = 0
-            for name, enabled, interval, params in defaults:
-                exists = (
-                    db.query(StrategyConfig)
-                    .filter(StrategyConfig.strategy_name == name)
-                    .first()
-                )
-                if not exists:
-                    db.add(
-                        StrategyConfig(
-                            strategy_name=name,
-                            enabled=enabled,
-                            interval_seconds=interval,
-                            params=json.dumps(params),
-                        )
-                    )
-                    added += 1
-            if added:
-                db.commit()
-                logger.info(f"Seeded {added} missing strategy configs")
         finally:
             db.close()
 
@@ -187,6 +79,7 @@ class Orchestrator:
         # Create 3 ModeExecutionContext instances for per-mode execution isolation
         from backend.core.mode_context import ModeExecutionContext, register_context
         from backend.core.risk_manager import RiskManager
+        from backend.models.database import StrategyConfig
         
         for mode in ["paper", "testnet", "live"]:
             # Create RiskManager instance for this mode
@@ -453,7 +346,7 @@ class Orchestrator:
 
             self._condition_cache[cache_key] = result
             return result
-        except (httpx.HTTPError, KeyError, IndexError) as e:
+        except (_httpx.HTTPError, KeyError, IndexError) as e:
             logger.warning(
                 f"[orchestrator._condition_to_token] {type(e).__name__}: Failed to resolve token_id for {condition_id}/{outcome}: {e}",
                 exc_info=True,
@@ -509,6 +402,24 @@ async def main() -> None:
         loop.add_signal_handler(sig, _signal_handler)
 
     await orchestrator.start()
+
+    try:
+        from backend.models.database import SessionLocal, SystemSettings
+        db = SessionLocal()
+        try:
+            mirofish_enabled = db.query(SystemSettings).filter(
+                SystemSettings.key == "mirofish_enabled"
+            ).first()
+            if mirofish_enabled and str(mirofish_enabled.value).lower() in ("true", "1", "yes"):
+                from backend.services.mirofish_service import get_mirofish_service
+                service = get_mirofish_service()
+                if not service.is_active():
+                    service.start()
+                    logger.info("MiroFish service auto-started (enabled in settings)")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.debug(f"MiroFish auto-start check failed: {e}")
 
     logger.info("PolyEdge running. Press Ctrl+C to stop.")
     await stop_event.wait()

@@ -461,11 +461,170 @@ async def mirofish_service_pause(_: None = Depends(require_admin)):
     result = service.pause()
 
     return ServiceActionResponse(
-        success=result["state"] == "paused",
+        success=True,
         message=result["message"],
         state=result["state"],
         data=result,
     )
+
+
+# ============== MiroFish Process Management ==============
+
+MIROFISH_BACKEND_DIR = "/home/openclaw/projects/mirofish/backend"
+MIROFISH_FRONTEND_DIR = "/home/openclaw/projects/mirofish/frontend"
+MIROFISH_BACKEND_PORT = 5001
+MIROFISH_FRONTEND_PORT = 3200
+
+
+def _find_process_by_port(port: int) -> Optional[int]:
+    """Find PID listening on a given port."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split("\n")
+            return int(pids[0])
+    except Exception:
+        pass
+    return None
+
+
+def _kill_process(pid: int):
+    """Kill a process by PID."""
+    import subprocess
+    try:
+        subprocess.run(["kill", str(pid)], timeout=5)
+    except Exception:
+        pass
+
+
+def _start_mirofish_backend():
+    import subprocess
+    import os
+    venv_python = os.path.join(MIROFISH_BACKEND_DIR, "venv", "bin", "python")
+    env = {**os.environ}
+    return subprocess.Popen(
+        [venv_python, "run.py"],
+        cwd=MIROFISH_BACKEND_DIR,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def _start_mirofish_frontend():
+    import subprocess
+    return subprocess.Popen(
+        ["npx", "vite", "preview", "--port", str(MIROFISH_FRONTEND_PORT), "--host"],
+        cwd=MIROFISH_FRONTEND_DIR,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        shell=False,
+    )
+
+
+class ProcessStatus(BaseModel):
+    backend_running: bool
+    backend_pid: Optional[int]
+    frontend_running: bool
+    frontend_pid: Optional[int]
+
+
+@router.get("/mirofish/processes")
+async def get_mirofish_processes(_: None = Depends(require_admin)):
+    """Check if MiroFish backend and frontend processes are running."""
+    backend_pid = _find_process_by_port(MIROFISH_BACKEND_PORT)
+    frontend_pid = _find_process_by_port(MIROFISH_FRONTEND_PORT)
+    return ProcessStatus(
+        backend_running=backend_pid is not None,
+        backend_pid=backend_pid,
+        frontend_running=frontend_pid is not None,
+        frontend_pid=frontend_pid,
+    )
+
+
+@router.post("/mirofish/processes/start")
+async def start_mirofish_processes(_: None = Depends(require_admin)):
+    """Start both MiroFish backend and frontend processes."""
+    results = {"backend": None, "frontend": None}
+
+    backend_pid = _find_process_by_port(MIROFISH_BACKEND_PORT)
+    if backend_pid is None:
+        try:
+            _start_mirofish_backend()
+            results["backend"] = "started"
+        except Exception as e:
+            results["backend"] = f"failed: {e}"
+    else:
+        results["backend"] = f"already running (pid={backend_pid})"
+
+    frontend_pid = _find_process_by_port(MIROFISH_FRONTEND_PORT)
+    if frontend_pid is None:
+        try:
+            _start_mirofish_frontend()
+            results["frontend"] = "started"
+        except Exception as e:
+            results["frontend"] = f"failed: {e}"
+    else:
+        results["frontend"] = f"already running (pid={frontend_pid})"
+
+    return {"success": True, "results": results}
+
+
+@router.post("/mirofish/processes/stop")
+async def stop_mirofish_processes(_: None = Depends(require_admin)):
+    """Stop both MiroFish backend and frontend processes."""
+    results = {"backend": None, "frontend": None}
+
+    backend_pid = _find_process_by_port(MIROFISH_BACKEND_PORT)
+    if backend_pid:
+        _kill_process(backend_pid)
+        results["backend"] = f"stopped (was pid={backend_pid})"
+    else:
+        results["backend"] = "not running"
+
+    frontend_pid = _find_process_by_port(MIROFISH_FRONTEND_PORT)
+    if frontend_pid:
+        _kill_process(frontend_pid)
+        results["frontend"] = f"stopped (was pid={frontend_pid})"
+    else:
+        results["frontend"] = "not running"
+
+    return {"success": True, "results": results}
+
+
+@router.post("/mirofish/processes/restart")
+async def restart_mirofish_processes(_: None = Depends(require_admin)):
+    """Restart both MiroFish backend and frontend processes."""
+    # Stop first
+    backend_pid = _find_process_by_port(MIROFISH_BACKEND_PORT)
+    if backend_pid:
+        _kill_process(backend_pid)
+    frontend_pid = _find_process_by_port(MIROFISH_FRONTEND_PORT)
+    if frontend_pid:
+        _kill_process(frontend_pid)
+
+    import time
+    time.sleep(1)
+
+    # Start both
+    results = {"backend": None, "frontend": None}
+    try:
+        _start_mirofish_backend()
+        results["backend"] = "restarted"
+    except Exception as e:
+        results["backend"] = f"failed: {e}"
+
+    try:
+        _start_mirofish_frontend()
+        results["frontend"] = "restarted"
+    except Exception as e:
+        results["frontend"] = f"failed: {e}"
+
+    return {"success": True, "results": results}
 
 
 @router.post("/mirofish/restart", response_model=ServiceActionResponse)
