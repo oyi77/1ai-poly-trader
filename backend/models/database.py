@@ -1,6 +1,7 @@
 """Database models and connection for BTC 5-min trading bot."""
 
 import logging
+import os
 from datetime import datetime, timezone
 
 from sqlalchemy import (
@@ -714,10 +715,246 @@ class ErrorLog(Base):
     )
 
 
-def init_db():
-    """Initialize database tables."""
-    Base.metadata.create_all(bind=engine)
-    ensure_schema()
+def _attempt_data_recovery(db_path: str) -> dict[str, list[dict]]:
+    """Try to recover data from a corrupted SQLite database before wiping it.
+
+    Uses sqlite3 directly (not SQLAlchemy) to maximize recovery chances
+    on malformed databases. Returns {table_name: [row_dicts]} for any
+    tables that could be read successfully. Returns empty dict for
+    non-SQLite databases or missing files.
+    """
+    import sqlite3
+
+    recovered: dict[str, list[dict]] = {}
+
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        logger.info("Data recovery only supported for SQLite databases")
+        return recovered
+
+    if not os.path.exists(db_path):
+        return recovered
+
+    RECOVERABLE_TABLES = (
+        "trades", "signals", "bot_state", "strategy_config",
+        "decision_log", "market_watch", "wallet_config",
+        "settlement_events", "equity_snapshots", "calibration_records",
+        "activity_log", "ai_logs", "scan_logs",
+    )
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA journal_mode=WAL")
+        cursor = conn.cursor()
+
+        for table_name in RECOVERABLE_TABLES:
+            try:
+                cursor.execute(f'SELECT * FROM "{table_name}"')
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                if not columns:
+                    continue
+                rows = []
+                for row in cursor.fetchall():
+                    rows.append(dict(zip(columns, row)))
+                if rows:
+                    recovered[table_name] = rows
+                    logger.info(f"Recovered {len(rows)} rows from {table_name}")
+            except Exception as table_err:
+                logger.warning(f"Could not recover table {table_name}: {table_err}")
+
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Data recovery attempt failed: {e}")
+
+    return recovered
+
+
+def _restore_recovered_data(recovered: dict[str, list[dict]]):
+    """Re-insert recovered data into the fresh database.
+    
+    Uses per-table sessions with individual commits to isolate failures.
+    Skips rows with IDs that already exist (idempotent). Only restores
+    columns that exist on the target model to handle schema drift.
+    """
+    if not recovered:
+        return
+
+    model_map = {
+        "trades": Trade,
+        "signals": Signal,
+        "bot_state": BotState,
+        "strategy_config": StrategyConfig,
+        "decision_log": DecisionLog,
+        "market_watch": MarketWatch,
+        "wallet_config": WalletConfig,
+        "settlement_events": SettlementEvent,
+        "equity_snapshots": EquitySnapshot,
+        "calibration_records": CalibrationRecord,
+        "activity_log": ActivityLog,
+        "ai_logs": AILog,
+        "scan_logs": ScanLog,
+    }
+
+    total_restored = 0
+    total_skipped = 0
+
+    for table_name, rows in recovered.items():
+        model_class = model_map.get(table_name)
+        if not model_class:
+            logger.warning(f"No model mapping for {table_name} — {len(rows)} rows unrecoverable")
+            continue
+
+        db = SessionLocal()
+        try:
+            restored_in_table = 0
+            for row_data in rows:
+                try:
+                    # Check if row already exists (idempotent)
+                    row_id = row_data.get("id")
+                    if row_id is not None:
+                        existing = db.query(model_class).filter_by(id=row_id).first()
+                        if existing:
+                            total_skipped += 1
+                            continue
+
+                    # Only include columns the model actually has (handles schema drift)
+                    clean_data = {
+                        k: v for k, v in row_data.items()
+                        if k != "id" and hasattr(model_class, k)
+                    }
+                    obj = model_class(**clean_data)
+                    db.add(obj)
+                    restored_in_table += 1
+                except Exception as row_err:
+                    db.rollback()
+                    logger.warning(f"Could not restore row in {table_name}: {row_err}")
+
+            db.commit()
+            if restored_in_table > 0:
+                logger.info(f"Restored {restored_in_table} rows to {table_name}")
+                total_restored += restored_in_table
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"Failed to commit {table_name} recovery: {e}")
+        finally:
+            db.close()
+
+    if total_restored > 0:
+        logger.info(f"Recovery complete: {total_restored} rows restored, {total_skipped} skipped (already exist)")
+    elif total_skipped > 0:
+        logger.info(f"Recovery: all {total_skipped} rows already present, nothing to restore")
+
+
+def _publish_corruption_alert(event: str, detail: str, data: dict | None = None):
+    try:
+        from backend.core.event_bus import publish_event
+        publish_event(event, {
+            "source": "database",
+            "detail": detail,
+            **(data or {}),
+        })
+    except Exception:
+        pass
+
+
+def init_db(repair_if_needed: bool = True):
+    try:
+        Base.metadata.create_all(bind=engine)
+        ensure_schema()
+        seed_default_data()
+    except Exception as e:
+        if "database disk image is malformed" in str(e) and repair_if_needed:
+            logger.warning(f"Database corrupted, attempting repair: {e}")
+            _publish_corruption_alert("database_corruption_detected", str(e))
+
+            db_path = settings.DATABASE_URL.replace("sqlite:///", "").replace("./", "")
+            recovered = _attempt_data_recovery(db_path)
+            recovered_table_count = len(recovered)
+            recovered_row_count = sum(len(rows) for rows in recovered.values())
+            logger.info(f"Recovered data from {recovered_table_count} table(s), {recovered_row_count} total rows before wiping")
+
+            try:
+                engine.dispose()
+
+                if os.path.exists(db_path):
+                    os.unlink(db_path)
+                    logger.info(f"Removed corrupted database: {db_path}")
+
+                Base.metadata.create_all(bind=engine)
+                ensure_schema()
+                seed_default_data()
+
+                if recovered:
+                    _restore_recovered_data(recovered)
+
+                _publish_corruption_alert("database_repair_succeeded", "Database repaired after corruption", {
+                    "tables_recovered": recovered_table_count,
+                    "rows_recovered": recovered_row_count,
+                })
+                logger.info("Database repaired successfully")
+            except Exception as repair_error:
+                _publish_corruption_alert("database_repair_failed", str(repair_error))
+                logger.error(f"Database repair failed: {repair_error}")
+                raise
+        else:
+            raise
+
+
+def seed_default_data():
+    """Seed database with default data."""
+    from backend.config import settings as app_settings
+    
+    db = SessionLocal()
+    try:
+        for mode in ["paper", "testnet", "live"]:
+            existing = db.query(BotState).filter_by(mode=mode).first()
+            if not existing:
+                initial_bankroll = app_settings.INITIAL_BANKROLL
+                if mode == "testnet":
+                    initial_bankroll = 100.0
+                
+                bot_state = BotState(
+                    mode=mode,
+                    bankroll=initial_bankroll,
+                    total_trades=0,
+                    winning_trades=0,
+                    total_pnl=0.0,
+                    is_running=False,
+                    paper_bankroll=initial_bankroll if mode == "paper" else 100.0,
+                    paper_pnl=0.0,
+                    paper_trades=0,
+                    paper_wins=0,
+                    testnet_bankroll=100.0,
+                    testnet_pnl=0.0,
+                    testnet_trades=0,
+                    testnet_wins=0,
+                )
+                db.add(bot_state)
+                logger.info(f"Seeded BotState for mode: {mode}")
+        
+        from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY
+        load_all_strategies()
+        
+        for strategy_name in STRATEGY_REGISTRY.keys():
+            existing = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
+            if not existing:
+                strategy_config = StrategyConfig(
+                    strategy_name=strategy_name,
+                    enabled=False,
+                    params=None,
+                    interval_seconds=60,
+                    trading_mode=None,
+                )
+                db.add(strategy_config)
+                logger.info(f"Seeded StrategyConfig for: {strategy_name}")
+        
+        db.commit()
+        logger.info("Database seeding completed")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to seed database: {e}")
+        raise
+    finally:
+        db.close()
 
 
 def ensure_schema():
