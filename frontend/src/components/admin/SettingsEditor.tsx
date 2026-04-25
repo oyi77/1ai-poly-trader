@@ -98,6 +98,25 @@ function FieldInput({
     )
   }
 
+  if (fieldName === 'MIROFISH_ENABLED') {
+    const boolVal = String(value).toLowerCase() === 'true' || value === '1'
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(!boolVal)}
+        className={`relative w-14 h-7 rounded-full transition-colors ${
+          boolVal ? 'bg-green-500' : 'bg-neutral-700'
+        }`}
+      >
+        <span
+          className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
+            boolVal ? 'translate-x-7' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    )
+  }
+
   if (fieldName === 'POLYMARKET_SIGNATURE_TYPE') {
     return (
       <select

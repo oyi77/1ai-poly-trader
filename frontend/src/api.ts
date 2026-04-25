@@ -769,3 +769,37 @@ export async function mirofishRestart(): Promise<MiroFishServiceAction> {
   return data
 }
 
+// ── MiroFish Process Management ────────────────────────────────────────────
+
+export interface MiroFishProcessStatus {
+  backend_running: boolean
+  backend_pid: number | null
+  frontend_running: boolean
+  frontend_pid: number | null
+}
+
+export interface MiroFishProcessAction {
+  success: boolean
+  results: { backend: string; frontend: string }
+}
+
+export async function fetchMiroFishProcesses(): Promise<MiroFishProcessStatus> {
+  const { data } = await adminApi.get<MiroFishProcessStatus>('/settings/mirofish/processes')
+  return data
+}
+
+export async function startMiroFishProcesses(): Promise<MiroFishProcessAction> {
+  const { data } = await adminApi.post<MiroFishProcessAction>('/settings/mirofish/processes/start')
+  return data
+}
+
+export async function stopMiroFishProcesses(): Promise<MiroFishProcessAction> {
+  const { data } = await adminApi.post<MiroFishProcessAction>('/settings/mirofish/processes/stop')
+  return data
+}
+
+export async function restartMiroFishProcesses(): Promise<MiroFishProcessAction> {
+  const { data } = await adminApi.post<MiroFishProcessAction>('/settings/mirofish/processes/restart')
+  return data
+}
+

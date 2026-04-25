@@ -3,10 +3,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Play, Square, Pause, RotateCcw, ExternalLink, Activity,
   Clock, AlertTriangle, CheckCircle, Loader2, Wifi, WifiOff,
-  Signal, Zap, Shield
+  Signal, Zap, Shield, RefreshCw, ArrowLeft, MessagesSquare
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   fetchMiroFishStatus, mirofishStart, mirofishStop, mirofishPause, mirofishRestart,
+  fetchMiroFishProcesses, startMiroFishProcesses, stopMiroFishProcesses, restartMiroFishProcesses,
 } from '../api'
 
 type ServiceState = 'running' | 'paused' | 'stopped'
@@ -40,11 +42,22 @@ export default function MiroFish() {
   const queryClient = useQueryClient()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [iframeKey, setIframeKey] = useState(0)
+
+  const MIROFISH_URL = 'https://polyedge-mirofish.aitradepulse.com'
+  const MIROFISH_BACKEND_PORT = 5001
+  const MIROFISH_FRONTEND_PORT = 3200
 
   const { data: status, isLoading, isError, refetch } = useQuery({
     queryKey: ['mirofish-service-status'],
     queryFn: fetchMiroFishStatus,
     refetchInterval: 5000,
+  })
+
+  const { data: processes } = useQuery({
+    queryKey: ['mirofish-processes'],
+    queryFn: fetchMiroFishProcesses,
+    refetchInterval: 10000,
   })
 
   const state = (status?.state ?? 'stopped') as ServiceState
@@ -58,18 +71,20 @@ export default function MiroFish() {
   }, [actionMessage])
 
   const handleAction = useCallback(async (
-    action: () => Promise<{ success: boolean; message: string; state: string }>,
+    action: () => Promise<any>,
     label: string
   ) => {
     setActionLoading(label)
     setActionMessage(null)
     try {
       const result = await action()
+      const msg = result.message || `${result.results?.backend || ''} | ${result.results?.frontend || ''}`
       setActionMessage({
-        text: result.message,
-        type: result.success ? 'success' : 'error',
+        text: msg || `${label} completed`,
+        type: result.success !== false ? 'success' : 'error',
       })
       queryClient.invalidateQueries({ queryKey: ['mirofish-service-status'] })
+      queryClient.invalidateQueries({ queryKey: ['mirofish-processes'] })
     } catch (err: any) {
       setActionMessage({
         text: err.response?.data?.detail || `${label} failed`,
@@ -101,6 +116,13 @@ export default function MiroFish() {
       <div className="px-6 py-4 border-b border-neutral-800 bg-neutral-950">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-2 px-2 py-1.5 bg-neutral-800/50 border border-neutral-700 rounded text-xs text-neutral-400 hover:text-white hover:border-neutral-500 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Dashboard
+            </Link>
             <div className={`w-3 h-3 rounded-full ${colors.dot} ${state === 'running' ? 'animate-pulse' : ''}`} />
             <div>
               <h1 className="text-lg font-bold text-white tracking-wide">MiroFish Service</h1>
@@ -110,13 +132,22 @@ export default function MiroFish() {
               {state}
             </span>
           </div>
-          <button
-            onClick={() => window.open('https://polyedge-mirofish.aitradepulse.com', '_blank')}
-            className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-300 uppercase tracking-wider hover:border-green-500/40 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Open MiroFish UI
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/admin?tab=Debate+Monitor"
+              className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-300 uppercase tracking-wider hover:border-blue-500/40 transition-colors"
+            >
+              <MessagesSquare className="w-3.5 h-3.5" />
+              Debate Monitor
+            </Link>
+            <button
+              onClick={() => window.open(MIROFISH_URL, '_blank')}
+              className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-300 uppercase tracking-wider hover:border-green-500/40 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open MiroFish UI
+            </button>
+          </div>
         </div>
       </div>
 
@@ -193,7 +224,55 @@ export default function MiroFish() {
                   <div className="flex items-center gap-2 text-neutral-400">
                     <Shield className="w-3.5 h-3.5" />
                     <span className="text-xs">Circuit Breaker</span>
-                  </div>
+          </div>
+
+          {/* Process Management */}
+          <div className="p-4 border-b border-neutral-800">
+            <h2 className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Process Stack</h2>
+            <div className="space-y-2 mb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${processes?.backend_running ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-xs text-neutral-400">Backend :{MIROFISH_BACKEND_PORT}</span>
+                </div>
+                <span className="text-[10px] font-mono text-neutral-500">
+                  {processes?.backend_pid ? `pid ${processes.backend_pid}` : '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${processes?.frontend_running ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-xs text-neutral-400">Frontend :{MIROFISH_FRONTEND_PORT}</span>
+                </div>
+                <span className="text-[10px] font-mono text-neutral-500">
+                  {processes?.frontend_pid ? `pid ${processes.frontend_pid}` : '—'}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => handleAction(startMiroFishProcesses, 'Start Processes')}
+                disabled={actionLoading !== null}
+                className="flex items-center justify-center gap-1 px-2 py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-30 bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20"
+              >
+                <Play className="w-3 h-3" /> Start
+              </button>
+              <button
+                onClick={() => handleAction(stopMiroFishProcesses, 'Stop Processes')}
+                disabled={actionLoading !== null}
+                className="flex items-center justify-center gap-1 px-2 py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-30 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20"
+              >
+                <Square className="w-3 h-3" /> Stop
+              </button>
+              <button
+                onClick={() => handleAction(restartMiroFishProcesses, 'Restart Processes')}
+                disabled={actionLoading !== null}
+                className="flex items-center justify-center gap-1 px-2 py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-30 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+              >
+                <RotateCcw className="w-3 h-3" /> Restart
+              </button>
+            </div>
+          </div>
                   <span className={`text-xs font-mono font-bold ${cbIsOpen ? 'text-red-400' : 'text-green-400'}`}>
                     {cbState}
                   </span>
@@ -263,7 +342,7 @@ export default function MiroFish() {
               </span>
             </div>
             <p className="text-[10px] text-neutral-600 mt-2">
-              MiroFish frontend at <code className="text-blue-400">polyedge-mirofish.aitradepulse.com</code>
+              MiroFish frontend at <code className="text-blue-400">{MIROFISH_URL.replace('https://', '')}</code>
             </p>
           </div>
         </div>
@@ -290,24 +369,31 @@ export default function MiroFish() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-neutral-900/50">
-              <div className="text-center max-w-md">
-                <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
-                  <ExternalLink className="w-7 h-7 text-green-400" />
-                </div>
-                <h2 className="text-lg font-semibold text-neutral-300 mb-2">MiroFish is {state}</h2>
-                <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
-                  Signal integration active. Open the MiroFish simulation dashboard
-                  in a new tab to view predictions and manage agents.
-                </p>
+            <div className="flex-1 relative">
+              <iframe
+                key={iframeKey}
+                src={MIROFISH_URL}
+                className="w-full h-full border-0"
+                title="MiroFish Dashboard"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                loading="lazy"
+              />
+              <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+                <button
+                  onClick={() => setIframeKey(k => k + 1)}
+                  className="flex items-center justify-center w-7 h-7 bg-neutral-900/80 border border-neutral-700 rounded text-neutral-400 hover:text-white hover:border-neutral-500 transition-colors backdrop-blur-sm"
+                  title="Refresh iframe"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </button>
                 <a
-                  href="https://polyedge-mirofish.aitradepulse.com"
+                  href={MIROFISH_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-500/10 border border-green-500/30 rounded text-xs font-bold text-green-400 uppercase tracking-wider hover:bg-green-500/20 hover:border-green-500/50 transition-all"
+                  className="flex items-center justify-center w-7 h-7 bg-neutral-900/80 border border-neutral-700 rounded text-neutral-400 hover:text-white hover:border-neutral-500 transition-colors backdrop-blur-sm"
+                  title="Open in new tab"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Open MiroFish Dashboard
+                  <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             </div>
