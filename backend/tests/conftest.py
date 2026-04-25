@@ -41,6 +41,19 @@ TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_eng
 from backend.models import database as _db_mod
 from backend.models.database import Base
 
+# Import all models so Base.metadata.create_all() creates every table.
+# Without these imports, tables like strategy_proposal are missing in test DB.
+from backend.models.database import (
+    Signal, Trade, BotState, StrategyConfig, DecisionLog,
+    MarketWatch, WalletConfig, TradeContext, JobQueue, PendingApproval,
+    AILog, ActivityLog, MiroFishSignal, StrategyProposal,
+    PerformanceMetric, AuditLog, WhaleTransaction, BtcPriceSnapshot,
+    ScanLog, CopyTraderEntry, SettlementEvent, EquitySnapshot,
+    CalibrationRecord, ResearchItemDB, Alert, AlertConfig,
+    Setting, SystemSettings, ErrorLog, Experiment,
+)  # noqa: F401
+from backend.models.backtest import BacktestRun, BacktestTrade  # noqa: F401
+
 _db_mod.engine = test_engine
 _db_mod.SessionLocal = TestSessionLocal
 
@@ -57,27 +70,6 @@ try:
     _hb.SessionLocal = TestSessionLocal
 except Exception:
     pass
-
-# Seed initial BotState so /api/stats doesn't 404
-from backend.models.database import BotState
-from backend.config import settings as _settings
-
-_seed_db = TestSessionLocal()
-try:
-    for mode in ["paper", "testnet", "live"]:
-        if not _seed_db.query(BotState).filter_by(mode=mode).first():
-            initial_bankroll = _settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
-            _seed_db.add(BotState(
-                mode=mode,
-                bankroll=initial_bankroll,
-                total_trades=0,
-                winning_trades=0,
-                total_pnl=0.0,
-                is_running=True,
-            ))
-    _seed_db.commit()
-finally:
-    _seed_db.close()
 
 # ---------------------------------------------------------------------------
 # Now import the app (startup event will use the patched SessionLocal)
@@ -98,39 +90,48 @@ def _override_get_db():
 app.dependency_overrides[get_db] = _override_get_db
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def client():
-    """FastAPI TestClient backed by in-memory SQLite."""
-    # Create a fresh TestClient instance
     return TestClient(app)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def db():
-    """Raw DB session for seeding test data."""
-    session = TestSessionLocal()
+    connection = test_engine.connect()
+    transaction = connection.begin()
+    session = TestSessionLocal(bind=connection)
+    
     yield session
+    
     session.close()
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture(autouse=True)
 def cleanup_proposals_between_tests(db):
-    """Auto-cleanup: delete all cross-feature test tables to avoid contamination."""
     from backend.models.database import (
-        StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, MiroFishSignal
+        BotState, Trade, Signal, StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, MiroFishSignal
     )
-    # Cleanup before test
+    db.query(Trade).delete()
+    db.query(Signal).delete()
     db.query(StrategyProposal).delete()
     db.query(ActivityLog).delete()
     db.query(DecisionLog).delete()
     db.query(MiroFishSignal).delete()
     db.query(StrategyConfig).delete()
+    
+    for mode in ["paper", "testnet", "live"]:
+        state = db.query(BotState).filter_by(mode=mode).first()
+        if not state:
+            db.add(BotState(
+                mode=mode,
+                bankroll=10000.0 if mode != "testnet" else 100.0,
+                total_trades=0,
+                winning_trades=0,
+                total_pnl=0.0,
+                is_running=True,
+            ))
+    
     db.commit()
     yield
-    # Cleanup after test
-    db.query(StrategyProposal).delete()
-    db.query(ActivityLog).delete()
-    db.query(DecisionLog).delete()
-    db.query(MiroFishSignal).delete()
-    db.query(StrategyConfig).delete()
-    db.commit()

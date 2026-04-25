@@ -15,7 +15,7 @@ def ensure_phase2_tables():
 async def test_whale_transactions_empty():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/whales/transactions")
+        r = await client.get("/api/v1/whales/transactions")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
 
@@ -24,7 +24,7 @@ async def test_whale_transactions_empty():
 async def test_arbitrage_opportunities():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/arbitrage/opportunities")
+        r = await client.get("/api/v1/arbitrage/opportunities")
     assert r.status_code == 200
     assert "opportunities" in r.json()
 
@@ -33,7 +33,7 @@ async def test_arbitrage_opportunities():
 async def test_predictions_returns_baseline():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/predictions/m1")
+        r = await client.get("/api/v1/predictions/m1")
     assert r.status_code == 200
     pred = r.json()["prediction"]
     assert 0.0 <= pred["probability_yes"] <= 1.0
@@ -43,5 +43,5 @@ async def test_predictions_returns_baseline():
 async def test_news_feed_handles_errors():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/news/feed")
+        r = await client.get("/api/v1/news/feed")
     assert r.status_code == 200

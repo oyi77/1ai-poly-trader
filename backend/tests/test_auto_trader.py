@@ -21,7 +21,7 @@ def rm_reject():
 @pytest.mark.asyncio
 async def test_auto_execute_high_confidence(rm_allow, monkeypatch):
     from backend.config import settings
-    monkeypatch.setattr(settings, "TRADING_MODE", "paper")
+    monkeypatch.setattr(settings, "ACTIVE_MODES", "paper")
     monkeypatch.setattr(settings, "AUTO_APPROVE_MIN_CONFIDENCE", 0.85)
     trader = AutoTrader(rm_allow)
     result = await trader.execute_signal(
