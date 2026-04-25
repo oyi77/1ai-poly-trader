@@ -84,6 +84,7 @@ class AICallLogger:
         )
 
         self._write_to_file(record)
+        self._write_to_db(record)
 
         log_msg = (
             f"AI Call: {provider}/{model} | {call_type} | "
@@ -102,6 +103,34 @@ class AICallLogger:
                 f.write(json.dumps(asdict(record)) + "\n")
         except Exception as e:
             logger.error(f"Failed to write AI log: {e}")
+
+    def _write_to_db(self, record: AICallRecord):
+        if not self.log_to_db:
+            return
+        try:
+            from backend.models.database import SessionLocal, AILog
+            db = SessionLocal()
+            try:
+                db_record = AILog(
+                    timestamp=datetime.fromisoformat(record.timestamp),
+                    provider=record.provider,
+                    model=record.model,
+                    prompt=record.prompt,
+                    response=record.response,
+                    latency_ms=record.latency_ms,
+                    tokens_used=record.tokens_used,
+                    cost_usd=record.cost_usd,
+                    call_type=record.call_type,
+                    related_market=record.related_market,
+                    success=record.success,
+                    error=record.error,
+                )
+                db.add(db_record)
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            logger.debug(f"AI log DB write failed: {e}")
 
     async def log_to_database(self, record: AICallRecord, db_session):
         if not self.log_to_db:

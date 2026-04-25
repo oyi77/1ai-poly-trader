@@ -80,10 +80,9 @@ class GroqClassifier(BaseAIClient):
                 f"Groq classification: '{title[:30]}...' -> {result} ({latency_ms:.0f}ms)"
             )
 
-            # Log to database
             try:
                 ai_logger = get_ai_logger()
-                record = ai_logger.log_call(
+                ai_logger.log_call(
                     provider="groq",
                     model=self.model,
                     prompt=prompt,
@@ -93,27 +92,8 @@ class GroqClassifier(BaseAIClient):
                     call_type="classification",
                     success=True,
                 )
-                from backend.models.database import SessionLocal, AILog
-                from datetime import datetime
-
-                db = SessionLocal()
-                try:
-                    db_record = AILog(
-                        timestamp=datetime.fromisoformat(record.timestamp),
-                        provider=record.provider,
-                        model=record.model,
-                        call_type=record.call_type,
-                        latency_ms=record.latency_ms,
-                        tokens_used=record.tokens_used,
-                        cost_usd=record.cost_usd,
-                        success=True,
-                    )
-                    db.add(db_record)
-                    db.commit()
-                finally:
-                    db.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to log classification: {e}")
 
             # Parse response
             parts = result.split(",")
@@ -262,10 +242,9 @@ Key question: Is this edge reliable?"""
             latency_ms = (time.time() - start_time) * 1000
             tokens_used = response.usage.total_tokens if response.usage else 0
 
-            # Log to database
             try:
                 ai_logger = get_ai_logger()
-                record = ai_logger.log_call(
+                ai_logger.log_call(
                     provider="groq",
                     model=self.model,
                     prompt=prompt,
@@ -276,28 +255,8 @@ Key question: Is this edge reliable?"""
                     call_type="analysis",
                     success=True,
                 )
-                from backend.models.database import SessionLocal, AILog
-                from datetime import datetime
-
-                db = SessionLocal()
-                try:
-                    db_record = AILog(
-                        timestamp=datetime.fromisoformat(record.timestamp),
-                        provider=record.provider,
-                        model=record.model,
-                        call_type=record.call_type,
-                        latency_ms=record.latency_ms,
-                        tokens_used=record.tokens_used,
-                        cost_usd=record.cost_usd,
-                        success=True,
-                        related_market=record.related_market,
-                    )
-                    db.add(db_record)
-                    db.commit()
-                finally:
-                    db.close()
             except Exception as e:
-                logger.debug(f"Failed to log analysis to database: {e}")
+                logger.debug(f"Failed to log analysis: {e}")
 
             confidence = 0.6
             if "reliable" in result.lower() or "strong" in result.lower():
