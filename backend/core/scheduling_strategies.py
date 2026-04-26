@@ -734,7 +734,7 @@ async def auto_trader_job(mode: str):
             skipped = 0
             for sig in signals:
                 token_id = getattr(sig, "token_id", None)
-                if mode in ("testnet", "live") and not token_id:
+                if mode in ("testnet", "live") and not token_id and not sig.market_ticker.startswith("KX"):
                     sig.executed = True
                     skipped += 1
                     continue
@@ -766,7 +766,7 @@ async def auto_trader_job(mode: str):
                         "confidence": getattr(sig, "confidence", 0.0) or 0.0,
                         "model_probability": getattr(sig, "model_probability", None),
                         "token_id": token_id,
-                        "platform": "polymarket",
+                        "platform": "kalshi" if sig.market_ticker.startswith("KX") else "polymarket",
                     }
                     exec_result = await execute_decision(decision, "auto_trader", mode=mode, db=db)
                     if exec_result is not None:
@@ -776,9 +776,6 @@ async def auto_trader_job(mode: str):
                 elif result.pending_approval:
                     queued += 1
                 else:
-                    # Signal was rejected — mark executed so it's not
-                    # re-processed every cycle.
-                    sig.executed = True
                     skipped += 1
             db.commit()
             log_event(

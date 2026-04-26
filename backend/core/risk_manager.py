@@ -47,8 +47,11 @@ class RiskManager:
     ) -> RiskDecision:
         effective_mode = mode or self.s.TRADING_MODE
 
-        if confidence < 0.5:
-            return RiskDecision(False, f"confidence {confidence:.2f} below 0.5", 0.0)
+        # Lower confidence threshold for paper mode to allow more trades and learn
+        # Weather markets often have low confidence but strong edges from ensemble forecasting
+        min_confidence = 0.05 if effective_mode == "paper" else 0.3
+        if confidence < min_confidence:
+            return RiskDecision(False, f"confidence {confidence:.2f} below {min_confidence}", 0.0)
 
         if self._daily_loss_exceeded(db=db, mode=effective_mode):
             return RiskDecision(False, "daily loss limit hit", 0.0)

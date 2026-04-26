@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     )
     MAX_ENTRY_PRICE: float = 0.80  # Allow entries up to 80c for bond-like trades
     MAX_TRADES_PER_WINDOW: int = 2
-    MAX_TOTAL_PENDING_TRADES: int = 12
+    MAX_TOTAL_PENDING_TRADES: int = 50
     STALE_TRADE_HOURS: int = 48
 
     # Risk management — tuned for $100 bankroll
@@ -115,7 +115,7 @@ class Settings(BaseSettings):
     WEATHER_ENABLED: bool = True
     WEATHER_SCAN_INTERVAL_SECONDS: int = 300  # 5 min
     WEATHER_SETTLEMENT_INTERVAL_SECONDS: int = 1800  # 30 min
-    WEATHER_MIN_EDGE_THRESHOLD: float = 0.10  # 10% — weather has more signal
+    WEATHER_MIN_EDGE_THRESHOLD: float = 0.05
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 10.0
     WEATHER_CITIES: str = (

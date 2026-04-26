@@ -131,7 +131,25 @@ async def execute_decision(
             alert_manager = AlertManager(db)
 
             if mode in ("testnet", "live"):
-                if token_id:
+                is_kalshi = market_ticker.startswith("KX") or platform == "kalshi"
+
+                if is_kalshi:
+                    # Kalshi markets use their own API, not Polymarket CLOB
+                    try:
+                        from backend.data.kalshi_client import KalshiClient
+                        client = KalshiClient()
+                        logger.info(
+                            f"[{mode.upper()}][{strategy_name}] Kalshi order simulated for {market_ticker} (live Kalshi order placement TBD)"
+                        )
+                    except Exception as kalshi_err:
+                        logger.error(
+                            f"[strategy_executor] Kalshi execution error for {market_ticker}: {kalshi_err}"
+                        )
+                        return None
+                    # No CLOB order ID for Kalshi; simulate fill at entry price
+                    clob_order_id = None
+                    fill_price = entry_price
+                elif token_id:
                     try:
                         async with context.clob_client as clob:
                             await clob.create_or_derive_api_creds()
