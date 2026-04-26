@@ -298,6 +298,37 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     _seed_strategy_configs()
 
+    # Register ModeExecutionContext for each active mode (paper/testnet/live)
+    # Required by auto_trader and strategy_executor to execute trades
+    try:
+        from backend.core.mode_context import ModeExecutionContext, register_context
+        from backend.core.risk_manager import RiskManager
+
+        for mode in ["paper", "testnet", "live"]:
+            if not settings.is_mode_active(mode) and mode != "paper":
+                continue
+            try:
+                clob_client = clob_from_settings(mode=mode)
+            except Exception:
+                clob_client = None
+            risk_manager = RiskManager()
+            strategy_configs = {}
+            configs = db.query(StrategyConfig).filter(
+                (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
+            ).all()
+            for config in configs:
+                strategy_configs[config.strategy_name] = config
+            context = ModeExecutionContext(
+                mode=mode,
+                clob_client=clob_client,
+                risk_manager=risk_manager,
+                strategy_configs=strategy_configs,
+            )
+            register_context(mode, context)
+            logger.info(f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies")
+    except Exception as e:
+        logger.warning(f"Failed to register mode contexts: {e}", exc_info=True)
+
     logger.info("Starting wallet reconciliation recovery...")
     try:
         from backend.data.polymarket_clob import clob_from_settings
@@ -1105,10 +1136,10 @@ async def metrics():
 
 @app.get("/api/v1/dashboard", response_model=DashboardData)
 async def get_dashboard(
-    db: Session = Depends(get_db), _: None = Depends(require_admin)
+    db: Session = Depends(get_db)
 ):
     """Get all dashboard data in one call - returns stats for all 3 modes."""
-    stats = await get_stats(db, _, mode=None)
+    stats = await get_stats(db=db, _=None, mode=None)
 
     # Fetch BTC price from microstructure first, fallback to CoinGecko
     btc_price_data = None
@@ -1277,7 +1308,10 @@ async def get_dashboard(
             from backend.data.weather import fetch_ensemble_forecast, CITY_CONFIG
 
             wx_signals = await scan_for_weather_signals(mode=settings.TRADING_MODE)
-            weather_signals_data = [_weather_signal_to_response(s) for s in wx_signals]
+            weather_signals_data = [
+                WeatherSignalResponse(**_weather_signal_to_response(s).model_dump())
+                for s in wx_signals
+            ]
 
             city_keys = [
                 c.strip() for c in settings.WEATHER_CITIES.split(",") if c.strip()
