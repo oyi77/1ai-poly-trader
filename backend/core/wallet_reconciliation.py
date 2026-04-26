@@ -390,17 +390,46 @@ class WalletReconciler:
             # Compare
             for db_trade in db_open_trades:
                 if db_trade.market_ticker not in blockchain_map:
-                    # Blockchain says position is closed but DB says open
-                    # Mark as closed with settlement_source='data_api'
-                    self.logger.warning(
-                        f"Position {db_trade.market_ticker} (id={db_trade.id}) "
-                        f"closed on-chain but open in DB. Marking as closed."
+                    from backend.core.settlement_helpers import (
+                        fetch_resolution_for_trade,
+                        calculate_pnl,
                     )
-                    db_trade.settlement_time = datetime.now(timezone.utc)
+
+                    try:
+                        is_resolved, settlement_value = await fetch_resolution_for_trade(db_trade)
+                    except Exception as exc:
+                        self.logger.warning(
+                            f"Resolution lookup failed for trade {db_trade.id} "
+                            f"({db_trade.market_ticker}): {exc}. Leaving open."
+                        )
+                        continue
+
+                    if not is_resolved or settlement_value is None:
+                        self.logger.warning(
+                            f"Position {db_trade.market_ticker} (id={db_trade.id}) "
+                            f"closed on-chain but resolution unknown. Leaving open for retry."
+                        )
+                        continue
+
+                    pnl = calculate_pnl(db_trade, settlement_value)
+                    now = datetime.now(timezone.utc)
+                    db_trade.settled = True
+                    db_trade.settlement_value = settlement_value
+                    db_trade.pnl = pnl
+                    db_trade.settlement_time = now
+                    db_trade.settled_at = now
                     db_trade.settlement_source = "data_api"
                     db_trade.blockchain_verified = True
-                    db_trade.settled = True
-                    db_trade.result = "closed"
+                    if pnl is not None and pnl > 0:
+                        db_trade.result = "win"
+                    elif pnl is not None and pnl < 0:
+                        db_trade.result = "loss"
+                    else:
+                        db_trade.result = "push"
+                    self.logger.info(
+                        f"Position {db_trade.market_ticker} (id={db_trade.id}) "
+                        f"closed via reconciliation: settlement={settlement_value} pnl=${pnl:+.2f}"
+                    )
                     result.closed_count += 1
                 else:
                     # Position still open - check for discrepancies

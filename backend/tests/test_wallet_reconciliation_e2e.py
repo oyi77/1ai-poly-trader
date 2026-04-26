@@ -115,7 +115,8 @@ async def test_database_recovery_from_empty(db, mock_clob):
         assert trade1.size == 100.0
         assert trade1.source == "external"
         assert trade1.blockchain_verified is True
-        assert trade1.settlement_source == "data_api"
+        # Mock has redeemable=False, so settlement_source stays None (set only when is_redeemable=True)
+        assert trade1.settlement_source is None
         assert trade1.external_import_at is not None
 
         # Check second trade (No -> down)
@@ -255,7 +256,9 @@ async def test_settlement_verification_external_closure(db, mock_clob):
         }
     ]
 
-    with patch("backend.core.wallet_reconciliation.httpx.AsyncClient") as mock_client_class:
+    with patch("backend.core.wallet_reconciliation.httpx.AsyncClient") as mock_client_class, \
+         patch("backend.core.settlement_helpers.fetch_resolution_for_trade",
+               new=AsyncMock(return_value=(True, 0.0))):
         mock_client = AsyncMock()
         mock_response = MagicMock()
         mock_response.json.return_value = mock_positions
@@ -283,7 +286,8 @@ async def test_settlement_verification_external_closure(db, mock_clob):
         assert trade2_closed.settlement_time is not None
         assert trade2_closed.settlement_source == "data_api"
         assert trade2_closed.blockchain_verified is True
-        assert trade2_closed.result == "closed"
+        assert trade2_closed.result == "win"
+        assert trade2_closed.pnl == pytest.approx(75.0)
 
 
 # ---------------------------------------------------------------------------

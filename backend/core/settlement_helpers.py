@@ -466,6 +466,21 @@ async def _fetch_kalshi_resolution(ticker: str) -> Tuple[bool, Optional[float]]:
         return False, None
 
 
+async def fetch_resolution_for_trade(trade: Trade) -> Tuple[bool, Optional[float]]:
+    """Platform-aware resolution dispatch.
+
+    Returns: (is_resolved, settlement_value) where settlement_value ∈ {0.0, 1.0}.
+    Routes to Kalshi or Polymarket based on trade.platform; defaults to polymarket
+    when platform is missing (legacy rows).
+    """
+    platform = (getattr(trade, "platform", None) or "polymarket").lower()
+    if platform == "kalshi":
+        return await _fetch_kalshi_resolution(trade.market_ticker)
+    return await fetch_polymarket_resolution(
+        trade.market_ticker, event_slug=getattr(trade, "event_slug", None)
+    )
+
+
 def calculate_pnl(trade: Trade, settlement_value: float) -> float:
     """
     Calculate P&L for a trade given the settlement value.

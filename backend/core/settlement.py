@@ -12,6 +12,7 @@ from backend.core.alert_manager import AlertManager
 
 from backend.core.settlement_helpers import (
     fetch_polymarket_resolution,
+    fetch_resolution_for_trade,
     calculate_pnl,
     _resolve_markets,
     _parse_market_resolution,
@@ -46,10 +47,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 for trade_id in trades_to_close:
                     trade = db.query(Trade).filter(Trade.id == trade_id).first()
                     if trade and not trade.settled:
-                        is_resolved, settlement_value = await fetch_polymarket_resolution(
-                            trade.market_ticker,
-                            event_slug=getattr(trade, "event_slug", None)
-                        )
+                        is_resolved, settlement_value = await fetch_resolution_for_trade(trade)
                         
                         if is_resolved and settlement_value is not None:
                             pnl = calculate_pnl(trade, settlement_value)
@@ -216,10 +214,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 # transient API errors, caching, or timing. One final direct
                 # call can recover trades that would otherwise expire at pnl=0.
                 try:
-                    is_resolved_retry, sv_retry = await fetch_polymarket_resolution(
-                        trade.market_ticker,
-                        event_slug=getattr(trade, "event_slug", None),
-                    )
+                    is_resolved_retry, sv_retry = await fetch_resolution_for_trade(trade)
                     if is_resolved_retry and sv_retry is not None:
                         pnl_retry = calculate_pnl(trade, sv_retry)
                         if await process_settled_trade(

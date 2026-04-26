@@ -989,7 +989,7 @@ async def verify_settlement_blockchain():
     """Check unsettled trades and update with blockchain-verified settlement data."""
     from backend.core.scheduler import log_event
     from backend.core.settlement_helpers import (
-        fetch_polymarket_resolution,
+        fetch_resolution_for_trade,
         calculate_pnl,
     )
 
@@ -1010,9 +1010,7 @@ async def verify_settlement_blockchain():
 
         for trade in unsettled_trades:
             try:
-                is_resolved, settlement_value = await fetch_polymarket_resolution(
-                    trade.market_ticker, event_slug=trade.event_slug
-                )
+                is_resolved, settlement_value = await fetch_resolution_for_trade(trade)
 
                 if is_resolved and settlement_value is not None:
                     pnl = calculate_pnl(trade, settlement_value)
