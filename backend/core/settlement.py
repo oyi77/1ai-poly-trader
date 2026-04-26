@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 from sqlalchemy.orm import Session
 
+import re as _re
+
 from backend.config import settings
 from backend.models.database import Trade, BotState
 from backend.core.alert_manager import AlertManager
@@ -24,6 +26,58 @@ logger = logging.getLogger("trading_bot")
 
 # Prevent concurrent settlement runs from double-applying PnL
 _settlement_lock = asyncio.Lock()
+
+
+async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
+    """Settle a BTC 5-min UP/DOWN market trade whose window has expired."""
+    ticker = trade.market_ticker or ""
+    match = _re.search(r"btc-updown-5m-(\d+)", ticker)
+    if not match:
+        return None
+
+    window_end = datetime.fromtimestamp(int(match.group(1)) + 300, tz=timezone.utc)
+
+    if now < window_end:
+        return None
+
+    try:
+        from backend.data.btc_markets import fetch_btc_market_for_settlement
+        btc_market = await fetch_btc_market_for_settlement(ticker)
+        if btc_market and btc_market.closed:
+            entry_price = float(trade.entry_price or 0)
+            size = float(trade.size or 0)
+            direction = (trade.direction or "up").lower()
+
+            if direction == "up":
+                won = btc_market.up_price > 0.9
+            elif direction == "down":
+                won = btc_market.down_price > 0.9
+            else:
+                won = False
+
+            if won:
+                trade.result = "win"
+                trade.pnl = size * (1.0 - entry_price) - size * entry_price
+                trade.settlement_value = size
+            else:
+                trade.result = "loss"
+                trade.pnl = -size * entry_price
+                trade.settlement_value = 0.0
+
+            trade.settled = True
+            trade.settlement_time = now
+            trade.settlement_source = "btc_5min_auto"
+            return trade
+    except Exception as e:
+        logger.debug(f"btc_5min settlement fetch failed for {ticker}: {e}")
+
+    trade.settled = True
+    trade.result = "push"
+    trade.pnl = 0.0
+    trade.settlement_time = now
+    trade.settlement_source = "btc_5min_auto_breakeven"
+    trade.settlement_value = float(trade.size or 0) * float(trade.entry_price or 0)
+    return trade
 
 
 async def settle_pending_trades(db: Session) -> List[Trade]:
@@ -163,6 +217,14 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
 
         for trade in pending:
             is_settled, settlement_value, pnl = _settlement_from_resolution(trade)
+
+            # BTC 5-min UP/DOWN market settlement (btc-updown-5m-* tickers)
+            if not is_settled and trade.market_ticker and trade.market_ticker.startswith("btc-updown-5m-"):
+                btc_result = await _settle_btc_5min_trade(trade, now)
+                if btc_result:
+                    settled_trades.append(btc_result)
+                    continue
+
             if await process_settled_trade(
                 trade, is_settled, settlement_value, pnl, db
             ):
