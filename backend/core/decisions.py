@@ -6,7 +6,10 @@ evaluation — including skips. This creates the audit trail and ML training dat
 """
 import json
 import logging
+import time
 from datetime import datetime, timezone
+
+from sqlalchemy.exc import OperationalError
 
 from backend.models.database import SessionLocal, DecisionLog
 
@@ -64,11 +67,27 @@ def record_decision(
         db.add(row)
         db.flush()
         return row
+    except OperationalError as e:
+        # SQLite "database is locked" — rollback so the session stays usable
+        logger.warning(
+            f"record_decision: OperationalError for {strategy}/{market_ticker}, "
+            f"rolling back session: {e}",
+            extra={"component": "decisions"},
+        )
+        try:
+            db.rollback()
+        except Exception:
+            logger.error(f"record_decision: rollback also failed for {strategy}/{market_ticker}")
+        return None
     except Exception as e:
         logger.error(
             f"record_decision failed for {strategy}/{market_ticker}: {e}",
             extra={"component": "decisions"},
         )
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return None
 
 
@@ -79,17 +98,39 @@ def record_decision_standalone(
     confidence: float | None = None,
     signal_data: dict | None = None,
     reason: str | None = None,
-) -> None:
+    max_retries: int = 3,
+    retry_delay: float = 0.1,
+) -> DecisionLog | None:
     """
-    Convenience wrapper that opens its own DB session.
-    Use when you don't have an active session.
+    Open own DB session, insert decision, commit immediately, close.
+    Use for burst writes (e.g., 6 BTC 5-min markets in a loop)
+    to avoid shared-session lock contention.
+    
+    Retries up to max_retries times on OperationalError (database locked).
+    
+    Returns:
+        The inserted DecisionLog instance, or None on failure.
     """
-    db = SessionLocal()
-    try:
-        record_decision(db, strategy, market_ticker, decision, confidence, signal_data, reason)
-        db.commit()
-    except Exception as e:
-        logger.error(f"record_decision_standalone failed: {e}")
-        db.rollback()
-    finally:
-        db.close()
+    for attempt in range(max_retries):
+        db = SessionLocal()
+        try:
+            row = record_decision(db, strategy, market_ticker, decision, confidence, signal_data, reason)
+            db.commit()
+            return row
+        except OperationalError as e:
+            logger.warning(
+                f"record_decision_standalone: OperationalError on attempt {attempt+1}/{max_retries} "
+                f"for {strategy}/{market_ticker}: {e}"
+            )
+            db.rollback()
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            return None
+        except Exception as e:
+            logger.error(f"record_decision_standalone failed for {strategy}/{market_ticker}: {e}")
+            db.rollback()
+            return None
+        finally:
+            db.close()
+    return None
