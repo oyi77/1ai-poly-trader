@@ -398,15 +398,9 @@ async def update_bot_state_with_settlements(
             else:  # live mode
                 if is_real_trade:
                     state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
-                    state.bankroll = (state.bankroll or 0.0) + trade.size + trade.pnl
                     state.total_trades = (state.total_trades or 0) + 1
                     if trade.result == "win":
                         state.winning_trades = (state.winning_trades or 0) + 1
-                elif is_expired_or_push:
-                    state.bankroll = (state.bankroll or 0.0) + trade.size
-                    logger.info(
-                        f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to live bankroll"
-                    )
 
             # AGI hook: update Bayesian Kelly posterior on each trade outcome
             if is_real_trade:
@@ -427,6 +421,24 @@ async def update_bot_state_with_settlements(
             logger.error(f"Failed to commit settlement + bot state: {e}")
             db.rollback()
             return
+
+        # Sync live bankroll from PM API (source of truth)
+        if "live" in {
+            getattr(t, "trading_mode", "paper") or "paper"
+            for t in settled_trades
+            if t.pnl is not None
+        }:
+            pm_val = await _fetch_pm_portfolio_value()
+            if pm_val is not None and pm_val > 0:
+                live_state = db.query(BotState).filter_by(mode="live").first()
+                if live_state:
+                    live_state.bankroll = round(pm_val, 2)
+                    live_state.total_pnl = round(pm_val - float(settings.INITIAL_BANKROLL), 2)
+                    try:
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                    logger.info(f"Live bankroll synced from PM API: ${pm_val:.2f}")
 
         # Log stats for ALL modes that had settlements
         modes_with_settlements = set(
