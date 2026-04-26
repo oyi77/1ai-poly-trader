@@ -149,8 +149,9 @@ class BtcOracleStrategy(BaseStrategy):
         from backend.core.market_scanner import fetch_markets_by_keywords
 
         btc_5m_markets = await fetch_active_btc_markets()
+
+        now = datetime.now(timezone.utc)
         
-        # Convert BtcMarket objects to MarketInfo format for oracle analysis
         for market in btc_5m_markets:
             end_dt = market.window_end
             if end_dt.tzinfo is None:
