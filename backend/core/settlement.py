@@ -24,8 +24,30 @@ from backend.core.settlement_helpers import (
 
 logger = logging.getLogger("trading_bot")
 
-# Prevent concurrent settlement runs from double-applying PnL
 _settlement_lock = asyncio.Lock()
+
+
+async def _fetch_pm_portfolio_value() -> float | None:
+    """Fetch on-chain portfolio value from Polymarket Data API."""
+    try:
+        import httpx, os
+        wallet = os.getenv("POLYMARKET_WALLET_ADDRESS", "")
+        if not wallet:
+            return None
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://data-api.polymarket.com/value",
+                params={"user": wallet.lower()},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and data:
+                    return float(data[0].get("value", 0))
+                elif isinstance(data, dict):
+                    return float(data.get("value", 0))
+    except Exception as e:
+        logger.debug(f"PM portfolio value fetch failed: {e}")
+    return None
 
 
 async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
@@ -57,11 +79,14 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
 
             if won:
                 trade.result = "win"
-                trade.pnl = size * (1.0 - entry_price) - size * entry_price
-                trade.settlement_value = size
+                # Win: each share pays $1; shares = size/entry_price
+                # PnL = shares - cost = (size/entry_price) - size
+                trade.pnl = (size / entry_price) - size if entry_price > 0 else 0.0
+                trade.settlement_value = size / entry_price if entry_price > 0 else 0.0
             else:
                 trade.result = "loss"
-                trade.pnl = -size * entry_price
+                # Loss: entire investment lost
+                trade.pnl = -size
                 trade.settlement_value = 0.0
 
             trade.settled = True
@@ -76,7 +101,7 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
     trade.pnl = 0.0
     trade.settlement_time = now
     trade.settlement_source = "btc_5min_auto_breakeven"
-    trade.settlement_value = float(trade.size or 0) * float(trade.entry_price or 0)
+    trade.settlement_value = float(trade.size or 0)
     return trade
 
 
@@ -431,7 +456,11 @@ async def update_bot_state_with_settlements(
 
 
 async def reconcile_bot_state(db: Session) -> None:
-    """Recalculate bot_state from trade history to prevent drift."""
+    """Recalculate bot_state from trade history to prevent drift.
+
+    For live mode, cross-checks against Polymarket API portfolio value
+    as the source of truth when on-chain wallet is available.
+    """
     try:
         from sqlalchemy import func, case
 
@@ -439,6 +468,21 @@ async def reconcile_bot_state(db: Session) -> None:
             state = db.query(BotState).filter_by(mode=mode).first()
             if not state:
                 continue
+
+            if mode == "live":
+                pm_value = await _fetch_pm_portfolio_value()
+                if pm_value is not None and pm_value > 0:
+                    drift = abs(float(state.bankroll or 0) - pm_value)
+                    if drift > 1.0:
+                        logger.warning(
+                            f"Live bankroll drift vs PM API: "
+                            f"DB=${float(state.bankroll or 0):.2f} PM=${pm_value:.2f}"
+                        )
+                        state.bankroll = round(pm_value, 2)
+                        from backend.config import settings as _s
+                        state.total_pnl = round(pm_value - float(_s.INITIAL_BANKROLL), 2)
+                        logger.info(f"Live bankroll reconciled from PM API: ${pm_value:.2f}")
+                    continue
 
             real_trades = (
                 db.query(
