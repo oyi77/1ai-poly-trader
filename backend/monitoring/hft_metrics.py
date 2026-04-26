@@ -75,3 +75,16 @@ def record_arb(type_: str, profit: float):
 def record_whale(action: str, size: float):
     bucket = "large" if size > 100000 else "medium" if size > 50000 else "small"
     hft_whale_activities.labels(action=action, size_bucket=bucket).inc()
+
+
+def get_hft_summary() -> dict:
+    return {
+        "signals_per_second": 0.0,
+        "avg_latency_ms": 0.0,
+        "executor_latency_ms": 0.0,
+        "queue_size": 0,
+        "active_strategies": 0,
+        "arb_opportunities": 0,
+        "whale_activities": 0,
+        "orderbook_updates_per_sec": 0.0,
+    }

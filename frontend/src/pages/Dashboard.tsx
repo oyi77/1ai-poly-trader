@@ -18,6 +18,7 @@ const TradesTab = lazy(() => import('../components/dashboard/TradesTab').then(m 
 const MarketsTab = lazy(() => import('../components/dashboard/MarketsTab').then(m => ({ default: m.MarketsTab })))
 const PerformanceTab = lazy(() => import('../components/dashboard/PerformanceTab').then(m => ({ default: m.PerformanceTab })))
 const BrainGraph = lazy(() => import('../components/BrainGraph'))
+const HFTTab = lazy(() => import('../components/hft').then(m => ({ default: m.default })))
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ function RefreshBar({ interval }: { interval: number }) {
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 
-const DASHBOARD_TABS = ['Overview', 'Performance', 'Brain', 'Trades', 'Markets'] as const
+const DASHBOARD_TABS = ['Overview', 'Performance', 'Brain', 'Trades', 'Markets', 'HFT'] as const
 type DashboardTab = typeof DASHBOARD_TABS[number]
 
 export default function Dashboard() {
@@ -254,6 +255,7 @@ export default function Dashboard() {
             {activeTab === 'Brain' && <BrainGraph />}
             {activeTab === 'Trades' && <TradesTab />}
             {activeTab === 'Markets' && <MarketsTab />}
+            {activeTab === 'HFT' && <HFTTab />}
           </Suspense>
         </div>
 

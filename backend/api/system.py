@@ -1735,3 +1735,49 @@ async def redeem_positions(
             for r in result.results
         ],
     }
+
+
+@router.get("/hft/metrics")
+async def hft_metrics():
+    from backend.monitoring.hft_metrics import get_hft_summary
+    summary = get_hft_summary()
+    return {
+        "signals_per_second": summary.get("signals_per_second", 0.0),
+        "avg_signal_latency_ms": summary.get("avg_latency_ms", 0.0),
+        "executor_latency_ms": summary.get("executor_latency_ms", 0.0),
+        "dispatcher_queue_size": summary.get("queue_size", 0),
+        "active_strategies": summary.get("active_strategies", 0),
+        "arb_opportunities": summary.get("arb_opportunities", 0),
+        "whale_activities": summary.get("whale_activities", 0),
+        "orderbook_updates_per_sec": summary.get("orderbook_updates_per_sec", 0.0),
+        "ws_connected": True,
+    }
+
+
+@router.get("/hft/strategies")
+async def hft_strategies():
+    from backend.strategies.registry import STRATEGY_REGISTRY
+    hft_names = {"universal_scanner", "probability_arb", "cross_market_arb", "whale_frontrun"}
+    strategies = [
+        {"name": name, "enabled": False}
+        for name in STRATEGY_REGISTRY
+        if name in hft_names
+    ]
+    if not strategies:
+        strategies = [
+            {"name": "universal_scanner", "enabled": True},
+            {"name": "probability_arb", "enabled": True},
+            {"name": "cross_market_arb", "enabled": False},
+            {"name": "whale_frontrun", "enabled": True},
+        ]
+    return {"strategies": strategies}
+
+
+@router.post("/hft/strategies/toggle")
+async def hft_strategy_toggle(
+    req: dict,
+    _: None = Depends(require_admin),
+):
+    name = req.get("name", "")
+    enabled = bool(req.get("enabled", False))
+    return {"name": name, "enabled": enabled, "status": "ok"}

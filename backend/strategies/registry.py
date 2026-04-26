@@ -103,6 +103,11 @@ def load_all_strategies() -> None:
         "backend.strategies.bond_scanner",
         "backend.strategies.general_market_scanner",
         "backend.strategies.line_movement_detector",
+        "backend.strategies.universal_scanner",
+        "backend.strategies.probability_arb",
+        "backend.strategies.cross_market_arb",
+        "backend.strategies.whale_frontrun",
+        "backend.strategies.types_hft",
     ]
     for module in strategy_modules:
         # Skip KalshiArbStrategy if no API key configured
