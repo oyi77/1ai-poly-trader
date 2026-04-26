@@ -97,6 +97,7 @@ def load_all_strategies() -> None:
         "backend.strategies.kalshi_arb",
         "backend.strategies.btc_oracle",
         "backend.strategies.btc_momentum",
+        "backend.strategies.cex_pm_leadlag",
         "backend.strategies.realtime_scanner",
         "backend.strategies.whale_pnl_tracker",
         "backend.strategies.market_maker",
