@@ -30,8 +30,8 @@ _settlement_lock = asyncio.Lock()
 async def _fetch_pm_portfolio_value() -> float | None:
     """Fetch on-chain portfolio value from Polymarket Data API."""
     try:
-        import httpx, os
-        wallet = os.getenv("POLYMARKET_WALLET_ADDRESS", "")
+        import httpx
+        wallet = settings.POLYMARKET_BUILDER_ADDRESS
         if not wallet:
             return None
         async with httpx.AsyncClient(timeout=5.0) as client:
