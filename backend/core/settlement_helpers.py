@@ -19,6 +19,128 @@ logger = logging.getLogger("trading_bot")
 _market_404_counts: TTLCache = TTLCache(maxsize=1000, ttl=3600)
 
 
+def _looks_like_token_id(value: str) -> bool:
+    """Detect Polymarket CLOB token IDs.
+
+    Token IDs are long decimal strings (typically 70+ digits, ERC1155 token IDs
+    derived from conditionId + outcome index). They're distinct from:
+      - Numeric Gamma market IDs (short, < 12 digits)
+      - Slugs (contain hyphens / non-digit chars)
+      - Condition IDs (start with 0x)
+    """
+    if not value or not isinstance(value, str):
+        return False
+    if not value.isdigit():
+        return False
+    return len(value) >= 20
+
+
+async def _resolve_pm_by_token_id(token_id: str) -> Tuple[bool, Optional[float]]:
+    """Resolve a Polymarket market via CLOB token_id (Gamma API).
+
+    Uses ``gamma-api.polymarket.com/markets?clob_token_ids={tid}&closed=true``
+    which is the only reliable path when we only have a token_id (no slug, no
+    numeric market id).
+
+    Picks the outcome index by matching the token_id's position inside the
+    market's ``clobTokenIds`` array, then reads the corresponding
+    ``outcomePrices[i]``. settlement_value is the price of OUR token's outcome
+    (1.0 = our outcome won, 0.0 = our outcome lost). The caller's calculate_pnl
+    treats settlement_value=1.0 as YES/UP-wins.
+
+    Note: this returns the value from the *token's* perspective normalized to
+    yes/up semantics — i.e. if the trade's token is the "Yes" leg and Yes wins,
+    we return 1.0; if the token is the "No" leg and No wins, we still return
+    1.0 because *our* outcome won. This matches how stuck trades are stored:
+    direction='up' simply means "the token we bought".
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for closed_flag in ("true", "false"):
+                try:
+                    resp = await client.get(
+                        "https://gamma-api.polymarket.com/markets",
+                        params={
+                            "clob_token_ids": token_id,
+                            "closed": closed_flag,
+                            "limit": 1,
+                        },
+                        timeout=10.0,
+                    )
+                except (httpx.TimeoutException, httpx.ConnectTimeout):
+                    continue
+
+                if resp.status_code != 200:
+                    continue
+
+                data = resp.json()
+                if not data or not isinstance(data, list):
+                    continue
+
+                market = data[0]
+                clob_token_ids = market.get("clobTokenIds", [])
+                outcome_prices = market.get("outcomePrices", [])
+
+                if isinstance(clob_token_ids, str):
+                    try:
+                        clob_token_ids = json.loads(clob_token_ids)
+                    except (ValueError, TypeError):
+                        clob_token_ids = []
+                if isinstance(outcome_prices, str):
+                    try:
+                        outcome_prices = json.loads(outcome_prices)
+                    except (ValueError, TypeError):
+                        outcome_prices = []
+
+                if not clob_token_ids or not outcome_prices:
+                    continue
+                if len(clob_token_ids) != len(outcome_prices):
+                    continue
+
+                idx = None
+                for i, tid in enumerate(clob_token_ids):
+                    if str(tid) == str(token_id):
+                        idx = i
+                        break
+                if idx is None:
+                    continue
+
+                is_closed = bool(market.get("closed", False))
+                uma_status = (market.get("umaResolutionStatus") or "").lower()
+                resolved = is_closed or uma_status == "resolved"
+                if not resolved:
+                    continue
+
+                try:
+                    our_price = float(outcome_prices[idx])
+                except (ValueError, TypeError):
+                    continue
+
+                if our_price >= 0.99:
+                    logger.info(
+                        f"PM token-id {token_id[:16]}... resolved: WON "
+                        f"(idx={idx}, price={our_price})"
+                    )
+                    return True, 1.0
+                if our_price <= 0.01:
+                    logger.info(
+                        f"PM token-id {token_id[:16]}... resolved: LOST "
+                        f"(idx={idx}, price={our_price})"
+                    )
+                    return True, 0.0
+
+                return False, None
+
+            return False, None
+
+    except Exception as e:
+        logger.warning(
+            f"[settlement_helpers._resolve_pm_by_token_id] {type(e).__name__}: "
+            f"Failed for token {token_id[:16]}...: {e}"
+        )
+        return False, None
+
+
 async def fetch_polymarket_resolution(
     market_id: str, event_slug: Optional[str] = None
 ) -> Tuple[bool, Optional[float]]:
@@ -28,8 +150,17 @@ async def fetch_polymarket_resolution(
     For BTC 5-min markets, uses event slug to find the market.
 
     Returns: (is_resolved, settlement_value)
-        - settlement_value: 1.0 if Up won, 0.0 if Down won
+        - settlement_value: 1.0 if our outcome (Up/Yes leg) won, 0.0 if it lost.
+
+    For wallet-reconciliation imports the market_ticker is often a CLOB
+    token_id (long decimal string). In that case we route through
+    ``_resolve_pm_by_token_id`` which handles outcome-index mapping correctly.
     """
+    if _looks_like_token_id(market_id):
+        resolved, value = await _resolve_pm_by_token_id(market_id)
+        if resolved:
+            return resolved, value
+
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Try event slug first (more reliable for BTC 5-min markets)
