@@ -34,6 +34,7 @@ router = APIRouter(tags=["system"])
 _ticker_price_cache = {}
 _ticker_price_cache_timestamps = {}
 _CACHE_TTL_SECONDS = 60
+_hft_enabled_cache: set = {"universal_scanner", "probability_arb", "whale_frontrun"}
 
 
 # ============================================================================
@@ -1759,16 +1760,23 @@ async def hft_strategies():
     from backend.strategies.registry import STRATEGY_REGISTRY
     hft_names = {"universal_scanner", "probability_arb", "cross_market_arb", "whale_frontrun"}
     strategies = [
-        {"name": name, "enabled": False}
+        {
+            "name": name,
+            "enabled": name in _hft_enabled_cache,
+            "signals_generated": 0,
+            "last_signal_at": None,
+            "pnl": 0.0,
+            "mode": "paper",
+        }
         for name in STRATEGY_REGISTRY
         if name in hft_names
     ]
     if not strategies:
         strategies = [
-            {"name": "universal_scanner", "enabled": True},
-            {"name": "probability_arb", "enabled": True},
-            {"name": "cross_market_arb", "enabled": False},
-            {"name": "whale_frontrun", "enabled": True},
+            {"name": "universal_scanner", "enabled": True, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
+            {"name": "probability_arb", "enabled": True, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
+            {"name": "cross_market_arb", "enabled": False, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
+            {"name": "whale_frontrun", "enabled": True, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
         ]
     return {"strategies": strategies}
 
@@ -1778,6 +1786,11 @@ async def hft_strategy_toggle(
     req: dict,
     _: None = Depends(require_admin),
 ):
+    global _hft_enabled_cache
     name = req.get("name", "")
     enabled = bool(req.get("enabled", False))
+    if enabled:
+        _hft_enabled_cache.add(name)
+    else:
+        _hft_enabled_cache.discard(name)
     return {"name": name, "enabled": enabled, "status": "ok"}

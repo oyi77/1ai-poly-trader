@@ -118,7 +118,14 @@ export function HFTStrategyCards() {
     return <div className="text-[10px] text-neutral-600">Loading strategies...</div>
   }
 
-  const strategies = data ?? []
+  const strategies = (data ?? []).map((s) => ({
+    name: s.name,
+    enabled: s.enabled,
+    signals_generated: s.signals_generated ?? 0,
+    last_signal_at: s.last_signal_at ?? null,
+    pnl: s.pnl ?? 0,
+    mode: s.mode ?? 'paper',
+  }))
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
