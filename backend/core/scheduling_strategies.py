@@ -94,8 +94,8 @@ async def _process_signal_with_approval(
             )
     min_confidence = settings.AUTO_APPROVE_MIN_CONFIDENCE
 
-    MAX_TRADE_FRACTION = 0.03
-    MIN_TRADE_SIZE = 10
+    MAX_TRADE_FRACTION = settings.KELLY_FRACTION
+    MIN_TRADE_SIZE = 5.0
     bankroll = _get_bankroll_for_mode(state, mode)
     trade_size = min(signal.suggested_size, bankroll * MAX_TRADE_FRACTION)
     trade_size = max(trade_size, MIN_TRADE_SIZE)
@@ -744,7 +744,7 @@ async def auto_trader_job(mode: str):
                     "market_ticker": sig.market_ticker,
                     "side": "BUY" if (sig.direction or "yes") == "yes" else "SELL",
                     "confidence": getattr(sig, "confidence", 0.0) or 0.0,
-                    "size": min(50.0, bankroll * 0.03),
+                    "size": min(50.0, bankroll * settings.KELLY_FRACTION),
                     "price": getattr(sig, "model_probability", 0.5) or 0.5,
                     "token_id": token_id,
                 }
@@ -756,7 +756,7 @@ async def auto_trader_job(mode: str):
                 if result.executed:
                     from backend.core.strategy_executor import execute_decision
 
-                    trade_size = min(50.0, (bankroll or 100.0) * 0.03)
+                    trade_size = min(50.0, (bankroll or 100.0) * settings.KELLY_FRACTION)
                     decision = {
                         "market_ticker": sig.market_ticker,
                         "direction": sig.direction or "yes",

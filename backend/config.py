@@ -81,9 +81,7 @@ class Settings(BaseSettings):
 
     # Bot settings - BTC 5-MIN TRADING
     INITIAL_BANKROLL: float = 100.0
-    KELLY_FRACTION: float = (
-        0.05  # Ultra-conservative fractional Kelly for $100 bankroll
-    )
+    KELLY_FRACTION: float = 0.25
 
     # BTC 5-min specific settings
     SCAN_INTERVAL_SECONDS: int = 60  # Scan every minute
