@@ -280,7 +280,9 @@ async def execute_decision(
                 )
                 state.testnet_trades = (state.testnet_trades or 0) + 1
             elif mode == "live" and state:
-                state.bankroll = max(0.0, (state.bankroll or 0.0) - adjusted_size)
+                # Live bankroll is synced from PM API — do not deduct locally.
+                # On-chain USDC is managed by the CLOB; our bankroll field
+                # tracks PM portfolio value, not a local cash balance.
                 state.total_trades = (state.total_trades or 0) + 1
 
             signal_data = {

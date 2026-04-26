@@ -138,12 +138,13 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                             )
                         else:
                             trade.settled = True
-                            trade.result = "closed"
+                            trade.result = "loss"
                             trade.settlement_time = now
-                            trade.pnl = 0.0
-                            trade.settlement_value = None
+                            trade.pnl = -float(trade.size or 0)
+                            trade.settlement_value = 0.0
+                            trade.settlement_source = "closed_unresolved"
                             logger.info(
-                                f"Position reconciliation: trade {trade.id} closed without resolution (position gone)"
+                                f"Position reconciliation: trade {trade.id} closed without resolution (assumed loss, pnl=${trade.pnl:+.2f})"
                             )
                         
                         closed_count += 1
@@ -281,14 +282,16 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 if market_end.tzinfo is None:
                     market_end = market_end.replace(tzinfo=timezone.utc)
                 if market_end < now:
-                    # Market expired and API couldn't resolve - expire now
+                    # Market expired and API couldn't resolve — assume loss
                     trade.settled = True
-                    trade.result = "expired"
+                    trade.result = "loss"
                     trade.settlement_time = now
-                    trade.pnl = 0
+                    trade.pnl = -float(trade.size or 0)
+                    trade.settlement_value = 0.0
+                    trade.settlement_source = "expired_unresolved"
                     settled_trades.append(trade)
                     logger.info(
-                        f"Trade {trade.id} expired: market end_date {market_end.isoformat()} passed"
+                        f"Trade {trade.id} expired: market end_date {market_end.isoformat()} passed (assumed loss)"
                     )
                     continue
 
@@ -318,17 +321,24 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                     )
 
                 trade.settled = True
-                trade.result = "expired"
+                trade.result = "loss"
                 trade.settlement_time = now
-                trade.pnl = 0
+                trade.pnl = -float(trade.size or 0)
+                trade.settlement_value = 0.0
+                trade.settlement_source = "stale_expired"
                 settled_trades.append(trade)
 
-        expired_count = sum(1 for t in settled_trades if t.result == "expired")
-        resolved_count = len(settled_trades) - expired_count
+        unresolved_count = sum(
+            1 for t in settled_trades
+            if getattr(t, "settlement_source", None) in (
+                "expired_unresolved", "closed_unresolved", "stale_expired"
+            )
+        )
+        resolved_count = len(settled_trades) - unresolved_count
         if resolved_count:
             logger.info(f"Settled {resolved_count} trades with market resolution")
-        if expired_count:
-            logger.info(f"Marked {expired_count} stale trades as expired")
+        if unresolved_count:
+            logger.info(f"Marked {unresolved_count} unresolvable trades as total losses")
         if not settled_trades:
             logger.info("No trades ready for settlement (markets still open)")
 

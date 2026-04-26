@@ -69,7 +69,13 @@ class RiskManager:
                 False, f"unsettled trade exists for {market_ticker}", 0.0
             )
 
-        max_position = bankroll * self.s.MAX_POSITION_FRACTION
+        # Live bankroll = PM portfolio value (includes locked positions);
+        # available cash = portfolio minus open exposure.
+        if effective_mode == "live":
+            available_cash = max(0.0, bankroll - current_exposure)
+            max_position = available_cash * self.s.MAX_POSITION_FRACTION
+        else:
+            max_position = bankroll * self.s.MAX_POSITION_FRACTION
         adjusted = min(size, max_position)
 
         max_exposure = bankroll * self.s.MAX_TOTAL_EXPOSURE_FRACTION
@@ -96,7 +102,7 @@ class RiskManager:
             week_start = now - timedelta(days=7)
 
             daily_pnl = (
-                db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
+                db.query(func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0))
                 .filter(
                     Trade.settled.is_(True),
                     Trade.settlement_time >= day_start,
@@ -107,7 +113,7 @@ class RiskManager:
             )
 
             weekly_pnl = (
-                db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
+                db.query(func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0))
                 .filter(
                     Trade.settled.is_(True),
                     Trade.settlement_time >= week_start,
@@ -164,7 +170,7 @@ class RiskManager:
             now = datetime.now(timezone.utc)
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             daily_pnl = (
-                db.query(func.coalesce(func.sum(Trade.pnl), 0.0))
+                db.query(func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0))
                 .filter(
                     Trade.settled.is_(True),
                     Trade.settlement_time >= today_start,
