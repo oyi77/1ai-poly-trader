@@ -64,7 +64,7 @@ async def _get_markets_kalshi(limit: int = 100) -> list[dict]:
     try:
         from backend.data.kalshi_client import KalshiClient
         client = KalshiClient()
-        return await client.get_markets(limit=limit)
+        return await client.get_markets(params={"limit": limit})
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Kalshi API error: {exc}")
 
