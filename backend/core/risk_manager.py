@@ -107,6 +107,7 @@ class RiskManager:
                     Trade.settled.is_(True),
                     Trade.settlement_time >= day_start,
                     Trade.trading_mode == effective_mode,
+                    ~Trade.settlement_source.op("LIKE")("backfill_%"),
                 )
                 .scalar()
                 or 0.0
@@ -118,6 +119,7 @@ class RiskManager:
                     Trade.settled.is_(True),
                     Trade.settlement_time >= week_start,
                     Trade.trading_mode == effective_mode,
+                    ~Trade.settlement_source.op("LIKE")("backfill_%"),
                 )
                 .scalar()
                 or 0.0
@@ -175,6 +177,7 @@ class RiskManager:
                     Trade.settled.is_(True),
                     Trade.settlement_time >= today_start,
                     Trade.trading_mode == effective_mode,
+                    ~Trade.settlement_source.op("LIKE")("backfill_%"),
                 )
                 .scalar()
                 or 0.0
