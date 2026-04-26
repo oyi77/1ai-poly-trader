@@ -142,13 +142,94 @@ class BtcOracleStrategy(BaseStrategy):
             result.errors.append("Could not fetch BTC price from CoinGecko")
             return result
 
-        # Get candidate markets from MarketWatch (BTC-tagged) or scanner
+        # Get candidate markets: use dedicated BTC 5-min fetcher (finds
+        # btc-updown-5m-* slugs via computation), then supplement with
+        # keyword search for any other BTC markets.
+        from backend.data.btc_markets import fetch_active_btc_markets
         from backend.core.market_scanner import fetch_markets_by_keywords
 
-        markets = await fetch_markets_by_keywords(["btc", "bitcoin"], limit=200)
-        btc_markets = await self.market_filter(markets)
+        btc_5m_markets = await fetch_active_btc_markets()
+        
+        # Convert BtcMarket objects to MarketInfo format for oracle analysis
+        for market in btc_5m_markets:
+            end_dt = market.window_end
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+            minutes_remaining = (end_dt - now).total_seconds() / 60.0
+            if minutes_remaining < 0 or minutes_remaining > max_minutes:
+                continue
 
-        now = datetime.now(timezone.utc)
+            # Direct direction from RSI/momentum — if RSI < 50, momentum
+            # is negative → BTC more likely DOWN. If RSI > 50, UP.
+            from backend.data.crypto import compute_btc_microstructure
+            try:
+                micro = await compute_btc_microstructure()
+            except Exception:
+                micro = None
+
+            if micro and micro.momentum_5m is not None:
+                direction = "up" if micro.momentum_5m > 0 else "down"
+            else:
+                # Fallback: no directional bias from indicator
+                direction = "down" if market.up_price > market.down_price else "up"
+
+            market_mid = market.up_price if direction == "up" else market.down_price
+            oracle_implied = 1.0
+            edge = abs(oracle_implied - market_mid) - min_edge
+
+            decision = "BUY" if edge > 0 else "SKIP"
+            confidence_score = min(1.0, max(0.05, edge + min_edge))
+
+            record_decision(
+                ctx.db,
+                self.name,
+                market.market_id,
+                decision,
+                confidence=confidence_score,
+                signal_data={
+                    "oracle_price": btc_price,
+                    "market_mid": market_mid,
+                    "implied_direction": direction,
+                    "time_to_resolution_s": minutes_remaining * 60,
+                    "edge": edge,
+                    "slug": market.slug,
+                },
+                reason=f"oracle_edge={edge:.3f} btc=${btc_price:,.0f} t={minutes_remaining:.1f}min dir={direction}",
+            )
+            result.decisions_recorded += 1
+
+            if decision == "BUY":
+                result.trades_attempted += 1
+                entry_price = (
+                    market.up_price
+                    if direction == "up"
+                    else market.down_price
+                )
+                token_id = market.up_token_id if direction == "up" else market.down_token_id
+                result.decisions.append(
+                    {
+                        "decision": "BUY",
+                        "market_ticker": market.market_id,
+                        "token_id": token_id,
+                        "direction": direction,
+                        "confidence": confidence_score,
+                        "edge": edge,
+                        "size": ctx.params.get("max_position_usd", 50),
+                        "entry_price": entry_price,
+                        "suggested_size": ctx.params.get("max_position_usd", 50),
+                        "model_probability": oracle_implied,
+                        "market_probability": market_mid,
+                        "platform": "polymarket",
+                        "strategy_name": self.name,
+                        "reasoning": f"oracle_edge={edge:.3f} btc=${btc_price:,.0f} t={minutes_remaining:.1f}min dir={direction}",
+                        "slug": market.slug,
+                        "market_end_date": end_dt.isoformat(),
+                    }
+                )
+
+        # Also try keyword-based scanner for any other BTC markets
+        kw_markets = await fetch_markets_by_keywords(["btc", "bitcoin"], limit=200)
+        btc_markets = await self.market_filter(kw_markets)
 
         for market in btc_markets:
             end_dt = parse_end_date(market.end_date)
