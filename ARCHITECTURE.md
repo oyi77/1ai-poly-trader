@@ -179,13 +179,15 @@ polyedge/
 
 3. **AI Signal Analysis** — For strategies that use AI, the ensemble layer queries multiple providers (Claude, Groq) and aggregates predictions with confidence scores.
 
-4. **Risk Management** — Before any order, the risk manager validates position limits, portfolio concentration, circuit breaker status, and shadow mode flags.
+4. **Risk Management** — Before any order, strategy/AI logic may propose a dynamic size, but the risk manager validates position limits, portfolio concentration, drawdown breakers, duplicate open positions, and shadow mode flags. See `docs/architecture/adr-004-bounded-autonomous-sizing.md`.
 
 5. **Order Execution** — `order_executor.py` places orders via the Polymarket CLOB SDK or Kalshi API. Supports limit orders, market orders, and partial fills.
 
 6. **Settlement Tracking** — `settlement.py` + `settlement_helpers.py` monitor open positions and reconcile outcomes. In live mode, settlement preserves the trade ledger and delegates financial cache updates to `bankroll_reconciliation.py`.
 
 7. **Dashboard Updates** — The React frontend polls the FastAPI backend via TanStack Query, rendering real-time signals, trades, strategy performance, and risk metrics.
+
+8. **Trade Attempt Observability** — Every standard strategy execution attempt that reaches `strategy_executor` is recorded in `TradeAttempt`, including requested size, risk-adjusted size, blocker reason, and execution outcome. The dashboard Control Room reads this ledger to explain no-trade states without rewriting historical `Trade` data.
 
 ---
 
@@ -196,6 +198,7 @@ polyedge/
 - **Live mode**: `BotState.bankroll` and `BotState.total_pnl` are derived from external account equity: CLOB USDC cash balance plus Polymarket Data API open-position value. Local realized P&L/backfill rows are not authoritative for live equity.
 - **Paper/testnet modes**: `BotState` remains ledger-derived from initial bankroll, realized P&L, and open exposure because these modes are simulated accounting environments.
 - **Implementation**: `backend/core/bankroll_reconciliation.py` is the only intended writer for live financial cache fields. See `docs/architecture/adr-002-live-equity-source.md`.
+- **Dashboard interpretation**: Overview separates live, paper, and testnet PnL and shows both top winners and worst losses. Positive live account-equity PnL can coexist with negative paper/testnet ledger PnL.
 
 ---
 

@@ -43,7 +43,9 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 - Production deploys to Railway (backend) + Vercel (frontend) — check `railway.json` and `vercel.json`
 - PM2 manages multiple processes in production: API server, queue worker, and scheduler
 - Live `BotState.bankroll`/`total_pnl` are derived caches from CLOB USDC cash + Polymarket Data API open-position value; do not recompute live equity from local ledger/backfill P&L (see `docs/architecture/adr-002-live-equity-source.md`)
+- Paper/testnet PnL may be negative, but available simulated bankroll/balance must never be negative; settlement, reconciliation, and stats/dashboard output floor depleted simulated bankroll at `$0.00` while preserving learning trades and PnL history.
 - Trade execution observability uses the `TradeAttempt` ledger and dashboard Control Room; do not replace it with log scraping or mutate historical `Trade` rows to explain rejected attempts (see `docs/architecture/adr-003-trade-attempt-observability.md`)
+- Autonomous trade sizing is bounded: strategy/AI code may propose dynamic sizes, but deterministic `RiskManager` mandates and minimum-order gates remain non-bypassable (see `docs/architecture/adr-004-bounded-autonomous-sizing.md`)
 
 ### Testing Requirements
 - Backend tests: `pytest` from project root (uses `pytest.ini`)

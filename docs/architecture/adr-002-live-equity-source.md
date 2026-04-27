@@ -24,5 +24,6 @@ Only `backend.core.bankroll_reconciliation.reconcile_bot_state()` may update liv
 
 - Historical trades remain intact for re-learning and attribution.
 - Live bankroll cannot be inferred from local realized P&L/backfill rows.
-- Paper/testnet can remain ledger-derived because they are simulated/accounting modes.
+- Paper/testnet can remain ledger-derived because they are simulated/accounting modes, but available-bankroll fields are a non-negative balance invariant across settlement, reconciliation, and API/dashboard output; cumulative simulated PnL may stay negative to preserve the full loss history.
+- Dashboard views must label live, paper, and testnet PnL separately so operators can see loss trades without mistaking them for current live account equity.
 - Tests that need synthetic live `BotState` values must opt in with `Session.info["allow_live_financial_update"] = True` or use the reconciliation path.

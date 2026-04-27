@@ -71,9 +71,11 @@ See `docs/operations/monitoring.md` for health check details.
 
 See `docs/operations/monitoring.md` for monitoring details.
 
+`GET /api/v1/stats` and `GET /api/v1/dashboard` expose paper/testnet `bankroll` as available simulated cash, so those balance fields are never negative. The matching `paper_pnl`/`testnet_pnl` and nested `pnl` fields can be negative because they preserve cumulative learning-ledger drawdown.
+
 ## Trade Control Room Endpoints
 
-These endpoints back the dashboard **Control Room** tab. They are intentionally separate from `Trade` history: `Trade` contains executed positions, while `TradeAttempt` records every candidate execution path that reached the strategy executor, including risk rejections and sizing blockers.
+These endpoints back the dashboard **Control Room** tab. They are intentionally separate from `Trade` history: `Trade` contains executed positions, while `TradeAttempt` records every candidate execution path that reached the strategy executor, including risk rejections and sizing blockers. For AI-sized strategies, compare `requested_size` with `adjusted_size` and `risk_reason` to see how much autonomy was allowed before deterministic risk mandates clipped or rejected the attempt.
 
 ### `GET /api/v1/trade-attempts`
 

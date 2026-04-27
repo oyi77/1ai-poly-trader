@@ -60,6 +60,33 @@ Current known examples this feature is designed to make visible:
 - Paper candidates with risk-adjusted size around `$0.93` rejected because minimum paper order is `$1.00`.
 - Testnet candidates rejected by max exposure.
 
+## PnL Visibility and Loss Trades
+
+The dashboard separates **account PnL** from **trade-ledger PnL** so operators do not confuse live wallet equity with paper/testnet learning history.
+
+- **Overview → Total Profit** follows the selected mode filter. In the consolidated view it can reflect live account-equity PnL from `BotState`, which is reconciled from external wallet/open-position value.
+- **Overview → PNL Source** shows live, paper, and testnet side by side. This is where a positive live account PnL can coexist with negative paper/testnet learning PnL.
+- **Overview → Top Winning Trades** intentionally shows only profitable settled trades.
+- **Overview → Worst Loss Trades** shows the largest negative PnL rows from recent trade history so losses are visible without switching tabs.
+- **Dashboard → Trades** remains the full executed-trade ledger. Use the `Loss` result filter to inspect every loss row, including mode and strategy.
+- Paper/testnet **bankroll** fields are available simulated cash, and available balances must never be negative in any finance-facing API or dashboard. Settlement, reconciliation, and stats clamp depleted simulated bankroll to `$0.00`. Their cumulative **PnL** fields can remain negative after losses exceed starting capital so the learning ledger still shows the full drawdown.
+
+This distinction is intentional: `Trade` rows are valuable historical learning data and are not reset or rewritten to make the headline PnL look cleaner. Live account-equity PnL follows ADR-002; executed trade/loss analytics stay in the trade ledger.
+
+## AI Sizing and Risk Guardrails
+
+PolyEdge is autonomous, but not unconstrained. Strategies propose trade intent and size; the deterministic risk layer is the final non-bypassable authority.
+
+BTC Oracle now proposes dynamic size from signal strength:
+
+1. `edge` and `confidence` produce a smooth sizing fraction.
+2. `max_position_usd` remains the strategy mandate cap.
+3. `RiskManager.validate_trade()` then clips or rejects based on confidence threshold, daily loss, drawdown, duplicate open position, bankroll, exposure, and slippage.
+4. `strategy_executor` applies minimum executable order size (`$1` paper, `$5` testnet/live).
+5. `TradeAttempt` records requested size, adjusted size, bankroll, exposure, risk reason, and final blocker/execution outcome.
+
+This means AI can choose *within* a mandate, but cannot override drawdown breakers, max exposure, or minimum order checks. If paper bankroll is small and exposure is already high, a strong signal can still be reduced below minimum and rejected; that rejection appears as `REJECTED_ORDER_TOO_SMALL` in Control Room.
+
 ### API
 
 - `GET /api/v1/trade-attempts` — paginated attempt rows.
