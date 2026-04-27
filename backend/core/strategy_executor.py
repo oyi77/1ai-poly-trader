@@ -13,6 +13,7 @@ from backend.core.event_bus import _broadcast_event
 from backend.core.mode_context import get_context
 from backend.core.alert_manager import AlertManager
 from backend.core.validation import TradeValidator, SignalValidator, ValidationError, log_validation_error
+from backend.core.trade_attempts import TradeAttemptRecorder
 from sqlalchemy import or_
 from sqlalchemy.exc import OperationalError
 
@@ -44,13 +45,21 @@ async def execute_decision(
     owns_db = db is None
     if owns_db:
         db = SessionLocal()
+    attempt_recorder = None
     try:
         async with _trade_execution_lock:
+            attempt_recorder = TradeAttemptRecorder(db, decision, strategy_name, mode)
             # Get mode execution context
             try:
                 context = get_context(mode)
             except KeyError:
                 logger.error(f"[{strategy_name}] No execution context for mode: {mode}")
+                attempt_recorder.record_blocked(
+                    f"No execution context for mode: {mode}",
+                    phase="context",
+                    reason_code="BLOCKED_NO_EXECUTION_CONTEXT",
+                )
+                db.commit()
                 return None
 
             event_slug = decision.get("slug") or decision.get("event_slug")
@@ -72,6 +81,13 @@ async def execute_decision(
                 logger.info(
                     f"[{strategy_name}] Duplicate execution blocked for {market_ticker}/{event_slug}"
                 )
+                attempt_recorder.record_blocked(
+                    "Duplicate open position for market",
+                    phase="preflight",
+                    reason_code="BLOCKED_DUPLICATE_OPEN_POSITION",
+                    trade_id=existing.id,
+                )
+                db.commit()
                 return None
 
             state = db.query(BotState).filter_by(mode=mode).first()
@@ -79,6 +95,12 @@ async def execute_decision(
                 logger.info(
                     f"[{strategy_name}] Bot not running, skipping decision for {market_ticker}"
                 )
+                attempt_recorder.record_blocked(
+                    "Bot not running for selected mode",
+                    phase="preflight",
+                    reason_code="BLOCKED_BOT_NOT_RUNNING",
+                )
+                db.commit()
                 return None
 
             if mode == "paper":
@@ -130,6 +152,22 @@ async def execute_decision(
                         exc_info=True,
                     )
             current_exposure = _get_current_exposure(db, trading_mode=mode)
+            attempt_recorder.update(
+                phase="risk_gate",
+                status="RISK_EVALUATING",
+                reason_code="RISK_EVALUATING",
+                reason="Risk manager evaluating trade",
+                bankroll=bankroll,
+                current_exposure=current_exposure,
+                factors_json={
+                    "bankroll": bankroll,
+                    "current_exposure": current_exposure,
+                    "requested_size": size,
+                    "confidence": confidence,
+                    "market_ticker": market_ticker,
+                    "mode": mode,
+                },
+            )
 
             risk = context.risk_manager.validate_trade(
                 size=size,
@@ -144,9 +182,26 @@ async def execute_decision(
                 logger.info(
                     f"[{strategy_name}] Risk rejected {market_ticker}: {risk.reason}"
                 )
+                attempt_recorder.record_rejected(
+                    risk.reason,
+                    phase="risk_gate",
+                    risk_allowed=False,
+                    risk_reason=risk.reason,
+                    adjusted_size=risk.adjusted_size,
+                )
+                db.commit()
                 return None
 
             adjusted_size = risk.adjusted_size
+            attempt_recorder.update(
+                status="RISK_APPROVED",
+                phase="risk_gate",
+                reason_code="RISK_APPROVED",
+                reason="Risk gate approved trade",
+                risk_allowed=True,
+                risk_reason=risk.reason,
+                adjusted_size=adjusted_size,
+            )
 
             # Paper mode is simulated — no real CLOB interaction, so allow smaller sizes
             MIN_ORDER_SIZE = 1.0 if mode == "paper" else 5.0
@@ -155,6 +210,13 @@ async def execute_decision(
                     f"[{mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
                     f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE}"
                 )
+                attempt_recorder.record_rejected(
+                    f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE:.2f}",
+                    phase="sizing",
+                    reason_code="REJECTED_ORDER_TOO_SMALL",
+                    adjusted_size=adjusted_size,
+                )
+                db.commit()
                 return None
 
             clob_order_id = None
@@ -177,6 +239,12 @@ async def execute_decision(
                         logger.error(
                             f"[strategy_executor] Kalshi execution error for {market_ticker}: {kalshi_err}"
                         )
+                        attempt_recorder.record_failed(
+                            f"Kalshi execution error: {kalshi_err}",
+                            phase="execution",
+                            adjusted_size=adjusted_size,
+                        )
+                        db.commit()
                         return None
                     # No CLOB order ID for Kalshi; simulate fill at entry price
                     clob_order_id = None
@@ -215,17 +283,38 @@ async def execute_decision(
                             logger.warning(
                                 f"[{mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: {result.error}"
                             )
+                            attempt_recorder.record_rejected(
+                                str(result.error or "CLOB order rejected"),
+                                phase="execution",
+                                reason_code="REJECTED_BROKER_ORDER",
+                                adjusted_size=adjusted_size,
+                                order_id=getattr(result, "order_id", None),
+                            )
+                            db.commit()
                             return None
                     except Exception as clob_err:
                         logger.error(
                             f"[strategy_executor.execute_decision] {type(clob_err).__name__}: CLOB execution error for {market_ticker}: {clob_err}",
                             exc_info=True,
                         )
+                        attempt_recorder.record_failed(
+                            f"CLOB execution error: {clob_err}",
+                            phase="execution",
+                            adjusted_size=adjusted_size,
+                        )
+                        db.commit()
                         return None
                 else:
                     logger.warning(
                         f"[{mode.upper()}][{strategy_name}] No token_id for {market_ticker}, skipping order"
                     )
+                    attempt_recorder.record_blocked(
+                        "No token_id for CLOB order",
+                        phase="execution",
+                        reason_code="BLOCKED_MISSING_TOKEN_ID",
+                        adjusted_size=adjusted_size,
+                    )
+                    db.commit()
                     return None
             market_end_date = None
             if market_end_date_str:
@@ -258,6 +347,13 @@ async def execute_decision(
             except ValidationError as e:
                 log_validation_error(e, context=f"execute_decision:{strategy_name}")
                 logger.error(f"[{strategy_name}] Trade validation failed: {e.message}")
+                attempt_recorder.record_rejected(
+                    f"Trade validation failed: {e.message}",
+                    phase="validation",
+                    reason_code="REJECTED_TRADE_VALIDATION",
+                    adjusted_size=adjusted_size,
+                )
+                db.commit()
                 return None
 
             trade = Trade(
@@ -332,6 +428,14 @@ async def execute_decision(
             except ValidationError as e:
                 log_validation_error(e, context=f"execute_decision:signal:{strategy_name}")
                 logger.error(f"[{strategy_name}] Signal validation failed: {e.message}")
+                attempt_recorder.record_rejected(
+                    f"Signal validation failed: {e.message}",
+                    phase="validation",
+                    reason_code="REJECTED_SIGNAL_VALIDATION",
+                    trade_id=trade.id,
+                    adjusted_size=adjusted_size,
+                )
+                db.commit()
                 return None
 
             signal_record = Signal(
@@ -353,6 +457,13 @@ async def execute_decision(
             db.add(signal_record)
             db.flush()
             trade.signal_id = signal_record.id
+            attempt_recorder.record_executed(
+                trade.id,
+                adjusted_size=adjusted_size,
+                order_id=clob_order_id,
+                risk_allowed=True,
+                risk_reason=risk.reason,
+            )
 
             for _db_attempt in range(3):
                 try:

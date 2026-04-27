@@ -106,7 +106,7 @@ class TestPaperTradeCreatesRecord:
     @pytest.mark.asyncio
     async def test_paper_trade_creates_record(self):
         """In paper mode, execute_decision creates a Trade row in the DB."""
-        from backend.models.database import Trade, Signal
+        from backend.models.database import Trade, Signal, TradeAttempt
         from backend.core.mode_context import register_context, ModeExecutionContext
         from backend.core.risk_manager import RiskManager
 
@@ -157,6 +157,16 @@ class TestPaperTradeCreatesRecord:
             )
             assert sig is not None
             assert sig.executed is True
+
+            attempt = (
+                check_db.query(TradeAttempt)
+                .filter(TradeAttempt.market_ticker == "test-market-001")
+                .first()
+            )
+            assert attempt is not None
+            assert attempt.status == "EXECUTED"
+            assert attempt.reason_code == "EXECUTED_TRADE_OPENED"
+            assert attempt.trade_id == trade.id
         finally:
             check_db.close()
 
@@ -207,6 +217,89 @@ class TestRiskRejection:
             )
             assert result is None
             mock_rm.validate_trade.assert_called_once()
+
+        check_db = TestSession()
+        try:
+            from backend.models.database import TradeAttempt
+
+            attempt = (
+                check_db.query(TradeAttempt)
+                .filter(TradeAttempt.market_ticker == "reject-market")
+                .first()
+            )
+            assert attempt is not None
+            assert attempt.status == "REJECTED"
+            assert attempt.phase == "risk_gate"
+            assert attempt.reason_code == "REJECTED_DRAWDOWN_BREAKER"
+            assert attempt.risk_allowed is False
+            assert attempt.risk_reason == "daily loss limit hit"
+        finally:
+            check_db.close()
+
+
+class TestAttemptSizingRejection:
+    @pytest.mark.asyncio
+    async def test_order_below_minimum_records_attempt_reason(self):
+        """Orders too small for the active mode are visible in TradeAttempt."""
+        from backend.core.risk_manager import RiskDecision, RiskManager
+        from backend.core.mode_context import register_context, ModeExecutionContext
+        from backend.models.database import TradeAttempt
+
+        test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        TestSession = sessionmaker(bind=test_engine)
+        Base.metadata.create_all(bind=test_engine)
+
+        db = TestSession()
+        _seed_state(db, paper_bankroll=500.0)
+        db.close()
+
+        mock_rm = MagicMock(spec=RiskManager)
+        mock_rm.validate_trade.return_value = RiskDecision(
+            allowed=True, reason="ok", adjusted_size=0.93
+        )
+
+        register_context("paper", ModeExecutionContext(
+            mode="paper",
+            clob_client=AsyncMock(),
+            risk_manager=mock_rm,
+            strategy_configs={}
+        ))
+
+        with (
+            patch("backend.core.strategy_executor.settings") as mock_settings,
+            patch("backend.core.strategy_executor.SessionLocal", TestSession),
+            patch("backend.core.strategy_executor._broadcast_event"),
+        ):
+            mock_settings.TRADING_MODE = "paper"
+
+            from backend.core.strategy_executor import execute_decision
+
+            result = await execute_decision(
+                _make_decision(market_ticker="tiny-market", size=0.93),
+                "tiny_strategy",
+                "paper",
+            )
+
+        assert result is None
+
+        check_db = TestSession()
+        try:
+            attempt = (
+                check_db.query(TradeAttempt)
+                .filter(TradeAttempt.market_ticker == "tiny-market")
+                .first()
+            )
+            assert attempt is not None
+            assert attempt.status == "REJECTED"
+            assert attempt.phase == "sizing"
+            assert attempt.reason_code == "REJECTED_ORDER_TOO_SMALL"
+            assert attempt.adjusted_size == pytest.approx(0.93)
+        finally:
+            check_db.close()
 
 
 class TestUpdatesBankroll:
