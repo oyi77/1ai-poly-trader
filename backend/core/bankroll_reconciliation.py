@@ -166,6 +166,14 @@ def _initial_bankroll_for_mode(mode: str) -> float:
     return 100.0 if mode == "testnet" else float(settings.INITIAL_BANKROLL)
 
 
+def _available_bankroll_for_mode(mode: str, bankroll: float) -> float:
+    """Available bankroll/cash must never be negative in finance-facing state."""
+
+    if mode in {"paper", "testnet"}:
+        return max(0.0, bankroll)
+    return bankroll
+
+
 def _mode_bankroll(state: BotState, mode: str) -> float:
     if mode == "paper":
         return float(state.paper_bankroll if state.paper_bankroll is not None else state.bankroll or 0.0)
@@ -314,13 +322,13 @@ def _build_report(
             new_bankroll = round(float(pm_portfolio_value), 2)
             new_total_pnl = round(new_bankroll - float(settings.INITIAL_BANKROLL), 2)
     else:
-        new_bankroll = round(_initial_bankroll_for_mode(mode) + realized_pnl - open_exposure, 2)
+        derived_bankroll = round(_initial_bankroll_for_mode(mode) + realized_pnl - open_exposure, 2)
+        new_bankroll = round(_available_bankroll_for_mode(mode, derived_bankroll), 2)
         new_total_pnl = realized_pnl
-
-    if new_bankroll < 0:
-        warnings.append(
-            f"Derived {mode} bankroll is negative (${new_bankroll:.2f}); preserving this value because it is ledger-derived"
-        )
+        if derived_bankroll < 0:
+            warnings.append(
+                f"Derived {mode} available bankroll was negative (${derived_bankroll:.2f}); clamped to $0.00 while preserving PnL"
+            )
 
     return BankrollReconciliationReport(
         mode=mode,

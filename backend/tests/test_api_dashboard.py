@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta, timezone
 """Integration tests for /api/v1/dashboard, /api/v1/stats, and /api/v1/signals endpoints.
 
 Uses the shared conftest.py fixtures (client, db) backed by in-memory SQLite.
 External API calls (microstructure, BTC markets, signals) are mocked so tests
 run fast and deterministically.
 """
+
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.models.database import BotState, Trade
@@ -88,6 +89,59 @@ class TestStatsEndpoint:
         assert "live" in data
         assert isinstance(data["paper"], dict)
         assert isinstance(data["live"], dict)
+
+    def test_stats_floors_simulated_bankroll_without_hiding_negative_pnl(self, client, db):
+        paper_state = db.query(BotState).filter_by(mode="paper").first()
+        testnet_state = db.query(BotState).filter_by(mode="testnet").first()
+        paper_state.bankroll = -12.34
+        paper_state.paper_bankroll = -12.34
+        testnet_state.bankroll = -74.49
+        testnet_state.testnet_bankroll = -74.49
+        db.add_all(
+            [
+                Trade(
+                    market_ticker="PAPER-LOSS",
+                    platform="polymarket",
+                    direction="up",
+                    entry_price=0.5,
+                    size=25.0,
+                    settled=True,
+                    result="loss",
+                    pnl=-112.34,
+                    trading_mode="paper",
+                ),
+                Trade(
+                    market_ticker="TESTNET-LOSS",
+                    platform="polymarket",
+                    direction="down",
+                    entry_price=0.5,
+                    size=25.0,
+                    settled=True,
+                    result="loss",
+                    pnl=-174.49,
+                    trading_mode="testnet",
+                ),
+            ]
+        )
+        db.commit()
+
+        resp = client.get("/api/v1/stats")
+        data = resp.json()
+
+        assert data["paper_bankroll"] == 0.0
+        assert data["paper"]["bankroll"] == 0.0
+        assert data["paper_pnl"] == -112.34
+        assert data["paper"]["pnl"] == -112.34
+        assert data["testnet_bankroll"] == 0.0
+        assert data["testnet"]["bankroll"] == 0.0
+        assert data["testnet_pnl"] == -174.49
+        assert data["testnet"]["pnl"] == -174.49
+
+        paper_resp = client.get("/api/v1/stats?mode=paper")
+        assert paper_resp.json()["bankroll"] == 0.0
+
+        testnet_resp = client.get("/api/v1/stats?mode=testnet")
+        assert testnet_resp.json()["bankroll"] == 0.0
 
 
 # ---------------------------------------------------------------------------

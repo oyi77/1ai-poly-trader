@@ -85,6 +85,40 @@ async def test_dry_run_does_not_mutate_testnet_state(db_session):
 
 
 @pytest.mark.asyncio
+async def test_reconciliation_clamps_depleted_simulated_available_bankroll(db_session):
+    state = BotState(mode="testnet", bankroll=-74.49, testnet_bankroll=-74.49, testnet_pnl=0.0)
+    loss = Trade(
+        market_ticker="testnet-loss",
+        direction="up",
+        entry_price=0.5,
+        size=25.0,
+        settled=True,
+        result="loss",
+        pnl=-174.49,
+        trading_mode="testnet",
+        settlement_time=datetime.now(timezone.utc),
+    )
+    db_session.add_all([state, loss])
+    db_session.commit()
+
+    reports = await reconcile_bot_state(
+        db_session,
+        modes=("testnet",),
+        apply=True,
+        commit=True,
+        source="test",
+    )
+
+    db_session.refresh(state)
+    assert reports[0].new_bankroll == pytest.approx(0.0)
+    assert reports[0].new_total_pnl == pytest.approx(-174.49)
+    assert "clamped to $0.00" in reports[0].warnings[0]
+    assert state.testnet_bankroll == pytest.approx(0.0)
+    assert state.bankroll == pytest.approx(0.0)
+    assert state.testnet_pnl == pytest.approx(-174.49)
+
+
+@pytest.mark.asyncio
 async def test_live_reconciliation_uses_total_equity_not_position_value_only(
     db_session, monkeypatch
 ):

@@ -253,8 +253,12 @@ def _sync_balance_to_db(balance: float, mode: str) -> None:
     conn = sqlite3.connect(db_path, timeout=30.0)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("UPDATE bot_state SET bankroll=? WHERE id=1 AND mode=?", (balance, mode))
+        available_balance = max(0.0, float(balance))
+        conn.execute(
+            "UPDATE bot_state SET bankroll=? WHERE id=1 AND mode=?",
+            (available_balance, mode),
+        )
         conn.commit()
-        logger.debug(f"wallet_sync: {mode} balance updated to ${balance:.2f}")
+        logger.debug(f"wallet_sync: {mode} balance updated to ${available_balance:.2f}")
     finally:
         conn.close()

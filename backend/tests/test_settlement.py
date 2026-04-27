@@ -285,6 +285,33 @@ class TestBankrollUpdate:
         assert state.paper_pnl < 0.0
 
     @pytest.mark.asyncio
+    async def test_simulated_bankroll_never_goes_negative_after_large_loss(self, db):
+        """Available simulated balance is floored even when cumulative PnL is negative."""
+        from backend.core.settlement import update_bot_state_with_settlements
+
+        state = _state_for_mode(db, "paper")
+        state.bankroll = 2.0
+        state.paper_bankroll = 2.0
+        state.paper_pnl = -98.0
+        state.paper_trades = 0
+        state.paper_wins = 0
+        state.is_running = True
+        db.flush()
+
+        trade = _make_trade(db, direction="up", entry_price=0.40, size=10.0)
+        trade.settled = True
+        trade.result = "loss"
+        trade.pnl = -25.0
+        trade.trading_mode = "paper"
+        db.flush()
+
+        await update_bot_state_with_settlements(db, [trade])
+
+        db.refresh(state)
+        assert state.paper_bankroll == pytest.approx(0.0)
+        assert state.paper_pnl == pytest.approx(-123.0)
+
+    @pytest.mark.asyncio
     async def test_live_settlement_reconciles_total_equity_instead_of_ledger_pnl(
         self, db, monkeypatch
     ):

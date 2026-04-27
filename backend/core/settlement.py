@@ -14,7 +14,9 @@ from backend.core.alert_manager import AlertManager
 
 from backend.core.settlement_helpers import (
     fetch_resolution_for_trade,
+    check_market_settlement as check_market_settlement,
     calculate_pnl,
+    _parse_market_resolution as _parse_market_resolution,
     _resolve_markets,
     process_settled_trade,
 )
@@ -364,7 +366,9 @@ async def update_bot_state_with_settlements(
                     continue
                 if is_real_trade:
                     state.paper_pnl = (state.paper_pnl or 0.0) + trade.pnl
-                    state.paper_bankroll = (state.paper_bankroll or 0.0) + trade.size + trade.pnl
+                    state.paper_bankroll = max(
+                        0.0, (state.paper_bankroll or 0.0) + trade.size + trade.pnl
+                    )
                     state.paper_trades = (state.paper_trades or 0) + 1
                     if trade.result == "win":
                         state.paper_wins = (state.paper_wins or 0) + 1
@@ -380,7 +384,9 @@ async def update_bot_state_with_settlements(
                     continue
                 if is_real_trade:
                     state.testnet_pnl = (state.testnet_pnl or 0.0) + trade.pnl
-                    state.testnet_bankroll = (state.testnet_bankroll or 0.0) + trade.size + trade.pnl
+                    state.testnet_bankroll = max(
+                        0.0, (state.testnet_bankroll or 0.0) + trade.size + trade.pnl
+                    )
                     state.testnet_trades = (state.testnet_trades or 0) + 1
                     if trade.result == "win":
                         state.testnet_wins = (state.testnet_wins or 0) + 1

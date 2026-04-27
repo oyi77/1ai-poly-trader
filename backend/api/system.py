@@ -109,6 +109,18 @@ def _live_cache_values(live_state: Optional[BotState]) -> tuple[float, float, in
     return bankroll, pnl, trades, wins, initial
 
 
+def _available_simulated_bankroll(raw_bankroll: Optional[float], fallback: float) -> float:
+    """Return non-negative available bankroll for simulated modes.
+
+    Paper/testnet accounts can have negative cumulative PnL, but available cash
+    cannot be below zero. Keep historical PnL negative while preventing
+    impossible negative balances from driving dashboards and sizing summaries.
+    """
+
+    bankroll = fallback if raw_bankroll is None else float(raw_bankroll)
+    return max(0.0, bankroll)
+
+
 class EventResponse(BaseModel):
     timestamp: str
     type: str
@@ -186,10 +198,9 @@ async def get_stats(
     )
     
     paper_trades = paper_settled_trades + paper_open_trades
-    paper_bankroll = (
-        paper_state.bankroll
-        if paper_state and paper_state.bankroll is not None
-        else settings.INITIAL_BANKROLL
+    paper_bankroll = _available_simulated_bankroll(
+        paper_state.bankroll if paper_state else None,
+        settings.INITIAL_BANKROLL,
     )
     paper_win_rate = paper_wins / paper_trades if paper_trades > 0 else 0.0
 
@@ -314,8 +325,9 @@ async def get_stats(
     )
     
     testnet_trades = testnet_settled_trades + testnet_open_trades
-    testnet_bankroll = (
-        testnet_state.bankroll if testnet_state and testnet_state.bankroll is not None else 100.0
+    testnet_bankroll = _available_simulated_bankroll(
+        testnet_state.bankroll if testnet_state else None,
+        100.0,
     )
     testnet_win_rate = testnet_wins / testnet_trades if testnet_trades > 0 else 0.0
 
