@@ -19,7 +19,10 @@ vi.mock('axios', () => {
   }
 })
 
-import { getAdminApiKey, setAdminApiKey, decisionsExportUrl } from '../api'
+import { getAdminApiKey, setAdminApiKey, decisionsExportUrl, fetchTradeAttempts, fetchTradeAttemptSummary } from '../api'
+import axios from 'axios'
+
+const mockAxiosInstance = (axios.create as unknown as ReturnType<typeof vi.fn>).mock.results[0].value
 
 describe('api utility functions', () => {
   beforeEach(() => {
@@ -59,19 +62,41 @@ describe('api utility functions', () => {
   describe('decisionsExportUrl', () => {
     it('returns base URL with no params', () => {
       const url = decisionsExportUrl()
-      expect(url).toBe('/api/decisions/export')
+      expect(url).toBe('/api/v1/decisions/export')
     })
 
     it('returns URL with query params', () => {
       const url = decisionsExportUrl({ strategy: 'momentum', decision: 'BUY' })
-      expect(url).toContain('/api/decisions/export?')
+      expect(url).toContain('/api/v1/decisions/export?')
       expect(url).toContain('strategy=momentum')
       expect(url).toContain('decision=BUY')
     })
 
     it('returns URL with single query param', () => {
       const url = decisionsExportUrl({ format: 'csv' })
-      expect(url).toBe('/api/decisions/export?format=csv')
+      expect(url).toBe('/api/v1/decisions/export?format=csv')
+    })
+  })
+
+  describe('trade attempt endpoints', () => {
+    it('fetches trade attempts with filters', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { items: [], total: 0 } })
+
+      await fetchTradeAttempts({ mode: 'paper', status: 'REJECTED' })
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/trade-attempts', {
+        params: { mode: 'paper', status: 'REJECTED' },
+      })
+    })
+
+    it('fetches trade attempt summary', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { total: 0, executed: 0, blocked: 0 } })
+
+      await fetchTradeAttemptSummary({ mode: 'live' })
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/trade-attempts/summary', {
+        params: { mode: 'live' },
+      })
     })
   })
 })

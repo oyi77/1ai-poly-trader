@@ -184,6 +184,73 @@ export interface DashboardData {
   weather_forecasts: WeatherForecast[]
 }
 
+export interface TradeAttemptFactorMap {
+  bankroll?: number
+  current_exposure?: number
+  requested_size?: number
+  confidence?: number
+  market_ticker?: string
+  mode?: string
+  [key: string]: string | number | boolean | null | undefined
+}
+
+export interface TradeAttempt {
+  id: number
+  attempt_id: string
+  correlation_id: string
+  created_at: string | null
+  updated_at: string | null
+  strategy: string
+  mode: string
+  market_ticker: string
+  platform: string | null
+  direction: string | null
+  decision: string | null
+  status: string
+  phase: string
+  reason_code: string
+  reason: string | null
+  confidence: number | null
+  edge: number | null
+  requested_size: number | null
+  adjusted_size: number | null
+  entry_price: number | null
+  bankroll: number | null
+  current_exposure: number | null
+  risk_allowed: boolean | null
+  risk_reason: string | null
+  trade_id: number | null
+  order_id: string | null
+  latency_ms: number | null
+  factors: TradeAttemptFactorMap | string | null
+  decision_data: Record<string, unknown> | string | null
+  signal_data: Record<string, unknown> | string | null
+}
+
+export interface TradeAttemptsResponse {
+  items: TradeAttempt[]
+  total: number
+}
+
+export interface TradeAttemptSummaryBucket {
+  status?: string
+  mode?: string
+  reason_code?: string
+  count: number
+}
+
+export interface TradeAttemptSummary {
+  total: number
+  executed: number
+  blocked: number
+  execution_rate: number
+  last_attempt_at: string | null
+  by_status: TradeAttemptSummaryBucket[]
+  by_mode: TradeAttemptSummaryBucket[]
+  top_blockers: TradeAttemptSummaryBucket[]
+  recent_blockers: TradeAttempt[]
+}
+
 export interface WalletConfig {
   id: number
   address: string

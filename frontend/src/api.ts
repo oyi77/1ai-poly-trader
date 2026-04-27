@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting } from './types'
+import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting, TradeAttemptSummary, TradeAttemptsResponse } from './types'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -74,6 +74,16 @@ export async function fetchTrades(): Promise<Trade[]> {
 
 export async function fetchStats(): Promise<BotStats> {
   const { data } = await api.get<BotStats>('/stats')
+  return data
+}
+
+export async function fetchTradeAttempts(params?: Record<string, string | number>): Promise<TradeAttemptsResponse> {
+  const { data } = await api.get<TradeAttemptsResponse>('/trade-attempts', { params })
+  return data
+}
+
+export async function fetchTradeAttemptSummary(params?: Record<string, string | number>): Promise<TradeAttemptSummary> {
+  const { data } = await api.get<TradeAttemptSummary>('/trade-attempts/summary', { params })
   return data
 }
 
@@ -802,4 +812,3 @@ export async function restartMiroFishProcesses(): Promise<MiroFishProcessAction>
   const { data } = await adminApi.post<MiroFishProcessAction>('/settings/mirofish/processes/restart')
   return data
 }
-
