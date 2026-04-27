@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion'
 
 interface Trade {
-  id: string
+  id: string | number
   market_ticker: string
   direction: 'up' | 'down'
   entry_price: number
-  exit_price: number
-  pnl: number
+  exit_price?: number | null
+  pnl: number | null
   timestamp: string
 }
 
@@ -17,8 +17,8 @@ interface WinningTradesPreviewProps {
 
 export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreviewProps) {
   const topTrades = trades
-    .filter(t => t.pnl > 0)
-    .sort((a, b) => b.pnl - a.pnl)
+    .filter(t => (t.pnl ?? 0) > 0)
+    .sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0))
     .slice(0, 5)
 
   if (topTrades.length === 0) {
@@ -77,7 +77,7 @@ export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreview
                   {trade.exit_price != null ? `${(trade.exit_price * 100).toFixed(1)}¢` : '—'}
                 </td>
                 <td className="px-3 py-2 text-right font-semibold text-green-500 tabular-nums">
-                  +${trade.pnl.toFixed(2)}
+                  +${(trade.pnl ?? 0).toFixed(2)}
                 </td>
               </motion.tr>
             ))}
