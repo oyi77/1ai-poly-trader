@@ -73,6 +73,7 @@ class BotStats(BaseModel):
     paper: dict = {}
     testnet: dict = {}
     live: dict = {}
+    live_ledger_pnl: float = 0.0
     active_mode: str = "paper"
     open_exposure: float = 0.0
     open_trades: int = 0
@@ -82,6 +83,29 @@ class BotStats(BaseModel):
     position_cost: float = 0.0
     position_market_value: float = 0.0
     sync_metadata: Optional[SyncMetadata] = None
+
+
+def _live_cache_values(live_state: Optional[BotState]) -> tuple[float, float, int, int, float]:
+    """Return live account-equity cache values and initial capital basis.
+
+    Live mode is externally reconciled.  The historical Trade ledger remains
+    useful for learning/analytics, but dashboard account P&L must come from
+    BotState.total_pnl (external equity - initial capital), not the sum of old
+    imported/backfilled ledger rows.
+    """
+
+    initial = float(settings.INITIAL_BANKROLL)
+    bankroll = float(
+        live_state.bankroll if live_state and live_state.bankroll is not None else initial
+    )
+    pnl = float(
+        live_state.total_pnl
+        if live_state and live_state.total_pnl is not None
+        else bankroll - initial
+    )
+    trades = int(live_state.total_trades or 0) if live_state else 0
+    wins = int(live_state.winning_trades or 0) if live_state else 0
+    return bankroll, pnl, trades, wins, initial
 
 
 class EventResponse(BaseModel):
@@ -170,7 +194,10 @@ async def get_stats(
 
     sync_metadata = None
     
-    # Always query live-mode trades from actual DB when aggregating all modes
+    live_bankroll, live_account_pnl, live_cached_trades, live_cached_wins, live_initial = _live_cache_values(live_state)
+
+    # Always query live-mode trades from actual DB for ledger analytics, but do
+    # not use that ledger P&L as live account P&L in the dashboard.
     if effective_mode in ("testnet", "live") or mode is None:
         live_settled_trades = (
             db.query(func.count(Trade.id))
@@ -191,7 +218,7 @@ async def get_stats(
             .scalar()
             or 0
         )
-        live_pnl = (
+        live_ledger_pnl = (
             db.query(func.sum(Trade.pnl))
             .filter(
                 Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
@@ -213,9 +240,6 @@ async def get_stats(
         
         live_trades = live_settled_trades + live_open_trades_count
         
-        live_bankroll = (
-            live_state.bankroll if live_state and live_state.bankroll is not None else settings.INITIAL_BANKROLL
-        )
         live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
         
         orphaned_count = (
@@ -237,23 +261,15 @@ async def get_stats(
             external_imports_count=external_imports_count,
         )
         
-        if live_state and live_pnl != (live_state.total_pnl or 0.0):
+        if live_state and round(live_ledger_pnl, 2) != round(live_account_pnl, 2):
             logger.warning(
-                f"Stat change detected for {effective_mode}: DB PnL={live_pnl} vs BotState={live_state.total_pnl}. "
+                f"Stat change detected for {effective_mode}: ledger PnL={live_ledger_pnl} vs live account PnL={live_account_pnl}. "
                 f"Orphaned={orphaned_count}, External={external_imports_count}"
             )
-        
-        live_bankroll = (
-            live_state.bankroll if live_state and live_state.bankroll is not None else settings.INITIAL_BANKROLL
-        )
-        live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
     else:
-        live_pnl = (live_state.total_pnl or 0.0) if live_state else 0.0
-        live_bankroll = (
-            live_state.bankroll if live_state and live_state.bankroll is not None else settings.INITIAL_BANKROLL
-        )
-        live_trades = (live_state.total_trades or 0) if live_state else 0
-        live_wins = (live_state.winning_trades or 0) if live_state else 0
+        live_ledger_pnl = live_account_pnl
+        live_trades = live_cached_trades
+        live_wins = live_cached_wins
         live_win_rate = live_wins / live_trades if live_trades > 0 else 0.0
 
     testnet_settled_trades = (
@@ -386,17 +402,6 @@ async def get_stats(
         if db_pnl != 0:
             testnet_pnl = db_pnl
             pnl_source = "recalculated"
-    elif effective_mode == "live" and live_pnl == 0 and live_trades > 0:
-        db_pnl = (
-            db.query(func.sum(Trade.pnl))
-            .filter(Trade.settled.is_(True), Trade.trading_mode == "live")
-            .scalar()
-            or 0.0
-        )
-        if db_pnl != 0:
-            live_pnl = db_pnl
-            pnl_source = "recalculated"
-
     if mode is None:
         # All-mode view uses live external trades (deduplicated from Polymarket API)
         # Do NOT sum across modes — trades are consolidated into 'live' mode only
@@ -404,8 +409,7 @@ async def get_stats(
         display_trades = live_trades
         display_wins = live_wins
         display_win_rate = live_win_rate
-        # Total P&L = settled P&L + unrealized P&L (matches Polymarket All-Time P&L)
-        display_pnl = live_pnl + live_unrealized["unrealized_pnl"]
+        display_pnl = live_account_pnl
         settled_trades_count = (
             db.query(func.count(Trade.id))
             .filter(Trade.settled, Trade.trading_mode == "live")
@@ -438,7 +442,7 @@ async def get_stats(
         display_trades = live_trades
         display_wins = live_wins
         display_win_rate = live_win_rate
-        display_pnl = live_pnl + live_unrealized["unrealized_pnl"]
+        display_pnl = live_account_pnl
 
     return BotStats(
         bankroll=display_bankroll,
@@ -486,7 +490,7 @@ async def get_stats(
             "position_market_value": testnet_unrealized["position_market_value"],
         },
         live={
-            "pnl": live_pnl,
+            "pnl": live_account_pnl,
             "bankroll": live_bankroll,
             "trades": live_trades,
             "wins": live_wins,
@@ -496,7 +500,10 @@ async def get_stats(
             "unrealized_pnl": live_unrealized["unrealized_pnl"],
             "position_cost": live_unrealized["position_cost"],
             "position_market_value": live_unrealized["position_market_value"],
+            "ledger_pnl": live_ledger_pnl,
+            "initial_bankroll": live_initial,
         },
+        live_ledger_pnl=live_ledger_pnl,
         active_mode=settings.TRADING_MODE,
         open_exposure=open_exposure_amount,
         open_trades=open_trades_count,

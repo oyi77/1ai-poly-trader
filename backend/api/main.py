@@ -1273,40 +1273,51 @@ async def get_dashboard(
         for t in trades
     ]
 
-    # Equity curve: track equity at each settled trade (all modes)
-    equity_trades = (
-        db.query(Trade).filter(Trade.settled.is_(True)).order_by(Trade.timestamp).all()
-    )
+    # Equity curve: match the default dashboard/account view.  The dashboard
+    # cards default to the consolidated live account-equity cache even while
+    # the bot is actively running in paper mode, so the chart must not render a
+    # separate paper-only loss curve beside live/all-mode account totals.
+    curve_mode = "live"
     equity_curve = []
     cumulative_pnl = 0
-    for trade in equity_trades:
-        trade_pnl = trade.pnl if trade.pnl is not None else 0.0
-        cumulative_pnl += trade_pnl
+    initial_bankroll = 100.0 if curve_mode == "testnet" else float(settings.INITIAL_BANKROLL)
+
+    if curve_mode != "live":
+        equity_trades = (
+            db.query(Trade)
+            .filter(Trade.settled.is_(True), Trade.trading_mode == curve_mode)
+            .order_by(Trade.timestamp)
+            .all()
+        )
+        for trade in equity_trades:
+            trade_pnl = trade.pnl if trade.pnl is not None else 0.0
+            cumulative_pnl += trade_pnl
+            equity_curve.append(
+                {
+                    "timestamp": trade.timestamp.isoformat(),
+                    "pnl": cumulative_pnl,
+                    "bankroll": initial_bankroll + cumulative_pnl,
+                }
+            )
+
+    mode_state = db.query(BotState).filter_by(mode=curve_mode).first()
+    if mode_state:
+        if curve_mode == "paper":
+            current_bankroll = mode_state.paper_bankroll if mode_state.paper_bankroll is not None else mode_state.bankroll
+            current_pnl = mode_state.paper_pnl if mode_state.paper_pnl is not None else mode_state.total_pnl
+        elif curve_mode == "testnet":
+            current_bankroll = mode_state.testnet_bankroll if mode_state.testnet_bankroll is not None else mode_state.bankroll
+            current_pnl = mode_state.testnet_pnl if mode_state.testnet_pnl is not None else mode_state.total_pnl
+        else:
+            current_bankroll = mode_state.bankroll
+            current_pnl = mode_state.total_pnl
         equity_curve.append(
             {
-                "timestamp": trade.timestamp.isoformat(),
-                "pnl": cumulative_pnl,
-                "bankroll": settings.INITIAL_BANKROLL + cumulative_pnl,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pnl": float(current_pnl or 0.0),
+                "bankroll": float(current_bankroll or initial_bankroll),
             }
         )
-
-    bot_state = db.query(BotState).first()
-    if bot_state and equity_curve:
-        live_state = db.query(BotState).filter_by(mode="live").first()
-        current_bankroll = (
-            live_state.bankroll if live_state and live_state.bankroll is not None
-            else settings.INITIAL_BANKROLL
-        )
-        open_trades = db.query(Trade).filter(Trade.settled.is_(False), Trade.trading_mode == "live").all()
-        unrealized = (
-            sum((t.pnl or 0) for t in open_trades if t.pnl is not None)
-            if open_trades
-            else 0
-        )
-        last_point = equity_curve[-1].copy()
-        last_point["timestamp"] = datetime.now(timezone.utc).isoformat()
-        last_point["bankroll"] = current_bankroll + cumulative_pnl + unrealized
-        equity_curve.append(last_point)
 
     # Calibration summary
     calibration = _compute_calibration_summary(db)
