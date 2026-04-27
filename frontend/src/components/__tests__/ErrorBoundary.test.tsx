@@ -4,6 +4,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 
 const originalError = console.error;
+const installFetchMock = (fetchMock: ReturnType<typeof vi.fn>) => {
+  window.fetch = Object.assign(fetchMock, {
+    preconnect: vi.fn(),
+  }) as unknown as typeof fetch;
+};
+
 beforeEach(() => {
   console.error = vi.fn();
 });
@@ -169,7 +175,7 @@ describe('ErrorBoundary', () => {
         ok: true,
         statusText: 'OK',
       });
-      window.fetch = fetchMock as any;
+      installFetchMock(fetchMock);
 
       render(
         <ErrorBoundary>
@@ -195,7 +201,7 @@ describe('ErrorBoundary', () => {
         ok: true,
         statusText: 'OK',
       });
-      window.fetch = fetchMock as any;
+      installFetchMock(fetchMock);
 
       render(
         <ErrorBoundary>
@@ -219,9 +225,10 @@ describe('ErrorBoundary', () => {
     it('should handle backend reporting failures gracefully', async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: false,
+        status: 500,
         statusText: 'Internal Server Error',
       });
-      window.fetch = fetchMock as any;
+      installFetchMock(fetchMock);
 
       render(
         <ErrorBoundary>
@@ -229,18 +236,18 @@ describe('ErrorBoundary', () => {
         </ErrorBoundary>
       );
 
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
       await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalled();
-        expect(console.error).toHaveBeenCalledWith(
+        expect(vi.mocked(console.error).mock.calls).toEqual(expect.arrayContaining([[
           'Failed to report error to backend:',
-          'Internal Server Error'
-        );
+          'Internal Server Error',
+        ]]));
       });
     });
 
     it('should handle network errors during reporting', async () => {
       const fetchMock = vi.fn().mockRejectedValue(new Error('Network error'));
-      window.fetch = fetchMock as any;
+      installFetchMock(fetchMock);
 
       render(
         <ErrorBoundary>
@@ -248,11 +255,12 @@ describe('ErrorBoundary', () => {
         </ErrorBoundary>
       );
 
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
       await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalled();
-        expect(console.error).toHaveBeenCalledWith(
-          'Error reporting to backend:',
-          expect.any(Error)
+        expect(vi.mocked(console.error).mock.calls).toEqual(
+          expect.arrayContaining([
+            ['Error reporting to backend:', expect.any(Error)],
+          ])
         );
       });
     });
@@ -262,7 +270,7 @@ describe('ErrorBoundary', () => {
         ok: true,
         statusText: 'OK',
       });
-      window.fetch = fetchMock as any;
+      installFetchMock(fetchMock);
 
       render(
         <ErrorBoundary>
@@ -283,7 +291,7 @@ describe('ErrorBoundary', () => {
         ok: true,
         statusText: 'OK',
       });
-      window.fetch = fetchMock as any;
+      installFetchMock(fetchMock);
 
       render(
         <ErrorBoundary>

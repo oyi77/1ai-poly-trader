@@ -38,19 +38,23 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private reportErrorToBackend = async (error: Error, errorInfo: ErrorInfo) => {
     try {
-      const response = await retryFetch('/api/v1/errors/frontend', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await retryFetch(
+        '/api/v1/errors/frontend',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: error.toString(),
+            stack: error.stack,
+            componentStack: errorInfo.componentStack,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+          }),
         },
-        body: JSON.stringify({
-          message: error.toString(),
-          stack: error.stack,
-          componentStack: errorInfo.componentStack,
-          timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-        }),
-      });
+        { maxAttempts: 1 }
+      );
 
       if (!response.ok) {
         console.error('Failed to report error to backend:', response.statusText);
