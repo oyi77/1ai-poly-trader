@@ -3,28 +3,37 @@ import { motion } from 'framer-motion'
 interface Trade {
   id: string | number
   market_ticker: string
-  direction: 'up' | 'down'
+  direction: string
   entry_price: number
   exit_price?: number | null
   pnl: number | null
   timestamp: string
+  trading_mode?: string
 }
 
 interface WinningTradesPreviewProps {
   trades: Trade[]
+  title?: string
+  variant?: 'winners' | 'losses'
   onViewAll?: () => void
 }
 
-export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreviewProps) {
+export function WinningTradesPreview({
+  trades,
+  title = 'Top Winning Trades',
+  variant = 'winners',
+  onViewAll,
+}: WinningTradesPreviewProps) {
+  const isLosses = variant === 'losses'
   const topTrades = trades
-    .filter(t => (t.pnl ?? 0) > 0)
-    .sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0))
+    .filter(t => isLosses ? (t.pnl ?? 0) < 0 : (t.pnl ?? 0) > 0)
+    .sort((a, b) => isLosses ? (a.pnl ?? 0) - (b.pnl ?? 0) : (b.pnl ?? 0) - (a.pnl ?? 0))
     .slice(0, 5)
 
   if (topTrades.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <span className="text-xs text-neutral-600">No winning trades yet</span>
+        <span className="text-xs text-neutral-600">No {isLosses ? 'loss' : 'winning'} trades yet</span>
       </div>
     )
   }
@@ -32,11 +41,11 @@ export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreview
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 border-b border-neutral-800 flex items-center justify-between shrink-0">
-        <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Top Winning Trades</span>
+        <span className="text-[10px] text-neutral-500 uppercase tracking-wider">{title}</span>
         {onViewAll && (
           <button
             onClick={onViewAll}
-            className="text-[9px] text-green-500 hover:text-green-400 uppercase tracking-wider transition-colors"
+            className={`text-[9px] uppercase tracking-wider transition-colors ${isLosses ? 'text-red-500 hover:text-red-400' : 'text-green-500 hover:text-green-400'}`}
           >
             View All →
           </button>
@@ -50,7 +59,8 @@ export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreview
               <th className="px-3 py-1.5 text-left text-neutral-600 uppercase tracking-wider font-normal">Dir</th>
               <th className="px-3 py-1.5 text-right text-neutral-600 uppercase tracking-wider font-normal">Entry</th>
               <th className="px-3 py-1.5 text-right text-neutral-600 uppercase tracking-wider font-normal">Exit</th>
-              <th className="px-3 py-1.5 text-right text-neutral-600 uppercase tracking-wider font-normal">Profit</th>
+              <th className="px-3 py-1.5 text-right text-neutral-600 uppercase tracking-wider font-normal">PNL</th>
+              <th className="px-3 py-1.5 text-left text-neutral-600 uppercase tracking-wider font-normal">Mode</th>
             </tr>
           </thead>
           <tbody>
@@ -76,8 +86,11 @@ export function WinningTradesPreview({ trades, onViewAll }: WinningTradesPreview
                 <td className="px-3 py-2 text-right text-neutral-500 tabular-nums">
                   {trade.exit_price != null ? `${(trade.exit_price * 100).toFixed(1)}¢` : '—'}
                 </td>
-                <td className="px-3 py-2 text-right font-semibold text-green-500 tabular-nums">
-                  +${(trade.pnl ?? 0).toFixed(2)}
+                <td className={`px-3 py-2 text-right font-semibold tabular-nums ${isLosses ? 'text-red-500' : 'text-green-500'}`}>
+                  {(trade.pnl ?? 0) >= 0 ? '+' : '-'}${Math.abs(trade.pnl ?? 0).toFixed(2)}
+                </td>
+                <td className="px-3 py-2 text-neutral-600 uppercase text-[9px]">
+                  {trade.trading_mode ?? '—'}
                 </td>
               </motion.tr>
             ))}
