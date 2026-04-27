@@ -388,6 +388,59 @@ class DecisionLog(Base):
     )
 
 
+class TradeAttempt(Base):
+    """Durable execution-attempt ledger for explaining why trades happen or stop."""
+
+    __tablename__ = "trade_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    attempt_id = Column(String, nullable=False, unique=True, index=True)
+    correlation_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    strategy = Column(String, nullable=False, index=True)
+    mode = Column(String, nullable=False, index=True)
+    market_ticker = Column(String, nullable=False, index=True)
+    platform = Column(String, nullable=True)
+    direction = Column(String, nullable=True)
+    decision = Column(String, nullable=True)
+
+    status = Column(String, nullable=False, default="STARTED", index=True)
+    phase = Column(String, nullable=False, default="created", index=True)
+    reason_code = Column(String, nullable=False, default="ATTEMPT_STARTED", index=True)
+    reason = Column(Text, nullable=True)
+
+    confidence = Column(Float, nullable=True)
+    edge = Column(Float, nullable=True)
+    requested_size = Column(Float, nullable=True)
+    adjusted_size = Column(Float, nullable=True)
+    entry_price = Column(Float, nullable=True)
+    bankroll = Column(Float, nullable=True)
+    current_exposure = Column(Float, nullable=True)
+    risk_allowed = Column(Boolean, nullable=True)
+    risk_reason = Column(Text, nullable=True)
+
+    trade_id = Column(Integer, ForeignKey("trades.id"), nullable=True, index=True)
+    order_id = Column(String, nullable=True, index=True)
+    latency_ms = Column(Float, nullable=True)
+
+    factors_json = Column(Text, nullable=True)
+    decision_data = Column(Text, nullable=True)
+    signal_data = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_trade_attempts_mode_status_created", "mode", "status", "created_at"),
+        Index("idx_trade_attempts_strategy_created", "strategy", "created_at"),
+        Index("idx_trade_attempts_reason_created", "reason_code", "created_at"),
+    )
+
+
 class MarketWatch(Base):
     __tablename__ = "market_watch"
     id = Column(Integer, primary_key=True, index=True)
@@ -767,7 +820,7 @@ def _attempt_data_recovery(db_path: str) -> dict[str, list[dict]]:
 
     RECOVERABLE_TABLES = (
         "trades", "signals", "bot_state", "strategy_config",
-        "decision_log", "market_watch", "wallet_config",
+        "decision_log", "trade_attempts", "market_watch", "wallet_config",
         "settlement_events", "equity_snapshots", "calibration_records",
         "activity_log", "ai_logs", "scan_logs",
     )
@@ -815,6 +868,7 @@ def _restore_recovered_data(recovered: dict[str, list[dict]]):
         "bot_state": BotState,
         "strategy_config": StrategyConfig,
         "decision_log": DecisionLog,
+        "trade_attempts": TradeAttempt,
         "market_watch": MarketWatch,
         "wallet_config": WalletConfig,
         "settlement_events": SettlementEvent,

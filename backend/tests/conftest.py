@@ -46,7 +46,7 @@ from backend.models.database import Base
 # Import all models so Base.metadata.create_all() creates every table.
 # Without these imports, tables like strategy_proposal are missing in test DB.
 from backend.models.database import (
-    Signal, Trade, BotState, StrategyConfig, DecisionLog,
+    Signal, Trade, BotState, StrategyConfig, DecisionLog, TradeAttempt,
     MarketWatch, WalletConfig, TradeContext, JobQueue, PendingApproval,
     AILog, ActivityLog, MiroFishSignal, StrategyProposal,
     PerformanceMetric, AuditLog, WhaleTransaction, BtcPriceSnapshot,
@@ -120,13 +120,14 @@ def db():
 @pytest.fixture(autouse=True)
 def cleanup_proposals_between_tests(db):
     from backend.models.database import (
-        BotState, Trade, Signal, StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, MiroFishSignal
+        BotState, Trade, Signal, StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, TradeAttempt, MiroFishSignal
     )
     db.query(Trade).delete()
     db.query(Signal).delete()
     db.query(StrategyProposal).delete()
     db.query(ActivityLog).delete()
     db.query(DecisionLog).delete()
+    db.query(TradeAttempt).delete()
     db.query(MiroFishSignal).delete()
     db.query(StrategyConfig).delete()
     
