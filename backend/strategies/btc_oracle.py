@@ -10,20 +10,49 @@ This strategy exploits the 2-5 second oracle latency window documented in resear
 Unlike BTC 5-min momentum (negative EV), this targets a structural market inefficiency.
 """
 
-import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-
-import httpx
+from datetime import datetime, timezone
 
 from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult
 from backend.core.market_scanner import MarketInfo
-from backend.core.decisions import record_decision, record_decision_standalone
+from backend.core.decisions import record_decision_standalone
 from backend.core.activity_logger import activity_logger
 
 logger = logging.getLogger("trading_bot")
 
 COINGECKO_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price"
+
+
+def calculate_dynamic_size(
+    *,
+    edge: float,
+    confidence: float,
+    max_position_usd: float,
+    min_position_usd: float = 1.0,
+) -> float:
+    """Return an AI-signal-sized position proposal within the strategy mandate.
+
+    BTC Oracle still expresses an autonomous preference using edge and confidence,
+    but the proposal cannot exceed the configured strategy cap. The RiskManager
+    remains the final non-bypassable authority for bankroll, exposure, drawdown,
+    duplicate-position, and minimum-order checks.
+    """
+
+    cap = max(0.0, float(max_position_usd))
+    if cap <= 0:
+        return 0.0
+
+    # Edge on these near-resolution markets can be noisy, so scale the proposal
+    # smoothly instead of jumping from zero to full cap. A 10%+ edge at high
+    # confidence reaches the mandate cap; weaker signals use smaller probes.
+    edge_score = min(1.0, max(0.0, edge) / 0.10)
+    confidence_score = min(1.0, max(0.0, confidence))
+    sizing_fraction = max(0.10, edge_score * confidence_score)
+    proposed = cap * sizing_fraction
+
+    if proposed < min_position_usd and cap >= min_position_usd:
+        return min_position_usd
+    return round(min(proposed, cap), 2)
 
 
 async def fetch_btc_price() -> float | None:
@@ -136,6 +165,7 @@ class BtcOracleStrategy(BaseStrategy):
             "max_minutes_to_resolution",
             self.default_params["max_minutes_to_resolution"],
         )
+        max_position_usd = float(ctx.params.get("max_position_usd", 50))
 
         btc_price = await fetch_btc_price()
         if btc_price is None:
@@ -206,6 +236,11 @@ class BtcOracleStrategy(BaseStrategy):
                     else market.down_price
                 )
                 token_id = market.up_token_id if direction == "up" else market.down_token_id
+                suggested_size = calculate_dynamic_size(
+                    edge=edge,
+                    confidence=confidence_score,
+                    max_position_usd=max_position_usd,
+                )
                 result.decisions.append(
                     {
                         "decision": "BUY",
@@ -214,9 +249,9 @@ class BtcOracleStrategy(BaseStrategy):
                         "direction": direction,
                         "confidence": confidence_score,
                         "edge": edge,
-                        "size": ctx.params.get("max_position_usd", 50),
+                        "size": suggested_size,
                         "entry_price": entry_price,
-                        "suggested_size": ctx.params.get("max_position_usd", 50),
+                        "suggested_size": suggested_size,
                         "model_probability": oracle_implied,
                         "market_probability": market_mid,
                         "platform": "polymarket",
@@ -309,17 +344,23 @@ class BtcOracleStrategy(BaseStrategy):
                     if direction in ("yes", "up")
                     else round(1.0 - market_mid, 6)
                 )
+                confidence_score = min(1.0, max(0.0, edge + min_edge))
+                suggested_size = calculate_dynamic_size(
+                    edge=edge,
+                    confidence=confidence_score,
+                    max_position_usd=max_position_usd,
+                )
                 result.decisions.append(
                     {
                         "decision": "BUY",
                         "market_ticker": market.ticker,
                         "token_id": clob_token_id,
                         "direction": direction,
-                        "confidence": min(1.0, max(0.0, edge + min_edge)),
+                        "confidence": confidence_score,
                         "edge": edge,
-                        "size": ctx.params.get("max_position_usd", 50),
+                        "size": suggested_size,
                         "entry_price": oracle_entry_price,
-                        "suggested_size": ctx.params.get("max_position_usd", 50),
+                        "suggested_size": suggested_size,
                         "model_probability": 1.0 if direction == "yes" else 0.0,
                         "market_probability": market_mid,
                         "platform": "polymarket",
@@ -328,18 +369,4 @@ class BtcOracleStrategy(BaseStrategy):
                         "slug": market.slug,
                     }
                 )
-                # Also attempt direct CLOB placement for live/testnet mode
-                if ctx.clob and ctx.mode != "paper":
-                    try:
-                        order_result = await ctx.clob.place_limit_order(
-                            token_id=market.ticker,
-                            side="BUY",
-                            price=market_mid,
-                            size=ctx.params.get("max_position_usd", 50),
-                        )
-                        if order_result.success:
-                            result.trades_placed += 1
-                    except Exception as e:
-                        result.errors.append(f"Order failed for {market.ticker}: {e}")
-
         return result
