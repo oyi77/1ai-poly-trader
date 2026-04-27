@@ -1,4 +1,6 @@
 """Shared pytest fixtures for PolyEdge backend integration tests."""
+# ruff: noqa: E402,F401,F811
+
 import sys
 from unittest.mock import MagicMock
 
@@ -91,8 +93,15 @@ app.dependency_overrides[get_db] = _override_get_db
 
 
 @pytest.fixture(scope="function")
-def client():
-    return TestClient(app)
+def client(db):
+    def _override_test_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_test_db
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides[get_db] = _override_get_db
 
 
 @pytest.fixture(scope="function")

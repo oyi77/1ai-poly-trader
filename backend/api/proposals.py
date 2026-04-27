@@ -14,6 +14,8 @@ from backend.api.validation import (
     ProposalCreateRequest as ValidatedProposalCreate,
     ProposalApprovalRequest as ValidatedProposalApproval,
 )
+from backend.ai.impact_measurer import ImpactMeasurer
+from backend.services.rollback_manager import RollbackManager
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ class ProposalResponse(BaseModel):
     id: int
     strategy_name: str
     change_details: dict
-    expected_impact: float
+    expected_impact: str
     admin_decision: str
     created_at: str
     executed_at: Optional[str] = None

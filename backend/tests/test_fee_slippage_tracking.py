@@ -1,18 +1,18 @@
 """Tests for fee and slippage tracking in Trade model and execution pipeline."""
 
 import pytest
-from datetime import datetime, timezone
-from decimal import Decimal
-from backend.models.database import Trade, SessionLocal, Base, engine
+from backend.models.database import Trade, SessionLocal
 
 
 @pytest.fixture
 def test_db():
-    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    yield db
-    db.close()
-    Base.metadata.drop_all(bind=engine)
+    try:
+        yield db
+    finally:
+        db.query(Trade).delete()
+        db.commit()
+        db.close()
 
 
 def test_trade_model_has_fee_and_slippage_fields(test_db):

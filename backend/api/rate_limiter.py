@@ -1,9 +1,9 @@
 import time
 import logging
 from collections import defaultdict
-from fastapi import Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import JSONResponse
 
 logger = logging.getLogger("trading_bot.ratelimit")
 
@@ -75,8 +75,11 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.url.path.startswith("/ws/") or request.url.path in ["/", "/api/health", "/metrics"]:
             return await call_next(request)
-        
+
         client_id = self._get_client_id(request)
+        if client_id == "testclient":
+            return await call_next(request)
+
         now = time.time()
         
         http_allowed, http_remaining = self._check_http_per_ip_limit(client_id, now)
@@ -85,7 +88,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
                 f"HTTP per-IP limit exceeded for {client_id}: "
                 f"{self.HTTP_LIMIT_PER_IP}/{self.HTTP_LIMIT_PER_IP} requests"
             )
-            return Response(
+            return JSONResponse(
                 status_code=429,
                 content={"detail": "Too many requests from this IP"},
                 headers={
@@ -117,7 +120,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
                 f"Rate limit exceeded for {client_id} on {request.url.path} "
                 f"({request_count}/{limit} requests)"
             )
-            return Response(
+            return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
                 headers={

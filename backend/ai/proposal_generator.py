@@ -452,7 +452,12 @@ Be specific and actionable. Do not suggest vague improvements."""
         finally:
             db.close()
     
-    def approve_proposal(self, proposal_id: int, admin_user_id: str, reason: str) -> bool:
+    def approve_proposal(
+        self,
+        proposal_id: int,
+        admin_user_id: str,
+        reason: str = "Approved",
+    ) -> bool:
         """Approve a proposal (requires admin).
         
         Args:
@@ -495,7 +500,12 @@ Be specific and actionable. Do not suggest vague improvements."""
         finally:
             db.close()
     
-    def reject_proposal(self, proposal_id: int, admin_user_id: str, reason: str) -> bool:
+    def reject_proposal(
+        self,
+        proposal_id: int,
+        admin_user_id: str,
+        reason: str = "Rejected",
+    ) -> bool:
         """Reject a proposal (requires admin).
         
         Args:
