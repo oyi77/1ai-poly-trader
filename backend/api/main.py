@@ -10,7 +10,7 @@ from fastapi import (
     Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Optional, AsyncGenerator
@@ -954,6 +954,7 @@ class DashboardData(BaseModel):
     windows: List[BtcWindowResponse]
     active_signals: List[SignalResponse]
     recent_trades: List[TradeResponse]
+    top_winning_trades: List[TradeResponse] = []
     equity_curve: List[dict]
     calibration: Optional[CalibrationSummary] = None
     weather_signals: List[WeatherSignalResponse] = []
@@ -966,6 +967,129 @@ class EventResponse(BaseModel):
     type: str
     message: str
     data: dict = {}
+
+
+def _serialize_trade_response(trade: Trade, contexts: dict[int, TradeContext]) -> TradeResponse:
+    context = contexts.get(trade.id)
+    return TradeResponse(
+        id=trade.id,
+        market_ticker=trade.market_ticker,
+        platform=trade.platform,
+        event_slug=trade.event_slug,
+        direction=trade.direction,
+        entry_price=trade.entry_price,
+        size=trade.size,
+        timestamp=trade.timestamp,
+        settled=trade.settled,
+        result=trade.result,
+        pnl=trade.pnl,
+        strategy=(context.strategy if context else None) or getattr(trade, "strategy", None),
+        signal_source=(context.signal_source if context else None)
+        or getattr(trade, "signal_source", None),
+        confidence=(context.confidence if context else None)
+        or getattr(trade, "confidence", None),
+        trading_mode=trade.trading_mode,
+    )
+
+
+def _load_trade_contexts(db: Session, trades: list[Trade]) -> dict[int, TradeContext]:
+    trade_ids = [trade.id for trade in trades]
+    if not trade_ids:
+        return {}
+    return {
+        context.trade_id: context
+        for context in db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
+    }
+
+
+def _build_account_equity_curve(db: Session, curve_mode: str = "live") -> list[dict]:
+    """Build dashboard equity points without letting historical backfills redefine live equity."""
+    equity_curve: list[dict] = []
+    initial_bankroll = 100.0 if curve_mode == "testnet" else float(settings.INITIAL_BANKROLL)
+    mode_state = db.query(BotState).filter_by(mode=curve_mode).first()
+
+    if curve_mode == "live":
+        historical_trades = (
+            db.query(Trade)
+            .filter(
+                Trade.settled.is_(True),
+                Trade.trading_mode == "live",
+                Trade.pnl.isnot(None),
+                or_(
+                    Trade.settlement_source.is_(None),
+                    Trade.settlement_source != "backfill_conservative_loss",
+                ),
+            )
+            .order_by(Trade.timestamp)
+            .limit(500)
+            .all()
+        )
+        realized_points: list[tuple[datetime, float]] = []
+        cumulative_realized = 0.0
+        for trade in historical_trades:
+            cumulative_realized += float(trade.pnl or 0.0)
+            realized_points.append((trade.timestamp, cumulative_realized))
+
+        current_pnl = float(mode_state.total_pnl or 0.0) if mode_state else cumulative_realized
+        current_bankroll = (
+            float(mode_state.bankroll or initial_bankroll) if mode_state else initial_bankroll + current_pnl
+        )
+
+        if realized_points:
+            final_realized = realized_points[-1][1]
+            adjustment = current_pnl - final_realized
+            for timestamp, realized_pnl in realized_points:
+                point_pnl = realized_pnl + adjustment
+                equity_curve.append(
+                    {
+                        "timestamp": timestamp.isoformat(),
+                        "pnl": point_pnl,
+                        "bankroll": current_bankroll - (current_pnl - point_pnl),
+                    }
+                )
+
+        equity_curve.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pnl": current_pnl,
+                "bankroll": current_bankroll,
+            }
+        )
+        return equity_curve
+
+    cumulative_pnl = 0.0
+    equity_trades = (
+        db.query(Trade)
+        .filter(Trade.settled.is_(True), Trade.trading_mode == curve_mode)
+        .order_by(Trade.timestamp)
+        .all()
+    )
+    for trade in equity_trades:
+        cumulative_pnl += float(trade.pnl or 0.0)
+        equity_curve.append(
+            {
+                "timestamp": trade.timestamp.isoformat(),
+                "pnl": cumulative_pnl,
+                "bankroll": initial_bankroll + cumulative_pnl,
+            }
+        )
+
+    if mode_state:
+        if curve_mode == "paper":
+            current_bankroll = mode_state.paper_bankroll if mode_state.paper_bankroll is not None else mode_state.bankroll
+            current_pnl = mode_state.paper_pnl if mode_state.paper_pnl is not None else mode_state.total_pnl
+        else:
+            current_bankroll = mode_state.testnet_bankroll if mode_state.testnet_bankroll is not None else mode_state.bankroll
+            current_pnl = mode_state.testnet_pnl if mode_state.testnet_pnl is not None else mode_state.total_pnl
+        equity_curve.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pnl": float(current_pnl or 0.0),
+                "bankroll": float(current_bankroll or initial_bankroll),
+            }
+        )
+
+    return equity_curve
 
 
 # Core endpoints
@@ -1242,35 +1366,23 @@ async def get_dashboard(
 
     # Recent trades (with TradeContext enrichment)
     trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(50).all()
-    trade_ids = [t.id for t in trades]
-    contexts = {}
-    if trade_ids:
-        for ctx in (
-            db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
-        ):
-            contexts[ctx.trade_id] = ctx
-    recent_trades = [
-        TradeResponse(
-            id=t.id,
-            market_ticker=t.market_ticker,
-            platform=t.platform,
-            event_slug=t.event_slug,
-            direction=t.direction,
-            entry_price=t.entry_price,
-            size=t.size,
-            timestamp=t.timestamp,
-            settled=t.settled,
-            result=t.result,
-            pnl=t.pnl,
-            strategy=(contexts[t.id].strategy if t.id in contexts else None)
-            or getattr(t, "strategy", None),
-            signal_source=(contexts[t.id].signal_source if t.id in contexts else None)
-            or getattr(t, "signal_source", None),
-            confidence=(contexts[t.id].confidence if t.id in contexts else None)
-            or getattr(t, "confidence", None),
-            trading_mode=t.trading_mode,
+    contexts = _load_trade_contexts(db, trades)
+    recent_trades = [_serialize_trade_response(t, contexts) for t in trades]
+
+    top_winning_trade_rows = (
+        db.query(Trade)
+        .filter(
+            Trade.settled.is_(True),
+            Trade.pnl.isnot(None),
+            Trade.pnl > 0,
         )
-        for t in trades
+        .order_by(Trade.pnl.desc(), Trade.timestamp.desc())
+        .limit(5)
+        .all()
+    )
+    top_winning_contexts = _load_trade_contexts(db, top_winning_trade_rows)
+    top_winning_trades = [
+        _serialize_trade_response(t, top_winning_contexts) for t in top_winning_trade_rows
     ]
 
     # Equity curve: match the default dashboard/account view.  The dashboard
@@ -1278,46 +1390,7 @@ async def get_dashboard(
     # the bot is actively running in paper mode, so the chart must not render a
     # separate paper-only loss curve beside live/all-mode account totals.
     curve_mode = "live"
-    equity_curve = []
-    cumulative_pnl = 0
-    initial_bankroll = 100.0 if curve_mode == "testnet" else float(settings.INITIAL_BANKROLL)
-
-    if curve_mode != "live":
-        equity_trades = (
-            db.query(Trade)
-            .filter(Trade.settled.is_(True), Trade.trading_mode == curve_mode)
-            .order_by(Trade.timestamp)
-            .all()
-        )
-        for trade in equity_trades:
-            trade_pnl = trade.pnl if trade.pnl is not None else 0.0
-            cumulative_pnl += trade_pnl
-            equity_curve.append(
-                {
-                    "timestamp": trade.timestamp.isoformat(),
-                    "pnl": cumulative_pnl,
-                    "bankroll": initial_bankroll + cumulative_pnl,
-                }
-            )
-
-    mode_state = db.query(BotState).filter_by(mode=curve_mode).first()
-    if mode_state:
-        if curve_mode == "paper":
-            current_bankroll = mode_state.paper_bankroll if mode_state.paper_bankroll is not None else mode_state.bankroll
-            current_pnl = mode_state.paper_pnl if mode_state.paper_pnl is not None else mode_state.total_pnl
-        elif curve_mode == "testnet":
-            current_bankroll = mode_state.testnet_bankroll if mode_state.testnet_bankroll is not None else mode_state.bankroll
-            current_pnl = mode_state.testnet_pnl if mode_state.testnet_pnl is not None else mode_state.total_pnl
-        else:
-            current_bankroll = mode_state.bankroll
-            current_pnl = mode_state.total_pnl
-        equity_curve.append(
-            {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "pnl": float(current_pnl or 0.0),
-                "bankroll": float(current_bankroll or initial_bankroll),
-            }
-        )
+    equity_curve = _build_account_equity_curve(db, curve_mode=curve_mode)
 
     # Calibration summary
     calibration = _compute_calibration_summary(db)
@@ -1370,6 +1443,7 @@ async def get_dashboard(
         windows=windows,
         active_signals=signals,
         recent_trades=recent_trades,
+        top_winning_trades=top_winning_trades,
         equity_curve=equity_curve,
         calibration=calibration,
         weather_signals=weather_signals_data,

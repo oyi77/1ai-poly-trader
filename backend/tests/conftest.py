@@ -130,6 +130,7 @@ def cleanup_proposals_between_tests(db):
     db.query(MiroFishSignal).delete()
     db.query(StrategyConfig).delete()
     
+    db.info["allow_live_financial_update"] = True
     for mode in ["paper", "testnet", "live"]:
         state = db.query(BotState).filter_by(mode=mode).first()
         if not state:
@@ -141,6 +142,21 @@ def cleanup_proposals_between_tests(db):
                 total_pnl=0.0,
                 is_running=True,
             ))
+        else:
+            state.bankroll = 10000.0 if mode != "testnet" else 100.0
+            state.total_trades = 0
+            state.winning_trades = 0
+            state.total_pnl = 0.0
+            state.is_running = True
+            state.paper_bankroll = 10000.0
+            state.paper_pnl = 0.0
+            state.paper_trades = 0
+            state.paper_wins = 0
+            state.testnet_bankroll = 100.0
+            state.testnet_pnl = 0.0
+            state.testnet_trades = 0
+            state.testnet_wins = 0
     
     db.commit()
+    db.info.pop("allow_live_financial_update", None)
     yield

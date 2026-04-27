@@ -1,12 +1,13 @@
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 """Integration tests for /api/v1/dashboard, /api/v1/stats, and /api/v1/signals endpoints.
 
 Uses the shared conftest.py fixtures (client, db) backed by in-memory SQLite.
 External API calls (microstructure, BTC markets, signals) are mocked so tests
 run fast and deterministically.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from backend.models.database import BotState, Trade
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +110,9 @@ class TestDashboardEndpoint:
         ), patch(
             "backend.api.main.scan_for_signals",
             AsyncMock(return_value=[]),
+        ), patch(
+            "backend.api.main.settings.WEATHER_ENABLED",
+            False,
         ):
             return client.get("/api/v1/dashboard")
 
@@ -172,6 +176,105 @@ class TestDashboardEndpoint:
         resp = self._get_dashboard(client)
         data = resp.json()
         assert isinstance(data.get("weather_signals", []), list)
+
+    def test_dashboard_exposes_top_winning_trades_outside_recent_slice(self, client, db):
+        now = datetime.now(timezone.utc)
+        winning_trade = Trade(
+            market_ticker="LIVE-WINNER-OLD",
+            platform="polymarket",
+            direction="up",
+            entry_price=0.35,
+            size=100.0,
+            timestamp=now - timedelta(days=5),
+            settled=True,
+            result="win",
+            pnl=25.0,
+            trading_mode="live",
+        )
+        db.add(winning_trade)
+        for idx in range(55):
+            db.add(
+                Trade(
+                    market_ticker=f"RECENT-PENDING-{idx}",
+                    platform="polymarket",
+                    direction="down",
+                    entry_price=0.5,
+                    size=1.0,
+                    timestamp=now - timedelta(minutes=idx),
+                    settled=False,
+                    result="pending",
+                    pnl=None,
+                    trading_mode="paper",
+                )
+            )
+        db.commit()
+
+        resp = self._get_dashboard(client)
+        data = resp.json()
+
+        assert all(t["market_ticker"] != "LIVE-WINNER-OLD" for t in data["recent_trades"])
+        assert data["top_winning_trades"][0]["market_ticker"] == "LIVE-WINNER-OLD"
+        assert data["top_winning_trades"][0]["pnl"] == 25.0
+
+    def test_dashboard_live_equity_curve_ends_at_reconciled_state(self, client, db):
+        now = datetime.now(timezone.utc)
+        live_state = db.query(BotState).filter_by(mode="live").first()
+        db.info["allow_live_financial_update"] = True
+        live_state.bankroll = 170.0
+        live_state.total_pnl = 70.0
+        db.add_all(
+            [
+                Trade(
+                    market_ticker="LIVE-WIN-1",
+                    platform="polymarket",
+                    direction="up",
+                    entry_price=0.45,
+                    size=10.0,
+                    timestamp=now - timedelta(days=3),
+                    settled=True,
+                    result="win",
+                    pnl=5.0,
+                    trading_mode="live",
+                    settlement_source="market_resolution",
+                ),
+                Trade(
+                    market_ticker="LIVE-LOSS-1",
+                    platform="polymarket",
+                    direction="down",
+                    entry_price=0.55,
+                    size=10.0,
+                    timestamp=now - timedelta(days=2),
+                    settled=True,
+                    result="loss",
+                    pnl=-3.0,
+                    trading_mode="live",
+                    settlement_source="market_resolution",
+                ),
+                Trade(
+                    market_ticker="LIVE-BACKFILL-LOSS",
+                    platform="polymarket",
+                    direction="up",
+                    entry_price=1.0,
+                    size=999.0,
+                    timestamp=now - timedelta(days=1),
+                    settled=True,
+                    result="loss",
+                    pnl=-999.0,
+                    trading_mode="live",
+                    settlement_source="backfill_conservative_loss",
+                ),
+            ]
+        )
+        db.commit()
+        db.info.pop("allow_live_financial_update", None)
+
+        resp = self._get_dashboard(client)
+        data = resp.json()
+
+        assert len(data["equity_curve"]) >= 3
+        assert data["equity_curve"][-1]["pnl"] == 70.0
+        assert data["equity_curve"][-1]["bankroll"] == 170.0
+        assert all(point["pnl"] > -100 for point in data["equity_curve"][:-1])
 
 
 # ---------------------------------------------------------------------------
