@@ -3,7 +3,7 @@
 import pytest
 import time
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -82,7 +82,7 @@ def test_configuration_system(db):
     system_setting = SystemSettings(
         key="test_config",
         value={"enabled": True, "value": 42},
-        updated_at=datetime.utcnow()
+        updated_at=datetime.now(timezone.utc)
     )
     db.add(system_setting)
     db.commit()

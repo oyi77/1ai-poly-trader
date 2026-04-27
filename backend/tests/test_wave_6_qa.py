@@ -9,7 +9,7 @@ Covers:
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from backend.models.database import (
@@ -42,7 +42,7 @@ class TestPhase2RegressionFeature2:
 
     def test_activity_timestamp_auto_set(self, db: Session):
         """Activity timestamp must auto-populate on creation."""
-        before = datetime.utcnow()
+        before = datetime.now(timezone.utc).replace(tzinfo=None)
         activity = ActivityLog(
             strategy_name="test",
             decision_type="entry",
@@ -52,7 +52,7 @@ class TestPhase2RegressionFeature2:
         )
         db.add(activity)
         db.commit()
-        after = datetime.utcnow()
+        after = datetime.now(timezone.utc).replace(tzinfo=None)
 
         assert before <= activity.timestamp <= after
 
@@ -167,7 +167,7 @@ class TestPhase2RegressionFeature4:
         assert proposal.admin_decision == "pending"
 
         proposal.admin_decision = "approved"
-        proposal.executed_at = datetime.utcnow()
+        proposal.executed_at = datetime.now(timezone.utc)
         db.commit()
 
         retrieved = db.query(StrategyProposal).filter_by(id=proposal.id).first()
@@ -400,7 +400,7 @@ class TestPerformanceBaseline:
 
     def test_activity_insert_performance(self, db: Session):
         """Bulk activity inserts should be fast."""
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
         for i in range(100):
             activity = ActivityLog(
                 strategy_name=f"strat_{i % 5}",
@@ -411,7 +411,7 @@ class TestPerformanceBaseline:
             )
             db.add(activity)
         db.commit()
-        elapsed = (datetime.utcnow() - start).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - start).total_seconds()
 
         assert elapsed < 5.0  # Should insert 100 records in < 5 seconds
         assert db.query(ActivityLog).count() == 100
@@ -429,11 +429,11 @@ class TestPerformanceBaseline:
             db.add(activity)
         db.commit()
 
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
         results = db.query(ActivityLog).filter_by(
             strategy_name="btc_momentum"
         ).all()
-        elapsed = (datetime.utcnow() - start).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - start).total_seconds()
 
         assert elapsed < 0.5  # Query should complete in < 500ms
         assert len(results) == 25

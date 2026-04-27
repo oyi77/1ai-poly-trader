@@ -15,7 +15,8 @@ import json
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
-from backend.models.database import SessionLocal, StrategyProposal, StrategyConfig
+import backend.models.database as _db_mod
+from backend.models.database import StrategyProposal, StrategyConfig
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ class RollbackManager:
         Returns:
             True if snapshot created successfully, False otherwise
         """
-        db = SessionLocal()
+        db = _db_mod.SessionLocal()
         try:
             config = db.query(StrategyConfig).filter(
                 StrategyConfig.strategy_name == strategy_name
@@ -95,7 +96,7 @@ class RollbackManager:
         Returns:
             True if rollback successful, False otherwise
         """
-        db = SessionLocal()
+        db = _db_mod.SessionLocal()
         try:
             proposal = db.query(StrategyProposal).filter(
                 StrategyProposal.id == proposal_id
@@ -185,7 +186,7 @@ class RollbackManager:
         Returns:
             List of rollback log entries or None if not found
         """
-        db = SessionLocal()
+        db = _db_mod.SessionLocal()
         try:
             proposal = db.query(StrategyProposal).filter(
                 StrategyProposal.id == proposal_id
@@ -208,7 +209,7 @@ class RollbackManager:
         Returns:
             True if rollback is possible, False otherwise
         """
-        db = SessionLocal()
+        db = _db_mod.SessionLocal()
         try:
             proposal = db.query(StrategyProposal).filter(
                 StrategyProposal.id == proposal_id

@@ -3,7 +3,8 @@
 import pytest
 from datetime import datetime, timezone
 from backend.ai.trade_analyzer import TradeAnalyzer
-from backend.models.database import Trade, SessionLocal
+from backend.models.database import Trade
+import backend.models.database as _db_mod
 
 
 @pytest.fixture
@@ -13,7 +14,7 @@ def analyzer():
 
 @pytest.fixture
 def db_session():
-    db = SessionLocal()
+    db = _db_mod.SessionLocal()
     yield db
     db.query(Trade).delete()
     db.commit()

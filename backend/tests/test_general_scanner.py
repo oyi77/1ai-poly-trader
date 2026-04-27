@@ -83,6 +83,7 @@ def _mock_httpx_for_markets(markets):
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.post = AsyncMock(return_value=mock_response)
     return mock_client
 
 
@@ -127,6 +128,7 @@ class TestGeneralScannerRequiresAI:
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.post = AsyncMock(return_value=mock_response)
             mock_client_cls.return_value = mock_client
 
             result = await strategy.run_cycle(ctx)

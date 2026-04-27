@@ -174,6 +174,7 @@ def test_stats_endpoint_handles_missing_botstate(client, db):
                 is_running=True,
             ))
     db.commit()
+    db.expire_all()
 
 
 def test_stats_pnl_source_indicator(client, db):

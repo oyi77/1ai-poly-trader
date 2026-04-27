@@ -74,13 +74,11 @@ INITIAL_BANKROLL = 10_000.0
 
 
 def _seed_bot_state(db):
-    """Ensure a fresh BotState row exists."""
-    existing = db.query(BotState).first()
-    if existing:
-        db.delete(existing)
-        db.commit()
+    db.query(BotState).delete()
+    db.commit()
     db.add(
         BotState(
+            mode="paper",
             bankroll=INITIAL_BANKROLL,
             paper_bankroll=INITIAL_BANKROLL,
             total_trades=0,
@@ -240,6 +238,7 @@ async def test_full_autonomous_cycle():
 
         mock_http_client = AsyncMock()
         mock_http_client.get = AsyncMock(return_value=mock_response)
+        mock_http_client.post = AsyncMock(return_value=mock_response)
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
         mock_http_client.__aexit__ = AsyncMock(return_value=None)
 

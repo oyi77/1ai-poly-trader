@@ -7,16 +7,18 @@ from typing import Callable
 logger = logging.getLogger("trading_bot.hft_risk_test")
 
 
-def test_extreme_scenarios() -> dict:
+def test_extreme_scenarios():
     """Test extreme scenarios: bankroll=0, 1000% loss, concurrent positions."""
-    results = {}
-
-    results["zero_bankroll"] = validate_size(bankroll=0.0, confidence=0.8, expected_allowed=False)
-    results["full_confidence"] = validate_size(bankroll=100.0, confidence=1.0, expected_allowed=True)
-    results["low_confidence"] = validate_size(bankroll=100.0, confidence=0.2, expected_allowed=False)
-    results["max_position"] = validate_size(bankroll=10000.0, confidence=0.9, expected_allowed=True)
-
-    return results
+    scenarios = {
+        "zero_bankroll": validate_size(bankroll=0.0, confidence=0.8, expected_allowed=False),
+        "full_confidence": validate_size(bankroll=100.0, confidence=1.0, expected_allowed=True),
+        "low_confidence": validate_size(bankroll=100.0, confidence=0.2, expected_allowed=False),
+        "max_position": validate_size(bankroll=10000.0, confidence=0.9, expected_allowed=True),
+    }
+    for name, result in scenarios.items():
+        assert result["matches_expectation"], (
+            f"Scenario '{name}' failed: expected allowed={not result['allowed']}, got {result['allowed']}"
+        )
 
 
 def validate_size(bankroll: float, confidence: float, expected_allowed: bool) -> dict:

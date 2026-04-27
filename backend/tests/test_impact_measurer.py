@@ -6,13 +6,13 @@ from unittest.mock import Mock, patch
 
 from backend.ai.impact_measurer import ImpactMeasurer, ProposalImpact
 from backend.services.rollback_manager import RollbackManager
-from backend.models.database import Trade, StrategyProposal, StrategyConfig, SessionLocal
+from backend.models.database import Trade, StrategyProposal, StrategyConfig
+import backend.models.database as _db_mod
 
 
 @pytest.fixture
 def db_session():
-    """Create a test database session."""
-    session = SessionLocal()
+    session = _db_mod.SessionLocal()
     yield session
     session.close()
 
@@ -218,7 +218,21 @@ class TestImpactMeasurer:
 
 class TestRollbackManager:
     """Test suite for RollbackManager."""
-    
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_strategy(self, db_session):
+        for model in (StrategyProposal, StrategyConfig):
+            db_session.query(model).filter(
+                model.strategy_name == "test_strategy"
+            ).delete(synchronize_session=False)
+        db_session.commit()
+        yield
+        for model in (StrategyProposal, StrategyConfig):
+            db_session.query(model).filter(
+                model.strategy_name == "test_strategy"
+            ).delete(synchronize_session=False)
+        db_session.commit()
+
     def test_initialization(self):
         """Test RollbackManager initializes correctly."""
         manager = RollbackManager()

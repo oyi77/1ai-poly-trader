@@ -49,6 +49,15 @@ class HRiskManager:
         adjusted_size = base_size * signal.confidence
         adjusted_size = min(adjusted_size, MAX_POSITION_USD)
 
+        if bankroll <= 0:
+            return {
+                "allowed": False,
+                "size": 0.0,
+                "reason": "zero bankroll",
+                "latency_ms": 0.5,
+                "bankroll": bankroll,
+            }
+
         if signal.confidence < 0.7:
             allowed = signal.confidence >= 0.3
             reason = "confidence too low" if not allowed else "low confidence passed"

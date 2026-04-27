@@ -120,7 +120,7 @@ def test_execute_proposal_success(executor, db_session, approved_proposal, sampl
     
     assert result is True
     
-    updated_proposal = db_session.query(StrategyProposal).get(proposal_id)
+    updated_proposal = db_session.get(StrategyProposal, proposal_id)
     assert updated_proposal.admin_decision == "executed"
     assert updated_proposal.executed_at is not None
     
@@ -314,7 +314,7 @@ def test_auto_rollback_negative_impact(executor, db_session, executed_proposal, 
     
     assert rolled_back is True
     
-    updated_proposal = db_session.query(StrategyProposal).get(proposal_id)
+    updated_proposal = db_session.get(StrategyProposal, proposal_id)
     assert updated_proposal.admin_decision == "rolled_back"
     
     updated_config = db_session.query(StrategyConfig).filter(
@@ -353,7 +353,7 @@ def test_auto_rollback_positive_impact(executor, db_session, executed_proposal):
     
     assert rolled_back is False
     
-    updated_proposal = db_session.query(StrategyProposal).get(proposal_id)
+    updated_proposal = db_session.get(StrategyProposal, proposal_id)
     assert updated_proposal.admin_decision == "executed"
 
 
@@ -468,7 +468,7 @@ async def test_execute_approved_proposals_job(db_session, approved_proposal, sam
     with patch('backend.core.proposal_executor.SessionLocal', return_value=db_session):
         await execute_approved_proposals_job()
     
-    updated_proposal = db_session.query(StrategyProposal).get(proposal_id)
+    updated_proposal = db_session.get(StrategyProposal, proposal_id)
     assert updated_proposal.admin_decision == "executed"
 
 
@@ -501,5 +501,5 @@ async def test_measure_impact_and_rollback_job(db_session, executed_proposal, sa
             
             await measure_impact_and_rollback_job()
     
-    updated_proposal = db_session.query(StrategyProposal).get(proposal_id)
+    updated_proposal = db_session.get(StrategyProposal, proposal_id)
     assert updated_proposal.admin_decision == "rolled_back"
