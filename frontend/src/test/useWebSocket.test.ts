@@ -4,6 +4,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
+  static autoOpen = true;
   static OPEN = 1;
   url: string;
   readyState = 0;
@@ -21,20 +22,24 @@ class MockWebSocket {
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
-    setTimeout(() => {
-      this.readyState = MockWebSocket.OPEN;
-      this.onopen?.call(this as unknown as WebSocket, {} as Event);
-    }, 0);
+    if (MockWebSocket.autoOpen) {
+      setTimeout(() => {
+        this.readyState = MockWebSocket.OPEN;
+        this.onopen?.call(this as unknown as WebSocket, {} as Event);
+      }, 0);
+    }
   }
 }
 
 describe('useWebSocket', () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
+    MockWebSocket.autoOpen = true;
     (window as unknown as { WebSocket: typeof MockWebSocket }).WebSocket = MockWebSocket;
   });
   
   afterEach(() => { 
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -82,7 +87,7 @@ describe('useWebSocket', () => {
     });
     
     await act(async () => {
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
     });
     
     expect(result.current.status).toBe('reconnecting');
@@ -91,41 +96,41 @@ describe('useWebSocket', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
     
     expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2);
-    
-    vi.useRealTimers();
+    const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.readyState = MockWebSocket.OPEN;
+      ws2.onopen?.call(ws2 as unknown as WebSocket, {} as Event);
+    });
+    expect(result.current.status).toBe('connected');
   });
 
   it('respects max reconnection attempts', async () => {
     vi.useFakeTimers();
+    MockWebSocket.autoOpen = false;
     
     const { result } = renderHook(() => 
       useWebSocket('ws://test', { maxReconnectAttempts: 3 })
     );
     
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-    
-    expect(result.current.status).toBe('connected');
-    
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3; i += 1) {
       const ws = MockWebSocket.instances[i];
       act(() => {
-        ws.close();
+        ws.onclose?.call(ws as unknown as WebSocket, {} as CloseEvent);
       });
-      
+
       await act(async () => {
-        await vi.runAllTimersAsync();
         await vi.advanceTimersByTimeAsync(Math.pow(2, i) * 1000);
       });
     }
     
     expect(result.current.status).toBe('disconnected');
     expect(result.current.reconnectAttempt).toBe(3);
-    
-    vi.useRealTimers();
   });
 
   it('subscribes to topic on connect', async () => {
@@ -151,7 +156,7 @@ describe('useWebSocket', () => {
     );
     
     await act(async () => {
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
     });
     
     const ws1 = MockWebSocket.instances[0];
@@ -162,16 +167,22 @@ describe('useWebSocket', () => {
     });
     
     await act(async () => {
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
     });
     
     const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.readyState = MockWebSocket.OPEN;
+      ws2.onopen?.call(ws2 as unknown as WebSocket, {} as Event);
+    });
     expect(ws2.send).toHaveBeenCalledWith(
       JSON.stringify({ action: 'subscribe', topic: 'markets' })
     );
-    
-    vi.useRealTimers();
   });
 
   it('sends messages only when connected', async () => {
