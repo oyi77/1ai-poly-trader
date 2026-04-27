@@ -2,6 +2,17 @@
 
 All settings in `backend/config.py`, overridable via environment variables.
 
+## Polymarket Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `POLYMARKET_PRIVATE_KEY` | None | Wallet private key for live order placement. Never commit this value. |
+| `POLYMARKET_WALLET_ADDRESS` | None | Public wallet/proxy address used to fetch live Polymarket open-position value for bankroll reconciliation. Safe to document, but set it to the wallet shown in Polymarket/CLOB. |
+| `POLYMARKET_BUILDER_ADDRESS` | None | Optional Builder proxy/funder address. If present, live equity reconciliation uses this before `POLYMARKET_WALLET_ADDRESS`. |
+| `POLYMARKET_SIGNATURE_TYPE` | 0 | CLOB signature type: 0 for EOA, 1 for Poly-Proxy, 2 for Poly-EOA. |
+
+Live `BotState.bankroll`/`total_pnl` are derived caches. The source of truth is CLOB USDC cash plus Polymarket Data API open-position value; see `docs/architecture/adr-002-live-equity-source.md`.
+
 ## BTC Settings
 
 | Setting | Default | Description |

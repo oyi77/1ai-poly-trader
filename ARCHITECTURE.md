@@ -114,6 +114,7 @@ polyedge/
 │   │   └── main.py            # App factory, lifespan, CORS, routes
 │   ├── core/                  # Orchestration, risk, scheduling, signals
 │   │   ├── orchestrator.py    # Central coordination of strategies
+│   │   ├── bankroll_reconciliation.py # BotState financial cache reconciliation
 │   │   ├── risk_manager.py    # Position limits, circuit breakers
 │   │   ├── strategy_executor.py # Strategy lifecycle management
 │   │   ├── settlement.py      # Trade settlement tracking
@@ -163,7 +164,7 @@ polyedge/
 │   ├── configuration.md       # Environment variables
 │   ├── data-sources.md        # Data provider docs
 │   ├── project-structure.md   # Codebase layout
-│   └── architecture/          # ADRs (job queue, etc.)
+│   └── architecture/          # ADRs (job queue, live equity source, etc.)
 │
 └── tests/                     # Root-level integration tests
 ```
@@ -182,9 +183,19 @@ polyedge/
 
 5. **Order Execution** — `order_executor.py` places orders via the Polymarket CLOB SDK or Kalshi API. Supports limit orders, market orders, and partial fills.
 
-6. **Settlement Tracking** — `settlement.py` + `settlement_helpers.py` monitor open positions, reconcile outcomes, and update P&L.
+6. **Settlement Tracking** — `settlement.py` + `settlement_helpers.py` monitor open positions and reconcile outcomes. In live mode, settlement preserves the trade ledger and delegates financial cache updates to `bankroll_reconciliation.py`.
 
 7. **Dashboard Updates** — The React frontend polls the FastAPI backend via TanStack Query, rendering real-time signals, trades, strategy performance, and risk metrics.
+
+---
+
+## Financial State Source of Truth
+
+`Trade` rows are the durable learning ledger and must not be deleted or reset to repair dashboard/risk cache drift. `BotState` is a derived cache.
+
+- **Live mode**: `BotState.bankroll` and `BotState.total_pnl` are derived from external account equity: CLOB USDC cash balance plus Polymarket Data API open-position value. Local realized P&L/backfill rows are not authoritative for live equity.
+- **Paper/testnet modes**: `BotState` remains ledger-derived from initial bankroll, realized P&L, and open exposure because these modes are simulated accounting environments.
+- **Implementation**: `backend/core/bankroll_reconciliation.py` is the only intended writer for live financial cache fields. See `docs/architecture/adr-002-live-equity-source.md`.
 
 ---
 
