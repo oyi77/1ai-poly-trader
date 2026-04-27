@@ -33,6 +33,8 @@ All API endpoints are versioned using the `/v1` prefix. The current version is *
 | `/api/v1/weather/signals` | GET | Weather trading signals (both platforms) |
 | `/api/v1/trades` | GET | Trade history |
 | `/api/v1/stats` | GET | Bot statistics |
+| `/api/v1/trade-attempts` | GET | Trade Control Room attempt ledger with execution/risk blockers |
+| `/api/v1/trade-attempts/summary` | GET | Aggregate execution rate, blockers, and recent rejected attempts |
 | `/api/v1/calibration` | GET | Signal calibration data |
 | `/api/v1/run-scan` | POST | Trigger BTC + weather scan |
 | `/api/v1/simulate-trade` | POST | Simulate a BTC trade |
@@ -68,6 +70,53 @@ See `docs/operations/monitoring.md` for health check details.
 | `/metrics` | GET | Prometheus metrics |
 
 See `docs/operations/monitoring.md` for monitoring details.
+
+## Trade Control Room Endpoints
+
+These endpoints back the dashboard **Control Room** tab. They are intentionally separate from `Trade` history: `Trade` contains executed positions, while `TradeAttempt` records every candidate execution path that reached the strategy executor, including risk rejections and sizing blockers.
+
+### `GET /api/v1/trade-attempts`
+
+Returns paginated attempt rows ordered newest-first by default.
+
+**Query parameters:**
+- `mode`: `paper`, `testnet`, `live`, or omitted for all modes
+- `status`: `EXECUTED`, `REJECTED`, `BLOCKED`, `FAILED`, or omitted for all statuses
+- `strategy`: exact strategy name
+- `reason_code`: exact machine-readable blocker code
+- `market`: substring match against `market_ticker`
+- `since`, `until`: ISO timestamps
+- `sort`, `order`, `limit`, `offset`: pagination/sorting controls
+
+**Response shape:**
+```json
+{
+  "items": [
+    {
+      "attempt_id": "uuid",
+      "correlation_id": "uuid",
+      "strategy": "general_scanner",
+      "mode": "live",
+      "market_ticker": "2086090",
+      "status": "REJECTED",
+      "phase": "risk_gate",
+      "reason_code": "REJECTED_DRAWDOWN_BREAKER",
+      "reason": "24h loss exceeds limit",
+      "bankroll": 170.1,
+      "current_exposure": 0,
+      "requested_size": 50,
+      "adjusted_size": 0,
+      "risk_allowed": false,
+      "trade_id": null
+    }
+  ],
+  "total": 1
+}
+```
+
+### `GET /api/v1/trade-attempts/summary`
+
+Returns aggregate operator data for the Control Room header: total attempts, executed attempts, blocked/rejected/failed attempts, execution rate, top blocker reason codes, and recent blockers.
 
 ## WebSocket Endpoints
 

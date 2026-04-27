@@ -55,6 +55,8 @@ Admin and bot management endpoints:
 
 - `/admin/*` - Admin configuration
 - `/bot/*` - Bot control (start, stop, reset, scan)
+- `/trade-attempts` - Trade Control Room execution-attempt ledger
+- `/trade-attempts/summary` - Execution rate and blocker summary for operator monitoring
 
 ### `backend/api/ws_manager.py`
 

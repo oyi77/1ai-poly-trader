@@ -2,6 +2,71 @@
 
 This document covers all monitoring, alerting, and observability features for the Polyedge trading bot.
 
+## Trade Control Room
+
+The dashboard **Control Room** tab explains the trade execution lifecycle from the operator's point of view: what the strategy attempted, what AI/signal context was present, which risk gate ran, and why the attempt executed or stopped.
+
+### Data Source
+
+Control Room data comes from the durable `trade_attempts` table, not log scraping. The strategy executor creates one row for every decision that reaches execution and updates it through these phases:
+
+| Phase | Meaning |
+|-------|---------|
+| `created` | Candidate execution attempt received by `strategy_executor.execute_decision()` |
+| `preflight` | Duplicate-position and bot-running checks |
+| `risk_gate` | `RiskManager.validate_trade()` evaluated bankroll, exposure, confidence, and drawdown constraints |
+| `sizing` | Minimum order-size check after risk-adjusted sizing |
+| `execution` | External venue/CLOB/Kalshi order placement path |
+| `validation` | Local trade/signal validation before commit |
+| `completed` | Trade row was created and linked to the attempt |
+
+### Status and Reason Codes
+
+Important statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `EXECUTED` | A `Trade` row was opened and linked via `trade_id` |
+| `REJECTED` | A risk, sizing, broker, or validation gate rejected the attempt |
+| `BLOCKED` | The system did not proceed because a precondition was missing, such as bot stopped, duplicate open position, or missing token ID |
+| `FAILED` | An unexpected execution error occurred and was recorded with context |
+
+Common blocker reason codes include:
+
+- `REJECTED_DRAWDOWN_BREAKER` — live/testnet/paper risk manager stopped trading after loss limits.
+- `REJECTED_MAX_EXPOSURE` — open exposure already hit configured cap.
+- `REJECTED_ORDER_TOO_SMALL` — risk-adjusted size fell below mode minimum (`$1` paper, `$5` testnet/live).
+- `BLOCKED_DUPLICATE_OPEN_POSITION` — unsettled position already exists for the same market/event.
+- `BLOCKED_BOT_NOT_RUNNING` — mode state is paused.
+- `BLOCKED_MISSING_TOKEN_ID` — live/testnet Polymarket execution had no CLOB token ID.
+- `REJECTED_BROKER_ORDER` — venue/CLOB rejected the submitted order.
+
+### Operator Workflow: Why No Trade?
+
+1. Open **Dashboard → Control Room**.
+2. Filter by mode (`paper`, `testnet`, or `live`).
+3. Look at **Top Blockers** for the dominant reason.
+4. Expand the latest row for the market to inspect:
+   - bankroll and current exposure at the time of the attempt,
+   - requested vs adjusted size,
+   - risk reason text,
+   - AI/signal reasoning captured with the attempt,
+   - correlation ID for backend investigation.
+5. Use `GET /api/v1/trade-attempts?mode=live&status=REJECTED` for raw API inspection.
+
+Current known examples this feature is designed to make visible:
+
+- Live candidates blocked by drawdown breaker.
+- Paper candidates with risk-adjusted size around `$0.93` rejected because minimum paper order is `$1.00`.
+- Testnet candidates rejected by max exposure.
+
+### API
+
+- `GET /api/v1/trade-attempts` — paginated attempt rows.
+- `GET /api/v1/trade-attempts/summary` — aggregate execution rate and blockers.
+
+See `docs/api.md` for response shapes and filters.
+
 ## Health Checks
 
 ### Health Check Endpoints

@@ -1,0 +1,69 @@
+<!-- Generated: 2026-04-10 | Updated: 2026-04-10 -->
+
+# polyedge
+
+## Purpose
+Polyedge is a full-stack automated prediction market trading bot targeting Polymarket and Kalshi. It combines AI-powered signal generation, multi-strategy execution, real-time market data aggregation, and a React dashboard for monitoring and control. The system supports paper trading (shadow mode), live trading with risk controls, and comprehensive backtesting.
+
+## Key Files
+
+| File | Description |
+|------|-------------|
+| `main.py` | Application entry point — starts FastAPI server and background workers |
+| `run.py` | Alternate runner with environment validation |
+| `requirements.txt` | Python package dependencies |
+| `docker-compose.yml` | Multi-service container setup (app + Redis) |
+| `Dockerfile` | Backend container build |
+| `ecosystem.config.js` | PM2 process manager configuration for production |
+| `railway.json` | Railway.app deployment configuration |
+| `vercel.json` | Vercel edge configuration for frontend |
+| `pytest.ini` | Test runner configuration |
+| `.env.example` | Required environment variable template |
+| `ARCHITECTURE.md` | High-level system architecture overview |
+| `README.md` | Project overview and setup guide |
+| `POLYMARKET_SETUP.md` | Polymarket API credential setup guide |
+| `IMPLEMENTATION_GAPS.md` | Known gaps and incomplete features |
+| `test_backtest_data.py` | Root-level backtest data validation tests |
+
+## Subdirectories
+
+| Directory | Purpose |
+|-----------|---------|
+| `backend/` | Python FastAPI backend — trading engine, strategies, data feeds, AI (see `backend/AGENTS.md`) |
+| `frontend/` | React/TypeScript dashboard — monitoring UI, admin controls (see `frontend/AGENTS.md`) |
+| `docs/` | Architecture docs, API reference, how-it-works guides (see `docs/AGENTS.md`) |
+| `tests/` | Integration tests at project root level (see `tests/AGENTS.md`) |
+| `.github/` | GitHub Actions CI workflow |
+
+## For AI Agents
+
+### Working In This Directory
+- Never commit `.env` — it contains live API keys and wallet credentials
+- Environment variables are documented in `.env.example`; always keep that in sync
+- Production deploys to Railway (backend) + Vercel (frontend) — check `railway.json` and `vercel.json`
+- PM2 manages multiple processes in production: API server, queue worker, and scheduler
+- Live `BotState.bankroll`/`total_pnl` are derived caches from CLOB USDC cash + Polymarket Data API open-position value; do not recompute live equity from local ledger/backfill P&L (see `docs/architecture/adr-002-live-equity-source.md`)
+- Trade execution observability uses the `TradeAttempt` ledger and dashboard Control Room; do not replace it with log scraping or mutate historical `Trade` rows to explain rejected attempts (see `docs/architecture/adr-003-trade-attempt-observability.md`)
+
+### Testing Requirements
+- Backend tests: `pytest` from project root (uses `pytest.ini`)
+- Frontend tests: `cd frontend && npm test`
+- E2E tests: `cd frontend && npx playwright test`
+- Do not run live trading tests without `SHADOW_MODE=true`
+
+### Common Patterns
+- `.env` feature flags control system behavior (e.g., `JOB_WORKER_ENABLED`, `SHADOW_MODE`)
+- All sensitive operations guarded by circuit breakers and risk limits
+- Redis optional — falls back to SQLite queue when unavailable
+
+## Dependencies
+
+### External
+- `FastAPI` + `uvicorn` — Python web framework
+- `React 18` + `TypeScript` + `Vite` — Frontend
+- `SQLite` / `Redis` — Storage and job queue
+- Polymarket CLOB API, Kalshi API — Market data and order execution
+- Anthropic Claude API — AI signal analysis
+- Groq API — Fast LLM inference
+
+<!-- MANUAL: -->
