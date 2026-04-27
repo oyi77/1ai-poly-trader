@@ -106,6 +106,7 @@ export default function Dashboard() {
 
   const activeSignals = data?.active_signals ?? []
   const recentTrades = data?.recent_trades ?? []
+  const topWinningTrades = data?.top_winning_trades ?? []
   const btcPrice = data?.btc_price
   const micro = data?.microstructure
   const windows = data?.windows ?? []
@@ -239,6 +240,7 @@ export default function Dashboard() {
                 equityCurve={equityCurve}
                 activeSignals={activeSignals}
                 recentTrades={recentTrades}
+                topWinningTrades={topWinningTrades}
                 weatherSignals={weatherSignals}
                 weatherForecasts={weatherForecasts}
                 calibration={calibration}

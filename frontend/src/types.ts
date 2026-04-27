@@ -177,6 +177,7 @@ export interface DashboardData {
   windows: BtcWindow[]
   active_signals: Signal[]
   recent_trades: Trade[]
+  top_winning_trades: Trade[]
   equity_curve: EquityPoint[]
   calibration: CalibrationSummary | null
   weather_signals: WeatherSignal[]

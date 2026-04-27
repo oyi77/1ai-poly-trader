@@ -13,6 +13,7 @@ export interface OverviewTabProps {
   equityCurve: any
   activeSignals: any
   recentTrades: any
+  topWinningTrades?: any[]
   weatherSignals: any
   weatherForecasts: any
   calibration: any
@@ -28,6 +29,7 @@ export interface OverviewTabProps {
 export function OverviewTab({
   equityCurve,
   recentTrades,
+  topWinningTrades = [],
   activeSignals,
 }: OverviewTabProps) {
   const stats = useStats()
@@ -89,6 +91,10 @@ export function OverviewTab({
   const filteredRecentTrades = selectedMode === 'all'
     ? recentTrades
     : recentTrades.filter((t: any) => t.trading_mode === selectedMode)
+
+  const filteredWinningTrades = selectedMode === 'all'
+    ? topWinningTrades
+    : topWinningTrades.filter((t: any) => t.trading_mode === selectedMode)
   
   const pnl24h = 0 // TODO: Calculate from recent trades in last 24h
   const trades24h = filteredRecentTrades.filter((t: any) => {
@@ -249,7 +255,7 @@ export function OverviewTab({
           className="border border-neutral-800 bg-neutral-900/50"
           style={{ height: '280px' }}
         >
-          <WinningTradesPreview trades={filteredRecentTrades} />
+          <WinningTradesPreview trades={filteredWinningTrades.length > 0 ? filteredWinningTrades : filteredRecentTrades} />
         </motion.div>
       </div>
 
