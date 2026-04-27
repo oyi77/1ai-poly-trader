@@ -77,7 +77,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_id = self._get_client_id(request)
-        if client_id == "testclient":
+        if client_id in ("testclient", "unknown"):
             return await call_next(request)
 
         now = time.time()

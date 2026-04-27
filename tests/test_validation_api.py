@@ -12,7 +12,7 @@ class TestSignalValidationAPI:
     
     def test_invalid_signal_returns_422(self):
         response = client.post(
-            "/api/signals",
+            "/api/v1/signals",
             json={
                 "market_id": "BTC-5MIN",
                 "prediction": 1.5,
@@ -28,7 +28,7 @@ class TestSignalValidationAPI:
     
     def test_missing_required_field_returns_422(self):
         response = client.post(
-            "/api/signals",
+            "/api/v1/signals",
             json={
                 "market_id": "BTC-5MIN",
                 "prediction": 0.65,
@@ -43,7 +43,7 @@ class TestSignalValidationAPI:
     
     def test_html_injection_sanitized(self):
         response = client.post(
-            "/api/signals",
+            "/api/v1/signals",
             json={
                 "market_id": "<script>alert('xss')</script>",
                 "prediction": 0.65,
@@ -65,7 +65,7 @@ class TestWalletValidationAPI:
         monkeypatch.setattr("backend.api.wallets.require_admin", lambda: None)
         
         response = client.post(
-            "/api/wallets/config",
+            "/api/v1/wallets/config",
             json={
                 "address": "invalid_address",
                 "pseudonym": "Test Wallet"
@@ -80,7 +80,7 @@ class TestWalletValidationAPI:
         monkeypatch.setattr("backend.api.wallets.require_admin", lambda: None)
         
         response = client.post(
-            "/api/wallets/config",
+            "/api/v1/wallets/config",
             json={
                 "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
                 "tags": [f"tag{i}" for i in range(25)]
@@ -97,7 +97,7 @@ class TestStrategyValidationAPI:
         monkeypatch.setattr("backend.api.system.require_admin", lambda: None)
         
         response = client.put(
-            "/api/strategies/btc_momentum",
+            "/api/v1/strategies/btc_momentum",
             json={
                 "interval_seconds": 5
             },
@@ -116,7 +116,7 @@ class TestBacktestValidationAPI:
         monkeypatch.setattr("backend.api.backtest.require_admin", lambda: None)
         
         response = client.post(
-            "/api/backtest/run",
+            "/api/v1/backtest/run",
             json={
                 "strategy_name": "btc_momentum",
                 "kelly_fraction": 2.0
@@ -133,7 +133,7 @@ class TestProposalValidationAPI:
     
     def test_empty_change_details_returns_422(self):
         response = client.post(
-            "/api/proposals",
+            "/api/v1/proposals",
             json={
                 "strategy_name": "btc_momentum",
                 "change_details": {},
@@ -146,7 +146,7 @@ class TestProposalValidationAPI:
     
     def test_impact_out_of_range_returns_422(self):
         response = client.post(
-            "/api/proposals",
+            "/api/v1/proposals",
             json={
                 "strategy_name": "btc_momentum",
                 "change_details": {"test": "value"},
@@ -161,7 +161,7 @@ class TestValidationErrorMessages:
     
     def test_error_message_includes_field_location(self):
         response = client.post(
-            "/api/signals",
+            "/api/v1/signals",
             json={
                 "market_id": "BTC",
                 "prediction": 1.5,
@@ -180,7 +180,7 @@ class TestValidationErrorMessages:
     
     def test_multiple_validation_errors_returned(self):
         response = client.post(
-            "/api/signals",
+            "/api/v1/signals",
             json={
                 "market_id": "BTC",
                 "prediction": 1.5,

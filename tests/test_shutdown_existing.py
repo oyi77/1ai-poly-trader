@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""
-Simplified graceful shutdown test using existing backend.
-Tests shutdown behavior by monitoring an existing backend process.
-"""
+import pytest
+pytest.skip(
+    "Standalone shutdown script — requires a live backend process and interactive input. "
+    "Run directly: python tests/test_shutdown_existing.py",
+    allow_module_level=True,
+)
+
 import asyncio
 import httpx
 import signal

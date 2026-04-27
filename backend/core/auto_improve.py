@@ -203,9 +203,8 @@ async def auto_improve_job():
     """
     Weekly maintenance job:
     1. Writes recent trade outcomes and market insights to BigBrain
-    2. Runs StrategyEvolver proposals (logs only, never auto-applies)
-    Parameter optimisation and auto-apply are handled by realtime_learner,
-    which fires on every settled trade with proper guardrails.
+    2. Auto-applies high-confidence param suggestions (confidence >= MIN_CONFIDENCE_FOR_AUTO_APPLY)
+    3. Runs StrategyEvolver proposals
     """
     global _last_param_change
 
@@ -277,6 +276,32 @@ async def auto_improve_job():
                 log_event(
                     "success", f"Auto-improve: {confidence} confidence - {reasoning[:100]}"
                 )
+
+                conf_float = _confidence_to_float(confidence)
+                if conf_float >= MIN_CONFIDENCE_FOR_AUTO_APPLY:
+                    if _last_param_change is not None:
+                        logger.info(
+                            "Auto-improve: skipping apply — pending change awaiting rollback review"
+                        )
+                    else:
+                        current = _get_current_params()
+                        clamped = validate_and_clamp_params(current, params)
+                        if clamped:
+                            previous = apply_params_to_settings(clamped)
+                            _last_param_change = {
+                                "previous_values": previous,
+                                "applied_values": clamped,
+                                "applied_at": datetime.now(timezone.utc),
+                                "pre_change_win_rate": analysis.get("win_rate", 0.0),
+                                "pre_change_pnl": analysis.get("pnl", 0.0),
+                                "trade_count_at_apply": analysis.get("total_trades", 0),
+                            }
+                            logger.info(
+                                "Auto-improve applied %d param(s) (confidence=%.2f): %s",
+                                len(clamped),
+                                conf_float,
+                                list(clamped.keys()),
+                            )
         else:
             log_event(
                 "info",

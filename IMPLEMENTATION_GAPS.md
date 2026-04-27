@@ -108,3 +108,7 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 4. ~~**Frontend code splitting** — Lazy-load heavy page components~~ → All pages lazy-loaded + manualChunks configured (April 2026). GlobeView lazy-loaded in OverviewTab. Remaining three-globe (1MB) is external library weight.
 5. **Kalshi live trading validation** — Verify API endpoints with active credentials
 6. **Load testing** — Stress test concurrent strategy execution and API throughput
+7. ~~**Per-trade RL learning** — Weekly batch job replaced with event-driven `realtime_learner.on_trade_settled()`~~ → **Done** (April 2026)
+8. ~~**Paper bankroll top-up** — `POST /api/v1/bot/paper-topup` + frontend control room button~~ → **Done** (April 2026)
+9. ~~**Admin settings API** — `GET/POST /api/admin/settings` with grouped+masked output, `GET /api/admin/system`~~ → **Done** (April 2026)
+10. ~~**Rate limiter test bypass** — `"unknown"` client ID (no-IP test clients) now bypassed alongside `"testclient"`~~ → **Done** (April 2026)

@@ -77,6 +77,7 @@ from backend.api.analytics import router as analytics_router
 from backend.api.settings import router as settings_router
 from backend.api.activities import router as activities_router
 from backend.api.proposals import router as proposals_router
+from backend.api.admin import router as admin_router
 from backend.api.brain import router as brain_router
 from backend.api.errors import router as errors_router
 from backend.api.metrics_endpoint import router as metrics_router
@@ -798,6 +799,9 @@ app.include_router(proposals_router, prefix="/api/v1")
 # Backward-compatible proposal routes for older dashboard/tests that still call
 # /api/proposals while the canonical path is /api/v1/proposals.
 app.include_router(proposals_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
+# /api/bot/start alias for tests and older clients (canonical: /api/v1/bot/start)
+app.include_router(system_router, prefix="/api")
 app.include_router(brain_router, prefix="/api/v1")
 app.include_router(errors_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
