@@ -13,6 +13,7 @@ Architecture Decision Records (ADRs) and structural documentation for system des
 | `adr-001-job-queue.md` | Decision to use SQLite-first job queue (Phase 1) with optional Redis upgrade (Phase 2) — explains why APScheduler was insufficient, how idempotency is enforced, migration path to Redis |
 | `adr-002-live-equity-source.md` | Decision that live BotState equity is derived from CLOB USDC cash + Polymarket open-position value, not local realized P&L/backfill ledger rows |
 | `adr-003-trade-attempt-observability.md` | Decision to add a durable TradeAttempt ledger and Control Room UI for explaining executed and rejected trade attempts |
+| `adr-004-bounded-autonomous-sizing.md` | Decision to let AI/strategy logic propose dynamic sizes only inside deterministic risk mandates |
 | `API_STRUCTURE.md` | FastAPI modularization — documents router separation (auth, markets, trading, phase2, system, ws_manager), core infrastructure (EventBus, error handling), migration from monolithic 3188-line main.py to modular design |
 
 ## Decision Record Format
