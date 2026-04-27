@@ -7,7 +7,6 @@ local debate on MiroFish failures.
 
 import logging
 import time
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -145,35 +144,12 @@ async def run_debate_with_routing(
             signal_votes=signal_votes,
         )
 
-    try:
-        from backend.services.mirofish_service import get_mirofish_service
-        if not get_mirofish_service().is_active():
-            logger.info(
-                "[debate_router] MiroFish service not active - using local DebateEngine"
-            )
-            return await run_debate(
-                question=question,
-                market_price=market_price,
-                volume=volume,
-                category=category,
-                context=context,
-                max_rounds=max_rounds,
-                data_sources=data_sources,
-                signal_votes=signal_votes,
-            )
-    except Exception:
-        pass
-    
     # Try MiroFish first
     logger.info("[debate_router] MiroFish enabled - attempting API call")
     
     try:
         client = MiroFishClient()
-        signals = await client.fetch_signals(
-            market="polymarket",
-            question=question,
-            market_price=market_price,
-        )
+        signals = await client.fetch_signals(market="polymarket")
         
         if signals:
             latency_ms = (time.time() - start_time) * 1000

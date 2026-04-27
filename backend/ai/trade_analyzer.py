@@ -8,10 +8,10 @@ without external API calls or LLM integration (that comes in Wave 4b).
 """
 
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+from typing import Dict, Any, List
 
-from backend.models.database import Trade, SessionLocal
+from backend.models import database as db_mod
+from backend.models.database import Trade
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ class TradeAnalyzer:
     def __init__(self):
         """Initialize the TradeAnalyzer."""
         self.logger = logging.getLogger(__name__)
+        self._session_factory = db_mod.SessionLocal
 
     def analyze_trade(self, trade_id: int) -> Dict[str, Any]:
         """Analyze a single trade by ID.
@@ -41,7 +42,7 @@ class TradeAnalyzer:
 
             Returns None if trade not found.
         """
-        db = SessionLocal()
+        db = self._session_factory()
         try:
             trade = db.query(Trade).filter(Trade.id == trade_id).first()
             

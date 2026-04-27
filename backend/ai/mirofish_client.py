@@ -206,15 +206,6 @@ class MiroFishClient:
         Raises:
             TimeoutError: If request exceeds MIROFISH_API_TIMEOUT
         """
-        try:
-            from backend.services.mirofish_service import get_mirofish_service
-            service = get_mirofish_service()
-            if not service.is_active():
-                logger.debug(f"MiroFish service is {service.state.value}, skipping fetch")
-                return []
-        except Exception:
-            pass
-
         if self._circuit_open:
             logger.warning("Circuit breaker OPEN - skipping MiroFish API call")
             return []
