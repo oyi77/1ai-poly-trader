@@ -34,6 +34,8 @@ The dashboard **Control Room** tab and `/api/v1/trade-attempts*` endpoints read 
 ## Consequences
 
 - Operators can see live blockers such as drawdown breaker, max exposure, minimum order size, duplicate position, and missing token ID directly in the dashboard.
+- Operators can compare requested vs adjusted size to understand AI/strategy sizing proposals after deterministic risk clipping.
 - Attempt recording adds lightweight DB writes on the serialized execution path. This is acceptable because execution is already DB-backed and serialized for bankroll/exposure correctness.
 - The first slice focuses on standard `strategy_executor` attempts. HFT-specific execution can be instrumented later using the same table and status taxonomy.
 - The table is append/update operational telemetry, not financial accounting. Financial correctness still comes from `Trade`, `BotState`, and reconciliation rules in ADR-002.
+- Autonomous sizing is intentionally bounded: AI/strategy code may propose dynamic size, but risk mandates and execution minimums remain outside AI control and are recorded in this ledger.
