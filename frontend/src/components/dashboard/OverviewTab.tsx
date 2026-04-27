@@ -7,6 +7,7 @@ import { SelfImprovementMetrics } from './SelfImprovementMetrics'
 import { SystemEfficiencyPanel } from './SystemEfficiencyPanel'
 import { WinningTradesPreview } from './WinningTradesPreview'
 import { adminApi, api } from '../../api'
+import type { BotStats, PnlModeStats, Trade } from '../../types'
 
 export interface OverviewTabProps {
   data: any
@@ -95,13 +96,36 @@ export function OverviewTab({
   const filteredWinningTrades = selectedMode === 'all'
     ? topWinningTrades
     : topWinningTrades.filter((t: any) => t.trading_mode === selectedMode)
+  const settledLossTrades = (filteredRecentTrades as Trade[])
+    .filter(t => (t.pnl ?? 0) < 0)
+    .sort((a, b) => (a.pnl ?? 0) - (b.pnl ?? 0))
+  const sourceStats = stats.stats as BotStats
+  const activeMode = sourceStats.mode ?? 'paper'
+  const liveStats = sourceStats.live
+  const paperStats = sourceStats.paper
+  const testnetStats = sourceStats.testnet
+
+  const formatMoney = (value: number | undefined | null) => `${(value ?? 0) >= 0 ? '+' : '-'}$${Math.abs(value ?? 0).toFixed(2)}`
+  const modeCard = (label: string, modeStats: PnlModeStats | undefined, accent: string) => ({
+    label,
+    pnl: modeStats?.pnl ?? 0,
+    bankroll: modeStats?.bankroll ?? 0,
+    trades: modeStats?.trades ?? 0,
+    openTrades: modeStats?.open_trades ?? 0,
+    accent,
+  })
+  const modeCards = [
+    modeCard('Live account', liveStats, 'text-red-400'),
+    modeCard('Paper learning', paperStats, 'text-amber-400'),
+    modeCard('Testnet', testnetStats, 'text-yellow-400'),
+  ]
   
-  const pnl24h = 0 // TODO: Calculate from recent trades in last 24h
   const trades24h = filteredRecentTrades.filter((t: any) => {
     const tradeTime = new Date(t.timestamp).getTime()
     const now = Date.now()
     return (now - tradeTime) < 24 * 60 * 60 * 1000
   })
+  const pnl24h = trades24h.reduce((sum: number, t: any) => sum + (t.pnl ?? 0), 0)
   
   const roi = filteredStats.returnPercent
   const activeTrades = stats.openTrades || 0
@@ -196,6 +220,45 @@ export function OverviewTab({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45 }}
+        className="grid grid-cols-1 lg:grid-cols-4 gap-4"
+      >
+        <div className="border border-cyan-500/20 bg-cyan-500/[0.04] p-4 lg:col-span-1">
+          <div className="text-[10px] text-cyan-300 uppercase tracking-wider mb-2">PNL Source</div>
+          <div className="text-sm text-neutral-200 font-semibold mb-1 uppercase">{selectedMode === 'all' ? 'Consolidated view' : `${selectedMode} mode`}</div>
+          <p className="text-[11px] leading-5 text-neutral-500">
+            The headline can show live account equity while paper/testnet trades are losing. Loss rows are preserved in the Trades tab; this panel separates the sources.
+          </p>
+          <div className="mt-3 text-[10px] text-neutral-600">
+            Active engine: <span className="text-neutral-300 uppercase">{activeMode}</span>
+          </div>
+        </div>
+
+        {modeCards.map(card => (
+          <div key={card.label} className="border border-neutral-800 bg-neutral-900/50 p-4">
+            <div className={`text-[10px] uppercase tracking-wider mb-2 ${card.accent}`}>{card.label}</div>
+            <div className={`text-2xl font-bold tabular-nums mb-1 ${card.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>{formatMoney(card.pnl)}</div>
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral-800 text-[10px]">
+              <div>
+                <div className="text-neutral-600 uppercase">Bankroll</div>
+                <div className="text-neutral-300 tabular-nums">${card.bankroll.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-neutral-600 uppercase">Trades</div>
+                <div className="text-neutral-300 tabular-nums">{card.trades}</div>
+              </div>
+              <div>
+                <div className="text-neutral-600 uppercase">Open</div>
+                <div className="text-neutral-300 tabular-nums">{card.openTrades}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
         className="border border-neutral-800 bg-neutral-900/50 p-4"
         style={{ height: '300px' }}
@@ -209,7 +272,7 @@ export function OverviewTab({
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -256,6 +319,20 @@ export function OverviewTab({
           style={{ height: '280px' }}
         >
           <WinningTradesPreview trades={filteredWinningTrades.length > 0 ? filteredWinningTrades : filteredRecentTrades} />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75 }}
+          className="border border-neutral-800 bg-neutral-900/50"
+          style={{ height: '280px' }}
+        >
+          <WinningTradesPreview
+            trades={settledLossTrades.length > 0 ? settledLossTrades : filteredRecentTrades}
+            title="Worst Loss Trades"
+            variant="losses"
+          />
         </motion.div>
       </div>
 
