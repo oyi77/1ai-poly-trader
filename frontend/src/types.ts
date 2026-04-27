@@ -93,6 +93,8 @@ export interface PnlModeStats {
   open_trades?: number
   unrealized_pnl?: number
   position_market_value?: number
+  ledger_pnl?: number
+  initial_bankroll?: number
 }
 
 export interface BotStats {
@@ -117,6 +119,7 @@ export interface BotStats {
   unrealized_pnl?: number
   position_cost?: number
   position_market_value?: number
+  live_ledger_pnl?: number
 }
 
 export interface EquityPoint {

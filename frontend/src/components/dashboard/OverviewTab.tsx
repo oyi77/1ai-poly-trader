@@ -66,7 +66,10 @@ export function OverviewTab({
     
     if (key === 'pnl') return modeStats.pnl ?? 0
     if (key === 'bankroll') return modeStats.bankroll ?? 0
-    if (key === 'returnPercent') return modeStats.trades > 0 ? (modeStats.pnl / stats.bankroll * 100) : 0
+    if (key === 'returnPercent') {
+      const initialBankroll = modeStats.initial_bankroll ?? stats.stats.initial_bankroll
+      return initialBankroll > 0 ? (modeStats.pnl / initialBankroll * 100) : 0
+    }
     if (key === 'winRate') return modeStats.trades > 0 ? (modeStats.wins / modeStats.trades * 100) : 0
     return stats[key]
   }
@@ -137,7 +140,7 @@ export function OverviewTab({
         >
           <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">Total Profit</div>
           <div className={`text-3xl font-bold tabular-nums mb-1 ${filteredStats.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            ${filteredStats.pnl.toFixed(2)}
+            {filteredStats.pnl >= 0 ? '+' : '-'}${Math.abs(filteredStats.pnl).toFixed(2)}
           </div>
           <div className="text-xs text-neutral-600">
             <span className={pnl24h >= 0 ? 'text-green-400' : 'text-red-400'}>

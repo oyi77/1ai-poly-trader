@@ -83,10 +83,8 @@ export function useStats() {
   const wins = active ? active.wins : stats.winning_trades
   const trades = active ? active.trades : stats.total_trades
   const bankroll = active ? active.bankroll : stats.bankroll
-  const initialBankroll = stats.initial_bankroll || 10000
-  // When mode='all', stats.total_pnl already includes unrealized P&L from backend
-  // When mode is specific, we need to add unrealized separately
-  const totalPnl = active ? settledPnl + (stats.unrealized_pnl ?? 0) : settledPnl
+  const initialBankroll = active?.initial_bankroll ?? stats.initial_bankroll ?? 10000
+  const totalPnl = settledPnl
 
   return {
     stats,
@@ -110,7 +108,7 @@ export function useStats() {
     unrealizedPnl: stats.unrealized_pnl ?? 0,
     positionCost: stats.position_cost ?? 0,
     positionMarketValue: stats.position_market_value ?? 0,
-    totalEquity: bankroll + (stats.position_market_value ?? 0),
+    totalEquity: bankroll,
 
     // Paper/Testnet/Live specific
     paperStats: stats.paper,
