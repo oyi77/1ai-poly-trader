@@ -138,7 +138,7 @@ export function OverviewTab({
 
   // Count active strategies from data
   const strategiesActive = activeSignals?.length || 0
-  const signalsPerHour = Math.round((activeSignals?.length || 0) * 2)
+  
 
   const proposalsGenerated = proposalsData?.length || 0
   const proposalsApproved = proposalsData?.filter((p: any) => p.admin_decision === 'approved').length || 0
@@ -291,8 +291,8 @@ export function OverviewTab({
               <span className="text-lg font-bold text-neutral-200">{strategiesActive}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-neutral-500">Signals/Hour</span>
-              <span className="text-lg font-bold text-cyan-400">{signalsPerHour}</span>
+              <span className="text-xs text-neutral-500">Active Signals</span>
+              <span className="text-lg font-bold text-cyan-400">{activeSignals?.length ?? 0}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral-800">
               <div className="text-center">

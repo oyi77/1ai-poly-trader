@@ -1,7 +1,7 @@
 """System routes - stats, bot control, backtest, events."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone
 from sqlalchemy import func, text
@@ -735,8 +735,47 @@ async def reset_bot(
         raise HTTPException(status_code=500, detail=f"Reset failed: {e}")
 
 
-# ============================================================================
-# Backtest Endpoints
+class PaperTopupRequest(BaseModel):
+    amount: float = Field(gt=0, description="USDC to add to paper bankroll")
+    confirm: bool = False
+
+
+@router.post("/bot/paper-topup")
+async def paper_topup(
+    body: PaperTopupRequest, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
+    if not body.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Set confirm=true to confirm topup.",
+        )
+    if settings.TRADING_MODE != "paper":
+        raise HTTPException(
+            status_code=409,
+            detail=f"paper-topup only available in paper mode (current mode: {settings.TRADING_MODE})",
+        )
+
+    from backend.core.scheduler import log_event
+
+    state = db.query(BotState).filter_by(mode="paper").first()
+    if state is None:
+        raise HTTPException(status_code=404, detail="Paper bot state not found")
+
+    previous = float(state.bankroll or 0.0)
+    state.bankroll = previous + body.amount
+    db.commit()
+
+    log_event("info", f"Paper bankroll topped up by ${body.amount:,.2f} (${previous:,.2f} → ${state.bankroll:,.2f})")
+
+    return {
+        "status": "topped_up",
+        "previous_bankroll": previous,
+        "added": body.amount,
+        "new_bankroll": state.bankroll,
+    }
+
+
+
 # ============================================================================
 
 

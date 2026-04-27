@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { fetchTradeAttempts, fetchTradeAttemptSummary } from '../../api'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchTradeAttempts, fetchTradeAttemptSummary, paperTopup } from '../../api'
 import type { TradeAttempt } from '../../types'
 
 const STATUSES = ['all', 'EXECUTED', 'REJECTED', 'BLOCKED', 'FAILED'] as const
@@ -73,6 +73,11 @@ function AttemptRow({ attempt }: { attempt: TradeAttempt }) {
 export function ControlRoomTab() {
   const [mode, setMode] = useState<typeof MODES[number]>('all')
   const [status, setStatus] = useState<typeof STATUSES[number]>('all')
+  const [topupOpen, setTopupOpen] = useState(false)
+  const [topupAmount, setTopupAmount] = useState('100')
+  const [topupMsg, setTopupMsg] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
   const params = { limit: 100, ...(mode !== 'all' ? { mode } : {}), ...(status !== 'all' ? { status } : {}) }
 
   const attempts = useQuery({
@@ -85,6 +90,28 @@ export function ControlRoomTab() {
     queryFn: () => fetchTradeAttemptSummary(mode !== 'all' ? { mode } : undefined),
     refetchInterval: 10_000,
   })
+
+  const topupMutation = useMutation({
+    mutationFn: (amount: number) => paperTopup(amount),
+    onSuccess: (result) => {
+      setTopupMsg(`✓ Topped up $${result.added.toFixed(2)} — new bankroll $${result.new_bankroll.toFixed(2)}`)
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Topup failed'
+      setTopupMsg(`✗ ${msg}`)
+    },
+  })
+
+  function handleTopup() {
+    const amount = parseFloat(topupAmount)
+    if (!isFinite(amount) || amount <= 0) {
+      setTopupMsg('✗ Enter a positive amount')
+      return
+    }
+    setTopupMsg(null)
+    topupMutation.mutate(amount)
+  }
 
   if (attempts.isLoading || summary.isLoading) return <div className="flex items-center justify-center h-full text-neutral-500 text-sm">Loading Control Room...</div>
   if (attempts.error || summary.error) return <div className="flex items-center justify-center h-full text-red-500/70 text-sm">Failed to load Trade Control Room</div>
@@ -101,6 +128,13 @@ export function ControlRoomTab() {
             <div className="text-[10px] text-neutral-600 mt-0.5">Explains why AI-driven trades executed, paused, or were rejected.</div>
           </div>
           <div className="flex-1" />
+          <button
+            type="button"
+            onClick={() => { setTopupOpen(v => !v); setTopupMsg(null) }}
+            className="px-2 py-1 border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-[10px] font-mono uppercase tracking-wider hover:bg-cyan-500/20 transition-colors"
+          >
+            + Paper Topup
+          </button>
           <select value={mode} onChange={e => setMode(e.target.value as typeof MODES[number])} className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:outline-none">
             {MODES.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
           </select>
@@ -108,6 +142,28 @@ export function ControlRoomTab() {
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+        {topupOpen && (
+          <div className="mt-2 mb-1 flex items-center gap-2 border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+            <span className="text-[10px] text-neutral-400 font-mono">Add USDC to paper bankroll:</span>
+            <input
+              type="number"
+              min="1"
+              step="50"
+              value={topupAmount}
+              onChange={e => setTopupAmount(e.target.value)}
+              className="w-24 bg-neutral-900 border border-neutral-700 text-neutral-200 text-[10px] font-mono px-2 py-1 focus:outline-none focus:border-cyan-500/50"
+            />
+            <button
+              type="button"
+              onClick={handleTopup}
+              disabled={topupMutation.isPending}
+              className="px-3 py-1 border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 text-[10px] font-mono uppercase tracking-wider hover:bg-cyan-500/25 disabled:opacity-50 transition-colors"
+            >
+              {topupMutation.isPending ? 'Adding…' : 'Confirm'}
+            </button>
+            {topupMsg && <span className={`text-[10px] font-mono ${topupMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>{topupMsg}</span>}
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
           <div className="border border-neutral-800 bg-black p-2"><div className="text-neutral-600 uppercase">Attempts</div><div className="text-lg text-neutral-100">{summaryData?.total ?? 0}</div></div>
           <div className="border border-neutral-800 bg-black p-2"><div className="text-neutral-600 uppercase">Executed</div><div className="text-lg text-green-400">{summaryData?.executed ?? 0}</div></div>

@@ -145,6 +145,11 @@ export async function resetBot(): Promise<{ status: string; trades_deleted: numb
   return data
 }
 
+export async function paperTopup(amount: number): Promise<{ status: string; previous_bankroll: number; added: number; new_bankroll: number }> {
+  const { data } = await adminApi.post('/bot/paper-topup', { amount, confirm: true })
+  return data
+}
+
 export async function fetchBacktestStrategies(): Promise<{
   strategies: Array<{
     name: string
