@@ -302,6 +302,72 @@ class TestAttemptSizingRejection:
             check_db.close()
 
 
+class TestAttemptUnexpectedFailure:
+    @pytest.mark.asyncio
+    async def test_unexpected_executor_error_records_failed_attempt(self):
+        """Unexpected execution exceptions remain visible in TradeAttempt."""
+        from backend.core.risk_manager import RiskDecision, RiskManager
+        from backend.core.mode_context import register_context, ModeExecutionContext
+        from backend.models.database import TradeAttempt
+
+        test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        TestSession = sessionmaker(bind=test_engine)
+        Base.metadata.create_all(bind=test_engine)
+
+        db = TestSession()
+        _seed_state(db, paper_bankroll=500.0)
+        db.close()
+
+        mock_rm = MagicMock(spec=RiskManager)
+        mock_rm.validate_trade.return_value = RiskDecision(
+            allowed=True, reason="ok", adjusted_size=10.0
+        )
+
+        register_context("paper", ModeExecutionContext(
+            mode="paper",
+            clob_client=AsyncMock(),
+            risk_manager=mock_rm,
+            strategy_configs={}
+        ))
+
+        with (
+            patch("backend.core.strategy_executor.settings") as mock_settings,
+            patch("backend.core.strategy_executor.SessionLocal", TestSession),
+            patch("backend.core.strategy_executor._broadcast_event"),
+            patch("backend.core.strategy_executor.TradeValidator.validate_trade_data") as validate_trade,
+        ):
+            mock_settings.TRADING_MODE = "paper"
+            validate_trade.side_effect = RuntimeError("validator exploded")
+
+            from backend.core.strategy_executor import execute_decision
+
+            result = await execute_decision(
+                _make_decision(market_ticker="boom-market", size=10.0),
+                "boom_strategy",
+                "paper",
+            )
+
+        assert result is None
+
+        check_db = TestSession()
+        try:
+            attempts = (
+                check_db.query(TradeAttempt)
+                .filter(TradeAttempt.market_ticker == "boom-market")
+                .all()
+            )
+            assert len(attempts) == 1
+            assert attempts[0].status == "FAILED"
+            assert attempts[0].phase == "error"
+            assert attempts[0].reason_code == "FAILED_UNEXPECTED_EXECUTION_ERROR_RUNTIMEERROR_VALIDATOR_EXPLODED"
+        finally:
+            check_db.close()
+
+
 class TestUpdatesBankroll:
     @pytest.mark.asyncio
     async def test_updates_paper_bankroll(self):

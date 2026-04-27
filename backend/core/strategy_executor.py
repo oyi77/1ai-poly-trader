@@ -26,6 +26,47 @@ risk_manager = RiskManager()
 _trade_execution_lock = asyncio.Lock()
 
 
+def _record_unexpected_attempt_failure(
+    db,
+    decision: dict,
+    strategy_name: str,
+    mode: str,
+    reason: str,
+    attempt_id: str | None = None,
+) -> None:
+    """Best-effort persistence for unexpected failures after transaction rollback."""
+
+    try:
+        recorder = None
+        if attempt_id:
+            from backend.models.database import TradeAttempt
+
+            existing_attempt = (
+                db.query(TradeAttempt)
+                .filter(TradeAttempt.attempt_id == attempt_id)
+                .first()
+            )
+            if existing_attempt is not None:
+                recorder = TradeAttemptRecorder.__new__(TradeAttemptRecorder)
+                recorder.db = db
+                recorder.started_at = time.perf_counter()
+                recorder.attempt = existing_attempt
+        if recorder is None:
+            recorder = TradeAttemptRecorder(db, decision, strategy_name, mode)
+        recorder.record_failed(reason, phase="error")
+        db.commit()
+    except Exception as record_exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.warning(
+            "[strategy_executor.execute_decision] failed to record unexpected TradeAttempt failure: %s",
+            record_exc,
+            exc_info=True,
+        )
+
+
 async def execute_decision(
     decision: dict, strategy_name: str, mode: str, db=None
 ) -> Optional[dict]:
@@ -534,6 +575,15 @@ async def execute_decision(
             logger.warning(
                 f"[strategy_executor.execute_decision] {type(e).__name__}: db.rollback failed (non-fatal): {e}",
                 exc_info=True,
+            )
+        if attempt_recorder is not None:
+            _record_unexpected_attempt_failure(
+                db,
+                decision,
+                strategy_name,
+                mode,
+                f"Unexpected execution error: {type(exc).__name__}: {exc}",
+                attempt_id=getattr(attempt_recorder.attempt, "attempt_id", None),
             )
         return None
     finally:
