@@ -13,12 +13,9 @@ from backend.models.database import Trade, BotState
 from backend.core.alert_manager import AlertManager
 
 from backend.core.settlement_helpers import (
-    fetch_polymarket_resolution,
     fetch_resolution_for_trade,
     calculate_pnl,
     _resolve_markets,
-    _parse_market_resolution,
-    check_market_settlement,
     process_settled_trade,
 )
 
@@ -28,26 +25,10 @@ _settlement_lock = asyncio.Lock()
 
 
 async def _fetch_pm_portfolio_value() -> float | None:
-    """Fetch on-chain portfolio value from Polymarket Data API."""
-    try:
-        import httpx
-        wallet = settings.POLYMARKET_BUILDER_ADDRESS
-        if not wallet:
-            return None
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                "https://data-api.polymarket.com/value",
-                params={"user": wallet.lower()},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list) and data:
-                    return float(data[0].get("value", 0))
-                elif isinstance(data, dict):
-                    return float(data.get("value", 0))
-    except Exception as e:
-        logger.debug(f"PM portfolio value fetch failed: {e}")
-    return None
+    """Fetch live total equity (USDC cash + open position value)."""
+    from backend.core.bankroll_reconciliation import fetch_pm_total_equity
+
+    return await fetch_pm_total_equity()
 
 
 async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
@@ -372,16 +353,15 @@ async def update_bot_state_with_settlements(
                 continue
 
             trading_mode = getattr(trade, "trading_mode", "paper") or "paper"
-            state = db.query(BotState).filter_by(mode=trading_mode).first()
-            if not state:
-                logger.warning(f"Bot state not found for mode {trading_mode}")
-                continue
-
             is_real_trade = trade.result in ("win", "loss")
             is_expired_or_push = trade.result in ("expired", "push", "closed")
 
             # Route updates to mode-specific fields
             if trading_mode == "paper":
+                state = db.query(BotState).filter_by(mode=trading_mode).first()
+                if not state:
+                    logger.warning(f"Bot state not found for mode {trading_mode}")
+                    continue
                 if is_real_trade:
                     state.paper_pnl = (state.paper_pnl or 0.0) + trade.pnl
                     state.paper_bankroll = (state.paper_bankroll or 0.0) + trade.size + trade.pnl
@@ -394,6 +374,10 @@ async def update_bot_state_with_settlements(
                         f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to paper bankroll"
                     )
             elif trading_mode == "testnet":
+                state = db.query(BotState).filter_by(mode=trading_mode).first()
+                if not state:
+                    logger.warning(f"Bot state not found for mode {trading_mode}")
+                    continue
                 if is_real_trade:
                     state.testnet_pnl = (state.testnet_pnl or 0.0) + trade.pnl
                     state.testnet_bankroll = (state.testnet_bankroll or 0.0) + trade.size + trade.pnl
@@ -405,12 +389,12 @@ async def update_bot_state_with_settlements(
                     logger.info(
                         f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to testnet bankroll"
                     )
-            else:  # live mode
-                if is_real_trade:
-                    state.total_pnl = (state.total_pnl or 0.0) + trade.pnl
-                    state.total_trades = (state.total_trades or 0) + 1
-                    if trade.result == "win":
-                        state.winning_trades = (state.winning_trades or 0) + 1
+            else:
+                # Live BotState financial fields are derived from external account
+                # equity, not local trade ledger P&L.  Do not mutate live state in
+                # this transaction; reconcile from CLOB cash + PM open positions
+                # after settlement rows are committed.
+                pass
 
             # AGI hook: update Bayesian Kelly posterior on each trade outcome
             if is_real_trade:
@@ -432,31 +416,41 @@ async def update_bot_state_with_settlements(
             db.rollback()
             return
 
-        # Sync live bankroll from PM API (source of truth)
-        if "live" in {
+        modes_with_settlements = {
             getattr(t, "trading_mode", "paper") or "paper"
             for t in settled_trades
             if t.pnl is not None
-        }:
-            pm_val = await _fetch_pm_portfolio_value()
-            if pm_val is not None and pm_val > 0:
-                live_state = db.query(BotState).filter_by(mode="live").first()
-                if live_state:
-                    live_state.bankroll = round(pm_val, 2)
-                    live_state.total_pnl = round(pm_val - float(settings.INITIAL_BANKROLL), 2)
-                    try:
-                        db.commit()
-                    except Exception:
-                        db.rollback()
-                    logger.info(f"Live bankroll synced from PM API: ${pm_val:.2f}")
+        }
+
+        # Sync live bankroll from authoritative total equity source.
+        if "live" in modes_with_settlements:
+            try:
+                from backend.core.bankroll_reconciliation import reconcile_bot_state as _reconcile
+
+                reports = await _reconcile(
+                    db,
+                    modes=("live",),
+                    apply=True,
+                    commit=True,
+                    source="settlement_live_sync",
+                )
+                if reports:
+                    report = reports[0]
+                    logger.info(
+                        "Live bankroll reconciled after settlement: $%.2f (source=%s)",
+                        report.new_bankroll,
+                        report.source,
+                    )
+            except Exception as exc:
+                db.rollback()
+                logger.warning("Live bankroll reconciliation after settlement failed: %s", exc)
 
         # Log stats for ALL modes that had settlements
-        modes_with_settlements = set(
-            getattr(t, "trading_mode", "paper") or "paper"
-            for t in settled_trades
-            if t.pnl is not None
-        )
         for m in sorted(modes_with_settlements):
+            state = db.query(BotState).filter_by(mode=m).first()
+            if not state:
+                logger.warning(f"Bot state not found while logging mode {m}")
+                continue
             if m == "paper":
                 logger.info(
                     f"Updated bot state (paper): Bankroll ${state.paper_bankroll:.2f}, "
@@ -484,72 +478,9 @@ async def reconcile_bot_state(db: Session) -> None:
     as the source of truth when on-chain wallet is available.
     """
     try:
-        from sqlalchemy import func, case
+        from backend.core.bankroll_reconciliation import reconcile_bot_state as _reconcile
 
-        for mode in ("paper", "testnet", "live"):
-            state = db.query(BotState).filter_by(mode=mode).first()
-            if not state:
-                continue
-
-            if mode == "live":
-                pm_value = await _fetch_pm_portfolio_value()
-                if pm_value is not None and pm_value > 0:
-                    drift = abs(float(state.bankroll or 0) - pm_value)
-                    if drift > 1.0:
-                        logger.warning(
-                            f"Live bankroll drift vs PM API: "
-                            f"DB=${float(state.bankroll or 0):.2f} PM=${pm_value:.2f}"
-                        )
-                        state.bankroll = round(pm_value, 2)
-                        from backend.config import settings as _s
-                        state.total_pnl = round(pm_value - float(_s.INITIAL_BANKROLL), 2)
-                        logger.info(f"Live bankroll reconciled from PM API: ${pm_value:.2f}")
-                    continue
-
-            real_trades = (
-                db.query(
-                    func.count(Trade.id),
-                    func.sum(Trade.pnl),
-                    func.sum(case((Trade.result == "win", 1), else_=0)),
-                )
-                .filter(
-                    Trade.settled.is_(True),
-                    Trade.trading_mode == mode,
-                    Trade.result.in_(("win", "loss")),
-                )
-                .first()
-            )
-
-            trade_count, realized_pnl, win_count = real_trades
-            trade_count = trade_count or 0
-            realized_pnl = round(realized_pnl or 0.0, 2)
-            win_count = win_count or 0
-
-            open_exposure = (
-                db.query(func.sum(Trade.size))
-                .filter(Trade.settled.is_(False), Trade.trading_mode == mode)
-                .scalar()
-            ) or 0.0
-
-            initial_bankroll = settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
-            drift_bankroll = abs(
-                (state.bankroll or 0)
-                - (initial_bankroll + realized_pnl - open_exposure)
-            )
-            drift_pnl = abs((state.total_pnl or 0) - realized_pnl)
-            
-            if drift_bankroll > 0.01 or drift_pnl > 0.01:
-                logger.warning(
-                    f"Bot state drift detected ({mode})! "
-                    f"Bankroll Δ${drift_bankroll:.2f}, PNL Δ${drift_pnl:.2f}"
-                )
-                state.bankroll = round(initial_bankroll + realized_pnl - open_exposure, 2)
-                state.total_pnl = realized_pnl
-                state.total_trades = trade_count
-                state.winning_trades = win_count
-                logger.info(f"Bot state reconciled from trade history ({mode})")
-
-        db.commit()
+        await _reconcile(db, apply=True, commit=True, source="settlement_reconcile")
         logger.debug("Bot state reconciliation complete")
 
     except Exception as e:

@@ -303,6 +303,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         from backend.core.mode_context import ModeExecutionContext, register_context
         from backend.core.risk_manager import RiskManager
+        from backend.data.polymarket_clob import clob_from_settings
 
         for mode in ["paper", "testnet", "live"]:
             if not settings.is_mode_active(mode) and mode != "paper":
@@ -406,18 +407,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     _balance_cache["timestamp"] = time.time()
                     _balance_cache["mode"] = settings.TRADING_MODE
                     logger.info(f"Balance cache refreshed: ${clob_balance:.2f}")
-
-                    db = SessionLocal()
-                    try:
-                        state = db.query(BotState).first()
-                        if state:
-                            if settings.TRADING_MODE == "live":
-                                state.bankroll = clob_balance
-                            elif settings.TRADING_MODE == "testnet":
-                                state.testnet_bankroll = clob_balance
-                            db.commit()
-                    finally:
-                        db.close()
         except Exception as e:
             logger.warning(
                 f"[api.main.refresh_balance_cache] {type(e).__name__}: Failed to refresh balance cache: {e}",
@@ -633,6 +622,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             exc_info=True
         )
 
+    try:
+        from backend.core.bankroll_reconciliation import reconcile_bot_state
+
+        db = SessionLocal()
+        try:
+            await reconcile_bot_state(
+                db,
+                modes=("live",),
+                apply=True,
+                commit=True,
+                source="api_startup_live_reconcile",
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(
+            f"[api.main.lifespan] {type(e).__name__}: Live bankroll startup reconciliation failed: {e}",
+            exc_info=True,
+        )
+
     yield
 
     shutdown_handler = getattr(app.state, 'shutdown_handler', None)
@@ -786,6 +795,9 @@ app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(activities_router, prefix="/api/v1")
 app.include_router(proposals_router, prefix="/api/v1")
+# Backward-compatible proposal routes for older dashboard/tests that still call
+# /api/proposals while the canonical path is /api/v1/proposals.
+app.include_router(proposals_router, prefix="/api")
 app.include_router(brain_router, prefix="/api/v1")
 app.include_router(errors_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")

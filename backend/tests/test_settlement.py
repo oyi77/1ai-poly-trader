@@ -68,6 +68,15 @@ def _make_trade(
     return trade
 
 
+def _state_for_mode(db, mode: str) -> BotState:
+    state = db.query(BotState).filter_by(mode=mode).first()
+    if state is None:
+        state = BotState(mode=mode)
+        db.add(state)
+        db.flush()
+    return state
+
+
 # ---------------------------------------------------------------------------
 # P&L calculation — calculate_pnl()
 # ---------------------------------------------------------------------------
@@ -218,18 +227,16 @@ class TestBankrollUpdate:
         """After settling a winning trade, paper_bankroll should increase."""
         from backend.core.settlement import update_bot_state_with_settlements
 
-        state = BotState(
-            bankroll=settings.INITIAL_BANKROLL,
-            paper_bankroll=settings.INITIAL_BANKROLL - 10.0,  # stake deducted at open
-            paper_pnl=0.0,
-            paper_trades=0,
-            paper_wins=0,
-            total_trades=0,
-            winning_trades=0,
-            total_pnl=0.0,
-            is_running=True,
-        )
-        db.add(state)
+        state = _state_for_mode(db, "paper")
+        state.bankroll = settings.INITIAL_BANKROLL
+        state.paper_bankroll = settings.INITIAL_BANKROLL - 10.0  # stake deducted at open
+        state.paper_pnl = 0.0
+        state.paper_trades = 0
+        state.paper_wins = 0
+        state.total_trades = 0
+        state.winning_trades = 0
+        state.total_pnl = 0.0
+        state.is_running = True
         db.flush()
 
         trade = _make_trade(db, direction="up", entry_price=0.40, size=10.0)
@@ -251,18 +258,16 @@ class TestBankrollUpdate:
         """After settling a losing trade, paper_bankroll should decrease."""
         from backend.core.settlement import update_bot_state_with_settlements
 
-        state = BotState(
-            bankroll=settings.INITIAL_BANKROLL,
-            paper_bankroll=settings.INITIAL_BANKROLL - 10.0,  # stake deducted at open
-            paper_pnl=0.0,
-            paper_trades=0,
-            paper_wins=0,
-            total_trades=0,
-            winning_trades=0,
-            total_pnl=0.0,
-            is_running=True,
-        )
-        db.add(state)
+        state = _state_for_mode(db, "paper")
+        state.bankroll = settings.INITIAL_BANKROLL
+        state.paper_bankroll = settings.INITIAL_BANKROLL - 10.0  # stake deducted at open
+        state.paper_pnl = 0.0
+        state.paper_trades = 0
+        state.paper_wins = 0
+        state.total_trades = 0
+        state.winning_trades = 0
+        state.total_pnl = 0.0
+        state.is_running = True
         db.flush()
 
         trade = _make_trade(db, direction="up", entry_price=0.40, size=10.0)
@@ -278,6 +283,43 @@ class TestBankrollUpdate:
         # bankroll = (100 - 10) + 10 + (-10) = 90
         assert state.paper_bankroll < settings.INITIAL_BANKROLL
         assert state.paper_pnl < 0.0
+
+    @pytest.mark.asyncio
+    async def test_live_settlement_reconciles_total_equity_instead_of_ledger_pnl(
+        self, db, monkeypatch
+    ):
+        """Live BotState uses external total equity after settlement, not local ledger P&L."""
+        from backend.core.settlement import update_bot_state_with_settlements
+
+        state = _state_for_mode(db, "live")
+        state.bankroll = -2645.42
+        state.total_pnl = -2704.70
+        state.total_trades = 0
+        state.winning_trades = 0
+        state.is_running = True
+        db.flush()
+
+        trade = _make_trade(db, direction="up", entry_price=0.40, size=40.0, trading_mode="live")
+        trade.settled = True
+        trade.result = "loss"
+        trade.pnl = -40.0
+        db.flush()
+
+        async def fake_total_equity():
+            return 160.73
+
+        monkeypatch.setattr(
+            "backend.core.bankroll_reconciliation.fetch_pm_total_equity",
+            fake_total_equity,
+        )
+
+        await update_bot_state_with_settlements(db, [trade])
+
+        db.refresh(state)
+        assert state.bankroll == pytest.approx(160.73)
+        assert state.total_pnl == pytest.approx(60.73)
+        assert state.total_trades == 1
+        assert state.winning_trades == 0
 
 
 # ---------------------------------------------------------------------------
@@ -398,11 +440,8 @@ class TestDeduplication:
                 resolve_calls.append((set(normal), set(weather)))
                 return {"DEDUP-MKT": (False, None)}
 
-            with (
-                patch(
-                    "backend.core.settlement._resolve_markets", side_effect=mock_resolve
-                ),
-                patch("backend.core.settlement.settings.TRADING_MODE", "paper"),
+            with patch(
+                "backend.core.settlement._resolve_markets", side_effect=mock_resolve
             ):
                 from backend.core.settlement import settle_pending_trades
 

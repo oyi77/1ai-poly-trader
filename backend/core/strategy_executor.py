@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from backend.config import settings
@@ -97,6 +97,38 @@ async def execute_decision(
                     if state.bankroll is not None
                     else settings.INITIAL_BANKROLL
                 )
+
+            if bankroll < 0:
+                try:
+                    from backend.core.bankroll_reconciliation import reconcile_bot_state
+
+                    reports = await reconcile_bot_state(
+                        db,
+                        modes=(mode,),
+                        apply=True,
+                        commit=True,
+                        source="pre_trade_reconcile",
+                    )
+                    if reports:
+                        db.refresh(state)
+                        if mode == "paper":
+                            bankroll = state.paper_bankroll if state.paper_bankroll is not None else 0.0
+                        elif mode == "testnet":
+                            bankroll = state.testnet_bankroll if state.testnet_bankroll is not None else 0.0
+                        else:
+                            bankroll = state.bankroll if state.bankroll is not None else settings.INITIAL_BANKROLL
+                        logger.warning(
+                            "[%s] Negative bankroll cache reconciled before risk validation: $%.2f",
+                            mode.upper(),
+                            bankroll,
+                        )
+                except Exception as reconcile_err:
+                    logger.error(
+                        "[%s] Failed to reconcile negative bankroll cache: %s",
+                        mode.upper(),
+                        reconcile_err,
+                        exc_info=True,
+                    )
             current_exposure = _get_current_exposure(db, trading_mode=mode)
 
             risk = context.risk_manager.validate_trade(
@@ -137,7 +169,7 @@ async def execute_decision(
                     # Kalshi markets use their own API, not Polymarket CLOB
                     try:
                         from backend.data.kalshi_client import KalshiClient
-                        client = KalshiClient()
+                        _client = KalshiClient()
                         logger.info(
                             f"[{mode.upper()}][{strategy_name}] Kalshi order simulated for {market_ticker} (live Kalshi order placement TBD)"
                         )

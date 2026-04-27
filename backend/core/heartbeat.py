@@ -239,6 +239,13 @@ async def wallet_sync_job() -> None:
 
 def _sync_balance_to_db(balance: float, mode: str) -> None:
     """Write wallet balance to bot_state DB row (raw sqlite3 to bypass pool)."""
+    if mode == "live":
+        logger.debug(
+            "wallet_sync: skipping live BotState.bankroll raw CLOB cash write; "
+            "live bankroll is reconciled from PM portfolio value"
+        )
+        return
+
     import sqlite3
     from backend.config import settings
 

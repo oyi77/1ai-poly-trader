@@ -20,10 +20,10 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy import event
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Session as SQLAlchemySession, declarative_base
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect
-from sqlalchemy.pool import StaticPool
 import asyncio
 
 from backend.config import settings
@@ -220,6 +220,37 @@ class BotState(Base):
         return (f"<BotState(id={self.id}, mode={self.mode}, bankroll={self.bankroll}, "
                 f"total_pnl={self.total_pnl}, total_trades={self.total_trades}, "
                 f"winning_trades={self.winning_trades})>")
+
+
+@event.listens_for(SQLAlchemySession, "before_flush")
+def protect_live_bot_state_financial_fields(session, flush_context, instances):
+    """Prevent stale ORM sessions from overwriting live equity caches.
+
+    Live bankroll and total_pnl are derived from external account equity via
+    bankroll_reconciliation. Normal runtime sessions may still update live
+    metadata and counters, but direct ORM changes to these financial fields are
+    reverted unless a caller explicitly opts in with
+    session.info["allow_live_financial_update"] = True.
+    """
+
+    if session.info.get("allow_live_financial_update"):
+        return
+
+    for obj in session.dirty:
+        if not isinstance(obj, BotState) or obj.mode != "live":
+            continue
+
+        inspected = inspect(obj)
+        for field_name in ("bankroll", "total_pnl"):
+            history = inspected.attrs[field_name].history
+            if not history.has_changes():
+                continue
+            previous = history.deleted[0] if history.deleted else None
+            set_committed_value(obj, field_name, previous)
+            logger.warning(
+                "Blocked unauthorized live BotState.%s ORM mutation; use bankroll_reconciliation instead",
+                field_name,
+            )
 
 
 class Signal(Base):

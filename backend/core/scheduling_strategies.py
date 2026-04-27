@@ -975,6 +975,16 @@ async def sync_live_wallet():
             state.last_sync_at = result.last_sync_at
             db.commit()
 
+        from backend.core.bankroll_reconciliation import reconcile_bot_state
+
+        await reconcile_bot_state(
+            db,
+            modes=("live",),
+            apply=True,
+            commit=True,
+            source="live_wallet_sync_reconcile",
+        )
+
         logger.info(
             f"Live wallet sync: imported={result.imported_count}, "
             f"updated={result.updated_count}, closed={result.closed_count}"

@@ -1,10 +1,15 @@
 """Tests for enhanced risk manager — drawdown breaker, per-market limits, exposure."""
 
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from dataclasses import dataclass
 
-from backend.core.risk_manager import RiskManager, RiskDecision, DrawdownStatus
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from backend.core.risk_manager import RiskManager
+from backend.models.database import Base, Trade
 
 
 @dataclass
@@ -21,6 +26,18 @@ class MockSettings:
 
 def make_rm():
     return RiskManager(settings_obj=MockSettings())
+
+
+@pytest.fixture()
+def risk_db():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = Session()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 class TestValidateTrade:
@@ -41,7 +58,11 @@ class TestValidateTrade:
     def test_low_confidence_rejected(self):
         rm = make_rm()
         result = rm.validate_trade(
-            size=5.0, current_exposure=0.0, bankroll=1000.0, confidence=0.3
+            size=5.0,
+            current_exposure=0.0,
+            bankroll=1000.0,
+            confidence=0.01,
+            mode="paper",
         )
         assert result.allowed is False
         assert "confidence" in result.reason
@@ -110,6 +131,24 @@ class TestValidateTrade:
         )
         assert result.allowed is True
         assert result.adjusted_size == 5.0
+
+    @patch("backend.core.risk_manager.SessionLocal")
+    def test_live_exposure_uses_portfolio_value_not_cash_plus_exposure(self, mock_session_cls):
+        mock_db = MagicMock()
+        mock_session_cls.return_value = mock_db
+        mock_db.query.return_value.filter.return_value.scalar.return_value = 0.0
+
+        rm = make_rm()
+        result = rm.validate_trade(
+            size=20.0,
+            current_exposure=45.0,
+            bankroll=100.0,
+            confidence=0.7,
+            mode="live",
+        )
+
+        assert result.allowed is True
+        assert result.adjusted_size == 2.75
 
     @patch("backend.core.risk_manager.SessionLocal")
     def test_slippage_rejection(self, mock_session_cls):
@@ -183,3 +222,39 @@ class TestCheckDrawdown:
         status = rm.check_drawdown(bankroll=1000.0)
         assert status.is_breached is True
         assert "7d" in status.breach_reason
+
+    def test_drawdown_includes_null_settlement_source_but_excludes_backfill(self, risk_db):
+        now = datetime.now(timezone.utc)
+        normal_loss = Trade(
+            market_ticker="normal-loss",
+            direction="up",
+            entry_price=0.5,
+            size=40.0,
+            settled=True,
+            result="loss",
+            pnl=-40.0,
+            trading_mode="paper",
+            settlement_time=now,
+            settlement_source=None,
+        )
+        historical_backfill = Trade(
+            market_ticker="historical-backfill",
+            direction="up",
+            entry_price=0.5,
+            size=500.0,
+            settled=True,
+            result="loss",
+            pnl=-500.0,
+            trading_mode="paper",
+            settlement_time=now,
+            settlement_source="backfill_conservative_loss",
+        )
+        risk_db.add_all([normal_loss, historical_backfill])
+        risk_db.commit()
+
+        rm = make_rm()
+        status = rm.check_drawdown(bankroll=1000.0, db=risk_db, mode="paper")
+
+        assert status.daily_pnl == pytest.approx(-40.0)
+        assert status.weekly_pnl == pytest.approx(-40.0)
+        assert status.is_breached is False

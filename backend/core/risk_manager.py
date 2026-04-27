@@ -7,9 +7,18 @@ from typing import Optional
 
 from backend.config import settings
 from backend.models.database import SessionLocal, Trade
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 logger = logging.getLogger("trading_bot.risk")
+
+
+def _not_backfill_settlement_source():
+    """Include normal settlements and exclude only explicit historical backfills."""
+
+    return or_(
+        Trade.settlement_source.is_(None),
+        ~Trade.settlement_source.op("LIKE")("backfill_%"),
+    )
 
 
 @dataclass
@@ -78,7 +87,13 @@ class RiskManager:
             max_position = bankroll * self.s.MAX_POSITION_FRACTION
         adjusted = min(size, max_position)
 
-        max_exposure = bankroll * self.s.MAX_TOTAL_EXPOSURE_FRACTION
+        # Paper/testnet bankroll is available cash because entry execution
+        # deducts stake immediately; total exposure limits must use equity
+        # (cash + already-open stake), otherwise existing positions shrink the
+        # denominator and can permanently block new trades. Live bankroll is
+        # PM portfolio value, which already includes locked positions.
+        exposure_base = bankroll if effective_mode == "live" else bankroll + current_exposure
+        max_exposure = exposure_base * self.s.MAX_TOTAL_EXPOSURE_FRACTION
         if current_exposure + adjusted > max_exposure:
             adjusted = max(0.0, max_exposure - current_exposure)
             if adjusted <= 0:
@@ -107,7 +122,7 @@ class RiskManager:
                     Trade.settled.is_(True),
                     Trade.settlement_time >= day_start,
                     Trade.trading_mode == effective_mode,
-                    ~Trade.settlement_source.op("LIKE")("backfill_%"),
+                    _not_backfill_settlement_source(),
                 )
                 .scalar()
                 or 0.0
@@ -119,7 +134,7 @@ class RiskManager:
                     Trade.settled.is_(True),
                     Trade.settlement_time >= week_start,
                     Trade.trading_mode == effective_mode,
-                    ~Trade.settlement_source.op("LIKE")("backfill_%"),
+                    _not_backfill_settlement_source(),
                 )
                 .scalar()
                 or 0.0
@@ -177,7 +192,7 @@ class RiskManager:
                     Trade.settled.is_(True),
                     Trade.settlement_time >= today_start,
                     Trade.trading_mode == effective_mode,
-                    ~Trade.settlement_source.op("LIKE")("backfill_%"),
+                    _not_backfill_settlement_source(),
                 )
                 .scalar()
                 or 0.0

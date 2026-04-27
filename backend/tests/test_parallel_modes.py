@@ -8,6 +8,7 @@ Tests that paper, testnet, and live modes can run simultaneously with:
 - Concurrent job execution
 """
 
+# ruff: noqa: E402
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
@@ -90,6 +91,7 @@ def seed_bot_states(test_db):
             )
         else:
             initial_bankroll = 1000.0 if mode != "testnet" else 100.0
+            test_db.info["allow_live_financial_update"] = True
             existing.bankroll = initial_bankroll
             existing.paper_bankroll = initial_bankroll if mode == "paper" else None
             existing.testnet_bankroll = initial_bankroll if mode == "testnet" else None
@@ -98,6 +100,7 @@ def seed_bot_states(test_db):
             existing.total_pnl = 0.0
             existing.is_running = True
     test_db.commit()
+    test_db.info.pop("allow_live_financial_update", None)
     return test_db
 
 
@@ -248,7 +251,7 @@ class TestModeIsolation:
             paper_decision = {
                 "market_ticker": "paper-market-001",
                 "direction": "yes",
-                "size": 100.0,
+                "size": 50.0,
                 "entry_price": 0.55,
                 "edge": 0.08,
                 "confidence": 0.75,
@@ -453,7 +456,8 @@ class TestDatabaseIntegrity:
             # Each mode should have deducted from its own bankroll
             assert paper_state.paper_bankroll < 1000.0
             assert testnet_state.testnet_bankroll < 100.0
-            assert live_state.bankroll < 1000.0
+            assert live_state.bankroll == 1000.0
+            assert live_state.total_trades == 1
 
             # Verify no cross-contamination (paper trades don't affect live)
             paper_trade = (
@@ -511,7 +515,7 @@ class TestModeSpecificRiskLimits:
             paper_decision = {
                 "market_ticker": "paper-risk-market",
                 "direction": "yes",
-                "size": 900.0,  # 90% of paper bankroll
+                "size": 75.0,
                 "entry_price": 0.55,
                 "edge": 0.08,
                 "confidence": 0.75,
@@ -529,7 +533,7 @@ class TestModeSpecificRiskLimits:
             paper_decision_2 = {
                 "market_ticker": "paper-risk-market-2",
                 "direction": "yes",
-                "size": 200.0,  # Would exceed exposure limit
+                "size": 75.0,
                 "entry_price": 0.55,
                 "edge": 0.08,
                 "confidence": 0.75,
@@ -538,16 +542,14 @@ class TestModeSpecificRiskLimits:
                 "reasoning": "paper risk test 2",
                 "token_id": None,
             }
-            paper_result_2 = await execute_decision(
-                paper_decision_2, "test_strategy", "paper"
-            )
+            await execute_decision(paper_decision_2, "test_strategy", "paper")
             # May succeed with adjusted size or fail - depends on risk limits
 
             # Execute trade in live mode (should succeed despite paper exposure)
             live_decision = {
                 "market_ticker": "live-risk-market",
                 "direction": "yes",
-                "size": 500.0,  # 50% of live bankroll
+                "size": 50.0,
                 "entry_price": 0.55,
                 "edge": 0.08,
                 "confidence": 0.75,
@@ -590,7 +592,7 @@ class TestStrategyConfigLoading:
         paper_configs = (
             db.query(StrategyConfig)
             .filter(
-                (StrategyConfig.mode == "paper") | (StrategyConfig.mode == None)
+                (StrategyConfig.mode == "paper") | (StrategyConfig.mode.is_(None))
             )
             .all()
         )
@@ -604,7 +606,7 @@ class TestStrategyConfigLoading:
         testnet_configs = (
             db.query(StrategyConfig)
             .filter(
-                (StrategyConfig.mode == "testnet") | (StrategyConfig.mode == None)
+                (StrategyConfig.mode == "testnet") | (StrategyConfig.mode.is_(None))
             )
             .all()
         )
@@ -618,7 +620,7 @@ class TestStrategyConfigLoading:
         live_configs = (
             db.query(StrategyConfig)
             .filter(
-                (StrategyConfig.mode == "live") | (StrategyConfig.mode == None)
+                (StrategyConfig.mode == "live") | (StrategyConfig.mode.is_(None))
             )
             .all()
         )

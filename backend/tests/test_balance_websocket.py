@@ -2,7 +2,6 @@
 Integration tests for real-time balance WebSocket updates.
 """
 
-import pytest
 from backend.models.database import BotState, Trade
 
 
@@ -88,11 +87,13 @@ def test_stats_endpoint_includes_mode_specific_data(client, db):
     
     live_state = db.query(BotState).filter_by(mode="live").first()
     if live_state:
+        db.info["allow_live_financial_update"] = True
         live_state.bankroll = 5000.0
         live_state.total_pnl = 300.0
         live_state.total_trades = 3
         live_state.winning_trades = 2
     db.commit()
+    db.info.pop("allow_live_financial_update", None)
 
     response = client.get("/api/v1/stats")
     assert response.status_code == 200
