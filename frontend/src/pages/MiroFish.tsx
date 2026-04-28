@@ -43,6 +43,7 @@ export default function MiroFish() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [iframeKey, setIframeKey] = useState(0)
+  const [iframeError, setIframeError] = useState(false)
 
   const MIROFISH_URL = 'https://polyedge-mirofish.aitradepulse.com'
   const MIROFISH_BACKEND_PORT = 5001
@@ -370,17 +371,46 @@ export default function MiroFish() {
             </div>
           ) : (
             <div className="flex-1 relative">
-              <iframe
-                key={iframeKey}
-                src={MIROFISH_URL}
-                className="w-full h-full border-0"
-                title="MiroFish Dashboard"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                loading="lazy"
-              />
+              {iframeError ? (
+                <div className="flex-1 flex items-center justify-center bg-neutral-900">
+                  <div className="text-center max-w-sm p-6">
+                    <AlertTriangle className="w-12 h-12 text-yellow-500/50 mx-auto mb-4" />
+                    <h2 className="text-lg font-semibold text-neutral-300 mb-2">MiroFish UI Unavailable</h2>
+                    <p className="text-xs text-neutral-500 mb-4">
+                      The MiroFish frontend at <code className="text-blue-400">{MIROFISH_URL.replace('https://', '')}</code> could not be loaded.
+                    </p>
+                    <p className="text-xs text-neutral-600 mb-6">
+                      This is expected in local mock mode. The MiroFish API is still functional for signal generation.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setIframeError(false)
+                        setIframeKey(k => k + 1)
+                      }}
+                      className="px-6 py-2.5 bg-neutral-800 border border-neutral-700 rounded text-xs font-medium text-neutral-300 hover:bg-neutral-700 transition-all"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 inline mr-2" />
+                      Retry Loading UI
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  key={iframeKey}
+                  src={MIROFISH_URL}
+                  className="w-full h-full border-0"
+                  title="MiroFish Dashboard"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                  loading="lazy"
+                  onError={() => setIframeError(true)}
+                />
+              )}
               <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
                 <button
-                  onClick={() => setIframeKey(k => k + 1)}
+                  onClick={() => {
+                    setIframeError(false)
+                    setIframeKey(k => k + 1)
+                  }}
                   className="flex items-center justify-center w-7 h-7 bg-neutral-900/80 border border-neutral-700 rounded text-neutral-400 hover:text-white hover:border-neutral-500 transition-colors backdrop-blur-sm"
                   title="Refresh iframe"
                 >

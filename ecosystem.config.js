@@ -51,5 +51,23 @@ module.exports = {
       error_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-bot-error.log',
       out_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-bot-out.log',
     },
+    {
+      name: 'polyedge-mirofish-mock',
+      script: 'python3',
+      args: '-m backend.services.mirofish_mock_server',
+      cwd: '/home/openclaw/projects/polyedge',
+      interpreter: 'none',
+      env: {
+        PYTHONPATH: '/home/openclaw/projects/polyedge',
+      },
+      watch: false,
+      restart_delay: 5000,
+      max_restarts: 50,
+      exp_backoff_restart_delay: 100,
+      autorestart: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      error_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-mirofish-mock-error.log',
+      out_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-mirofish-mock-out.log',
+    },
   ],
 }
