@@ -59,7 +59,8 @@ def _mask(key: str, value: Any) -> Any:
 def _grouped_settings() -> Dict[str, Dict[str, Any]]:
     """Build the grouped settings response from live settings object."""
     s = settings
-    return {
+    # Build grouped response
+    grouped = {
         "trading": {
             "TRADING_MODE": s.TRADING_MODE,
             "ACTIVE_MODES": s.ACTIVE_MODES,
@@ -94,6 +95,29 @@ def _grouped_settings() -> Dict[str, Dict[str, Any]]:
             "TELEGRAM_HIGH_CONFIDENCE_ALERTS": s.TELEGRAM_HIGH_CONFIDENCE_ALERTS,
         },
     }
+    # Also return flat format for frontend compatibility
+    grouped["mirofish_enabled"] = getattr(s, "MIROFISH_ENABLED", False)
+    grouped["mirofish_api_url"] = getattr(s, "MIROFISH_API_URL", "http://localhost:5001")
+    grouped["mirofish_api_key"] = _mask("MIROFISH_API_KEY", getattr(s, "MIROFISH_API_KEY", ""))
+    grouped["trading_mode"] = s.TRADING_MODE
+    grouped["strategies"] = {
+        "btc_momentum": getattr(s, "BTC_MOMENTUM_ENABLED", False),
+        "btc_oracle": getattr(s, "BTC_ORACLE_ENABLED", False),
+        "weather_emos": s.WEATHER_ENABLED,
+        "copy_trader": getattr(s, "COPY_TRADER_ENABLED", False),
+        "market_maker": getattr(s, "MARKET_MAKER_ENABLED", False),
+        "kalshi_arb": s.KALSHI_ENABLED,
+        "bond_scanner": getattr(s, "BOND_SCANNER_ENABLED", False),
+        "whale_pnl": getattr(s, "WHALE_PNL_ENABLED", False),
+        "realtime_scanner": getattr(s, "REALTIME_SCANNER_ENABLED", False),
+    }
+    grouped["risk"] = {
+        "max_position_size": s.MAX_TRADE_SIZE,
+        "max_portfolio_exposure": getattr(s, "MAX_POSITION_FRACTION", 0.15),
+        "kelly_fraction": s.KELLY_FRACTION,
+        "min_edge_threshold": s.MIN_EDGE_THRESHOLD,
+    }
+    return grouped
 
 
 # ---------------------------------------------------------------------------

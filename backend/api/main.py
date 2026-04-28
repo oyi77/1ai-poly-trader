@@ -801,6 +801,7 @@ app.include_router(proposals_router, prefix="/api/v1")
 # /api/proposals while the canonical path is /api/v1/proposals.
 app.include_router(proposals_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(admin_router, prefix="/api/v1")
 # /api/bot/start alias for tests and older clients (canonical: /api/v1/bot/start)
 app.include_router(system_router, prefix="/api")
 app.include_router(brain_router, prefix="/api/v1")

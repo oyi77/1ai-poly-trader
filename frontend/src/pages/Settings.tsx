@@ -327,14 +327,14 @@ export default function Settings() {
             <div>
               <label className="flex items-center justify-between text-xs text-neutral-400 mb-2">
                 <span>Max Position Size</span>
-                <span className="text-neutral-100 font-mono">{settings.risk.max_position_size.toFixed(2)}</span>
+                <span className="text-neutral-100 font-mono">{(settings.risk?.max_position_size ?? 0).toFixed(2)}</span>
               </label>
               <input
                 type="range"
                 min="0.01"
                 max="1"
                 step="0.01"
-                value={settings.risk.max_position_size}
+                value={settings.risk?.max_position_size ?? 0.1}
                 onChange={(e) => updateRisk('max_position_size', parseFloat(e.target.value))}
                 disabled={saving}
                 className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer slider"
@@ -343,14 +343,14 @@ export default function Settings() {
             <div>
               <label className="flex items-center justify-between text-xs text-neutral-400 mb-2">
                 <span>Max Portfolio Exposure</span>
-                <span className="text-neutral-100 font-mono">{settings.risk.max_portfolio_exposure.toFixed(2)}</span>
+                <span className="text-neutral-100 font-mono">{(settings.risk?.max_portfolio_exposure ?? 0).toFixed(2)}</span>
               </label>
               <input
                 type="range"
                 min="0.1"
                 max="1"
                 step="0.05"
-                value={settings.risk.max_portfolio_exposure}
+                value={settings.risk?.max_portfolio_exposure ?? 0.15}
                 onChange={(e) => updateRisk('max_portfolio_exposure', parseFloat(e.target.value))}
                 disabled={saving}
                 className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer slider"
@@ -359,14 +359,14 @@ export default function Settings() {
             <div>
               <label className="flex items-center justify-between text-xs text-neutral-400 mb-2">
                 <span>Kelly Fraction</span>
-                <span className="text-neutral-100 font-mono">{settings.risk.kelly_fraction.toFixed(2)}</span>
+                <span className="text-neutral-100 font-mono">{(settings.risk?.kelly_fraction ?? 0.2).toFixed(2)}</span>
               </label>
               <input
                 type="range"
                 min="0.1"
                 max="1"
                 step="0.05"
-                value={settings.risk.kelly_fraction}
+                value={settings.risk?.kelly_fraction ?? 0.2}
                 onChange={(e) => updateRisk('kelly_fraction', parseFloat(e.target.value))}
                 disabled={saving}
                 className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer slider"
@@ -375,14 +375,14 @@ export default function Settings() {
             <div>
               <label className="flex items-center justify-between text-xs text-neutral-400 mb-2">
                 <span>Min Edge Threshold</span>
-                <span className="text-neutral-100 font-mono">{(settings.risk.min_edge_threshold * 100).toFixed(1)}%</span>
+                <span className="text-neutral-100 font-mono">{((settings.risk?.min_edge_threshold ?? 0.005) * 100).toFixed(1)}%</span>
               </label>
               <input
                 type="range"
                 min="0.01"
                 max="0.2"
                 step="0.01"
-                value={settings.risk.min_edge_threshold}
+                value={settings.risk?.min_edge_threshold ?? 0.005}
                 onChange={(e) => updateRisk('min_edge_threshold', parseFloat(e.target.value))}
                 disabled={saving}
                 className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer slider"
