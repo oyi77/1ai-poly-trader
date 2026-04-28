@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from backend.models.database import get_db, DecisionLog
+from backend.models.database import get_db, DecisionLog, SystemSettings
 from backend.api.auth import require_admin
 
 logger = logging.getLogger("trading_bot.brain_api")
@@ -290,6 +290,30 @@ def _build_graph_structure(db: Session) -> Dict[str, Any]:
 
 
 # --- Endpoints ---
+
+@router.get("/status")
+async def get_brain_status(db: Session = Depends(get_db)):
+    """Get brain status with strategy states for REST polling fallback."""
+    from backend.models.database import StrategyConfig
+    strategies = []
+    for config in db.query(StrategyConfig).all():
+        strategies.append({
+            "id": config.strategy_name,
+            "name": config.strategy_name,
+            "label": config.strategy_name.replace("_", " ").title(),
+            "type": "signal",
+            "enabled": config.enabled if config.enabled is not None else True,
+        })
+
+    mirofish_setting = db.query(SystemSettings).filter(SystemSettings.key == "mirofish_enabled").first()
+    mirofish_enabled = str(mirofish_setting.value).lower() in ("true", "1", "yes") if mirofish_setting else False
+
+    return {
+        "strategies": strategies,
+        "mirofish_enabled": mirofish_enabled,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
 
 @router.get("/graph", response_model=BrainGraphResponse)
 async def get_brain_graph(

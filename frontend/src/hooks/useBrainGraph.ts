@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useWebSocket } from './useWebSocket'
-import { getWsUrl } from '../api'
-import { retryFetch } from '../utils/retryFetch'
+import { getWsUrl, api } from '../api'
 
 export interface BrainNode {
   id: string
@@ -46,30 +46,68 @@ export function useBrainGraph(): UseBrainGraphResult {
   const [transcript, setTranscript] = useState<DebateTranscript[]>([])
   const [loading, setLoading] = useState(true)
 
-  const { data, status } = useWebSocket<BrainGraphData>(getWsUrl('/ws/brain'), { topic: 'brain' })
+  const { data: wsData, status } = useWebSocket<BrainGraphData>(getWsUrl('/ws/brain'), { topic: 'brain' })
+
+  const { data: restData } = useQuery({
+    queryKey: ['brain-status'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/v1/brain/status')
+        return res.data
+      } catch {
+        return null
+      }
+    },
+    refetchInterval: 10000,
+    enabled: status !== 'connected',
+  })
 
   const fetchDebateTranscript = useCallback(async (debateId: string) => {
     try {
-      const response = await retryFetch(`/api/v1/brain/debate/${debateId}`)
-      if (response.ok) {
-        const data = await response.json()
+      const res = await api.get(`/api/v1/brain/debate/${debateId}`)
+      if (res.status === 200) {
+        const data = res.data
         setTranscript(data.transcript || [])
       }
-    } catch (err) {
-      console.error('Failed to fetch debate transcript:', err)
+    } catch {
+      // Transcript fetch is best-effort
     }
   }, [])
 
   useEffect(() => {
-    if (data) {
-      setGraphData(data)
+    if (wsData) {
+      setGraphData(wsData)
       setLoading(false)
-      
-      if (data.debate_id) {
-        fetchDebateTranscript(data.debate_id)
+      if (wsData.debate_id) {
+        fetchDebateTranscript(wsData.debate_id)
       }
+      return
     }
-  }, [data, fetchDebateTranscript])
+
+    if (restData && status !== 'connected') {
+      const nodes: BrainNode[] = (restData.strategies || []).map((s: any) => ({
+        id: s.id || s.name,
+        type: s.type || 'signal',
+        label: s.label || s.name,
+        status: s.enabled ? 'active' : 'idle',
+        data: s,
+      }))
+
+      const mirofishNode: BrainNode = {
+        id: 'mirofish',
+        type: 'ai',
+        label: 'MiroFish',
+        status: restData.mirofish_enabled ? 'active' : 'idle',
+      }
+
+      setGraphData({
+        nodes: [mirofishNode, ...nodes],
+        edges: [],
+        timestamp: new Date().toISOString(),
+      })
+      setLoading(false)
+    }
+  }, [wsData, restData, status, fetchDebateTranscript])
 
   return {
     graphData,

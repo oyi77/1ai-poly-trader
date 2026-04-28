@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 import json as _json
@@ -16,6 +16,7 @@ from backend.models.database import (
     get_db,
     BotState,
     Trade,
+    Signal,
     AILog,
     DecisionLog,
     TradeAttempt,
@@ -1744,6 +1745,9 @@ class DetailedHealthStatus(BaseModel):
     memory: dict
     uptime_seconds: Optional[float] = None
     circuit_breakers: Optional[dict] = None
+    avg_signal_time_ms: Optional[float] = None
+    signals_24h: Optional[int] = None
+    trades_24h: Optional[int] = None
 
 
 @router.get("/health", response_model=HealthStatus)
@@ -1922,6 +1926,22 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     
     status = "healthy" if is_healthy else "unhealthy"
     status_code = 200 if is_healthy else 503
+
+    avg_signal_time_ms = None
+    signals_24h = None
+    trades_24h = None
+    try:
+        from backend.monitoring.metrics import get_metrics_snapshot
+        metrics = get_metrics_snapshot()
+        avg_signal_time_ms = metrics.get("avg_api_latency_ms")
+        signals_24h = db.query(Signal).filter(
+            Signal.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+        ).count() if db else 0
+        trades_24h = db.query(Trade).filter(
+            Trade.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+        ).count() if db else 0
+    except Exception:
+        pass
     
     return DetailedHealthStatus(
         status=status,
@@ -1931,7 +1951,10 @@ async def detailed_health_check(db: Session = Depends(get_db)):
         disk_space=disk_info,
         memory=memory_info,
         uptime_seconds=uptime_seconds,
-        circuit_breakers=circuit_breakers
+        circuit_breakers=circuit_breakers,
+        avg_signal_time_ms=avg_signal_time_ms,
+        signals_24h=signals_24h,
+        trades_24h=trades_24h,
     )
 
 
@@ -1997,28 +2020,33 @@ async def hft_metrics():
 
 
 @router.get("/hft/strategies")
-async def hft_strategies():
+async def hft_strategies(db: Session = Depends(get_db)):
     from backend.strategies.registry import STRATEGY_REGISTRY
+    from backend.models.database import StrategyConfig
     hft_names = {"universal_scanner", "probability_arb", "cross_market_arb", "whale_frontrun"}
-    strategies = [
-        {
-            "name": name,
-            "enabled": name in _hft_enabled_cache,
-            "signals_generated": 0,
-            "last_signal_at": None,
-            "pnl": 0.0,
-            "mode": "paper",
-        }
-        for name in STRATEGY_REGISTRY
-        if name in hft_names
-    ]
+    strategies = []
+    for name in STRATEGY_REGISTRY:
+        if name in hft_names:
+            config = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
+            strategies.append({
+                "name": name,
+                "enabled": config.enabled if config else True,
+                "signals_generated": 0,
+                "last_signal_at": config.updated_at.isoformat() if config and config.updated_at else None,
+                "pnl": 0.0,
+                "mode": config.trading_mode or "paper" if config else "paper",
+            })
     if not strategies:
-        strategies = [
-            {"name": "universal_scanner", "enabled": True, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
-            {"name": "probability_arb", "enabled": True, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
-            {"name": "cross_market_arb", "enabled": False, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
-            {"name": "whale_frontrun", "enabled": True, "signals_generated": 0, "last_signal_at": None, "pnl": 0.0, "mode": "paper"},
-        ]
+        for name in hft_names:
+            config = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
+            strategies.append({
+                "name": name,
+                "enabled": config.enabled if config else True,
+                "signals_generated": 0,
+                "last_signal_at": None,
+                "pnl": 0.0,
+                "mode": "paper",
+            })
     return {"strategies": strategies}
 
 

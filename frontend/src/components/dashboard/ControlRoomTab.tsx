@@ -78,7 +78,7 @@ export function ControlRoomTab() {
   const [topupMsg, setTopupMsg] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
-  const params = { limit: 100, ...(mode !== 'all' ? { mode } : {}), ...(status !== 'all' ? { status } : {}) }
+  const params = { limit: 500, ...(mode !== 'all' ? { mode } : {}), ...(status !== 'all' ? { status } : {}) }
 
   const attempts = useQuery({
     queryKey: ['trade-attempts', params],

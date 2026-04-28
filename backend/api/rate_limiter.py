@@ -30,10 +30,10 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
     }
     
     # Default limit for other endpoints
-    DEFAULT_LIMIT = 100
+    DEFAULT_LIMIT = 600
     
     # Per-IP HTTP request limit (requests per minute)
-    HTTP_LIMIT_PER_IP = 50
+    HTTP_LIMIT_PER_IP = 300
 
     def __init__(self, app, requests_per_minute: int = 100):
         super().__init__(app)
