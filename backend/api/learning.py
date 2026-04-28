@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List
 from sqlalchemy.orm import Session
 from backend.models.database import get_db
+from backend.api.auth import require_admin
 from backend.core.outcome_repository import (
     get_strategy_stats, get_recent_outcomes, record_param_change
 )
@@ -146,7 +147,11 @@ async def get_outcomes(strategy: str, limit: int = 50, db: Session = Depends(get
 
 
 @router.post("/param-change")
-async def log_param_change(req: ParamChangeRequest, db: Session = Depends(get_db)):
+async def log_param_change(
+    req: ParamChangeRequest,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+):
     record_param_change(
         strategy=req.strategy,
         param=req.param_name,

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 
 from backend.models.database import get_db
+from backend.api.auth import require_admin
 from backend.core.alert_manager import AlertManager, get_system_metrics
 
 router = APIRouter()
@@ -54,7 +55,11 @@ async def get_alert_statistics(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/alerts/{alert_id}/resolve")
-async def resolve_alert(alert_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def resolve_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
+) -> Dict[str, Any]:
     """Mark an alert as resolved."""
     manager = AlertManager(db)
     success = manager.resolve_alert(alert_id)

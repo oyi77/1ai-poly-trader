@@ -137,7 +137,6 @@ class EventResponse(BaseModel):
 @router.get("/stats", response_model=BotStats)
 async def get_stats(
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
     mode: Optional[str] = Query(None)
 ):
     # Query all 3 mode states

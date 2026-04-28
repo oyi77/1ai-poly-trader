@@ -77,7 +77,8 @@ async def list_proposals(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_proposal(
     request: ValidatedProposalCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
 ):
     """Create a new strategy proposal."""
     from datetime import datetime, timezone

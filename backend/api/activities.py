@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from backend.models.database import SessionLocal, ActivityLog
+from backend.api.auth import require_admin
 from backend.core.activity_logger import activity_logger
 from backend.api_websockets.activity_stream import broadcast_activity
 
@@ -128,7 +129,8 @@ async def get_activity_by_id(
 @router.post("")
 async def create_activity(
     request: CreateActivityRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
 ):
     """Create a new activity log entry and broadcast to WebSocket clients."""
     try:

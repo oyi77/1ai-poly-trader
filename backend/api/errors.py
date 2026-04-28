@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import logging
 
 from backend.models.database import get_db
+from backend.api.auth import require_admin
 from backend.core.error_logger import get_error_logger
 
 logger = logging.getLogger("trading_bot")
@@ -93,6 +94,7 @@ async def get_error_rate(
 async def cleanup_old_errors(
     days: int = 30,
     db: Session = Depends(get_db),
+    _admin: None = Depends(require_admin),
 ):
     """Delete errors older than specified days."""
     error_logger = get_error_logger(db)
@@ -102,4 +104,3 @@ async def cleanup_old_errors(
         "days_retained": days,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-

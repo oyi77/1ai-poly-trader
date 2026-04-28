@@ -438,7 +438,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     db = SessionLocal()
                     try:
                         # Get stats for all 3 modes
-                        stats = await get_stats(db, None, mode=None)
+                        stats = await get_stats(db=db, mode=None)
                         await topic_manager.broadcast(
                             "stats",
                             {
@@ -1289,7 +1289,7 @@ async def get_dashboard(
     db: Session = Depends(get_db)
 ):
     """Get all dashboard data in one call - returns stats for all 3 modes."""
-    stats = await get_stats(db=db, _=None, mode=None)
+    stats = await get_stats(db=db, mode=None)
 
     # Fetch BTC price from microstructure first, fallback to CoinGecko
     btc_price_data = None

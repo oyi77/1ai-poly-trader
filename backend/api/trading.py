@@ -180,7 +180,7 @@ def _compute_calibration_summary(db: Session) -> Optional[CalibrationSummary]:
 
 @router.get("/signals", response_model=List[SignalResponse])
 @handle_errors(default_response=[])
-async def get_signals(_: str = Depends(require_admin)):
+async def get_signals():
     """Get current BTC trading signals."""
     signals = await scan_for_signals()
     return [_signal_to_response(s, actionable=s.passes_threshold) for s in signals]
@@ -190,6 +190,7 @@ async def get_signals(_: str = Depends(require_admin)):
 async def create_signal(
     request: ValidatedSignalCreateRequest,
     db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
 ):
     """Create a new trading signal (e.g., from MiroFish debate engine)."""
     from backend.models.database import MiroFishSignal
