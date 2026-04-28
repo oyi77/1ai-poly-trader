@@ -111,6 +111,7 @@ export interface BotStats {
   testnet?: PnlModeStats
   live?: PnlModeStats
   mode?: string
+  active_mode?: string
   pnl_source?: string
   open_exposure?: number
   open_trades?: number

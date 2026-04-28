@@ -91,6 +91,15 @@ export function useStats() {
   const bankroll = active ? active.bankroll : stats.bankroll
   const initialBankroll = active?.initial_bankroll ?? stats.initial_bankroll ?? 10000
   const totalPnl = settledPnl
+  const modeSplits = [stats.paper, stats.testnet, stats.live].filter((mode): mode is NonNullable<typeof mode> => Boolean(mode))
+  const aggregateOpenTrades = modeSplits.reduce((sum, mode) => sum + (mode.open_trades ?? 0), 0)
+  const aggregateOpenExposure = modeSplits.reduce((sum, mode) => sum + (mode.open_exposure ?? 0), 0)
+  const openTrades = stats.mode === 'all' && aggregateOpenTrades > 0
+    ? aggregateOpenTrades
+    : stats.open_trades ?? aggregateOpenTrades
+  const openExposure = stats.mode === 'all' && aggregateOpenExposure > 0
+    ? aggregateOpenExposure
+    : stats.open_exposure ?? aggregateOpenExposure
 
   return {
     stats,
@@ -107,8 +116,8 @@ export function useStats() {
     isRunning: stats.is_running,
     lastRun: stats.last_run,
     mode: stats.mode,
-    openExposure: stats.open_exposure ?? 0,
-    openTrades: stats.open_trades ?? 0,
+    openExposure,
+    openTrades,
     settledTrades: stats.settled_trades ?? 0,
     settledWins: stats.settled_wins ?? 0,
     unrealizedPnl: stats.unrealized_pnl ?? 0,

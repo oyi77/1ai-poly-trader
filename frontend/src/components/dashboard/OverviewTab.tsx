@@ -6,8 +6,21 @@ import { ProfitCurveChart } from './ProfitCurveChart'
 import { SelfImprovementMetrics } from './SelfImprovementMetrics'
 import { SystemEfficiencyPanel } from './SystemEfficiencyPanel'
 import { WinningTradesPreview } from './WinningTradesPreview'
+import { LiveStreamPanel } from '../../pages/LiveStream'
 import { adminApi, api } from '../../api'
 import type { BotStats, PnlModeStats, Trade } from '../../types'
+
+interface AdminProposalSummary {
+  admin_decision?: string | null
+  status?: string | null
+  created_at?: string | null
+}
+
+interface DetailedHealthData {
+  avg_signal_time_ms?: number | null
+  signals_24h?: number | null
+  uptime_seconds?: number | null
+}
 
 export interface OverviewTabProps {
   data: any
@@ -36,7 +49,7 @@ export function OverviewTab({
   const stats = useStats()
   const { selectedMode } = useModeFilter()
 
-  const { data: proposalsData } = useQuery({
+  const { data: proposalsData } = useQuery<AdminProposalSummary[]>({
     queryKey: ['proposals'],
     queryFn: async () => {
       try {
@@ -49,7 +62,7 @@ export function OverviewTab({
     refetchInterval: 30000,
   })
 
-  const { data: healthData } = useQuery({
+  const { data: healthData } = useQuery<DetailedHealthData | null>({
     queryKey: ['health-detailed'],
     queryFn: async () => {
       try {
@@ -100,10 +113,14 @@ export function OverviewTab({
     .filter(t => (t.pnl ?? 0) < 0)
     .sort((a, b) => (a.pnl ?? 0) - (b.pnl ?? 0))
   const sourceStats = stats.stats as BotStats
-  const activeMode = sourceStats.mode ?? 'paper'
+  const activeMode = sourceStats.active_mode ?? sourceStats.mode ?? 'paper'
   const liveStats = sourceStats.live
   const paperStats = sourceStats.paper
   const testnetStats = sourceStats.testnet
+  const modeStatsForSelected = selectedMode === 'paper' ? paperStats
+    : selectedMode === 'testnet' ? testnetStats
+      : selectedMode === 'live' ? liveStats
+        : undefined
 
   const formatMoney = (value: number | undefined | null) => `${(value ?? 0) >= 0 ? '+' : '-'}$${Math.abs(value ?? 0).toFixed(2)}`
   const modeCard = (label: string, modeStats: PnlModeStats | undefined, accent: string) => ({
@@ -128,20 +145,20 @@ export function OverviewTab({
   const pnl24h = trades24h.reduce((sum: number, t: any) => sum + (t.pnl ?? 0), 0)
   
   const roi = filteredStats.returnPercent
-  const activeTrades = stats.openTrades || 0
-  const activeVolume = stats.openExposure || 0
+  const activeTrades = selectedMode === 'all'
+    ? stats.openTrades
+    : modeStatsForSelected?.open_trades ?? 0
+  const activeVolume = selectedMode === 'all'
+    ? stats.openExposure
+    : modeStatsForSelected?.open_exposure ?? 0
 
   const profitCurveData = equityCurve.map((point: any) => ({
     timestamp: point.timestamp,
     cumulative_pnl: point.pnl,
   }))
 
-  // Count active strategies from data
-  const strategiesActive = activeSignals?.length || 0
-  
-
   const proposalsGenerated = proposalsData?.length || 0
-  const proposalsApproved = proposalsData?.filter((p: any) => p.admin_decision === 'approved').length || 0
+  const proposalsApproved = proposalsData?.filter(p => p.admin_decision === 'approved' || p.status === 'approved').length || 0
   const lastProposal = proposalsData?.[0]
   
   const selfImprovementData = {
@@ -153,9 +170,9 @@ export function OverviewTab({
 
   const efficiencyData = {
     avgDecisionTime: healthData?.avg_signal_time_ms ? healthData.avg_signal_time_ms / 1000 : -1,
-    signalsProcessed24h: activeSignals?.length || 0,
+    signalsProcessed24h: healthData?.signals_24h ?? -1,
     tradesExecuted24h: trades24h.length,
-    uptime: healthData?.uptime_seconds ? Math.min(healthData.uptime_seconds / (30 * 24 * 3600) * 100, 100) : -1,
+    processUptimeSeconds: healthData?.uptime_seconds ?? -1,
   }
 
   return (
@@ -272,6 +289,27 @@ export function OverviewTab({
         </div>
       </motion.div>
 
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.55 }}
+        className="border border-green-500/20 bg-green-500/[0.03] overflow-hidden"
+        style={{ height: '560px' }}
+      >
+        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3 bg-neutral-950/60">
+          <div>
+            <div className="text-sm text-neutral-200 uppercase tracking-wider font-semibold">Live Decision Stream</div>
+            <div className="text-[11px] text-neutral-500 mt-1">Signal pipeline, AI debate, thought stream, and strategy pulse in the main cockpit.</div>
+          </div>
+          <a href="/livestream" className="text-[10px] text-green-400 hover:text-green-300 uppercase tracking-wider border border-green-500/20 px-2 py-1 transition-colors">
+            Fullscreen
+          </a>
+        </div>
+        <div className="h-[calc(100%-65px)]">
+          <LiveStreamPanel />
+        </div>
+      </motion.div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -287,8 +325,8 @@ export function OverviewTab({
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-neutral-500">Strategies Active</span>
-              <span className="text-lg font-bold text-neutral-200">{strategiesActive}</span>
+              <span className="text-xs text-neutral-500">Signals in Pipeline</span>
+              <span className="text-lg font-bold text-neutral-200">{activeSignals?.length ?? 0}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-500">Active Signals</span>

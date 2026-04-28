@@ -4,24 +4,28 @@ interface SystemEfficiencyPanelProps {
   avgDecisionTime: number // in seconds
   signalsProcessed24h: number
   tradesExecuted24h: number
-  uptime: number // percentage
+  processUptimeSeconds: number
 }
 
 export function SystemEfficiencyPanel({
   avgDecisionTime,
   signalsProcessed24h,
   tradesExecuted24h,
-  uptime,
+  processUptimeSeconds,
 }: SystemEfficiencyPanelProps) {
   const formatDecisionTime = (seconds: number) => {
     if (seconds < 1) return `${(seconds * 1000).toFixed(0)}ms`
     return `${seconds.toFixed(1)}s`
   }
 
-  const getUptimeColor = (uptime: number) => {
-    if (uptime >= 99.5) return 'text-green-500'
-    if (uptime >= 98) return 'text-yellow-500'
-    return 'text-red-500'
+  const formatDuration = (seconds: number) => {
+    if (seconds < 0) return '—'
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${minutes}m`
+    return `${minutes}m`
   }
 
   return (
@@ -46,7 +50,7 @@ export function SystemEfficiencyPanel({
         className="border border-neutral-800 bg-neutral-900/30 p-3"
       >
         <div className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1">Signals Processed</div>
-        <div className="text-2xl font-bold text-neutral-200 tabular-nums">{signalsProcessed24h}</div>
+        <div className="text-2xl font-bold text-neutral-200 tabular-nums">{signalsProcessed24h < 0 ? '—' : signalsProcessed24h}</div>
         <div className="text-[10px] text-neutral-600 mt-1">Last 24 hours</div>
       </motion.div>
 
@@ -67,11 +71,11 @@ export function SystemEfficiencyPanel({
         transition={{ delay: 0.4 }}
         className="border border-neutral-800 bg-neutral-900/30 p-3"
       >
-        <div className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1">System Uptime</div>
-        <div className={`text-2xl font-bold tabular-nums ${uptime < 0 ? 'text-neutral-600' : getUptimeColor(uptime)}`}>
-          {uptime < 0 ? '—' : `${uptime.toFixed(1)}%`}
+        <div className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1">Process Uptime</div>
+        <div className={`text-2xl font-bold tabular-nums ${processUptimeSeconds < 0 ? 'text-neutral-600' : 'text-green-500'}`}>
+          {formatDuration(processUptimeSeconds)}
         </div>
-        <div className="text-[10px] text-neutral-600 mt-1">Last 30 days</div>
+        <div className="text-[10px] text-neutral-600 mt-1">Since last restart</div>
       </motion.div>
     </div>
   )
