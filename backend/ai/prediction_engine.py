@@ -92,7 +92,7 @@ class PredictionEngine:
             "volume_log": math.log1p(volume_capped),
         }
 
-    def predict(self, features: Dict[str, float]) -> Prediction:
+    def predict(self, features: Dict[str, float], strategy: Optional[str] = None) -> Prediction:
         if self._sk_model is not None:
             try:
                 vec = [[float(features.get(k, 0.0)) for k in self._feature_order]]
