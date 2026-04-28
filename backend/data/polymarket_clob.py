@@ -674,7 +674,41 @@ class PolymarketCLOB:
             }
 
         try:
+            # First attempt RPC for USDC.e since it handles proxy wallets natively
+            # without requiring py-clob-client authentication that is often flawed for builders
+            import httpx
+            
+            wallet_address = self.builder_address if self.builder_address else self._account.address
+            usdc_e = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+            rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
+            data = "0x70a08231000000000000000000000000" + wallet_address.lower()[2:]
+            
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.post(
+                    rpc_url,
+                    json={
+                        "jsonrpc": "2.0",
+                        "method": "eth_call",
+                        "params": [{"to": usdc_e, "data": data}, "latest"],
+                        "id": 1
+                    },
+                    headers={"User-Agent": "polyedge-finance"}
+                )
+                if res.status_code == 200 and "result" in res.json():
+                    hex_val = res.json()["result"]
+                    if hex_val == "0x": hex_val = "0x0"
+                    usdc_balance = int(hex_val, 16) / 1e6
+                    return {
+                        "usdc_balance": usdc_balance,
+                        "token_balances": {},
+                        "error": None
+                    }
+        except Exception as e:
+            logger.warning(f"Polygon RPC balance fetch failed: {e}")
+
+        try:
             # Fetch collateral balance (USDC) with correct signature_type for proxy wallets
+            # This is the fallback if RPC fails
             params = BalanceAllowanceParams(
                 asset_type=AssetType.COLLATERAL,
                 signature_type=self.signature_type if self.signature_type else None,

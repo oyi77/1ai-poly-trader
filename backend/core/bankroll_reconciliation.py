@@ -112,26 +112,69 @@ async def fetch_pm_portfolio_value(wallet: Optional[str] = None) -> Optional[flo
 
 
 async def fetch_pm_total_equity(wallet: Optional[str] = None) -> Optional[float]:
-    """Fetch live total equity as CLOB USDC cash + PM open-position value."""
+    """Fetch live total equity as USDC cash + PM open-position value."""
 
     open_value = await fetch_pm_open_position_value(wallet)
     if open_value is None:
         return None
-    try:
-        from backend.data.polymarket_clob import clob_from_settings
 
-        clob = clob_from_settings(mode="live")
-        async with clob:
-            await clob.create_or_derive_api_creds()
-            balance = await clob.get_wallet_balance()
-        if balance.get("error"):
-            logger.warning("CLOB cash balance fetch failed: %s", balance.get("error"))
-            return None
-        cash = float(balance.get("usdc_balance") or 0.0)
-        return round(cash + float(open_value), 6)
-    except Exception as exc:
-        logger.warning("PM total equity fetch failed: %s", exc)
+    wallet_address = wallet or get_polymarket_wallet_address()
+    if not wallet_address:
         return None
+
+    cash = 0.0
+    try:
+        # 1. Try fetching directly from Polygon RPC for real USDC.e balance
+        # Polymarket uses bridged USDC.e on Polygon POS for collateral
+        import httpx
+
+        usdc_e = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
+        data = "0x70a08231000000000000000000000000" + wallet_address.lower()[2:]
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "eth_call",
+            "params": [{"to": usdc_e, "data": data}, "latest"],
+            "id": 1,
+        }
+
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post(
+                rpc_url, json=payload, headers={"User-Agent": "polyedge-finance"}
+            )
+            if res.status_code == 200 and "result" in res.json():
+                hex_val = res.json()["result"]
+                if hex_val == "0x":
+                    hex_val = "0x0"
+                cash = int(hex_val, 16) / 1e6
+                logger.info(
+                    "Fetched %.2f USDC cash from Polygon RPC for %s",
+                    cash,
+                    wallet_address[:10],
+                )
+            else:
+                raise ValueError(f"RPC returned {res.status_code} or missing result")
+    except Exception as exc:
+        logger.warning("Polygon RPC cash fetch failed, falling back to CLOB: %s", exc)
+        # 2. Fallback to CLOB API if RPC fails
+        try:
+            from backend.data.polymarket_clob import clob_from_settings
+
+            clob = clob_from_settings(mode="live")
+            async with clob:
+                await clob.create_or_derive_api_creds()
+                balance = await clob.get_wallet_balance()
+            if balance.get("error"):
+                logger.warning(
+                    "CLOB cash balance fetch failed: %s", balance.get("error")
+                )
+                return None
+            cash = float(balance.get("usdc_balance") or 0.0)
+        except Exception as fallback_exc:
+            logger.warning("CLOB cash balance fallback failed: %s", fallback_exc)
+            return None
+
+    return round(cash + float(open_value), 6)
 
 
 def _realized_trade_stats(db: Session, mode: str) -> tuple[int, float, int]:
