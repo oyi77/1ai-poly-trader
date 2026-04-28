@@ -86,6 +86,7 @@ from backend.core.wallet_reconciliation import WalletReconciler
 
 # HFT shared data service
 from backend.data.shared_service import router as shared_data_router
+from backend.api.learning import router as learning_router
 
 from pydantic import BaseModel
 from fastapi import BackgroundTasks
@@ -807,6 +808,7 @@ app.include_router(errors_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(shared_data_router)
+app.include_router(learning_router, prefix="/api/v1")
 
 
 # Add metrics middleware for automatic tracking
