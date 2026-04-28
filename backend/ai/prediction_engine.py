@@ -103,6 +103,21 @@ class PredictionEngine:
         else:
             prob = self._baseline_predict(features)
 
+        if strategy is not None:
+            try:
+                from backend.core.outcome_repository import get_strategy_stats
+                from backend.models.database import SessionLocal
+                db = SessionLocal()
+                try:
+                    stats = get_strategy_stats(strategy, None, db)
+                    if stats and stats.get("total_trades", 0) >= 30:
+                        empirical_win_rate = stats["win_rate"]
+                        prob = 0.8 * prob + 0.2 * empirical_win_rate
+                finally:
+                    db.close()
+            except Exception as e:
+                logger.debug(f"Empirical blend skipped for {strategy}: {e}")
+
         confidence = min(1.0, abs(prob - 0.5) * 2.0)
         return Prediction(
             probability_yes=round(prob, 6),
