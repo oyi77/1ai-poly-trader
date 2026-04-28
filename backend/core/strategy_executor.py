@@ -136,6 +136,20 @@ async def execute_decision(
                 logger.info(
                     f"[{strategy_name}] Bot not running, skipping decision for {market_ticker}"
                 )
+
+                # Check if strategy enabled in DB
+                strategy_config = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
+                if not strategy_config or not strategy_config.enabled:
+                    logger.warning(
+                        f"[{strategy_name}] Skipping execution as strategy is disabled or missing in config"
+                    )
+                    attempt_recorder.record_blocked(
+                        "Strategy disabled or missing",
+                        phase="preflight",
+                        reason_code="BLOCKED_STRATEGY_DISABLED",
+                    )
+                    db.commit()
+                    return None
                 attempt_recorder.record_blocked(
                     "Bot not running for selected mode",
                     phase="preflight",
