@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { getAdminApiKey, setAdminApiKey } from '../api'
 import { ModeFilterProvider } from '../contexts/ModeFilterContext'
 
-const SettingsEditor = lazy(() => import('../components/admin/SettingsEditor').then(m => ({ default: m.SettingsEditor })))
+
 const SystemStatus = lazy(() => import('../components/admin/SystemStatus').then(m => ({ default: m.SystemStatus })))
 const CopyTraderMonitor = lazy(() => import('../components/admin/CopyTraderMonitor').then(m => ({ default: m.CopyTraderMonitor })))
 const Backtest = lazy(() => import('./Backtest').then(m => ({ default: m.Backtest })))
@@ -17,6 +17,7 @@ const RiskTab = lazy(() => import('../components/admin/RiskTab').then(m => ({ de
 const AITab = lazy(() => import('../components/admin/AITab').then(m => ({ default: m.AITab })))
 const DebateMonitorTab = lazy(() => import('../components/admin/DebateMonitorTab').then(m => ({ default: m.DebateMonitorTab })))
 const PendingApprovals = lazy(() => import('./PendingApprovals'))
+const SettingsPage = lazy(() => import('./Settings'))
 const TradingTerminalTab = lazy(() => import('../components/dashboard/TradingTerminalTab').then(m => ({ default: m.TradingTerminalTab })))
 const WhaleTrackerTab = lazy(() => import('../components/dashboard/WhaleTrackerTab').then(m => ({ default: m.WhaleTrackerTab })))
 const EdgeTrackerTab = lazy(() => import('../components/dashboard/EdgeTrackerTab').then(m => ({ default: m.EdgeTrackerTab })))
@@ -158,7 +159,7 @@ export default function Admin() {
         <ModeFilterProvider>
         <Suspense fallback={<div className="flex items-center justify-center h-full text-neutral-500">Loading...</div>}>
           {activeTab === 'System' && <SystemStatus />}
-          {activeTab === 'Settings' && <SettingsEditor />}
+          {activeTab === 'Settings' && <SettingsPage />}
           {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
           {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
           {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}

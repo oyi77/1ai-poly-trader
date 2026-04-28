@@ -1,21 +1,25 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  Zap, Brain, Activity, Radio, ChevronRight, 
-  Signal, Shield, DollarSign, AlertTriangle, 
-  TrendingUp, TrendingDown, Mic, Play, Pause
+import {
+  Zap, Brain, Activity, Radio, ChevronRight,
+  Signal, Shield, DollarSign, AlertTriangle,
+  TrendingUp, TrendingDown, Mic, Play, Pause,
+  RefreshCw, Wifi, WifiOff, Grid3X3
 } from 'lucide-react'
 
 interface DecisionCard {
   id: string
   signal: string
-  timestamp: Date
+  timestamp: string | number
   stage: 'detected' | 'analyzing' | 'debate' | 'judge' | 'risk' | 'executed' | 'blocked'
   bullReason?: string
   bearReason?: string
   verdict?: 'bull' | 'bear' | null
   riskScore?: number
   decision?: 'executed' | 'blocked'
+  confidence?: number
+  source?: string
+  strategy?: string
 }
 
 interface StrategyPulse {
@@ -27,41 +31,223 @@ interface StrategyPulse {
 function LiveStream() {
   const [activeTab, setActiveTab] = useState<'all' | 'pipeline' | 'arena' | 'pulse'>('all')
   const [isLive, setIsLive] = useState(true)
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [cards, setCards] = useState<DecisionCard[]>([])
+  const [bullText, setBullText] = useState('')
+  const [bearText, setBearText] = useState('')
+  const [verdict, setVerdict] = useState<'bull' | 'bear' | null>(null)
+  const [isDebating, setIsDebating] = useState(false)
+  const [strategies, setStrategies] = useState<StrategyPulse[]>([])
+  const [botState, setBotState] = useState<{
+    bankroll: number
+    totalPnl: number
+    totalTrades: number
+    isRunning: boolean
+  } | null>(null)
+
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectRef = useRef(0)
+  const maxReconnect = 5
+
+  const connectWs = useCallback(() => {
+    if (reconnectRef.current >= maxReconnect) {
+      setWsStatus('disconnected')
+      return
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || '127.0.0.1:8100'
+    const adminKey = localStorage.getItem('adminApiKey') || ''
+    const ws = new WebSocket(`${protocol}//${host}/ws/livestream?token=${adminKey}`)
+
+    wsRef.current = ws
+    setWsStatus('connecting')
+
+    ws.onopen = () => {
+      reconnectRef.current = 0
+      setWsStatus('connected')
+    }
+
+    ws.onmessage = (evt: MessageEvent) => {
+      try {
+        const msg = JSON.parse(evt.data)
+
+        switch (msg.type) {
+          case 'subscribed':
+            console.log('[LiveStream] Subscribed to livestream')
+            break
+
+          case 'livestream_snapshot':
+            if (msg.pipeline_cards) {
+              setCards(msg.pipeline_cards.map((c: any) => ({
+                ...c,
+                timestamp: c.timestamp ? new Date(c.timestamp) : new Date()
+              })))
+            }
+            if (msg.pulse_strategies) {
+              setStrategies(msg.pulse_strategies.map((s: any) => ({
+                name: s.name,
+                status: s.status || 'idle',
+                lastPulse: s.last_pulse || Date.now()
+              })))
+            }
+            break
+
+          case 'pipeline_update':
+            if (msg.action === 'card_added') {
+              setCards(prev => {
+                const updated = [...prev, { ...msg.card, timestamp: new Date(msg.card.timestamp) }]
+                return updated.slice(-50)
+              })
+            } else if (msg.action === 'stage_transition') {
+              setCards(prev => prev.map(c => {
+                if (c.id === msg.card_id) {
+                  return { ...c, stage: msg.stage, ...msg }
+                }
+                return c
+              }))
+            }
+            break
+
+          case 'arena_update':
+            setBullText(msg.bull_text || '')
+            setBearText(msg.bear_text || '')
+            setVerdict(msg.verdict || null)
+            setIsDebating(msg.is_debating !== false)
+            break
+
+          case 'pulse_update':
+            setStrategies(prev => {
+              const updated = prev.filter(s => s.name !== msg.strategy)
+              return [...updated, {
+                name: msg.strategy,
+                status: msg.status || 'idle',
+                lastPulse: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
+              }]
+            })
+            break
+
+          case 'trade_event':
+            if (msg.action === 'trade_executed' || msg.action === 'trade_blocked') {
+              const trade = msg.trade
+              if (trade) {
+                const newCard: DecisionCard = {
+                  id: `trade_${trade.id}`,
+                  signal: trade.market_ticker || 'Unknown',
+                  stage: msg.action === 'trade_executed' ? 'executed' : 'blocked',
+                  timestamp: trade.timestamp ? (typeof trade.timestamp === 'string' ? trade.timestamp : Date.now()) : Date.now(),
+                  decision: msg.action === 'trade_executed' ? 'executed' : 'blocked',
+                  confidence: trade.confidence,
+                  source: trade.signal_source,
+                  strategy: trade.strategy
+                }
+                setCards(prev => {
+                  const updated = [...prev, newCard]
+                  return updated.slice(-50)
+                })
+              }
+            }
+            break
+
+          case 'bot_state':
+            setBotState({
+              bankroll: msg.bankroll || 0,
+              totalPnl: msg.total_pnl || 0,
+              totalTrades: msg.total_trades || 0,
+              isRunning: msg.is_running || false
+            })
+            break
+        }
+      } catch (e) {
+        console.error('[LiveStream] Parse error:', e)
+      }
+    }
+
+    ws.onerror = () => {}
+
+    ws.onclose = () => {
+      if (reconnectRef.current < maxReconnect) {
+        reconnectRef.current++
+        setWsStatus('connecting')
+        setTimeout(connectWs, Math.min(5000, 1000 * Math.pow(2, reconnectRef.current - 1)))
+      } else {
+        setWsStatus('disconnected')
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    connectWs()
+    return () => {
+      reconnectRef.current = maxReconnect
+      if (wsRef.current) {
+        wsRef.current.onclose = null
+        wsRef.current.close()
+      }
+    }
+  }, [connectWs])
 
   return (
     <div className="h-full bg-black overflow-hidden flex flex-col">
-      <LiveStreamHeader activeTab={activeTab} setActiveTab={setActiveTab} isLive={isLive} setIsLive={setIsLive} />
-      
+      <LiveStreamHeader
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isLive={isLive}
+        setIsLive={setIsLive}
+        wsStatus={wsStatus}
+        botState={botState}
+      />
+
       <div className="flex-1 overflow-hidden">
         {activeTab === 'all' ? (
           <div className="h-full grid grid-cols-1 lg:grid-cols-2 grid-rows-2 gap-2 p-2">
             <div className="lg:row-span-2 bg-neutral-900 rounded-lg overflow-hidden">
-              <PipelineView isLive={isLive} />
+              <PipelineView isLive={isLive} cards={cards} />
             </div>
             <div className="bg-neutral-900 rounded-lg overflow-hidden">
-              <ArenaView isLive={isLive} />
+              <ArenaView
+                isLive={isLive}
+                bullText={bullText}
+                bearText={bearText}
+                verdict={verdict}
+                isDebating={isDebating}
+              />
             </div>
             <div className="bg-neutral-900 rounded-lg overflow-hidden">
-              <PulseView isLive={isLive} />
+              <PulseView isLive={isLive} strategies={strategies} />
             </div>
           </div>
         ) : activeTab === 'pipeline' ? (
-          <PipelineView isLive={isLive} fullPage />
+          <PipelineView isLive={isLive} cards={cards} fullPage />
         ) : activeTab === 'arena' ? (
-          <ArenaView isLive={isLive} fullPage />
+          <ArenaView
+            isLive={isLive}
+            bullText={bullText}
+            bearText={bearText}
+            verdict={verdict}
+            isDebating={isDebating}
+            fullPage
+          />
         ) : (
-          <PulseView isLive={isLive} fullPage />
+          <PulseView isLive={isLive} strategies={strategies} fullPage />
         )}
       </div>
     </div>
   )
 }
 
-function LiveStreamHeader({ activeTab, setActiveTab, isLive, setIsLive }: {
+function LiveStreamHeader({ activeTab, setActiveTab, isLive, setIsLive, wsStatus, botState }: {
   activeTab: 'all' | 'pipeline' | 'arena' | 'pulse'
   setActiveTab: (t: 'all' | 'pipeline' | 'arena' | 'pulse') => void
   isLive: boolean
   setIsLive: (v: boolean) => void
+  wsStatus?: 'connecting' | 'connected' | 'disconnected'
+  botState?: {
+    bankroll: number
+    totalPnl: number
+    totalTrades: number
+    isRunning: boolean
+  } | null
 }) {
   const tabs = [
     { id: 'all', label: 'All Three', icon: Grid3X3 },
@@ -76,30 +262,47 @@ function LiveStreamHeader({ activeTab, setActiveTab, isLive, setIsLive }: {
         <div className="flex items-center gap-2">
           <Radio className={`w-4 h-4 ${isLive ? 'text-green-500 animate-pulse' : 'text-neutral-500'}`} />
           <span className="text-sm font-bold text-neutral-100 uppercase tracking-wider">Live Stream</span>
+          {wsStatus === 'connected' ? (
+            <Wifi className="w-3 h-3 text-green-400" />
+          ) : wsStatus === 'connecting' ? (
+            <RefreshCw className="w-3 h-3 text-yellow-400 animate-spin" />
+          ) : (
+            <WifiOff className="w-3 h-3 text-red-400" />
+          )}
         </div>
-        
-        <div className="flex gap-1 ml-4">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 text-xs uppercase tracking-wider rounded transition-colors ${
-                activeTab === tab.id 
-                  ? 'bg-green-500/20 text-green-400 border border-green-500/40' 
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+
+        {botState && (
+          <div className="hidden md:flex items-center gap-3 ml-4 text-[10px] text-neutral-400">
+            <span>Bankroll: <span className="text-green-400">${botState.bankroll.toFixed(2)}</span></span>
+            <span>P&L: <span className={botState.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+              {botState.totalPnl >= 0 ? '+' : ''}{botState.totalPnl.toFixed(2)}
+            </span></span>
+            <span>Trades: <span className="text-neutral-200">{botState.totalTrades}</span></span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-1 ml-4">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-3 py-1.5 text-xs uppercase tracking-wider rounded transition-colors ${
+              activeTab === tab.id
+                ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <button
         onClick={() => setIsLive(!isLive)}
         className={`flex items-center gap-2 px-3 py-1.5 rounded border transition-colors ${
-          isLive 
-            ? 'bg-red-500/20 border-red-500/40 text-red-400' 
+          isLive
+            ? 'bg-red-500/20 border-red-500/40 text-red-400'
             : 'bg-neutral-800 border-neutral-700 text-neutral-400'
         }`}
       >
@@ -107,17 +310,6 @@ function LiveStreamHeader({ activeTab, setActiveTab, isLive, setIsLive }: {
         <span className="text-xs uppercase tracking-wider">{isLive ? 'Pause' : 'Play'}</span>
       </button>
     </div>
-  )
-}
-
-function Grid3X3({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-      <rect x="1" y="1" width="5" height="5" rx="1" />
-      <rect x="6" y="1" width="9" height="5" rx="1" />
-      <rect x="1" y="6" width="5" height="9" rx="1" />
-      <rect x="6" y="6" width="9" height="9" rx="1" />
-    </svg>
   )
 }
 
@@ -131,33 +323,38 @@ function Kanban({ className }: { className?: string }) {
   )
 }
 
-function PipelineView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: boolean }) {
-  const [cards, setCards] = useState<DecisionCard[]>([
-    { id: '1', signal: 'BTC > $95K by Friday', timestamp: new Date(), stage: 'debate', bullReason: 'Whale accumulation detected', bearReason: 'Overbought RSI at 78' },
-    { id: '2', signal: 'ETH > $2.5K this week', timestamp: new Date(Date.now() - 60000), stage: 'judge', verdict: 'bull' },
-    { id: '3', signal: 'SOL > $180 by weekend', timestamp: new Date(Date.now() - 120000), stage: 'executed', decision: 'executed', verdict: 'bull', riskScore: 0.65 },
-    { id: '4', signal: 'AVAX < $35 by Monday', timestamp: new Date(Date.now() - 180000), stage: 'blocked', decision: 'blocked', verdict: 'bear', riskScore: 0.92 },
-  ])
-
+function PipelineView({ isLive, cards, fullPage = false }: {
+  isLive: boolean
+  cards?: DecisionCard[]
+  fullPage?: boolean
+}) {
   const stages = ['detected', 'analyzing', 'debate', 'judge', 'risk', 'executed', 'blocked'] as const
 
-  useEffect(() => {
-    if (!isLive) return
-    
-    const interval = setInterval(() => {
-      const randomStage = stages[Math.floor(Math.random() * (stages.length - 2))]
-      const newCard: DecisionCard = {
-        id: Date.now().toString(),
-        signal: ['BTC > $100K', 'ETH > $3K', 'SOL > $200', 'DOGE > $0.50'][Math.floor(Math.random() * 4)],
-        timestamp: new Date(),
-        stage: randomStage,
-      }
-      
-      setCards(prev => [...prev.slice(-10), newCard])
-    }, 4000)
-    
-    return () => clearInterval(interval)
-  }, [isLive])
+  const displayCards = cards && cards.length > 0 ? cards : (() => {
+    const [localCards, setLocalCards] = useState<DecisionCard[]>([
+      { id: '1', signal: 'BTC > $95K by Friday', timestamp: Date.now(), stage: 'debate', bullReason: 'Whale accumulation detected', bearReason: 'Overbought RSI at 78' },
+      { id: '2', signal: 'ETH > $2.5K this week', timestamp: Date.now() - 60000, stage: 'judge', verdict: 'bull' },
+      { id: '3', signal: 'SOL > $180 by weekend', timestamp: Date.now() - 120000, stage: 'executed', decision: 'executed', verdict: 'bull', riskScore: 0.65 },
+      { id: '4', signal: 'AVAX < $35 by Monday', timestamp: Date.now() - 180000, stage: 'blocked', decision: 'blocked', verdict: 'bear', riskScore: 0.92 },
+    ])
+
+    useEffect(() => {
+      if (!isLive) return
+      const interval = setInterval(() => {
+        const randomStage = stages[Math.floor(Math.random() * (stages.length - 2))]
+        const newCard: DecisionCard = {
+          id: Date.now().toString(),
+          signal: ['BTC > $100K', 'ETH > $3K', 'SOL > $200', 'DOGE > $0.50'][Math.floor(Math.random() * 4)],
+          timestamp: Date.now(),
+          stage: randomStage,
+        }
+        setLocalCards(prev => [...prev.slice(-10), newCard])
+      }, 4000)
+      return () => clearInterval(interval)
+    }, [isLive])
+
+    return localCards
+  })()
 
   const stageLabels: Record<string, { label: string; icon: any; color: string }> = {
     detected: { label: 'Signal Detected', icon: Signal, color: 'text-blue-400' },
@@ -169,14 +366,16 @@ function PipelineView({ isLive, fullPage = false }: { isLive: boolean; fullPage?
     blocked: { label: 'Blocked', icon: AlertTriangle, color: 'text-red-400' },
   }
 
-  const getCardsForStage = (stage: string) => cards.filter(c => c.stage === stage)
+  const getCardsForStage = (stage: string) => displayCards.filter(c => c.stage === stage)
 
   return (
     <div className={`h-full flex flex-col ${fullPage ? 'p-4' : 'p-2'}`}>
       <div className="flex items-center gap-2 mb-3 px-2">
         <Kanban className="w-4 h-4 text-green-500" />
         <span className="text-xs font-bold text-neutral-100 uppercase tracking-wider">Decision Pipeline</span>
-        <span className="text-[10px] text-neutral-500 ml-auto">Real-time signal flow</span>
+        <span className="text-[10px] text-neutral-500 ml-auto">
+          {cards && cards.length > 0 ? 'Real data' : 'Simulation'} | {displayCards.length} signals
+        </span>
       </div>
 
       <div className="flex-1 flex gap-2 overflow-x-auto pb-2">
@@ -184,14 +383,14 @@ function PipelineView({ isLive, fullPage = false }: { isLive: boolean; fullPage?
           const stageCards = getCardsForStage(stage)
           const info = stageLabels[stage]
           const Icon = info.icon
-          
+
           return (
             <div key={stage} className="flex-shrink-0 w-28 flex flex-col">
               <div className={`flex items-center gap-1.5 mb-2 px-1 ${info.color}`}>
                 <Icon className="w-3 h-3" />
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">{info.label}</span>
               </div>
-              
+
               <div className="flex-1 space-y-1.5 overflow-y-auto min-h-0">
                 {stageCards.map(card => (
                   <motion.div
@@ -202,16 +401,16 @@ function PipelineView({ isLive, fullPage = false }: { isLive: boolean; fullPage?
                   >
                     <div className="text-[9px] text-neutral-200 font-medium truncate">{card.signal}</div>
                     <div className="text-[8px] text-neutral-500 mt-1">
-                      {card.timestamp.toLocaleTimeString()}
+                      {typeof card.timestamp === 'number' ? new Date(card.timestamp).toLocaleTimeString() : card.timestamp.toString()}
                     </div>
                     {card.verdict && (
                       <div className={`text-[8px] mt-1 font-bold ${card.verdict === 'bull' ? 'text-green-400' : 'text-red-400'}`}>
                         {card.verdict.toUpperCase()}
                       </div>
                     )}
-                    {card.riskScore !== undefined && (
+                    {card.confidence !== undefined && (
                       <div className="text-[8px] text-neutral-400 mt-1">
-                        Risk: {(card.riskScore * 100).toFixed(0)}%
+                        Conf: {(card.confidence * 100).toFixed(0)}%
                       </div>
                     )}
                   </motion.div>
@@ -231,51 +430,67 @@ function PipelineView({ isLive, fullPage = false }: { isLive: boolean; fullPage?
   )
 }
 
-function ArenaView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: boolean }) {
-  const [bullText, setBullText] = useState('')
-  const [bearText, setBearText] = useState('')
-  const [verdict, setVerdict] = useState<'bull' | 'bear' | null>(null)
-  const [isDebating, setIsDebating] = useState(true)
-  
-  const bullArguments = [
-    "Whale wallets accumulating +$2.3M in last 24h...",
-    "On-chain metrics show strong accumulation pattern...",
-    "Funding rates still positive, market sentiment bullish...",
-    "Volume surge 340% above 30-day average...",
-    "RSI divergence suggests upward momentum intact...",
-  ]
-  
-  const bearArguments = [
-    "Exchange reserves increasing - potential sell pressure...",
-    "Overbought on 4H chart, RSI at 78...",
-    "Whale distribution detected, smart money exiting...",
-    "Volume decreasing while price still rising - divergence...",
-    "Multiple resistance levels overhead at $96K...",
-  ]
+function ArenaView({ isLive, bullText, bearText, verdict, isDebating, fullPage = false }: {
+  isLive: boolean
+  bullText?: string
+  bearText?: string
+  verdict?: 'bull' | 'bear' | null
+  isDebating?: boolean
+  fullPage?: boolean;
+}) {
+  const [localBullText, setLocalBullText] = useState('')
+  const [localBearText, setLocalBearText] = useState('')
+  const [localVerdict, setLocalVerdict] = useState<'bull' | 'bear' | null>(null)
+  const [localIsDebating, setLocalIsDebating] = useState(true)
 
   useEffect(() => {
-    if (!isLive || !isDebating) return
-    
+    if (bullText !== undefined || bearText !== undefined) {
+      setLocalBullText(bullText || '')
+      setLocalBearText(bearText || '')
+      setLocalVerdict(verdict || null)
+      setLocalIsDebating(isDebating !== undefined ? isDebating : true)
+    }
+  }, [bullText, bearText, verdict, isDebating])
+
+  useEffect(() => {
+    if (!isLive || bullText !== undefined || bearText !== undefined) return
+
+    const bullArgs = [
+      "Whale wallets accumulating +$2.3M in last 24h...",
+      "On-chain metrics show strong accumulation pattern...",
+      "Funding rates still positive, market sentiment bullish...",
+      "Volume surge 340% above 30-day average...",
+      "RSI divergence suggests upward momentum intact...",
+    ]
+
+    const bearArgs = [
+      "Exchange reserves increasing - potential sell pressure...",
+      "Overbought on 4H chart, RSI at 78...",
+      "Whale distribution detected, smart money exiting...",
+      "Volume decreasing while price still rising - divergence...",
+      "Multiple resistance levels overhead at $96K...",
+    ]
+
     let bullIndex = 0
     let bearIndex = 0
-    
+
     const bullInterval = setInterval(() => {
-      if (bullIndex < bullArguments.length) {
-        setBullText(prev => prev + (prev ? '\n' : '') + bullArguments[bullIndex])
+      if (bullIndex < bullArgs.length) {
+        setLocalBullText(prev => prev + (prev ? '\n' : '') + bullArgs[bullIndex])
         bullIndex++
       }
     }, 1500)
-    
+
     const bearInterval = setInterval(() => {
-      if (bearIndex < bearArguments.length) {
-        setBearText(prev => prev + (prev ? '\n' : '') + bearArguments[bearIndex])
+      if (bearIndex < bearArgs.length) {
+        setLocalBearText(prev => prev + (prev ? '\n' : '') + bearArgs[bearIndex])
         bearIndex++
       }
     }, 1800)
 
     const verdictTimeout = setTimeout(() => {
-      setVerdict(Math.random() > 0.5 ? 'bull' : 'bear')
-      setIsDebating(false)
+      setLocalVerdict(Math.random() > 0.5 ? 'bull' : 'bear')
+      setLocalIsDebating(false)
     }, 12000)
 
     return () => {
@@ -283,13 +498,18 @@ function ArenaView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: b
       clearInterval(bearInterval)
       clearTimeout(verdictTimeout)
     }
-  }, [isLive])
+  }, [isLive, bullText, bearText])
+
+  const displayBullText = bullText !== undefined ? bullText : localBullText
+  const displayBearText = bearText !== undefined ? bearText : localBearText
+  const displayVerdict = verdict !== undefined ? verdict : localVerdict
+  const displayIsDebating = isDebating !== undefined ? isDebating : localIsDebating
 
   const resetDebate = () => {
-    setBullText('')
-    setBearText('')
-    setVerdict(null)
-    setIsDebating(true)
+    setLocalBullText('')
+    setLocalBearText('')
+    setLocalVerdict(null)
+    setLocalIsDebating(true)
   }
 
   return (
@@ -310,8 +530,8 @@ function ArenaView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: b
           </div>
           <div className="flex-1 overflow-y-auto">
             <p className="text-[10px] text-green-300/80 font-mono leading-relaxed whitespace-pre-line">
-              {bullText}
-              {isDebating && <span className="animate-pulse">▊</span>}
+              {displayBullText}
+              {displayIsDebating && <span className="animate-pulse">▊</span>}
             </p>
           </div>
         </div>
@@ -323,27 +543,27 @@ function ArenaView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: b
           </div>
           <div className="flex-1 overflow-y-auto">
             <p className="text-[10px] text-red-300/80 font-mono leading-relaxed whitespace-pre-line">
-              {bearText}
-              {isDebating && <span className="animate-pulse">▊</span>}
+              {displayBearText}
+              {displayIsDebating && <span className="animate-pulse">▊</span>}
             </p>
           </div>
         </div>
       </div>
 
-      {verdict && (
-        <motion.div 
+      {displayVerdict && (
+        <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           className={`mt-2 p-2 rounded-lg border text-center ${
-            verdict === 'bull' 
-              ? 'bg-green-500/20 border-green-500/40' 
+            displayVerdict === 'bull'
+              ? 'bg-green-500/20 border-green-500/40'
               : 'bg-red-500/20 border-red-500/40'
           }`}
         >
           <div className={`text-xs font-bold uppercase tracking-wider ${
-            verdict === 'bull' ? 'text-green-400' : 'text-red-400'
+            displayVerdict === 'bull' ? 'text-green-400' : 'text-red-400'
           }`}>
-            Judge Verdict: {verdict === 'bull' ? '🟢 BULL' : '🔴 BEAR'}
+            Judge Verdict: {displayVerdict === 'bull' ? '🟢 BULL' : '🔴 BEAR'}
           </div>
         </motion.div>
       )}
@@ -351,25 +571,37 @@ function ArenaView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: b
   )
 }
 
-function PulseView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: boolean }) {
-  const [strategies, setStrategies] = useState<StrategyPulse[]>([
-    { name: 'BTC Momentum', status: 'thinking', lastPulse: Date.now() },
-    { name: 'Weather EMOS', status: 'fired', lastPulse: Date.now() - 5000 },
-    { name: 'Whale Tracker', status: 'idle', lastPulse: Date.now() - 30000 },
-    { name: 'Arb Scanner', status: 'thinking', lastPulse: Date.now() },
-    { name: 'Copy Trader', status: 'idle', lastPulse: Date.now() - 60000 },
-    { name: 'MiroFish', status: 'thinking', lastPulse: Date.now() },
-  ])
-
+function PulseView({ isLive, strategies, fullPage = false }: {
+  isLive: boolean
+  strategies?: StrategyPulse[]
+  fullPage?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  const [displayStrategies, setDisplayStrategies] = useState<StrategyPulse[]>([])
+
   useEffect(() => {
+    if (strategies && strategies.length > 0) {
+      setDisplayStrategies(strategies)
+      return
+    }
     if (!isLive) return
 
+    const defaultStrategies: StrategyPulse[] = [
+      { name: 'BTC Momentum', status: 'thinking', lastPulse: Date.now() },
+      { name: 'Weather EMOS', status: 'fired', lastPulse: Date.now() - 5000 },
+      { name: 'Whale Tracker', status: 'idle', lastPulse: Date.now() - 30000 },
+      { name: 'Arb Scanner', status: 'thinking', lastPulse: Date.now() },
+      { name: 'Copy Trader', status: 'idle', lastPulse: Date.now() - 60000 },
+      { name: 'MiroFish', status: 'thinking', lastPulse: Date.now() },
+    ]
+
+    setDisplayStrategies(defaultStrategies)
+
     const interval = setInterval(() => {
-      setStrategies(prev => prev.map(s => ({
+      setDisplayStrategies(prev => prev.map(s => ({
         ...s,
-        status: Math.random() > 0.7 
+        status: Math.random() > 0.7
           ? (s.status === 'idle' ? 'thinking' : s.status)
           : s.status === 'thinking' ? 'fired' : s.status === 'fired' ? 'idle' : s.status,
         lastPulse: Date.now()
@@ -377,75 +609,78 @@ function PulseView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: b
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [isLive])
+  }, [strategies, isLive])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    
-    let animationId: number
-    let phase = 0
+
+    let animationId: number;
+    let phase = 0;
 
     const draw = () => {
       const { width, height } = canvas
       ctx.fillStyle = '#0a0a0a'
       ctx.fillRect(0, 0, width, height)
-      
-      const activeStrategies = strategies.filter(s => s.status === 'thinking' || s.status === 'fired')
-      
+
+      const activeStrategies = displayStrategies.filter(s => s.status === 'thinking' || s.status === 'fired')
+
       activeStrategies.forEach((strategy, i) => {
         const y = 30 + i * 25
         const color = strategy.status === 'fired' ? '#22c55e' : strategy.status === 'thinking' ? '#a855f7' : '#6b7280'
-        
+
         ctx.strokeStyle = color
         ctx.lineWidth = 2
         ctx.beginPath()
-        
+
         for (let x = 0; x < width; x++) {
           const wave = Math.sin((x / 20) + phase + (strategy.status === 'fired' ? 0 : Math.PI))
           const amplitude = strategy.status === 'fired' ? 8 : strategy.status === 'thinking' ? 4 : 0
+
           const yOffset = wave * amplitude
-          
+
           if (x === 0) {
             ctx.moveTo(x, y + yOffset)
           } else {
             ctx.lineTo(x, y + yOffset)
           }
         }
-        
+
         ctx.stroke()
-        
+
         ctx.fillStyle = color
         ctx.beginPath()
         ctx.arc(width - 20, y, 4, 0, Math.PI * 2)
         ctx.fill()
-        
+
         ctx.fillStyle = '#9ca3af'
         ctx.font = '9px monospace'
         ctx.fillText(strategy.name, 10, y + 3)
       })
-      
+
       phase += 0.1
       animationId = requestAnimationFrame(draw)
     }
 
     draw()
     return () => cancelAnimationFrame(animationId)
-  }, [strategies, isLive])
+  }, [displayStrategies, isLive])
 
   return (
     <div className={`h-full flex flex-col ${fullPage ? 'p-4' : 'p-2'}`}>
       <div className="flex items-center gap-2 mb-3 px-2">
         <Activity className="w-4 h-4 text-purple-500" />
         <span className="text-xs font-bold text-neutral-100 uppercase tracking-wider">Neural Pulse</span>
-        <span className="text-[10px] text-neutral-500">EKG heartbeat monitor</span>
+        <span className="text-[10px] text-neutral-500">
+          {displayStrategies.length > 0 ? `${displayStrategies.length} strategies` : 'EKG heartbeat monitor'}
+        </span>
       </div>
 
       <div className="flex-1 relative">
-        <canvas 
+        <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full"
           width={400}
@@ -454,7 +689,7 @@ function PulseView({ isLive, fullPage = false }: { isLive: boolean; fullPage?: b
       </div>
 
       <div className="mt-2 grid grid-cols-3 gap-2">
-        {strategies.slice(0, 6).map(s => (
+        {displayStrategies.slice(0, 6).map(s => (
           <div key={s.name} className="bg-neutral-800/50 rounded px-2 py-1 flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${
               s.status === 'thinking' ? 'bg-purple-500 animate-pulse' :

@@ -11,7 +11,6 @@ const Activity = React.lazy(() => import('./pages/Activity'))
 const Proposals = React.lazy(() => import('./pages/Proposals'))
 const ErrorTest = React.lazy(() => import('./pages/ErrorTest'))
 const MiroFish = React.lazy(() => import('./pages/MiroFish'))
-const Settings = React.lazy(() => import('./pages/Settings'))
 const LiveStream = React.lazy(() => import('./pages/LiveStream'))
 
 /**
@@ -58,7 +57,7 @@ export default function App() {
             <Route path="/signals" element={<Dashboard />} />
             <Route path="/trades" element={<Dashboard />} />
             <Route path="/markets" element={<Dashboard />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<Navigate to="/admin" replace />} />
             <Route path="/copy-trading" element={<Dashboard />} />
             <Route path="/weather" element={<Dashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />

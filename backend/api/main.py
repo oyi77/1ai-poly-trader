@@ -220,10 +220,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     shutdown_handler.register_handlers()
     app.state.shutdown_handler = shutdown_handler
     
-    from backend.api_websockets import brain_stream, activity_stream, proposals
+    from backend.api_websockets import brain_stream, activity_stream, proposals, livestream
     brain_stream.set_task_manager(app.state.task_manager)
     activity_stream.set_task_manager(app.state.task_manager)
     proposals.set_task_manager(app.state.task_manager)
+    livestream.set_task_manager(app.state.task_manager)
     
     logger.info("=" * 60)
     logger.info("BTC 5-MIN TRADING BOT v3.0")
@@ -465,6 +466,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         stats_broadcaster(), name="stats_broadcaster"
     )
     logger.info("Stats broadcaster task created")
+
+    logger.info("Creating livestream broadcaster background task...")
+    livestream_task = await app.state.task_manager.create_task(
+        livestream.livestream_broadcaster(), name="livestream_broadcaster"
+    )
+    logger.info("Livestream broadcaster task created")
 
     from backend.data.polymarket_websocket import (
         get_market_websocket,
@@ -1919,6 +1926,40 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
     except Exception as e:
         logger.exception(
             f"[api.main.websocket_stats] {type(e).__name__}: Stats WebSocket error: {e}"
+        )
+        await topic_manager.disconnect(websocket)
+    finally:
+        await connection_limiter.release_ws_connection(websocket)
+
+
+@app.websocket("/ws/livestream")
+async def websocket_livestream(websocket: WebSocket, token: str = ""):
+    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+
+    allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
+    if not allowed:
+        await websocket.close(code=1008, reason=error_msg)
+        return
+
+    await websocket.accept()
+
+    try:
+        await topic_manager.subscribe(websocket, "livestream")
+        await websocket.send_json({"type": "subscribed", "topic": "livestream"})
+
+        from backend.api_websockets.livestream import broadcast_livestream_snapshot
+        await broadcast_livestream_snapshot()
+
+        while True:
+            await asyncio.sleep(60)
+    except WebSocketDisconnect:
+        logger.info("Livestream WebSocket disconnected")
+        await topic_manager.disconnect(websocket)
+    except Exception as e:
+        logger.exception(
+            f"[api.main.websocket_livestream] {type(e).__name__}: Livestream WebSocket error: {e}"
         )
         await topic_manager.disconnect(websocket)
     finally:
