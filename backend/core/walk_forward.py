@@ -247,3 +247,125 @@ class WalkForwardEngine:
             )
 
         return results
+
+
+import math
+from dataclasses import dataclass
+
+
+@dataclass
+class ValidationResult:
+    approved: bool
+    old_sharpe: float
+    new_sharpe: float
+    old_drawdown: float
+    new_drawdown: float
+    reason: str
+
+
+def _compute_sharpe(pnls: list) -> float:
+    if len(pnls) < 2:
+        return 0.0
+    mean = sum(pnls) / len(pnls)
+    variance = sum((p - mean) ** 2 for p in pnls) / len(pnls)
+    std = math.sqrt(variance) if variance > 0 else 1e-9
+    return (mean / std) * math.sqrt(len(pnls))
+
+
+def _compute_max_drawdown(pnls: list) -> float:
+    if not pnls:
+        return 0.0
+    peak = 0.0
+    cumulative = 0.0
+    max_dd = 0.0
+    for p in pnls:
+        cumulative += p
+        if cumulative > peak:
+            peak = cumulative
+        dd = peak - cumulative
+        if dd > max_dd:
+            max_dd = dd
+    return max_dd
+
+
+class WalkForwardValidator:
+    SHARPE_IMPROVEMENT_THRESHOLD = 0.1
+    DRAWDOWN_TOLERANCE = 1.05
+
+    def validate_param_change(
+        self,
+        strategy: str,
+        old_params: dict,
+        new_params: dict,
+        db,
+    ) -> ValidationResult:
+        from backend.core.outcome_repository import get_recent_outcomes
+
+        outcomes = get_recent_outcomes(strategy, 30, db)
+        if len(outcomes) < 10:
+            return ValidationResult(
+                approved=True,
+                old_sharpe=0.0,
+                new_sharpe=0.0,
+                old_drawdown=0.0,
+                new_drawdown=0.0,
+                reason="insufficient data — change approved by default",
+            )
+
+        old_threshold = old_params.get("edge_threshold", 0.0)
+        new_threshold = new_params.get("edge_threshold", 0.0)
+
+        old_pnls = [
+            o.pnl for o in outcomes
+            if o.pnl is not None and (o.edge_at_entry or 0.0) >= old_threshold
+        ]
+        new_pnls = [
+            o.pnl for o in outcomes
+            if o.pnl is not None and (o.edge_at_entry or 0.0) >= new_threshold
+        ]
+
+        old_sharpe = _compute_sharpe(old_pnls)
+        new_sharpe = _compute_sharpe(new_pnls)
+        old_dd = _compute_max_drawdown(old_pnls)
+        new_dd = _compute_max_drawdown(new_pnls)
+
+        if new_sharpe < old_sharpe + self.SHARPE_IMPROVEMENT_THRESHOLD:
+            reason = (
+                f"Sharpe did not improve enough: {old_sharpe:.3f} -> {new_sharpe:.3f} "
+                f"(need +{self.SHARPE_IMPROVEMENT_THRESHOLD})"
+            )
+            logger.warning(f"[WalkForwardValidator] {strategy}: {reason}")
+            return ValidationResult(
+                approved=False,
+                old_sharpe=old_sharpe,
+                new_sharpe=new_sharpe,
+                old_drawdown=old_dd,
+                new_drawdown=new_dd,
+                reason=reason,
+            )
+
+        if old_dd > 0 and new_dd > old_dd * self.DRAWDOWN_TOLERANCE:
+            reason = (
+                f"Drawdown increased too much: {old_dd:.3f} -> {new_dd:.3f} "
+                f"(max allowed {old_dd * self.DRAWDOWN_TOLERANCE:.3f})"
+            )
+            logger.warning(f"[WalkForwardValidator] {strategy}: {reason}")
+            return ValidationResult(
+                approved=False,
+                old_sharpe=old_sharpe,
+                new_sharpe=new_sharpe,
+                old_drawdown=old_dd,
+                new_drawdown=new_dd,
+                reason=reason,
+            )
+
+        reason = f"approved: Sharpe {old_sharpe:.3f} -> {new_sharpe:.3f}, drawdown {old_dd:.3f} -> {new_dd:.3f}"
+        logger.info(f"[WalkForwardValidator] {strategy}: {reason}")
+        return ValidationResult(
+            approved=True,
+            old_sharpe=old_sharpe,
+            new_sharpe=new_sharpe,
+            old_drawdown=old_dd,
+            new_drawdown=new_dd,
+            reason=reason,
+        )
