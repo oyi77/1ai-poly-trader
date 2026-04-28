@@ -79,7 +79,7 @@ async def get_all_strategy_health(db: Session = Depends(get_db)):
 
 @router.get("/calibration/{strategy}", response_model=CalibrationCurveResponse)
 async def get_calibration(strategy: str, db: Session = Depends(get_db)):
-    outcomes = get_recent_outcomes(strategy, db, limit=200)
+    outcomes = get_recent_outcomes(strategy, 200, db)
     pairs = [
         (o.model_probability, 1 if o.result == "win" else 0)
         for o in outcomes
@@ -132,7 +132,7 @@ async def get_allocations(db: Session = Depends(get_db)):
 
 @router.get("/outcomes/{strategy}", response_model=List[OutcomeResponse])
 async def get_outcomes(strategy: str, limit: int = 50, db: Session = Depends(get_db)):
-    outcomes = get_recent_outcomes(strategy, db, limit=limit)
+    outcomes = get_recent_outcomes(strategy, limit, db)
     return [
         OutcomeResponse(
             trade_id=o.trade_id,
@@ -149,11 +149,9 @@ async def get_outcomes(strategy: str, limit: int = 50, db: Session = Depends(get
 async def log_param_change(req: ParamChangeRequest, db: Session = Depends(get_db)):
     record_param_change(
         strategy=req.strategy,
-        param_name=req.param_name,
-        old_value=req.old_value,
-        new_value=req.new_value,
-        auto_applied=req.auto_applied,
-        reasoning=req.reasoning,
+        param=req.param_name,
+        old_val=req.old_value,
+        new_val=req.new_value,
         db=db,
     )
     return {"status": "recorded"}
