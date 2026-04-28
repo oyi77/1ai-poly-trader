@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { adminApi, changeAdminPassword } from '../api'
+import { adminApi, changeAdminPassword } from '../../api'
 import { Settings as SettingsIcon, Zap, TrendingUp, Shield, Activity, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
 
 interface SettingsData {

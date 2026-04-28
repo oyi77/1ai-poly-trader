@@ -23,7 +23,7 @@ interface Props {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || ''
-const WS_URL = getWsUrl('/ws/events')
+const WS_URL = () => getWsUrl('/ws/events')
 
 export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -35,7 +35,12 @@ export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props)
 
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await retryFetch(`${API_URL}/api/events?limit=30`)
+      const adminKey = localStorage.getItem('adminApiKey') || ''
+      const res = await retryFetch(`${API_URL}/api/events?limit=30`, {
+        headers: {
+          'Authorization': `Bearer ${adminKey}`
+        }
+      })
       if (res.ok) {
         const contentType = res.headers.get('content-type') || ''
         if (!contentType.includes('application/json')) {
@@ -52,7 +57,7 @@ export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props)
   useEffect(() => {
     const connectWs = () => {
       try {
-        const ws = new WebSocket(WS_URL)
+        const ws = new WebSocket(WS_URL())
         wsRef.current = ws
 
         ws.onopen = () => {

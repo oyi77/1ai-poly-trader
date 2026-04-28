@@ -2,17 +2,23 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { BotStats } from '../types'
 
+import { getWsUrl } from '../api'
+
 export function useStats() {
   const [wsStats, setWsStats] = useState<BotStats | null>(null)
 
   useEffect(() => {
-    const apiKey = localStorage.getItem('adminApiKey') || ''
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/dashboard-data?token=${apiKey}`
-    
     let ws: WebSocket | null = null
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
     const connect = () => {
+      const apiKey = localStorage.getItem('adminApiKey') || ''
+      if (!apiKey) {
+        reconnectTimeout = setTimeout(connect, 3000)
+        return
+      }
+
+      const wsUrl = getWsUrl('/ws/dashboard-data')
       ws = new WebSocket(wsUrl)
       
       ws.onopen = () => {}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useWebSocket } from './useWebSocket'
 import { getWsUrl, api } from '../api'
@@ -46,7 +46,8 @@ export function useBrainGraph(): UseBrainGraphResult {
   const [transcript, setTranscript] = useState<DebateTranscript[]>([])
   const [loading, setLoading] = useState(true)
 
-  const { data: wsData, status } = useWebSocket<BrainGraphData>(getWsUrl('/ws/brain'), { topic: 'brain' })
+  const wsUrl = useMemo(() => getWsUrl('/ws/brain'), [])
+  const { data: wsData, status } = useWebSocket<BrainGraphData>(wsUrl, { topic: 'brain' })
 
   const { data: restData } = useQuery({
     queryKey: ['brain-status'],

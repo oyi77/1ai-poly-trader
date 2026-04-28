@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { getWsUrl } from '../api'
 import type { ActivityLog } from '../types/features'
 
 type WSStatus = 'connecting' | 'open' | 'closed' | 'error'
@@ -22,11 +23,7 @@ export function useActivity(): UseActivityResult {
     setError(null)
     
     try {
-      // Construct WebSocket URL
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const host = window.location.host
-      const wsUrl = `${protocol}//${host}/ws/activities`
-      
+      const wsUrl = getWsUrl('/ws/activities')
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 

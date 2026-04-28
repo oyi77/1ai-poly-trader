@@ -7,6 +7,8 @@ import {
   RefreshCw, Wifi, WifiOff, Grid3X3
 } from 'lucide-react'
 
+import { getWsUrl } from '../api'
+
 interface DecisionCard {
   id: string
   signal: string
@@ -29,15 +31,16 @@ interface StrategyPulse {
 }
 
 function LiveStream() {
-  const [activeTab, setActiveTab] = useState<'all' | 'pipeline' | 'arena' | 'pulse'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'pipeline' | 'arena' | 'pulse' | 'thoughts'>('all')
   const [isLive, setIsLive] = useState(true)
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   const [cards, setCards] = useState<DecisionCard[]>([])
-  const [bullText, setBullText] = useState('')
-  const [bearText, setBearText] = useState('')
+  const [bullText, setBullText] = useState<string | undefined>(undefined)
+  const [bearText, setBearText] = useState<string | undefined>(undefined)
   const [verdict, setVerdict] = useState<'bull' | 'bear' | null>(null)
   const [isDebating, setIsDebating] = useState(false)
   const [strategies, setStrategies] = useState<StrategyPulse[]>([])
+  const [thoughts, setThoughts] = useState<{ id: string; text: string; timestamp: number }[]>([])
   const [botState, setBotState] = useState<{
     bankroll: number
     totalPnl: number
@@ -55,10 +58,15 @@ function LiveStream() {
       return
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || '127.0.0.1:8100'
     const adminKey = localStorage.getItem('adminApiKey') || ''
-    const ws = new WebSocket(`${protocol}//${host}/ws/livestream?token=${adminKey}`)
+    if (!adminKey) {
+      reconnectRef.current += 1
+      setTimeout(connectWs, Math.min(5000, 1000 * Math.pow(2, reconnectRef.current - 1)))
+      setWsStatus('disconnected')
+      return
+    }
+
+    const ws = new WebSocket(getWsUrl('/ws/livestream'))
 
     wsRef.current = ws
     setWsStatus('connecting')
@@ -149,6 +157,15 @@ function LiveStream() {
             }
             break
 
+          case 'thought_log':
+            if (msg.text) {
+              setThoughts(prev => {
+                const updated = [...prev, { id: msg.id || Date.now().toString(), text: msg.text, timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now() }]
+                return updated.slice(-100)
+              })
+            }
+            break
+
           case 'bot_state':
             setBotState({
               bankroll: msg.bankroll || 0,
@@ -201,7 +218,7 @@ function LiveStream() {
       <div className="flex-1 overflow-hidden">
         {activeTab === 'all' ? (
           <div className="h-full grid grid-cols-1 lg:grid-cols-2 grid-rows-2 gap-2 p-2">
-            <div className="lg:row-span-2 bg-neutral-900 rounded-lg overflow-hidden">
+            <div className="bg-neutral-900 rounded-lg overflow-hidden">
               <PipelineView isLive={isLive} cards={cards} />
             </div>
             <div className="bg-neutral-900 rounded-lg overflow-hidden">
@@ -212,6 +229,9 @@ function LiveStream() {
                 verdict={verdict}
                 isDebating={isDebating}
               />
+            </div>
+            <div className="bg-neutral-900 rounded-lg overflow-hidden">
+              <ThoughtStreamView isLive={isLive} thoughts={thoughts} />
             </div>
             <div className="bg-neutral-900 rounded-lg overflow-hidden">
               <PulseView isLive={isLive} strategies={strategies} />
@@ -228,6 +248,8 @@ function LiveStream() {
             isDebating={isDebating}
             fullPage
           />
+        ) : activeTab === 'thoughts' ? (
+          <ThoughtStreamView isLive={isLive} thoughts={thoughts} fullPage />
         ) : (
           <PulseView isLive={isLive} strategies={strategies} fullPage />
         )}
@@ -237,8 +259,8 @@ function LiveStream() {
 }
 
 function LiveStreamHeader({ activeTab, setActiveTab, isLive, setIsLive, wsStatus, botState }: {
-  activeTab: 'all' | 'pipeline' | 'arena' | 'pulse'
-  setActiveTab: (t: 'all' | 'pipeline' | 'arena' | 'pulse') => void
+  activeTab: 'all' | 'pipeline' | 'arena' | 'pulse' | 'thoughts'
+  setActiveTab: (t: 'all' | 'pipeline' | 'arena' | 'pulse' | 'thoughts') => void
   isLive: boolean
   setIsLive: (v: boolean) => void
   wsStatus?: 'connecting' | 'connected' | 'disconnected'
@@ -250,9 +272,10 @@ function LiveStreamHeader({ activeTab, setActiveTab, isLive, setIsLive, wsStatus
   } | null
 }) {
   const tabs = [
-    { id: 'all', label: 'All Three', icon: Grid3X3 },
+    { id: 'all', label: 'All Views', icon: Grid3X3 },
     { id: 'pipeline', label: 'Pipeline', icon: Kanban },
     { id: 'arena', label: 'Arena', icon: Mic },
+    { id: 'thoughts', label: 'Thoughts', icon: Brain },
     { id: 'pulse', label: 'Pulse', icon: Activity },
   ] as const
 
@@ -698,6 +721,83 @@ function PulseView({ isLive, strategies, fullPage = false }: {
             <span className="text-[9px] text-neutral-400 truncate">{s.name}</span>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+function ThoughtStreamView({ isLive, thoughts, fullPage = false }: {
+  isLive: boolean
+  thoughts?: { id: string; text: string; timestamp: number }[]
+  fullPage?: boolean
+}) {
+  const [localThoughts, setLocalThoughts] = useState<{ id: string; text: string; timestamp: number }[]>([])
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (thoughts && thoughts.length > 0) {
+      setLocalThoughts(thoughts)
+      return
+    }
+    
+    if (!isLive) return
+
+    const baseThoughts = [
+      "Initializing market analysis for BTC...",
+      "Connecting to Polygon websocket RPC...",
+      "Fetching L2 order book data...",
+      "Analyzing recent 5min candle structures.",
+      "Detected high volume on Polymarket Yes side.",
+      "Running semantic analysis on recent news items...",
+      "No major conflicting news found.",
+      "Checking correlated assets (ETH, SOL)...",
+      "Correlations hold steady. Momentum is positive.",
+      "Calculating Kelly Criterion for risk sizing...",
+      "Risk limits OK. Proceeding to signal generation."
+    ]
+
+    const interval = setInterval(() => {
+      setLocalThoughts(prev => {
+        const nextThought = baseThoughts[Math.floor(Math.random() * baseThoughts.length)]
+        const newArr = [...prev, { id: Date.now().toString(), text: nextThought, timestamp: Date.now() }]
+        return newArr.slice(-50)
+      })
+    }, 2500)
+
+    return () => clearInterval(interval)
+  }, [thoughts, isLive])
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [localThoughts])
+
+  return (
+    <div className={`h-full flex flex-col ${fullPage ? 'p-4' : 'p-2'}`}>
+      <div className="flex items-center gap-2 mb-3 px-2">
+        <Brain className="w-4 h-4 text-cyan-500" />
+        <span className="text-xs font-bold text-neutral-100 uppercase tracking-wider">Thought Stream</span>
+        <span className="text-[10px] text-neutral-500 ml-auto">
+          {thoughts && thoughts.length > 0 ? 'Real data' : 'Simulation'}
+        </span>
+      </div>
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto bg-neutral-950 border border-neutral-800 rounded p-3 font-mono text-[10px] text-green-500 leading-relaxed"
+      >
+        {localThoughts.map(t => (
+          <div key={t.id} className="mb-1 opacity-90 hover:opacity-100">
+            <span className="text-neutral-500 mr-2">[{new Date(t.timestamp).toLocaleTimeString()}]</span>
+            <span className="text-cyan-400">&gt; </span>
+            {t.text}
+          </div>
+        ))}
+        {isLive && (
+          <div className="mt-1 animate-pulse">
+            <span className="text-cyan-400">&gt; </span>_
+          </div>
+        )}
       </div>
     </div>
   )

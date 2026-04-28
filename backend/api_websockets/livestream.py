@@ -151,6 +151,26 @@ async def broadcast_strategy_pulse(strategy_name: str, status: str, **kwargs):
     logger.debug(f"Broadcast pulse_update: {strategy_name} → {status}")
 
 
+async def broadcast_thought_log(text: str):
+    from backend.api.ws_manager_v2 import topic_manager
+
+    message = {
+        "type": "thought_log",
+        "id": f"th_{datetime.now(timezone.utc).timestamp():.3f}",
+        "text": text,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    tm = get_task_manager()
+    if tm:
+        await tm.create_task(
+            topic_manager.broadcast("livestream", message),
+            name="ls_thought_log"
+        )
+    else:
+        asyncio.create_task(topic_manager.broadcast("livestream", message))
+    logger.debug(f"Broadcast thought_log: {text[:30]}...")
+
 async def broadcast_trade_event(trade_data: Dict[str, Any]):
     from backend.api.ws_manager_v2 import topic_manager
 
@@ -200,13 +220,15 @@ async def broadcast_livestream_snapshot():
 
 async def livestream_broadcaster():
     from backend.api.ws_manager_v2 import topic_manager
-    from backend.models.database import SessionLocal, BotState, Trade, StrategyConfig
+    from backend.models.database import SessionLocal, BotState, Trade, StrategyConfig, TradeAttempt
+    import json
     import time
 
     logger.info("Livestream broadcaster task started")
 
     last_trade_check = 0
     last_strategy_check = 0
+    last_arena_check = 0
 
     while True:
         try:
@@ -257,6 +279,59 @@ async def livestream_broadcaster():
                         db.close()
                 except Exception as e:
                     logger.debug(f"Livestream trade check error: {e}")
+
+            if now - last_arena_check > 5:
+                last_arena_check = now
+                try:
+                    db = SessionLocal()
+                    try:
+                        recent_attempt = (
+                            db.query(TradeAttempt)
+                            .order_by(TradeAttempt.created_at.desc())
+                            .first()
+                        )
+                        if recent_attempt:
+                            reason = recent_attempt.reason or ""
+                            sig_data = json.loads(recent_attempt.signal_data) if recent_attempt.signal_data else {}
+                            if sig_data and "reasoning" in sig_data:
+                                reason = sig_data["reasoning"]
+                                
+                            dir_bias = recent_attempt.direction or "unknown"
+                            market = recent_attempt.market_ticker or "Unknown"
+                            conf = getattr(recent_attempt, "confidence", 0) or 0
+                            edge = getattr(recent_attempt, "edge", 0) or 0
+                            
+                            bull_text = f"Analyzing market {market}...\nDirectional bias: {dir_bias.upper()}\n"
+                            bear_text = f"Risk checks...\nConfidence: {conf*100:.1f}%\nEdge: {edge*100:.1f}%\n"
+                            
+                            for part in reason.split():
+                                if "=" in part:
+                                    k, v = part.split("=", 1)
+                                    if k in ["btc", "eth"]:
+                                        bull_text += f"Live {k.upper()} price: {v}\n"
+                                    elif k == "t":
+                                        bear_text += f"Time window: {v}\n"
+                                    else:
+                                        bull_text += f"Metric {k}: {v}\n"
+                            
+                            bull_text += f"\nConclusion: Market supports signal."
+                            bear_text += f"\nRisk check: {'Passed' if recent_attempt.status == 'executed' else 'Blocked'}"
+                            
+                            await broadcast_debate_update(
+                                bull_text=bull_text,
+                                bear_text=bear_text,
+                                verdict=dir_bias.lower() if dir_bias.lower() in ["bull", "bear", "up", "down"] else None,
+                                is_debating=False
+                            )
+                            
+                            await broadcast_thought_log(f"Analyzed {market} (bias: {dir_bias.upper()}). Confidence: {conf*100:.1f}%, Edge: {edge*100:.1f}%. Result: {recent_attempt.status.upper()}")
+                            if reason:
+                                await broadcast_thought_log(f"Reasoning keys: {reason}")
+
+                    finally:
+                        db.close()
+                except Exception as e:
+                    logger.debug(f"Livestream arena check error: {e}")
 
             if now - last_trade_check > 10:
                 try:

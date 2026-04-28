@@ -9,13 +9,15 @@ const API_BASE = import.meta.env.VITE_API_URL || ''
  * In dev (no VITE_API_URL), uses current page host with protocol detection.
  */
 export function getWsUrl(path: string): string {
+  const adminKey = localStorage.getItem('adminApiKey') || ''
+  const queryParam = adminKey ? `?token=${adminKey}` : ''
   if (import.meta.env.VITE_API_URL) {
     // Production: derive wss:// from https:// backend URL
-    return import.meta.env.VITE_API_URL.replace(/^http/, 'ws') + path
+    return import.meta.env.VITE_API_URL.replace(/^http/, 'ws') + path + queryParam
   }
   // Dev: use current page host (Vite proxy handles /ws/*)
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${protocol}://${window.location.host}${path}`
+  return `${protocol}://${window.location.host}${path}${queryParam}`
 }
 
 export const api = axios.create({

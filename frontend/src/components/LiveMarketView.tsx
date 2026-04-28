@@ -10,10 +10,9 @@ interface MarketTick {
 }
 
 const TICK_BUFFER = 10;
-const DEFAULT_WS_URL = getWsUrl('/ws/markets');
-
-export default function LiveMarketView({ url = DEFAULT_WS_URL }: { url?: string }) {
-  const { data, status, reconnectAttempt, maxReconnectAttempts } = useWebSocket<MarketTick>(url, { topic: 'markets' });
+export default function LiveMarketView({ url }: { url?: string }) {
+  const wsUrl = url || getWsUrl('/ws/markets')
+  const { data, status, reconnectAttempt, maxReconnectAttempts } = useWebSocket<MarketTick>(wsUrl, { topic: 'markets' });
   const [ticks, setTicks] = useState<MarketTick[]>([]);
   const prevRef = useRef<MarketTick | null>(null);
 

@@ -127,7 +127,7 @@ class Settings(BaseSettings):
     DATA_AGGREGATOR_MAX_STALE_AGE: float = 300.0
 
     # Admin API security
-    ADMIN_API_KEY: Optional[str] = None
+    ADMIN_API_KEY: Optional[str] = "BerkahKarya2026"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
 
     # Telegram bot

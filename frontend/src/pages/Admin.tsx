@@ -17,7 +17,7 @@ const RiskTab = lazy(() => import('../components/admin/RiskTab').then(m => ({ de
 const AITab = lazy(() => import('../components/admin/AITab').then(m => ({ default: m.AITab })))
 const DebateMonitorTab = lazy(() => import('../components/admin/DebateMonitorTab').then(m => ({ default: m.DebateMonitorTab })))
 const PendingApprovals = lazy(() => import('./PendingApprovals'))
-const SettingsPage = lazy(() => import('./Settings'))
+const SettingsTab = lazy(() => import('../components/admin/SettingsTab'))
 const TradingTerminalTab = lazy(() => import('../components/dashboard/TradingTerminalTab').then(m => ({ default: m.TradingTerminalTab })))
 const WhaleTrackerTab = lazy(() => import('../components/dashboard/WhaleTrackerTab').then(m => ({ default: m.WhaleTrackerTab })))
 const EdgeTrackerTab = lazy(() => import('../components/dashboard/EdgeTrackerTab').then(m => ({ default: m.EdgeTrackerTab })))
@@ -159,7 +159,7 @@ export default function Admin() {
         <ModeFilterProvider>
         <Suspense fallback={<div className="flex items-center justify-center h-full text-neutral-500">Loading...</div>}>
           {activeTab === 'System' && <SystemStatus />}
-          {activeTab === 'Settings' && <SettingsPage />}
+          {activeTab === 'Settings' && <SettingsTab />}
           {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
           {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
           {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
