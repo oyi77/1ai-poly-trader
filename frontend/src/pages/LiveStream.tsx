@@ -30,7 +30,9 @@ interface StrategyPulse {
   lastPulse: number
 }
 
-function LiveStream() {
+const PIPELINE_STAGES = ['detected', 'analyzing', 'debate', 'judge', 'risk', 'executed', 'blocked'] as const
+
+export function LiveStreamPanel() {
   const [activeTab, setActiveTab] = useState<'all' | 'pipeline' | 'arena' | 'pulse' | 'thoughts'>('all')
   const [isLive, setIsLive] = useState(true)
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
@@ -351,33 +353,29 @@ function PipelineView({ isLive, cards, fullPage = false }: {
   cards?: DecisionCard[]
   fullPage?: boolean
 }) {
-  const stages = ['detected', 'analyzing', 'debate', 'judge', 'risk', 'executed', 'blocked'] as const
+  const [localCards, setLocalCards] = useState<DecisionCard[]>([
+    { id: '1', signal: 'BTC > $95K by Friday', timestamp: Date.now(), stage: 'debate', bullReason: 'Whale accumulation detected', bearReason: 'Overbought RSI at 78' },
+    { id: '2', signal: 'ETH > $2.5K this week', timestamp: Date.now() - 60000, stage: 'judge', verdict: 'bull' },
+    { id: '3', signal: 'SOL > $180 by weekend', timestamp: Date.now() - 120000, stage: 'executed', decision: 'executed', verdict: 'bull', riskScore: 0.65 },
+    { id: '4', signal: 'AVAX < $35 by Monday', timestamp: Date.now() - 180000, stage: 'blocked', decision: 'blocked', verdict: 'bear', riskScore: 0.92 },
+  ])
 
-  const displayCards = cards && cards.length > 0 ? cards : (() => {
-    const [localCards, setLocalCards] = useState<DecisionCard[]>([
-      { id: '1', signal: 'BTC > $95K by Friday', timestamp: Date.now(), stage: 'debate', bullReason: 'Whale accumulation detected', bearReason: 'Overbought RSI at 78' },
-      { id: '2', signal: 'ETH > $2.5K this week', timestamp: Date.now() - 60000, stage: 'judge', verdict: 'bull' },
-      { id: '3', signal: 'SOL > $180 by weekend', timestamp: Date.now() - 120000, stage: 'executed', decision: 'executed', verdict: 'bull', riskScore: 0.65 },
-      { id: '4', signal: 'AVAX < $35 by Monday', timestamp: Date.now() - 180000, stage: 'blocked', decision: 'blocked', verdict: 'bear', riskScore: 0.92 },
-    ])
+  useEffect(() => {
+    if (!isLive || (cards && cards.length > 0)) return
+    const interval = setInterval(() => {
+      const randomStage = PIPELINE_STAGES[Math.floor(Math.random() * (PIPELINE_STAGES.length - 2))]
+      const newCard: DecisionCard = {
+        id: Date.now().toString(),
+        signal: ['BTC > $100K', 'ETH > $3K', 'SOL > $200', 'DOGE > $0.50'][Math.floor(Math.random() * 4)],
+        timestamp: Date.now(),
+        stage: randomStage,
+      }
+      setLocalCards(prev => [...prev.slice(-10), newCard])
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [cards, isLive])
 
-    useEffect(() => {
-      if (!isLive) return
-      const interval = setInterval(() => {
-        const randomStage = stages[Math.floor(Math.random() * (stages.length - 2))]
-        const newCard: DecisionCard = {
-          id: Date.now().toString(),
-          signal: ['BTC > $100K', 'ETH > $3K', 'SOL > $200', 'DOGE > $0.50'][Math.floor(Math.random() * 4)],
-          timestamp: Date.now(),
-          stage: randomStage,
-        }
-        setLocalCards(prev => [...prev.slice(-10), newCard])
-      }, 4000)
-      return () => clearInterval(interval)
-    }, [isLive])
-
-    return localCards
-  })()
+  const displayCards = cards && cards.length > 0 ? cards : localCards
 
   const stageLabels: Record<string, { label: string; icon: any; color: string }> = {
     detected: { label: 'Signal Detected', icon: Signal, color: 'text-blue-400' },
@@ -402,7 +400,7 @@ function PipelineView({ isLive, cards, fullPage = false }: {
       </div>
 
       <div className="flex-1 flex gap-2 overflow-x-auto pb-2">
-        {stages.map((stage, i) => {
+        {PIPELINE_STAGES.map((stage, i) => {
           const stageCards = getCardsForStage(stage)
           const info = stageLabels[stage]
           const Icon = info.icon
@@ -440,7 +438,7 @@ function PipelineView({ isLive, cards, fullPage = false }: {
                 ))}
               </div>
 
-              {i < stages.length - 1 && (
+              {i < PIPELINE_STAGES.length - 1 && (
                 <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full">
                   <ChevronRight className="w-3 h-3 text-neutral-600" />
                 </div>
@@ -803,4 +801,6 @@ function ThoughtStreamView({ isLive, thoughts, fullPage = false }: {
   )
 }
 
-export default LiveStream
+export default function LiveStream() {
+  return <LiveStreamPanel />
+}
