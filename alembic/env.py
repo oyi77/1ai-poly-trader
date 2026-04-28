@@ -76,20 +76,12 @@ def run_migrations_online() -> None:
 
     from sqlalchemy.exc import DatabaseError
 
-    for attempt in range(retries):
-        try:
-            with connectable.connect() as connection:
-                context.configure(
-                    connection=connection,
-                    target_metadata=target_metadata,
-                    compare_type=True  # Ensures type comparison in migrations
-                )
-                break  # Exit loop after successful configuration
-        except DatabaseError as e:
-            print(f"Retry {attempt + 1}/{retries} failed: {e}")
-            time.sleep(delay)
-        context.configure(connection=connection, target_metadata=target_metadata)
-
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

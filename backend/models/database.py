@@ -62,6 +62,11 @@ configure_sqlite_wal(engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+try:
+    import backend.models.outcome_tables  # noqa: F401 — registers learning tables with Base.metadata
+except Exception:
+    pass
+
 
 async def execute_with_timeout(db_operation, timeout: float = None):
     """
