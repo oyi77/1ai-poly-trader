@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+# DEPRECATED: Use backend.core.online_learner instead.
+# This module's global parameter optimization loop has been disabled (Task 4).
+# It is kept for import compatibility only.
+
 import asyncio
 import logging
 import time
