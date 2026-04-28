@@ -70,7 +70,12 @@ function AttemptRow({ attempt }: { attempt: TradeAttempt }) {
   )
 }
 
-export function ControlRoomTab() {
+interface ControlRoomTabProps {
+  isAdmin?: boolean
+  onLoginRequired?: () => void
+}
+
+export function ControlRoomTab({ isAdmin = false, onLoginRequired }: ControlRoomTabProps) {
   const [mode, setMode] = useState<typeof MODES[number]>('all')
   const [status, setStatus] = useState<typeof STATUSES[number]>('all')
   const [topupOpen, setTopupOpen] = useState(false)
@@ -104,6 +109,10 @@ export function ControlRoomTab() {
   })
 
   function handleTopup() {
+    if (!isAdmin) {
+      onLoginRequired?.()
+      return
+    }
     const amount = parseFloat(topupAmount)
     if (!isFinite(amount) || amount <= 0) {
       setTopupMsg('✗ Enter a positive amount')
@@ -128,13 +137,19 @@ export function ControlRoomTab() {
             <div className="text-[10px] text-neutral-600 mt-0.5">Explains why AI-driven trades executed, paused, or were rejected.</div>
           </div>
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={() => { setTopupOpen(v => !v); setTopupMsg(null) }}
-            className="px-2 py-1 border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-[10px] font-mono uppercase tracking-wider hover:bg-cyan-500/20 transition-colors"
-          >
-            + Paper Topup
-          </button>
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => { setTopupOpen(v => !v); setTopupMsg(null) }}
+              className="px-2 py-1 border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-[10px] font-mono uppercase tracking-wider hover:bg-cyan-500/20 transition-colors"
+            >
+              + Paper Topup
+            </button>
+          ) : (
+            <span className="px-2 py-1 border border-neutral-800 bg-neutral-950 text-neutral-600 text-[10px] font-mono uppercase tracking-wider">
+              Public read-only
+            </span>
+          )}
           <select value={mode} onChange={e => setMode(e.target.value as typeof MODES[number])} className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-[10px] px-2 py-1 font-mono focus:outline-none">
             {MODES.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
           </select>

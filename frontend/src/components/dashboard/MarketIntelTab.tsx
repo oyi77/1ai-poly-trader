@@ -11,6 +11,7 @@ import {
   createMarketWatch,
   deleteMarketWatch,
 } from '../../api'
+import { AdminOnly } from '../AdminOnly'
 
 // ── Strategy Health ───────────────────────────────────────────────────────────
 
@@ -128,23 +129,26 @@ function StrategiesSection() {
         <div className="divide-y divide-neutral-900">
           {strategies.map(s => (
             <div key={s.name} className="px-3 py-2 flex items-center gap-3 hover:bg-neutral-900/30 transition-colors">
-              {/* Enable toggle */}
-              <button
-                onClick={() => toggleMutation.mutate({ name: s.name, enabled: !s.enabled })}
-                disabled={toggleMutation.isPending}
-                className={`w-7 h-4 rounded-sm border flex items-center transition-colors flex-shrink-0 ${
-                  s.enabled
-                    ? 'border-green-700 bg-green-900/40'
-                    : 'border-neutral-700 bg-neutral-900'
-                }`}
-                title={s.enabled ? 'Disable' : 'Enable'}
+              <AdminOnly
+                fallback={<span className={`w-2 h-2 rounded-full shrink-0 ${s.enabled ? 'bg-green-500' : 'bg-neutral-600'}`} title={s.enabled ? 'Enabled' : 'Disabled'} />}
               >
-                <span
-                  className={`w-3 h-3 rounded-sm transition-transform flex-shrink-0 ${
-                    s.enabled ? 'bg-green-500 translate-x-3.5' : 'bg-neutral-600 translate-x-0.5'
+                <button
+                  onClick={() => toggleMutation.mutate({ name: s.name, enabled: !s.enabled })}
+                  disabled={toggleMutation.isPending}
+                  className={`w-7 h-4 rounded-sm border flex items-center transition-colors flex-shrink-0 ${
+                    s.enabled
+                      ? 'border-green-700 bg-green-900/40'
+                      : 'border-neutral-700 bg-neutral-900'
                   }`}
-                />
-              </button>
+                  title={s.enabled ? 'Disable' : 'Enable'}
+                >
+                  <span
+                    className={`w-3 h-3 rounded-sm transition-transform flex-shrink-0 ${
+                      s.enabled ? 'bg-green-500 translate-x-3.5' : 'bg-neutral-600 translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </AdminOnly>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
@@ -166,18 +170,19 @@ function StrategiesSection() {
                   : `${s.interval_seconds}s`}
               </span>
 
-              {/* Run Now */}
-              <button
-                onClick={() => runNowMutation.mutate(s.name)}
-                disabled={runNowMutation.isPending}
-                className={`px-2 py-0.5 text-[9px] border transition-colors flex-shrink-0 ${
-                  flashMap[s.name]
-                    ? 'border-green-600 text-green-500'
-                    : 'border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300'
-                }`}
-              >
-                {flashMap[s.name] ? 'Done' : 'Run Now'}
-              </button>
+              <AdminOnly>
+                <button
+                  onClick={() => runNowMutation.mutate(s.name)}
+                  disabled={runNowMutation.isPending}
+                  className={`px-2 py-0.5 text-[9px] border transition-colors flex-shrink-0 ${
+                    flashMap[s.name]
+                      ? 'border-green-600 text-green-500'
+                      : 'border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  {flashMap[s.name] ? 'Done' : 'Run Now'}
+                </button>
+              </AdminOnly>
             </div>
           ))}
         </div>
@@ -294,14 +299,16 @@ function MarketWatchSection() {
       label: '',
       className: 'w-6',
       render: (row) => (
-        <button
-          onClick={() => deleteMutation.mutate(row.id as number)}
-          disabled={deleteMutation.isPending}
-          className="text-[10px] text-red-700 hover:text-red-500 transition-colors px-1"
-          title="Remove watch"
-        >
-          ×
-        </button>
+        <AdminOnly>
+          <button
+            onClick={() => deleteMutation.mutate(row.id as number)}
+            disabled={deleteMutation.isPending}
+            className="text-[10px] text-red-700 hover:text-red-500 transition-colors px-1"
+            title="Remove watch"
+          >
+            ×
+          </button>
+        </AdminOnly>
       ),
     },
   ]
@@ -317,7 +324,7 @@ function MarketWatchSection() {
         </span>
       </div>
 
-      {/* Inline add form */}
+      <AdminOnly fallback={<div className="px-3 py-2 border-b border-neutral-800 text-[10px] text-neutral-600 uppercase tracking-wider">Public read-only market watch</div>}>
       <div className="px-3 py-2 border-b border-neutral-800 flex items-end gap-2 flex-wrap">
         <div className="flex flex-col gap-0.5">
           <span className="text-[9px] text-neutral-600 uppercase tracking-wider">Ticker</span>
@@ -350,6 +357,7 @@ function MarketWatchSection() {
           <span className="text-[9px] text-red-500">{addError}</span>
         )}
       </div>
+      </AdminOnly>
 
       <div className="px-3 py-3">
         <DataTable

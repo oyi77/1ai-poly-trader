@@ -1,9 +1,11 @@
 import { NavBar } from '../components/NavBar'
 import { ProposalApprovalPanel } from '../components/ProposalApprovalPanel'
 import { useProposals } from '../hooks/useProposals'
+import { useAuth } from '../hooks/useAuth'
 
 export default function Proposals() {
   const { proposals, loading, approve, reject } = useProposals()
+  const { isAuthenticated } = useAuth()
 
   return (
     <div className="min-h-screen bg-black text-neutral-100">
@@ -15,11 +17,12 @@ export default function Proposals() {
             Review and approve AI-generated strategy adjustments
           </p>
         </div>
-        <ProposalApprovalPanel
-          proposals={proposals}
-          onApprove={approve}
-          onReject={reject}
+          <ProposalApprovalPanel
+            proposals={proposals}
+          onApprove={isAuthenticated ? approve : undefined}
+          onReject={isAuthenticated ? reject : undefined}
           loading={loading}
+          readOnly={!isAuthenticated}
         />
       </div>
     </div>

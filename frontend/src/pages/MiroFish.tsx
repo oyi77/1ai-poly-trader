@@ -6,6 +6,7 @@ import {
   Signal, Zap, Shield, RefreshCw, ArrowLeft, MessagesSquare
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { AdminOnly } from '../components/AdminOnly'
 import {
   fetchMiroFishStatus, mirofishStart, mirofishStop, mirofishPause, mirofishRestart,
   fetchMiroFishProcesses, startMiroFishProcesses, stopMiroFishProcesses, restartMiroFishProcesses,
@@ -166,6 +167,7 @@ export default function MiroFish() {
         {/* Left Panel: Controls & Metrics */}
         <div className="w-full md:w-80 flex-shrink-0 md:border-r border-b md:border-b-0 border-neutral-800 bg-neutral-950 overflow-y-auto md:max-h-full max-h-[40vh]">
           {/* Service Controls */}
+          <AdminOnly fallback={<div className="p-4 border-b border-neutral-800"><h2 className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2">Service Control</h2><p className="text-xs text-neutral-600">Public view is read-only. Admin login is required to start, stop, pause, or restart services.</p></div>}>
           <div className="p-4 border-b border-neutral-800">
             <h2 className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Service Control</h2>
             <div className="grid grid-cols-2 gap-2">
@@ -203,6 +205,7 @@ export default function MiroFish() {
               </button>
             </div>
           </div>
+          </AdminOnly>
 
           {/* Health Metrics */}
           <div className="p-4 border-b border-neutral-800">
@@ -228,6 +231,7 @@ export default function MiroFish() {
           </div>
 
           {/* Process Management */}
+          <AdminOnly>
           <div className="p-4 border-b border-neutral-800">
             <h2 className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Process Stack</h2>
             <div className="space-y-2 mb-3">
@@ -274,6 +278,7 @@ export default function MiroFish() {
               </button>
             </div>
           </div>
+          </AdminOnly>
                   <span className={`text-xs font-mono font-bold ${cbIsOpen ? 'text-red-400' : 'text-green-400'}`}>
                     {cbState}
                   </span>
@@ -359,14 +364,16 @@ export default function MiroFish() {
                   Start the MiroFish service to enable multi-agent prediction signals
                   and access the simulation dashboard.
                 </p>
-                <button
-                  onClick={() => handleAction(mirofishStart, 'Start')}
-                  disabled={actionLoading !== null}
-                  className="px-6 py-2.5 bg-green-500/10 border border-green-500/30 rounded text-xs font-bold text-green-400 uppercase tracking-wider hover:bg-green-500/20 hover:border-green-500/50 transition-all disabled:opacity-50"
-                >
-                  {actionLoading === 'Start' ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-2" /> : <Play className="w-3.5 h-3.5 inline mr-2" />}
-                  Start Service
-                </button>
+                <AdminOnly fallback={<p className="text-[10px] text-neutral-600 uppercase tracking-wider">Admin login required to start this service.</p>}>
+                  <button
+                    onClick={() => handleAction(mirofishStart, 'Start')}
+                    disabled={actionLoading !== null}
+                    className="px-6 py-2.5 bg-green-500/10 border border-green-500/30 rounded text-xs font-bold text-green-400 uppercase tracking-wider hover:bg-green-500/20 hover:border-green-500/50 transition-all disabled:opacity-50"
+                  >
+                    {actionLoading === 'Start' ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-2" /> : <Play className="w-3.5 h-3.5 inline mr-2" />}
+                    Start Service
+                  </button>
+                </AdminOnly>
               </div>
             </div>
           ) : (

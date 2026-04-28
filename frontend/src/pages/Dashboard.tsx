@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
@@ -64,8 +64,17 @@ export default function Dashboard() {
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>('Overview')
 
+  const requireAdminAction = (action: () => void) => {
+    if (!isAuthenticated) {
+      setShowLogin(true)
+      return
+    }
+    action()
+  }
+
   const unifiedStats = useStats()
-  const { status: wsStatus, reconnectAttempt, maxReconnectAttempts } = useWebSocket(getWsUrl('/ws/markets'), { topic: 'markets' })
+  const wsUrl = useMemo(() => getWsUrl('/ws/markets'), [])
+  const { status: wsStatus, reconnectAttempt, maxReconnectAttempts } = useWebSocket(wsUrl, { topic: 'markets' })
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
@@ -247,15 +256,15 @@ export default function Dashboard() {
                 calibration={calibration}
                 windows={windows}
                 micro={micro ?? null}
-                onSimulateTrade={(ticker) => tradeMutation.mutate(ticker)}
+                onSimulateTrade={(ticker) => requireAdminAction(() => tradeMutation.mutate(ticker))}
                 isSimulating={tradeMutation.isPending}
-                onStart={() => startMutation.mutate()}
-                onStop={() => stopMutation.mutate()}
-                onScan={() => scanMutation.mutate()}
+                onStart={() => requireAdminAction(() => startMutation.mutate())}
+                onStop={() => requireAdminAction(() => stopMutation.mutate())}
+                onScan={() => requireAdminAction(() => scanMutation.mutate())}
               />
             )}
             {activeTab === 'Performance' && <PerformanceTab />}
-            {activeTab === 'Control Room' && <ControlRoomTab />}
+            {activeTab === 'Control Room' && <ControlRoomTab isAdmin={isAuthenticated} onLoginRequired={() => setShowLogin(true)} />}
             {activeTab === 'Brain' && <BrainGraph />}
             {activeTab === 'Trades' && <TradesTab />}
             {activeTab === 'Markets' && <MarketsTab />}

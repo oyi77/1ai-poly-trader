@@ -10,6 +10,7 @@ import {
   ScoredTrader,
   CopyTraderPosition,
 } from '../../api'
+import { AdminOnly } from '../AdminOnly'
 
 const leaderboardColumns: ColumnDef<ScoredTrader>[] = [
   {
@@ -321,7 +322,7 @@ export function WhaleTrackerTab() {
         </div>
       </div>
 
-      {/* Add Wallet Form */}
+      <AdminOnly fallback={<div className="border border-neutral-800 px-3 py-2 text-[10px] text-neutral-600 uppercase tracking-wider">Wallet tracking controls are admin-only.</div>}>
       <div className="border border-neutral-800">
         <div className="px-3 py-2 border-b border-neutral-800">
           <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Track Wallet</span>
@@ -363,6 +364,7 @@ export function WhaleTrackerTab() {
           </div>
         </div>
       </div>
+      </AdminOnly>
 
       {/* Active Positions */}
       <div className="border border-neutral-800">

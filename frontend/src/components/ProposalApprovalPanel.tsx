@@ -2,9 +2,10 @@ import type { StrategyProposal } from '../types/features'
 
 interface ProposalApprovalPanelProps {
   proposals: StrategyProposal[]
-  onApprove: (id: number) => void
-  onReject: (id: number) => void
+  onApprove?: (id: number) => void
+  onReject?: (id: number) => void
   loading: boolean
+  readOnly?: boolean
 }
 
 export function ProposalApprovalPanel({
@@ -12,6 +13,7 @@ export function ProposalApprovalPanel({
   onApprove,
   onReject,
   loading,
+  readOnly = false,
 }: ProposalApprovalPanelProps) {
   if (loading) {
     return (
@@ -66,20 +68,26 @@ export function ProposalApprovalPanel({
               </div>
             </div>
 
+            {readOnly ? (
+              <div className="text-xs text-neutral-500 border border-neutral-800 rounded px-3 py-2 bg-neutral-950">
+                Public read-only
+              </div>
+            ) : (
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => onApprove(proposal.id)}
+                onClick={() => onApprove?.(proposal.id)}
                 className="px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 rounded hover:bg-green-500/20 transition-colors text-sm font-medium"
               >
                 Approve
               </button>
               <button
-                onClick={() => onReject(proposal.id)}
+                onClick={() => onReject?.(proposal.id)}
                 className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors text-sm font-medium"
               >
                 Reject
               </button>
             </div>
+            )}
           </div>
         </div>
       ))}
