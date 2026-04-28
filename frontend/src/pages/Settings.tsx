@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { adminApi } from '../api'
-import { Settings as SettingsIcon, Zap, TrendingUp, Shield, Activity } from 'lucide-react'
+import { adminApi, changeAdminPassword } from '../api'
+import { Settings as SettingsIcon, Zap, TrendingUp, Shield, Activity, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
 
 interface SettingsData {
   mirofish_enabled: boolean
@@ -420,7 +420,124 @@ export default function Settings() {
             ))}
           </div>
         </motion.div>
+
+        {/* Admin Password Change */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-neutral-900 border border-neutral-800 rounded-lg p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Lock className="w-5 h-5 text-green-500" />
+            <h2 className="text-sm font-bold text-neutral-100 uppercase tracking-wider">Admin Password</h2>
+          </div>
+          <PasswordChangeSection />
+        </motion.div>
       </div>
+    </div>
+  )
+}
+
+function PasswordChangeSection() {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPasswords, setShowPasswords] = useState(false)
+  const [changing, setChanging] = useState(false)
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setResult({ success: false, message: 'Please fill in all fields' })
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setResult({ success: false, message: 'New passwords do not match' })
+      return
+    }
+    if (newPassword.length < 6) {
+      setResult({ success: false, message: 'Password must be at least 6 characters' })
+      return
+    }
+
+    try {
+      setChanging(true)
+      setResult(null)
+      await changeAdminPassword(newPassword)
+      setResult({ success: true, message: 'Password changed successfully! Please re-login.' })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err: any) {
+      setResult({ 
+        success: false, 
+        message: err.response?.data?.detail || 'Failed to change password' 
+      })
+    } finally {
+      setChanging(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-xs text-neutral-400 mb-1.5">Current Password</label>
+        <input
+          type={showPasswords ? 'text' : 'password'}
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          disabled={changing}
+          placeholder="Enter current password"
+          className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-100 placeholder-neutral-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-neutral-400 mb-1.5">New Password</label>
+        <input
+          type={showPasswords ? 'text' : 'password'}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          disabled={changing}
+          placeholder="Enter new password"
+          className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-100 placeholder-neutral-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-neutral-400 mb-1.5">Confirm New Password</label>
+        <input
+          type={showPasswords ? 'text' : 'password'}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          disabled={changing}
+          placeholder="Confirm new password"
+          className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-100 placeholder-neutral-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setShowPasswords(!showPasswords)}
+          className="flex items-center gap-1 px-3 py-2 text-xs text-neutral-400 hover:text-neutral-200"
+        >
+          {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showPasswords ? 'Hide' : 'Show'} passwords
+        </button>
+        <button
+          onClick={handleChangePassword}
+          disabled={changing}
+          className="px-4 py-2 bg-green-500/20 border border-green-500/40 text-green-400 text-xs uppercase tracking-wider rounded hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {changing ? 'Changing...' : 'Change Password'}
+        </button>
+      </div>
+
+      {result && (
+        <div className={`flex items-center gap-2 text-xs ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+          {result.success ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          {result.message}
+        </div>
+      )}
     </div>
   )
 }
