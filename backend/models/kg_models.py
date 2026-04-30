@@ -91,6 +91,7 @@ class LLMCostRecord(Base):
     __tablename__ = "llm_cost_records"
     __table_args__ = (
         Index("ix_llm_cost_timestamp", "timestamp"),
+        Index("ix_llm_cost_date_key", "date_key"),
     )
 
     id = Column(Integer, primary_key=True)
@@ -100,3 +101,4 @@ class LLMCostRecord(Base):
     cost_usd = Column(Float, nullable=False)
     purpose = Column(String, nullable=False)
     budget_remaining = Column(Float, nullable=False)
+    date_key = Column(String, nullable=False)

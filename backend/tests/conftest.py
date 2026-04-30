@@ -55,6 +55,7 @@ from backend.models.database import (
     Setting, SystemSettings, ErrorLog, Experiment,
 )  # noqa: F401
 from backend.models.backtest import BacktestRun, BacktestTrade  # noqa: F401
+from backend.models.kg_models import LLMCostRecord  # noqa: F401
 
 _db_mod.engine = test_engine
 _db_mod.SessionLocal = TestSessionLocal

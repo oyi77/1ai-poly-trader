@@ -1,17 +1,11 @@
-"""LLM Cost Tracker — tracks LLM spending with hard caps per cycle.
-
-Enforces ADR-006 budget limits:
-- $10/day hard cap for AGI operations (configurable via LLM_DAILY_BUDGET env var)
-- $0.50 per strategy generation
-- $0.10 per prompt evolution
-- $0.05 per causal analysis
-"""
+"""LLM Cost Tracker — tracks LLM spending with hard caps per cycle."""
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from backend.core.agi_types import ExperimentStatus
+from backend.models.database import SessionLocal
+from backend.models.kg_models import LLMCostRecord as LLMCostRecordDB
 
 
 DAILY_BUDGET_DEFAULT = 10.0
@@ -67,6 +61,23 @@ class LLMCostTracker:
             budget_remaining=remaining,
         )
         self.calls.append(record)
+        db = SessionLocal()
+        try:
+            db_record = LLMCostRecordDB(
+                timestamp=record.timestamp,
+                model=model,
+                token_count=token_count,
+                cost_usd=cost_usd,
+                purpose=purpose,
+                budget_remaining=remaining,
+                date_key=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            )
+            db.add(db_record)
+            db.commit()
+        except Exception:
+            pass
+        finally:
+            db.close()
 
     def can_spend(self, estimated_cost: float) -> bool:
         if estimated_cost <= 0:
