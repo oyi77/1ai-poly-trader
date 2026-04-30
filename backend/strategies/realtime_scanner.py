@@ -236,6 +236,7 @@ class RealtimeScannerStrategy(BaseStrategy):
                                 "current_price": history.prices[-1][1],
                                 "token_id": token_id,
                                 "track_name": ctx.params.get("track_name", "realtime"),
+                                "sources": ["realtime_scanner", "polymarket_websocket"],
                             },
                             reason=f"realtime_scanner velocity={slow_velocity:.3f} > {threshold_up if direction == 'UP' else threshold_down:.3f}",
                         )

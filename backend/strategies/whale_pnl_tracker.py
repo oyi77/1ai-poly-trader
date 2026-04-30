@@ -421,6 +421,7 @@ class WhalePNLTrackerStrategy(BaseStrategy):
                 "copy_fraction": copy_fraction,
                 "condition_id": position.condition_id,
                 "track_name": ctx.params.get("track_name", "whale"),
+                "sources": ["whale_pnl_tracker", "polymarket_gamma"],
             },
             reason=f"whale_pnl_tracker: {position.wallet[:8]}... (score={whale_score:.2f}) opened {position.side}",
         )

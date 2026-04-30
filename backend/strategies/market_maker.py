@@ -157,7 +157,7 @@ class MarketMakerStrategy(BaseStrategy):
                     "all_markets",
                     "SKIP",
                     confidence=0.0,
-                    signal_data={"reason": "no_markets_available"},
+                    signal_data={"reason": "no_markets_available", "sources": ["market_maker"]},
                     reason="No markets returned from data source",
                 )
                 result.decisions_recorded = 1
@@ -215,6 +215,7 @@ class MarketMakerStrategy(BaseStrategy):
                             "mid_price": mid_price,
                             "volatility": volatility,
                             "inventory_pct": inventory_pct,
+                            "sources": ["market_maker"],
                         },
                         reason=f"market_maker spread={spread:.3f} bid={quote.bid_price:.3f} ask={quote.ask_price:.3f}",
                     )

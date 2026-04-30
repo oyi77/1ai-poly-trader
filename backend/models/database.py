@@ -208,12 +208,18 @@ class BotState(Base):
     paper_pnl = Column(Float, default=0.0)
     paper_trades = Column(Integer, default=0)
     paper_wins = Column(Integer, default=0)
+    paper_initial_bankroll = Column(Float, nullable=True, default=None,
+                                    doc="Effective initial bankroll for paper mode including top-ups. "
+                                        "None means use settings.INITIAL_BANKROLL.")
 
     # Testnet trading tracking (isolated from live)
     testnet_bankroll = Column(Float, default=100.0)
     testnet_pnl = Column(Float, default=0.0)
     testnet_trades = Column(Integer, default=0)
     testnet_wins = Column(Integer, default=0)
+    testnet_initial_bankroll = Column(Float, nullable=True, default=None,
+                                      doc="Effective initial bankroll for testnet mode including top-ups. "
+                                          "None means use 100.")
 
     # Generic JSON blob for strategy heartbeats and ad-hoc state
     misc_data = Column(Text, nullable=True)
@@ -1013,10 +1019,12 @@ def seed_default_data():
                     paper_pnl=0.0,
                     paper_trades=0,
                     paper_wins=0,
+                    paper_initial_bankroll=initial_bankroll if mode == "paper" else None,
                     testnet_bankroll=100.0,
                     testnet_pnl=0.0,
                     testnet_trades=0,
                     testnet_wins=0,
+                    testnet_initial_bankroll=100.0 if mode == "testnet" else None,
                 )
                 db.add(bot_state)
                 logger.info(f"Seeded BotState for mode: {mode}")

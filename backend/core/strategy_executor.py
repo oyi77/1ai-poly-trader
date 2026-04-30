@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from backend.config import settings
-from backend.models.database import SessionLocal, Trade, Signal, BotState
+from backend.models.database import SessionLocal, Trade, Signal, BotState, StrategyConfig
 from backend.core.risk_manager import RiskManager
 from backend.core.event_bus import _broadcast_event
 from backend.core.mode_context import get_context

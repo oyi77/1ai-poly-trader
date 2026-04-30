@@ -47,7 +47,12 @@ class BankrollReconciliationReport:
 
     @property
     def has_drift(self) -> bool:
-        return self.drift_bankroll > 0.01 or self.drift_pnl > 0.01
+        return (
+            self.drift_bankroll > 0.01 
+            or self.drift_pnl > 0.01 
+            or self.old_trade_count != self.new_trade_count 
+            or self.old_win_count != self.new_win_count
+        )
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -189,7 +194,7 @@ def _realized_trade_stats(db: Session, mode: str) -> tuple[int, float, int]:
         .filter(
             Trade.settled.is_(True),
             Trade.trading_mode == mode,
-            Trade.result.in_(("win", "loss")),
+            Trade.result.in_(("win", "loss", "closed")),
         )
         .first()
     )
@@ -205,8 +210,14 @@ def _open_exposure(db: Session, mode: str) -> float:
     return round(float(exposure or 0.0), 2)
 
 
-def _initial_bankroll_for_mode(mode: str) -> float:
-    return 100.0 if mode == "testnet" else float(settings.INITIAL_BANKROLL)
+def _initial_bankroll_for_mode(mode: str, state: Optional[BotState] = None) -> float:
+    if mode == "paper" and state is not None and state.paper_initial_bankroll is not None:
+        return float(state.paper_initial_bankroll)
+    if mode == "testnet" and state is not None and state.testnet_initial_bankroll is not None:
+        return float(state.testnet_initial_bankroll)
+    if mode == "testnet":
+        return 100.0
+    return float(settings.INITIAL_BANKROLL)
 
 
 def _available_bankroll_for_mode(mode: str, bankroll: float) -> float:
@@ -363,9 +374,10 @@ def _build_report(
             warnings.append("PM total equity unavailable; live financial cache was not changed")
         else:
             new_bankroll = round(float(pm_portfolio_value), 2)
-            new_total_pnl = round(new_bankroll - float(settings.INITIAL_BANKROLL), 2)
+            actual_starting_balance = old_bankroll - old_total_pnl
+            new_total_pnl = round(new_bankroll - actual_starting_balance, 2)
     else:
-        derived_bankroll = round(_initial_bankroll_for_mode(mode) + realized_pnl - open_exposure, 2)
+        derived_bankroll = round(_initial_bankroll_for_mode(mode, state=state) + realized_pnl - open_exposure, 2)
         new_bankroll = round(_available_bankroll_for_mode(mode, derived_bankroll), 2)
         new_total_pnl = realized_pnl
         if derived_bankroll < 0:

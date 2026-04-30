@@ -756,22 +756,42 @@ async def paper_topup(
         )
 
     from backend.core.scheduler import log_event
+    from backend.models.audit_logger import log_audit_event
 
     state = db.query(BotState).filter_by(mode="paper").first()
     if state is None:
         raise HTTPException(status_code=404, detail="Paper bot state not found")
 
-    previous = float(state.bankroll or 0.0)
-    state.bankroll = previous + body.amount
+    previous = float(state.paper_bankroll or 0.0)
+    state.paper_bankroll = previous + body.amount
+
+    # Also bump the effective initial bankroll so reconciliation preserves the top-up.
+    # Without this, the next reconcile cycle would recalculate bankroll as
+    # INITIAL_BANKROLL + pnl - exposure, wiping the top-up.
+    prev_initial = float(state.paper_initial_bankroll or settings.INITIAL_BANKROLL)
+    state.paper_initial_bankroll = prev_initial + body.amount
+
     db.commit()
 
-    log_event("info", f"Paper bankroll topped up by ${body.amount:,.2f} (${previous:,.2f} → ${state.bankroll:,.2f})")
+    log_event("info", f"Paper bankroll topped up by ${body.amount:,.2f} (${previous:,.2f} → ${state.paper_bankroll:,.2f}); "
+             f"initial_bankroll ${prev_initial:,.2f} → ${state.paper_initial_bankroll:,.2f}")
+    log_audit_event(
+        db,
+        event_type="PAPER_TOPUP",
+        entity_type="BOT_STATE",
+        entity_id="paper",
+        old_value={"paper_bankroll": previous, "paper_initial_bankroll": prev_initial},
+        new_value={"paper_bankroll": float(state.paper_bankroll), "paper_initial_bankroll": float(state.paper_initial_bankroll), "added": body.amount},
+        user_id="admin_topup",
+    )
+    db.commit()
 
     return {
         "status": "topped_up",
         "previous_bankroll": previous,
         "added": body.amount,
-        "new_bankroll": state.bankroll,
+        "new_bankroll": state.paper_bankroll,
+        "new_initial_bankroll": state.paper_initial_bankroll,
     }
 
 

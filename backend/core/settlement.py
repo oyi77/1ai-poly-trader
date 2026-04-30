@@ -34,25 +34,33 @@ async def _fetch_pm_portfolio_value() -> float | None:
 
 
 async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
-    """Settle a BTC 5-min UP/DOWN market trade whose window has expired."""
+    """Settle a BTC 5-min UP/DOWN market trade whose window has expired.
+    
+    Resolution strategy (in order of reliability):
+    1. Polymarket API via fetch_btc_market_for_settlement (if market is closed)
+    2. CEX BTC price at window end (Binance/Coinbase 1m klines) — determine if BTC 
+       went UP or DOWN relative to window start
+    3. If both fail, mark as expired_unresolved instead of push (zero PnL misreports wins)
+    """
     ticker = trade.market_ticker or ""
     match = _re.search(r"btc-updown-5m-(\d+)", ticker)
     if not match:
         return None
 
-    window_end = datetime.fromtimestamp(int(match.group(1)) + 300, tz=timezone.utc)
+    window_start_ts = int(match.group(1))
+    window_end = datetime.fromtimestamp(window_start_ts + 300, tz=timezone.utc)
 
     if now < window_end:
         return None
+
+    entry_price = float(trade.entry_price or 0)
+    size = float(trade.size or 0)
+    direction = (trade.direction or "up").lower()
 
     try:
         from backend.data.btc_markets import fetch_btc_market_for_settlement
         btc_market = await fetch_btc_market_for_settlement(ticker)
         if btc_market and btc_market.closed:
-            entry_price = float(trade.entry_price or 0)
-            size = float(trade.size or 0)
-            direction = (trade.direction or "up").lower()
-
             if direction == "up":
                 won = btc_market.up_price > 0.9
             elif direction == "down":
@@ -62,13 +70,10 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
 
             if won:
                 trade.result = "win"
-                # Win: each share pays $1; shares = size/entry_price
-                # PnL = shares - cost = (size/entry_price) - size
                 trade.pnl = (size / entry_price) - size if entry_price > 0 else 0.0
                 trade.settlement_value = size / entry_price if entry_price > 0 else 0.0
             else:
                 trade.result = "loss"
-                # Loss: entire investment lost
                 trade.pnl = -size
                 trade.settlement_value = 0.0
 
@@ -77,14 +82,92 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
             trade.settlement_source = "btc_5min_auto"
             return trade
     except Exception as e:
-        logger.debug(f"btc_5min settlement fetch failed for {ticker}: {e}")
+        logger.debug(f"btc_5min Polymarket settlement fetch failed for {ticker}: {e}")
+
+    delayed_settle_seconds = 120
+    if now < window_end + timedelta(seconds=delayed_settle_seconds):
+        logger.info(
+            f"BTC 5min {ticker}: window ended {delayed_settle_seconds}s ago, "
+            "allowing more time for Polymarket resolution"
+        )
+        return None
+
+    try:
+        from backend.data.crypto import fetch_binance_klines
+        klines = await fetch_binance_klines(limit=60)
+        if klines and len(klines) > 1:
+            start_price = None
+            end_price = None
+            for k in klines:
+                k_ts_ms = int(float(k[0])) if isinstance(k[0], (int, float, str)) else 0
+                k_ts_s = k_ts_ms // 1000
+                if k_ts_s == window_start_ts:
+                    start_price = float(k[4])
+                if k_ts_s == window_start_ts + 300:
+                    end_price = float(k[4])
+
+            if start_price is not None and end_price is not None:
+                went_up = end_price > start_price
+                won = (direction == "up" and went_up) or (direction == "down" and not went_up)
+
+                if won:
+                    trade.result = "win"
+                    trade.pnl = (size / entry_price) - size if entry_price > 0 else 0.0
+                    trade.settlement_value = size / entry_price if entry_price > 0 else 0.0
+                else:
+                    trade.result = "loss"
+                    trade.pnl = -size
+                    trade.settlement_value = 0.0
+
+                trade.settled = True
+                trade.settlement_time = now
+                trade.settlement_source = "btc_5min_cex_fallback"
+                logger.info(
+                    f"BTC 5min {ticker}: settled via CEX fallback start=${start_price:.2f} "
+                    f"end=${end_price:.2f} dir={direction} won={won} pnl=${trade.pnl:+.2f}"
+                )
+                return trade
+            elif end_price is not None or start_price is not None:
+                reference_price = end_price or start_price
+                for k in klines:
+                    k_ts_ms = int(float(k[0])) if isinstance(k[0], (int, float, str)) else 0
+                    k_ts_s = k_ts_ms // 1000
+                    if window_start_ts <= k_ts_s <= window_start_ts + 300:
+                        if start_price is None:
+                            start_price = float(k[4])
+                        end_price = float(k[4])
+                if start_price is not None and end_price is not None:
+                    went_up = end_price > start_price
+                    won = (direction == "up" and went_up) or (direction == "down" and not went_up)
+                    if won:
+                        trade.result = "win"
+                        trade.pnl = (size / entry_price) - size if entry_price > 0 else 0.0
+                        trade.settlement_value = size / entry_price if entry_price > 0 else 0.0
+                    else:
+                        trade.result = "loss"
+                        trade.pnl = -size
+                        trade.settlement_value = 0.0
+                    trade.settled = True
+                    trade.settlement_time = now
+                    trade.settlement_source = "btc_5min_cex_fallback_scan"
+                    logger.info(
+                        f"BTC 5min {ticker}: settled via CEX scan start=${start_price:.2f} "
+                        f"end=${end_price:.2f} dir={direction} won={won} pnl=${trade.pnl:+.2f}"
+                    )
+                    return trade
+    except Exception as e:
+        logger.warning(f"BTC 5min CEX fallback also failed for {ticker}: {e}")
 
     trade.settled = True
-    trade.result = "push"
-    trade.pnl = 0.0
+    trade.result = "expired_unresolved"
+    trade.pnl = -size
     trade.settlement_time = now
-    trade.settlement_source = "btc_5min_auto_breakeven"
-    trade.settlement_value = float(trade.size or 0)
+    trade.settlement_source = "btc_5min_unresolved"
+    trade.settlement_value = 0.0
+    logger.warning(
+        f"BTC 5min {ticker}: could not resolve via Polymarket or CEX, "
+        f"marking as expired_unresolved (assumed loss)"
+    )
     return trade
 
 
@@ -108,7 +191,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
 
                 for trade_id in trades_to_close:
                     trade = db.query(Trade).filter(Trade.id == trade_id).first()
-                    if trade and not trade.settled:
+                    if trade and (not trade.settled or trade.pnl is None):
                         is_resolved, settlement_value = await fetch_resolution_for_trade(trade)
                         
                         if is_resolved and settlement_value is not None:
@@ -162,7 +245,9 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
             )
 
         try:
-            pending = db.query(Trade).filter(Trade.settled.is_(False)).all()
+            pending = db.query(Trade).filter(
+                (Trade.settled.is_(False)) | ((Trade.settled.is_(True)) & (Trade.pnl.is_(None)))
+            ).all()
         except Exception as e:
             logger.error(f"Failed to query pending trades: {e}")
             return []
@@ -259,13 +344,31 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 continue
 
             # Check if market's end_date has passed - if so and API can't
-            # resolve it, expire immediately instead of waiting 48 hours.
+            # resolve it, try one last direct resolution before assuming total loss.
             market_end = trade.market_end_date
             if market_end:
                 if market_end.tzinfo is None:
                     market_end = market_end.replace(tzinfo=timezone.utc)
                 if market_end < now:
-                    # Market expired and API couldn't resolve — assume loss
+                    expired_ago = (now - market_end).total_seconds()
+
+                    if expired_ago < 3600:
+                        try:
+                            is_resolved_retry, sv_retry = await fetch_resolution_for_trade(trade)
+                            if is_resolved_retry and sv_retry is not None:
+                                pnl_retry = calculate_pnl(trade, sv_retry)
+                                if await process_settled_trade(
+                                    trade, True, sv_retry, pnl_retry, db
+                                ):
+                                    logger.info(
+                                        f"Trade {trade.id} rescued on expiry retry: "
+                                        f"pnl=${pnl_retry:+.2f}"
+                                    )
+                                    settled_trades.append(trade)
+                                    continue
+                        except Exception as e:
+                            logger.debug(f"Expired market retry failed for trade {trade.id}: {e}")
+
                     trade.settled = True
                     trade.result = "loss"
                     trade.settlement_time = now
@@ -372,7 +475,7 @@ async def update_bot_state_with_settlements(
                     state.paper_trades = (state.paper_trades or 0) + 1
                     if trade.result == "win":
                         state.paper_wins = (state.paper_wins or 0) + 1
-                elif is_expired_or_push:
+                elif is_expired_or_push or trade.result in ("expired_unresolved", "btc_5min_unresolved"):
                     state.paper_bankroll = (state.paper_bankroll or 0.0) + trade.size
                     logger.info(
                         f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to paper bankroll"
@@ -390,30 +493,23 @@ async def update_bot_state_with_settlements(
                     state.testnet_trades = (state.testnet_trades or 0) + 1
                     if trade.result == "win":
                         state.testnet_wins = (state.testnet_wins or 0) + 1
-                elif is_expired_or_push:
+                elif is_expired_or_push or trade.result in ("expired_unresolved", "btc_5min_unresolved"):
                     state.testnet_bankroll = (state.testnet_bankroll or 0.0) + trade.size
                     logger.info(
                         f"Expired/push trade {trade.id}: returned ${trade.size:.2f} to testnet bankroll"
                     )
-            else:
-                # Live BotState financial fields are derived from external account
-                # equity, not local trade ledger P&L.  Do not mutate live state in
-                # this transaction; reconcile from CLOB cash + PM open positions
-                # after settlement rows are committed.
-                pass
+            elif trading_mode == "live":
+                state = db.query(BotState).filter_by(mode=trading_mode).first()
+                if not state:
+                    logger.warning(f"Bot state not found for mode {trading_mode}")
+                    continue
+                if is_real_trade:
+                    state.total_trades = (state.total_trades or 0) + 1
+                    if trade.result == "win":
+                        state.winning_trades = (state.winning_trades or 0) + 1
+                # We do not update live bankroll/pnl here because they are derived
+                # from external account equity. They will be reconciled below.
 
-            # AGI hook: update Bayesian Kelly posterior on each trade outcome
-            if is_real_trade:
-                try:
-                    from backend.agents.pipeline import AGITradingPipeline
-
-                    _agi = AGITradingPipeline()
-                    _agi.record_outcome(
-                        market_ticker=trade.market_ticker,
-                        won=(trade.result == "win"),
-                    )
-                except Exception as _e:
-                    logger.debug(f"[settlement] AGI record_outcome skipped: {_e}")
 
         try:
             db.commit()

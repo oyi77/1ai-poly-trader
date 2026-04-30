@@ -323,12 +323,13 @@ class CopyTraderStrategy(BaseStrategy):
                             "trader_score": wallet_signals[0].trader_score,
                             "signals_count": len(wallet_signals),
                             "outcomes": [s.our_side for s in wallet_signals],
+                            "sources": ["copy_trader", "whale_tracker"],
                         }
                     )
                     reason = wallet_signals[0].reasoning
                 else:
                     signal_data = json.dumps(
-                        {"min_score": min_score, "max_wallets": max_wallets}
+                        {"min_score": min_score, "max_wallets": max_wallets, "sources": ["copy_trader"]}
                     )
                     reason = f"No new trades detected for wallet {wallet[:10]}..."
 

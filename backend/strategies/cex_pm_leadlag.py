@@ -128,7 +128,8 @@ class CexPmLeadLagStrategy(BaseStrategy):
                     "direction": direction,
                     "edge": edge,
                     "minutes_remaining": round(minutes_remaining, 2),
-                    "source": micro.source,
+                    "source": micro.source,  # legacy field (exchange list)
+                    "sources": ["cex_pm_leadlag"] + (micro.source if isinstance(micro.source, list) else [micro.source]),  # AGI learning
                     "slug": market.slug,
                     "up_price": market.up_price,
                     "down_price": market.down_price,

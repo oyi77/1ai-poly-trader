@@ -219,11 +219,11 @@ class WalletReconciler:
                     size=size,
                     timestamp=datetime.now(timezone.utc),
                     trading_mode=self.mode,
-                    settled=is_redeemable,
-                    result="closed" if is_redeemable else None,
+                    settled=False,
+                    result=None,
                     source="external",
                     blockchain_verified=True,
-                    settlement_source="data_api" if is_redeemable else None,
+                    settlement_source=None,
                     external_import_at=datetime.now(timezone.utc),
                     model_probability=0.5,
                     market_price_at_entry=avg_price,
@@ -321,11 +321,19 @@ class WalletReconciler:
                 if existing:
                     if not existing.settled:
                         existing.settled = True
-                        existing.result = "closed"
+                        # We will set result below after PnL is calculated
                         existing.settlement_source = "activity_api_redeem"
                         existing.blockchain_verified = True
                         if existing.size and existing.size > 0 and existing.entry_price:
-                            existing.pnl = redeem_amount - (existing.size * existing.entry_price)
+                            existing.pnl = redeem_amount - existing.size
+                            if existing.pnl > 0:
+                                existing.result = "win"
+                            elif existing.pnl < 0:
+                                existing.result = "loss"
+                            else:
+                                existing.result = "push"
+                        else:
+                            existing.result = "closed"
                         existing.settlement_time = (
                             datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
                             if timestamp_unix else datetime.now(timezone.utc)

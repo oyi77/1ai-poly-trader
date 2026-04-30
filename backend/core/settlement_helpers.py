@@ -1085,13 +1085,13 @@ async def process_settled_trade(
 
     # Trigger realtime RL learner — fire-and-forget, never blocks settlement
     try:
-        import asyncio as _asyncio
-        from backend.core.realtime_learner import on_trade_settled as _on_trade_settled
-
-        _asyncio.create_task(_on_trade_settled(trade, db))
+        from backend.core.online_learner import OnlineLearner
+        
+        learner = OnlineLearner()
+        learner.on_trade_settled(trade, db)
     except Exception as e:
         logger.debug(
-            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: realtime_learner hook failed: {e}",
+            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: online_learner hook failed: {e}",
         )
 
     return True

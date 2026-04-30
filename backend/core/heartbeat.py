@@ -139,7 +139,11 @@ async def watchdog_job() -> None:
                     "watchdog",
                     h["name"],
                     "ERROR",
-                    signal_data={"lag_seconds": h["lag_seconds"], "healthy": False},
+                    signal_data={
+                        "lag_seconds": h["lag_seconds"],
+                        "healthy": False,
+                        "sources": ["heartbeat_watchdog"],
+                    },
                     reason=f"Heartbeat stale: {h['lag_seconds']:.0f}s since last cycle",
                 )
                 db.commit()

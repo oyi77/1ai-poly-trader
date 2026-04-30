@@ -270,6 +270,7 @@ class LineMovementDetectorStrategy(BaseStrategy):
                     "direction": direction,
                     "volume_24h": movement.volume_24h,
                     "has_news": bool(news_context),
+                    "sources": ["line_movement_detector", "tavily"],
                 },
                 reason=f"Confidence {confidence:.2f} below threshold {params['min_confidence_to_signal']}",
             )
@@ -298,6 +299,7 @@ class LineMovementDetectorStrategy(BaseStrategy):
                 "news_context": news_context[:500] if news_context else "",
                 "condition_id": movement.condition_id,
                 "token_id": movement.token_id,
+                "sources": ["line_movement_detector", "tavily", "polymarket_gamma"],
             },
             reason=f"Sharp {direction} move: {movement.price_change_pct:+.1f}% in 1h, vol=${movement.volume_24h:,.0f}",
         )

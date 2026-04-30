@@ -80,16 +80,15 @@ class Settings(BaseSettings):
     POLYGON_AMOY_RPC: str = "https://rpc-amoy.polygon.technology"
     POLYGON_AMOY_CHAIN_ID: int = 80002
 
-    # Bot settings - BTC 5-MIN TRADING
     INITIAL_BANKROLL: float = 100.0
-    KELLY_FRACTION: float = 0.25
+    KELLY_FRACTION: float = 0.30  # 30% Kelly - more aggressive (winners used bigger positions)
 
     # BTC 5-min specific settings
     SCAN_INTERVAL_SECONDS: int = 60  # Scan every minute
     SETTLEMENT_INTERVAL_SECONDS: int = 120  # Check settlements every 2 min
     BTC_PRICE_SOURCE: str = "coinbase"
     MIN_EDGE_THRESHOLD: float = (
-        0.05  # 5% edge required — lower threshold to find more opportunities
+        0.30  # 30% edge required - only trade like the WINNERS (cex_pm_leadlag had 40-47% edge)
     )
     MAX_ENTRY_PRICE: float = 0.80  # Allow entries up to 80c for bond-like trades
     MAX_TRADES_PER_WINDOW: int = 2
@@ -164,7 +163,7 @@ class Settings(BaseSettings):
         0.20  # Pause trading if 7d loss > 20% of bankroll
     )
 
-    AUTO_APPROVE_MIN_CONFIDENCE: float = 0.55
+    AUTO_APPROVE_MIN_CONFIDENCE: float = 0.50  # Auto-approve 50%+ (winners had 40-90% distribution)
     AUTO_TRADER_ENABLED: bool = False
 
     # Signal approval mode: "manual", "auto_approve", "auto_deny"

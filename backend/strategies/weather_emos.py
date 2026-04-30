@@ -335,7 +335,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                 self.name,
                 "all_weather_markets",
                 "SKIP",
-                signal_data={"reason": "no_active_weather_markets"},
+                signal_data={"reason": "no_active_weather_markets", "sources": ["weather_emos"]},
                 reason="No active weather markets found",
             )
             result.decisions_recorded = 1
@@ -391,6 +391,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                     signal_data={
                         "reason": "no_city_match",
                         "question": market.question,
+                        "sources": ["weather_emos"],
                     },
                     reason="Could not match market to a configured city",
                 )
@@ -407,6 +408,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                     signal_data={
                         "reason": "no_threshold_parsed",
                         "question": market.question,
+                        "sources": ["weather_emos"],
                     },
                     reason="Could not parse temperature threshold from question",
                 )
@@ -429,6 +431,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                         "city": city_name,
                         "n_observations": cal.n,
                         "min_required": min_obs,
+                        "sources": ["weather_emos"],
                     },
                     reason=f"Only {cal.n}/{min_obs} calibration observations for {city_name}",
                 )
@@ -473,6 +476,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                 "n_calibration_obs": cal.n,
                 "emos_a": cal.a,
                 "emos_b": cal.b,
+                "sources": ["weather_emos", "open_meteo", "nws"],
             }
 
             decision = "BUY" if abs(edge) > min_edge else "SKIP"

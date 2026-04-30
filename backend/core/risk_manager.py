@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from backend.config import settings
-from backend.models.database import SessionLocal, Trade
+from backend.models.database import SessionLocal, Trade, BotState
 from sqlalchemy import func, or_
 
 logger = logging.getLogger("trading_bot.risk")
@@ -140,9 +140,18 @@ class RiskManager:
                 or 0.0
             )
 
-            # Use the higher of current bankroll or initial bankroll to prevent
-            # death spiral: depleted bankroll → tiny limit → can't trade → can't recover
-            base_bankroll = max(bankroll, self.s.INITIAL_BANKROLL)
+            # Use the higher of current bankroll or effective initial bankroll to prevent
+            # death spiral: depleted bankroll → tiny limit → can't trade → can't recover.
+            # Reads DB-backed initial (which includes top-ups) when available.
+            effective_initial = self.s.INITIAL_BANKROLL
+            if db is not None:
+                state = db.query(BotState).filter_by(mode=effective_mode).first()
+                if state is not None:
+                    if effective_mode == "paper" and state.paper_initial_bankroll is not None:
+                        effective_initial = float(state.paper_initial_bankroll)
+                    elif effective_mode == "testnet" and state.testnet_initial_bankroll is not None:
+                        effective_initial = float(state.testnet_initial_bankroll)
+            base_bankroll = max(bankroll, effective_initial)
             daily_limit = base_bankroll * self.s.DAILY_DRAWDOWN_LIMIT_PCT
             weekly_limit = base_bankroll * self.s.WEEKLY_DRAWDOWN_LIMIT_PCT
 

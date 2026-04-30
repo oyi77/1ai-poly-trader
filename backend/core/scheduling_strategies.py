@@ -135,6 +135,7 @@ async def _process_signal_with_approval(
                 "market_probability": signal.market_probability,
                 "edge": signal.edge,
                 "btc_price": getattr(signal, "btc_price", None),
+                "sources": ["btc_5m_scanner", "market_maker", "whale_tracker"],
             },
             reason="auto-deny mode: signal rejected",
         )
@@ -150,6 +151,22 @@ async def _process_signal_with_approval(
             log_event(
                 "info",
                 f"Auto-approve: skipping low-confidence signal ({signal.confidence:.2f} < {min_confidence}) for {signal.market.slug}",
+            )
+            record_decision(
+                db,
+                "btc_5m",
+                signal.market.market_id,
+                "SKIP",
+                confidence=signal.confidence,
+                signal_data={
+                    "direction": signal.direction,
+                    "model_probability": signal.model_probability,
+                    "market_probability": signal.market_probability,
+                    "edge": signal.edge,
+                    "btc_price": getattr(signal, "btc_price", None),
+                    "sources": ["btc_5m_scanner", "market_maker", "whale_tracker"],
+                },
+                reason=f"auto-approve: confidence {signal.confidence:.2f} below threshold {min_confidence}",
             )
             return trades_executed
 
@@ -251,6 +268,7 @@ async def _queue_for_approval(
                 "btc_price": getattr(signal, "btc_price", None),
                 "pending_id": pending.id,
                 "trade_size": trade_size,
+                "sources": ["btc_5m_scanner", "market_maker", "whale_tracker"],
             },
             reason=f"queued for manual approval (conf {signal.confidence:.2f})",
         )
