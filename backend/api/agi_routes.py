@@ -7,23 +7,14 @@ from fastapi.security import HTTPBasicCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from backend.models.database import get_db, Base, engine
 from backend.core.agi_orchestrator import AGIOrchestrator, AGIStatus
 from backend.core.agi_goal_engine import AGIGoalEngine
 from backend.core.strategy_composer import StrategyComposer, ComposedStrategy
 from backend.core.knowledge_graph import KnowledgeGraph
-from backend.models.kg_models import Base, DecisionAuditLog, ExperimentRecord, KGEntity as KGEntityModel, KGRelation as KGRelationModel
+from backend.models.kg_models import DecisionAuditLog, ExperimentRecord, KGEntity as KGEntityModel, KGRelation as KGRelationModel
 
 router = APIRouter(tags=["AGI"])
-
-def get_db():
-    engine = create_engine("sqlite:///agi_test.db", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/regime")
@@ -40,8 +31,8 @@ async def get_goal(db: Session = Depends(get_db)):
     regime = None
     try:
         from backend.core.regime_detector import RegimeDetector
-        detector = RegimeDetector(session=db)
-        regime = detector.detect_regime()
+        detector = RegimeDetector()
+        regime = detector.detect_regime(market_data={}).regime
     except Exception:
         pass
     goal = engine.get_current_goal(regime or None)
@@ -161,6 +152,13 @@ async def get_status(db: Session = Depends(get_db)):
     orchestrator = AGIOrchestrator(session=db)
     status = orchestrator.get_status()
     return status.to_dict()
+
+
+@router.post("/run-cycle")
+async def run_cycle(db: Session = Depends(get_db)):
+    orchestrator = AGIOrchestrator(session=db)
+    result = orchestrator.run_cycle()
+    return result.to_dict()
 
 
 @router.post("/goal/override")

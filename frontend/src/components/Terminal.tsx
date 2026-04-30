@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Play, Pause, RefreshCw } from 'lucide-react'
-import { getWsUrl } from '../api'
+import { getWsUrl, API_BASE } from '../api'
 import { retryFetch } from '../utils/retryFetch'
 
 interface LogEntry {
@@ -22,7 +22,7 @@ interface Props {
   onScan?: () => void
 }
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = API_BASE
 const WS_URL = () => getWsUrl('/ws/events')
 
 export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props) {

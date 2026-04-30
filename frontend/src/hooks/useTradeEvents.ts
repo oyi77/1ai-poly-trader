@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getAdminApiKey } from '../api'
+import { getAdminApiKey, API_BASE } from '../api'
 
 export type TradeEvent = {
   type: 'trade_opened' | 'trade_settled' | 'signal_found' | 'connected'
@@ -24,7 +24,6 @@ export function useTradeEvents(onEvent: (event: TradeEvent) => void) {
   }, [])
 
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || ''
     const key = getAdminApiKey()
     const tokenParam = key ? `?token=${encodeURIComponent(key)}` : ''
     let es: EventSource | null = null

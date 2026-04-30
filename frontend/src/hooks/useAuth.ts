@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getAdminApiKey, setAdminApiKey } from '../api'
+import { getAdminApiKey, setAdminApiKey, API_BASE } from '../api'
 import { retryFetch } from '../utils/retryFetch'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
 
 interface AuthState {
   isAuthenticated: boolean

@@ -89,7 +89,7 @@ class AGIOrchestrator:
         try:
             from backend.core.regime_detector import RegimeDetector
             detector = RegimeDetector()
-            regime = detector.detect_regime()
+            regime = detector.detect_regime(market_data={}).regime
             self._current_regime = regime
             actions += 1
         except Exception as e:
@@ -108,8 +108,10 @@ class AGIOrchestrator:
 
         try:
             from backend.core.strategy_allocator import RegimeAwareAllocator
-            allocator = RegimeAwareAllocator(session=self._session)
-            allocations = allocator.allocate(regime, total_capital=10000.0)
+            from backend.core.knowledge_graph import KnowledgeGraph
+            kg = KnowledgeGraph(session=self._session)
+            allocator = RegimeAwareAllocator(kg=kg)
+            allocations = allocator.allocate(["btc_momentum", "weather_emos"], regime, capital=10000.0)
             actions += 1
         except Exception as e:
             errors.append(f"Allocation failed: {e}")

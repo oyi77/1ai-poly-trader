@@ -8,6 +8,7 @@ from fastapi import (
     WebSocketDisconnect,
     Header,
     Request,
+    Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, or_
@@ -798,6 +799,7 @@ app.include_router(copy_trading_router, prefix="/api/v1")
 app.include_router(arbitrage_router, prefix="/api/v1")
 app.include_router(market_intel_router, prefix="/api/v1")
 app.include_router(auto_trader_router, prefix="/api/v1")
+app.include_router(agi_router, prefix="/api/v1")
 app.include_router(system_router, prefix="/api/v1")
 app.include_router(backtest_router, prefix="/api/v1")
 app.include_router(wallets_router, prefix="/api/v1")
@@ -1704,7 +1706,7 @@ async def events_stream_v1(request: Request, token: str = ""):
     return await events_stream(request, token)
 
 @app.websocket("/ws/markets")
-async def ws_markets(websocket: WebSocket, token: str = ""):
+async def ws_markets(websocket: WebSocket, token: str = Query(None)):
     """WebSocket endpoint for live market price updates."""
     if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
@@ -1739,7 +1741,7 @@ async def ws_markets(websocket: WebSocket, token: str = ""):
 
 
 @app.websocket("/ws/whales")
-async def ws_whales(websocket: WebSocket, token: str = ""):
+async def ws_whales(websocket: WebSocket, token: str = Query(None)):
     """WebSocket endpoint for whale trade notifications."""
     if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
@@ -1774,7 +1776,7 @@ async def ws_whales(websocket: WebSocket, token: str = ""):
 
 
 @app.websocket("/ws/activities")
-async def ws_activities(websocket: WebSocket, token: str = ""):
+async def ws_activities(websocket: WebSocket, token: str = Query(None)):
     if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")
         return

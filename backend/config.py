@@ -127,7 +127,7 @@ class Settings(BaseSettings):
 
     # Admin API security
     ADMIN_API_KEY: Optional[str] = "BerkahKarya2026"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://polyedge.aitradepulse.com,http://polyedge.aitradepulse.com"
 
     # Telegram bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None

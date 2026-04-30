@@ -1,7 +1,22 @@
 import axios from 'axios'
 import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting, TradeAttemptSummary, TradeAttemptsResponse } from './types'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+const getApiBase = () => {
+  const env = import.meta.env.VITE_API_URL
+  if (env && env !== 'undefined') {
+    const isEnvLocal = env.includes('localhost') || env.includes('127.0.0.1')
+    const isPageLocal = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+    
+    // If we're on a production domain but VITE_API_URL is localhost/127.0.0.1, 
+    // it likely means the build was misconfigured. Fallback to relative.
+    if (isEnvLocal && !isPageLocal) {
+      return ''
+    }
+    return env
+  }
+  return ''
+}
+export const API_BASE = getApiBase()
 
 /**
  * Build a WebSocket URL for the given path.
@@ -11,9 +26,9 @@ const API_BASE = import.meta.env.VITE_API_URL || ''
 export function getWsUrl(path: string): string {
   const adminKey = localStorage.getItem('adminApiKey') || ''
   const queryParam = adminKey ? `?token=${adminKey}` : ''
-  if (import.meta.env.VITE_API_URL) {
+  if (API_BASE) {
     // Production: derive wss:// from https:// backend URL
-    return import.meta.env.VITE_API_URL.replace(/^http/, 'ws') + path + queryParam
+    return API_BASE.replace(/^http/, 'ws') + path + queryParam
   }
   // Dev: use current page host (Vite proxy handles /ws/*)
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'

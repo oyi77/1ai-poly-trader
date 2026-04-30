@@ -23,6 +23,11 @@ const WhaleTrackerTab = lazy(() => import('../components/dashboard/WhaleTrackerT
 const EdgeTrackerTab = lazy(() => import('../components/dashboard/EdgeTrackerTab').then(m => ({ default: m.EdgeTrackerTab })))
 const DecisionLogTab = lazy(() => import('../components/dashboard/DecisionLogTab').then(m => ({ default: m.DecisionLogTab })))
 const SettlementsTab = lazy(() => import('../components/dashboard/SettlementsTab').then(m => ({ default: m.SettlementsTab })))
+const AGIControlTab = lazy(() => import('../components/admin/AGIControlTab').then(m => ({ default: m.AGIControlTab })))
+const AGIDecisionsTab = lazy(() => import('../components/admin/AGIDecisionsTab').then(m => ({ default: m.AGIDecisionsTab })))
+const AGIComposerTab = lazy(() => import('../components/admin/AGIComposerTab').then(m => ({ default: m.AGIComposerTab })))
+const AGIRegimeTab = lazy(() => import('../components/admin/AGIRegimeTab').then(m => ({ default: m.AGIRegimeTab })))
+const ActivityTimeline = lazy(() => import('../components/ActivityTimeline').then(m => ({ default: m.ActivityTimeline })))
 
 function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
   const [password, setPassword] = useState('')
@@ -77,7 +82,31 @@ function AdminLoginGate({ login }: { login: (p: string) => Promise<void> }) {
   )
 }
 
-const TABS = ['System', 'Settings', 'Trading Terminal', 'Whale Tracker', 'Edge Tracker', 'Decision Log', 'Settlements', 'Backtest', 'Risk', 'Credentials', 'Strategies', 'Copy Trader', 'Telegram', 'Market Watch', 'Wallet Config', 'AI', 'Debate Monitor', 'Pending Approvals'] as const
+const TABS = [
+  'System', 
+  'Activity Log',
+  'AGI Control', 
+  'AGI Decisions', 
+  'AGI Regime',
+  'AGI Composer',
+  'Debate Monitor',
+  'AI Config', 
+  'Trading Terminal', 
+  'Whale Tracker', 
+  'Edge Tracker', 
+  'Decision Log', 
+  'Settlements', 
+  'Backtest', 
+  'Risk', 
+  'Credentials', 
+  'Strategies', 
+  'Copy Trader', 
+  'Telegram', 
+  'Market Watch', 
+  'Wallet Config', 
+  'Settings', 
+  'Pending Approvals'
+] as const
 type Tab = typeof TABS[number]
 
 function ApiKeyBar() {
@@ -123,7 +152,7 @@ export default function Admin() {
     <div className="h-screen bg-black text-neutral-200 flex flex-col overflow-hidden font-mono">
       <div className="shrink-0 border-b border-neutral-800 px-4 py-2 flex items-center justify-between bg-black gap-2">
         <Link to="/" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">PolyEdge</Link>
-        <div className="flex items-center gap-3 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-3 overflow-x-auto scrollbar-none flex-nowrap">
           <Link to="/dashboard" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">Dashboard</Link>
           <Link to="/mirofish" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">MiroFish</Link>
           <Link to="/activity" className="text-[10px] text-neutral-500 hover:text-green-500 uppercase tracking-wider transition-colors whitespace-nowrap">Activity</Link>
@@ -138,7 +167,7 @@ export default function Admin() {
       {!authRequired && <ApiKeyBar />}
 
       {/* Tab Bar */}
-      <div className="shrink-0 border-b border-neutral-800 flex items-center overflow-x-auto scrollbar-none">
+      <div className="shrink-0 border-b border-neutral-800 flex items-center overflow-x-auto scrollbar-none flex-nowrap">
         {TABS.map(tab => (
           <button
             key={tab}
@@ -159,7 +188,13 @@ export default function Admin() {
         <ModeFilterProvider>
         <Suspense fallback={<div className="flex items-center justify-center h-full text-neutral-500">Loading...</div>}>
           {activeTab === 'System' && <SystemStatus />}
-          {activeTab === 'Settings' && <SettingsTab />}
+          {activeTab === 'Activity Log' && <ActivityTimeline />}
+          {activeTab === 'AGI Control' && <AGIControlTab />}
+          {activeTab === 'AGI Decisions' && <AGIDecisionsTab />}
+          {activeTab === 'AGI Regime' && <AGIRegimeTab />}
+          {activeTab === 'AGI Composer' && <AGIComposerTab />}
+          {activeTab === 'Debate Monitor' && <DebateMonitorTab />}
+          {activeTab === 'AI Config' && <AITab />}
           {activeTab === 'Trading Terminal' && <TradingTerminalTab />}
           {activeTab === 'Whale Tracker' && <WhaleTrackerTab />}
           {activeTab === 'Edge Tracker' && <EdgeTrackerTab />}
@@ -173,8 +208,7 @@ export default function Admin() {
           {activeTab === 'Telegram' && <TelegramTab />}
           {activeTab === 'Market Watch' && <MarketWatchTab />}
           {activeTab === 'Wallet Config' && <WalletConfigTab />}
-          {activeTab === 'AI' && <AITab />}
-          {activeTab === 'Debate Monitor' && <DebateMonitorTab />}
+          {activeTab === 'Settings' && <SettingsTab />}
           {activeTab === 'Pending Approvals' && <PendingApprovals />}
         </Suspense>
         </ModeFilterProvider>

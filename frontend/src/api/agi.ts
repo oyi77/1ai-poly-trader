@@ -96,4 +96,6 @@ export const agiAPI = {
 
   overrideGoal: (goal: string, reason: string) =>
     adminApi.post<{ status: string; goal: string }>('/agi/goal/override', { goal, reason }).then(r => r.data),
+
+  runCycle: () => adminApi.post<{ actions_taken: number; errors: string[] }>('/agi/run-cycle').then(r => r.data),
 };
