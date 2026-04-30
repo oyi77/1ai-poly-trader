@@ -101,4 +101,4 @@ class LLMCostRecord(Base):
     cost_usd = Column(Float, nullable=False)
     purpose = Column(String, nullable=False)
     budget_remaining = Column(Float, nullable=False)
-    date_key = Column(String, nullable=False)
+    date_key = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))

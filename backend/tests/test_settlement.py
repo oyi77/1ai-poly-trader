@@ -319,12 +319,14 @@ class TestBankrollUpdate:
         from backend.core.settlement import update_bot_state_with_settlements
 
         state = _state_for_mode(db, "live")
+        db.info["allow_live_financial_update"] = True
         state.bankroll = -2645.42
-        state.total_pnl = -2704.70
+        state.total_pnl = -2745.42
         state.total_trades = 0
         state.winning_trades = 0
         state.is_running = True
         db.flush()
+        del db.info["allow_live_financial_update"]
 
         trade = _make_trade(db, direction="up", entry_price=0.40, size=40.0, trading_mode="live")
         trade.settled = True
@@ -403,7 +405,7 @@ class TestProcessSettledTrade:
         before = datetime.now(timezone.utc)
         await process_settled_trade(trade, True, 1.0, 6.0, db)
         assert trade.settlement_time is not None
-        assert trade.settlement_time >= before
+        assert trade.settlement_time.replace(tzinfo=timezone.utc) >= before
 
 
 # ---------------------------------------------------------------------------

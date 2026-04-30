@@ -1,0 +1,418 @@
+"""Dashboard API endpoints."""
+
+import logging
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+from backend.api.system import BotStats, get_stats
+from backend.api.trading import (
+    CalibrationSummary,
+    SignalResponse,
+    TradeResponse,
+    _compute_calibration_summary,
+    _signal_to_response,
+)
+from backend.api.markets import _weather_signal_to_response
+from backend.config import settings
+from backend.core.signals import scan_for_signals
+from backend.data.btc_markets import fetch_active_btc_markets
+from backend.data.crypto import compute_btc_microstructure, fetch_crypto_price
+from backend.models.database import BotState, Trade, TradeContext, get_db
+
+logger = logging.getLogger("trading_bot")
+
+router = APIRouter(tags=["dashboard"])
+
+class BtcPriceResponse(BaseModel):
+    price: float
+    change_24h: float
+    change_7d: float
+    market_cap: float
+    volume_24h: float
+    last_updated: datetime
+
+class BtcWindowResponse(BaseModel):
+    slug: str
+    market_id: str
+    up_price: float
+    down_price: float
+    window_start: datetime
+    window_end: datetime
+    volume: float
+    is_active: bool
+    is_upcoming: bool
+    time_until_end: float
+    spread: float
+
+class MicrostructureResponse(BaseModel):
+    rsi: float = 50.0
+    momentum_1m: float = 0.0
+    momentum_5m: float = 0.0
+    momentum_15m: float = 0.0
+    vwap_deviation: float = 0.0
+    sma_crossover: float = 0.0
+    volatility: float = 0.0
+    price: float = 0.0
+    source: str = "unknown"
+
+class WeatherForecastResponse(BaseModel):
+    city_key: str
+    city_name: str
+    target_date: str
+    mean_high: float
+    std_high: float
+    mean_low: float
+    std_low: float
+    num_members: int
+    ensemble_agreement: float
+
+class WeatherMarketResponse(BaseModel):
+    slug: str
+    market_id: str
+    platform: str = "polymarket"
+    title: str
+    city_key: str
+    city_name: str
+    target_date: str
+    threshold_f: float
+    metric: str
+    direction: str
+    yes_price: float
+    no_price: float
+    volume: float
+
+class WeatherSignalResponse(BaseModel):
+    market_id: str
+    city_key: str
+    city_name: str
+    target_date: str
+    threshold_f: float
+    metric: str
+    direction: str
+    model_probability: float
+    market_probability: float
+    edge: float
+    confidence: float
+    suggested_size: float
+    reasoning: str
+    ensemble_mean: float
+    ensemble_std: float
+    ensemble_members: int
+    actionable: bool = False
+
+class DashboardData(BaseModel):
+    stats: BotStats
+    btc_price: Optional[BtcPriceResponse]
+    microstructure: Optional[MicrostructureResponse] = None
+    windows: List[BtcWindowResponse]
+    active_signals: List[SignalResponse]
+    recent_trades: List[TradeResponse]
+    top_winning_trades: List[TradeResponse] = []
+    equity_curve: List[dict]
+    calibration: Optional[CalibrationSummary] = None
+    weather_signals: List[WeatherSignalResponse] = []
+    weather_forecasts: List[WeatherForecastResponse] = []
+    trading_mode: str = "paper"
+
+def _serialize_trade_response(trade: Trade, contexts: dict[int, TradeContext]) -> TradeResponse:
+    context = contexts.get(trade.id)
+    return TradeResponse(
+        id=trade.id,
+        market_ticker=trade.market_ticker,
+        platform=trade.platform,
+        event_slug=trade.event_slug,
+        direction=trade.direction,
+        entry_price=trade.entry_price,
+        size=trade.size,
+        timestamp=trade.timestamp,
+        settled=trade.settled,
+        result=trade.result,
+        pnl=trade.pnl,
+        strategy=(context.strategy if context else None) or getattr(trade, "strategy", None),
+        signal_source=(context.signal_source if context else None)
+        or getattr(trade, "signal_source", None),
+        confidence=(context.confidence if context else None)
+        or getattr(trade, "confidence", None),
+        trading_mode=trade.trading_mode,
+    )
+
+def _load_trade_contexts(db: Session, trades: list[Trade]) -> dict[int, TradeContext]:
+    trade_ids = [trade.id for trade in trades]
+    if not trade_ids:
+        return {}
+    return {
+        context.trade_id: context
+        for context in db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
+    }
+
+def _build_account_equity_curve(db: Session, curve_mode: str = "live") -> list[dict]:
+    """Build dashboard equity points without letting historical backfills redefine live equity."""
+    equity_curve: list[dict] = []
+    initial_bankroll = 100.0 if curve_mode == "testnet" else float(settings.INITIAL_BANKROLL)
+    mode_state = db.query(BotState).filter_by(mode=curve_mode).first()
+
+    if curve_mode == "live":
+        historical_trades = (
+            db.query(Trade)
+            .filter(
+                Trade.settled.is_(True),
+                Trade.trading_mode == "live",
+                Trade.pnl.isnot(None),
+                or_(
+                    Trade.settlement_source.is_(None),
+                    Trade.settlement_source != "backfill_conservative_loss",
+                ),
+            )
+            .order_by(Trade.timestamp)
+            .limit(500)
+            .all()
+        )
+        realized_points: list[tuple[datetime, float]] = []
+        cumulative_realized = 0.0
+        for trade in historical_trades:
+            cumulative_realized += float(trade.pnl or 0.0)
+            realized_points.append((trade.timestamp, cumulative_realized))
+
+        current_pnl = float(mode_state.total_pnl or 0.0) if mode_state else cumulative_realized
+        current_bankroll = (
+            float(mode_state.bankroll or initial_bankroll) if mode_state else initial_bankroll + current_pnl
+        )
+
+        if realized_points:
+            final_realized = realized_points[-1][1]
+            adjustment = current_pnl - final_realized
+            for timestamp, realized_pnl in realized_points:
+                point_pnl = realized_pnl + adjustment
+                equity_curve.append(
+                    {
+                        "timestamp": timestamp.isoformat(),
+                        "pnl": point_pnl,
+                        "bankroll": current_bankroll - (current_pnl - point_pnl),
+                    }
+                )
+
+        equity_curve.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pnl": current_pnl,
+                "bankroll": current_bankroll,
+            }
+        )
+        return equity_curve
+
+    cumulative_pnl = 0.0
+    equity_trades = (
+        db.query(Trade)
+        .filter(Trade.settled.is_(True), Trade.trading_mode == curve_mode)
+        .order_by(Trade.timestamp)
+        .all()
+    )
+    for trade in equity_trades:
+        cumulative_pnl += float(trade.pnl or 0.0)
+        equity_curve.append(
+            {
+                "timestamp": trade.timestamp.isoformat(),
+                "pnl": cumulative_pnl,
+                "bankroll": initial_bankroll + cumulative_pnl,
+            }
+        )
+
+    if mode_state:
+        if curve_mode == "paper":
+            current_bankroll = mode_state.paper_bankroll if mode_state.paper_bankroll is not None else mode_state.bankroll
+            current_pnl = mode_state.paper_pnl if mode_state.paper_pnl is not None else mode_state.total_pnl
+        else:
+            current_bankroll = mode_state.testnet_bankroll if mode_state.testnet_bankroll is not None else mode_state.bankroll
+            current_pnl = mode_state.testnet_pnl if mode_state.testnet_pnl is not None else mode_state.total_pnl
+        equity_curve.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pnl": float(current_pnl or 0.0),
+                "bankroll": float(current_bankroll or initial_bankroll),
+            }
+        )
+
+    return equity_curve
+
+@router.get("/dashboard", response_model=DashboardData)
+async def get_dashboard(
+    db: Session = Depends(get_db)
+):
+    """Get all dashboard data in one call - returns stats for all 3 modes."""
+    stats = await get_stats(db=db, mode=None)
+
+    # Fetch BTC price from microstructure first, fallback to CoinGecko
+    btc_price_data = None
+    micro_data = None
+    try:
+        micro = await compute_btc_microstructure()
+        if micro:
+            micro_data = MicrostructureResponse(
+                rsi=micro.rsi,
+                momentum_1m=micro.momentum_1m,
+                momentum_5m=micro.momentum_5m,
+                momentum_15m=micro.momentum_15m,
+                vwap_deviation=micro.vwap_deviation,
+                sma_crossover=micro.sma_crossover,
+                volatility=micro.volatility,
+                price=micro.price,
+                source=micro.source,
+            )
+            btc_price_data = BtcPriceResponse(
+                price=micro.price,
+                change_24h=(micro.momentum_15m or 0.0) * 96,  # rough extrapolation
+                change_7d=0,
+                market_cap=0,
+                volume_24h=0,
+                last_updated=datetime.now(timezone.utc),
+            )
+    except Exception as e:
+        logger.warning(
+            f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch BTC microstructure data, falling back to CoinGecko: {e}",
+            exc_info=True
+        )
+    if not btc_price_data:
+        try:
+            btc = await fetch_crypto_price("BTC")
+            if btc:
+                btc_price_data = BtcPriceResponse(
+                    price=btc.current_price,
+                    change_24h=btc.change_24h,
+                    change_7d=btc.change_7d,
+                    market_cap=btc.market_cap,
+                    volume_24h=btc.volume_24h,
+                    last_updated=btc.last_updated,
+                )
+        except Exception as e:
+            logger.warning(
+                f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch BTC price from CoinGecko: {e}",
+                exc_info=True
+            )
+
+    # Fetch windows
+    windows = []
+    try:
+        markets = await fetch_active_btc_markets()
+        windows = [
+            BtcWindowResponse(
+                slug=m.slug,
+                market_id=m.market_id,
+                up_price=m.up_price,
+                down_price=m.down_price,
+                window_start=m.window_start,
+                window_end=m.window_end,
+                volume=m.volume,
+                is_active=m.is_active,
+                is_upcoming=m.is_upcoming,
+                time_until_end=m.time_until_end,
+                spread=m.spread,
+            )
+            for m in markets
+        ]
+    except Exception as e:
+        logger.warning(
+            f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch active BTC markets: {e}",
+            exc_info=True
+        )
+
+    # Signals — return ALL signals, mark which are actionable
+    signals = []
+    try:
+        raw_signals = await scan_for_signals()
+        signals = [
+            _signal_to_response(s, actionable=s.passes_threshold) for s in raw_signals
+        ]
+    except Exception as e:
+        logger.warning(
+            f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to scan for trading signals: {e}",
+            exc_info=True
+        )
+
+    # Recent trades (with TradeContext enrichment)
+    trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(50).all()
+    contexts = _load_trade_contexts(db, trades)
+    recent_trades = [_serialize_trade_response(t, contexts) for t in trades]
+
+    top_winning_trade_rows = (
+        db.query(Trade)
+        .filter(
+            Trade.settled.is_(True),
+            Trade.pnl.isnot(None),
+            Trade.pnl > 0,
+        )
+        .order_by(Trade.pnl.desc(), Trade.timestamp.desc())
+        .limit(5)
+        .all()
+    )
+    top_winning_contexts = _load_trade_contexts(db, top_winning_trade_rows)
+    top_winning_trades = [
+        _serialize_trade_response(t, top_winning_contexts) for t in top_winning_trade_rows
+    ]
+
+    # Equity curve: match the default dashboard/account view.
+    curve_mode = "live"
+    equity_curve = _build_account_equity_curve(db, curve_mode=curve_mode)
+
+    # Calibration summary
+    calibration = _compute_calibration_summary(db)
+
+    # Weather data (if enabled)
+    weather_signals_data = []
+    weather_forecasts_data = []
+    if settings.WEATHER_ENABLED:
+        try:
+            from backend.core.weather_signals import scan_for_weather_signals
+            from backend.data.weather import fetch_ensemble_forecast, CITY_CONFIG
+
+            wx_signals = await scan_for_weather_signals(mode=settings.TRADING_MODE)
+            weather_signals_data = [
+                WeatherSignalResponse(**_weather_signal_to_response(s).model_dump())
+                for s in wx_signals
+            ]
+
+            city_keys = [
+                c.strip() for c in settings.WEATHER_CITIES.split(",") if c.strip()
+            ]
+            for city_key in city_keys:
+                if city_key not in CITY_CONFIG:
+                    continue
+                forecast = await fetch_ensemble_forecast(city_key)
+                if forecast:
+                    weather_forecasts_data.append(
+                        WeatherForecastResponse(
+                            city_key=forecast.city_key,
+                            city_name=forecast.city_name,
+                            target_date=forecast.target_date.isoformat(),
+                            mean_high=forecast.mean_high,
+                            std_high=forecast.std_high,
+                            mean_low=forecast.mean_low,
+                            std_low=forecast.std_low,
+                            num_members=forecast.num_members,
+                            ensemble_agreement=forecast.ensemble_agreement,
+                        )
+                    )
+        except Exception as e:
+            logger.warning(
+                f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch weather forecasts data: {e}",
+                exc_info=True
+            )
+
+    return DashboardData(
+        stats=stats,
+        btc_price=btc_price_data,
+        microstructure=micro_data,
+        windows=windows,
+        active_signals=signals,
+        recent_trades=recent_trades,
+        top_winning_trades=top_winning_trades,
+        equity_curve=equity_curve,
+        calibration=calibration,
+        weather_signals=weather_signals_data,
+        weather_forecasts=weather_forecasts_data,
+        trading_mode=settings.TRADING_MODE,
+    )

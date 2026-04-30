@@ -3,6 +3,13 @@
 import pytest
 from fastapi.testclient import TestClient
 from backend.api.main import app
+from backend.api.auth import require_admin
+
+@pytest.fixture(autouse=True)
+def override_auth():
+    app.dependency_overrides[require_admin] = lambda: None
+    yield
+    app.dependency_overrides.clear()
 
 client = TestClient(app)
 
