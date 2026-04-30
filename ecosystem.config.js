@@ -8,6 +8,7 @@ module.exports = {
       interpreter: 'none',
       env: {
         PYTHONPATH: '/home/openclaw/projects/polyedge',
+        ACTIVE_MODES: 'paper',
       },
       watch: false,
       restart_delay: 5000,

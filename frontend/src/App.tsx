@@ -12,6 +12,7 @@ const Proposals = React.lazy(() => import('./pages/Proposals'))
 const ErrorTest = React.lazy(() => import('./pages/ErrorTest'))
 const MiroFish = React.lazy(() => import('./pages/MiroFish'))
 const LiveStream = React.lazy(() => import('./pages/LiveStream'))
+const AGIControl = React.lazy(() => import('./pages/AGIControl'))
 
 /**
  * Redirect component for /docs* paths.
@@ -43,6 +44,10 @@ export default function App() {
             <Route path="/error-test" element={<ErrorTest />} />
             <Route path="/mirofish" element={<MiroFish />} />
             <Route path="/livestream" element={<LiveStream />} />
+            <Route path="/agi" element={<AGIControl />} />
+            <Route path="/agi/decisions" element={<AGIControl />} />
+            <Route path="/agi/composer" element={<AGIControl />} />
+            <Route path="/agi/regime" element={<AGIControl />} />
             {/* Legacy standalone routes → redirect to Dashboard tabs */}
             <Route path="/whale-tracker" element={<Navigate to="/dashboard" replace />} />
             <Route path="/settlements" element={<Navigate to="/dashboard" replace />} />

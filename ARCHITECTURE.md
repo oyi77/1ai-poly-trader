@@ -61,8 +61,43 @@ The system supports paper trading (shadow mode), live trading with risk controls
 │  ai/bayesian_optimizer.py — Parameter optimization                   │
 │  core/signals.py, base_signals.py — Signal generation pipeline       │
 └──────────────────────────────────────────────────────────────────────┘
-       │                     │                      │
-       ▼                     ▼                      ▼
+│                     │                      │
+        ▼                     ▼                      ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    AGI INTELLIGENCE LAYER                              │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌──────────────────────┐  │
+│  │RegimeDetector    │ │KnowledgeGraph    │ │StrategyComposer      │  │
+│  │(regime_detector) │ │(knowledge_graph) │ │(strategy_composer)   │  │
+│  │Bull/Bear/Side/   │ │Entity-Relation   │ │Block-based strategy  │  │
+│  │Volatile+Hysteresis│ │memory+rollback   │ │composition           │  │
+│  └─────────────────┘ └─────────────────┘ └──────────────────────┘  │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌──────────────────────┐  │
+│  │AGIGoalEngine     │ │DynamicPrompt    │ │SelfDebugger          │  │
+│  │(agi_goal_engine) │ │Engine           │ │(self_debugger)        │  │
+│  │Regime-aware      │ │(dynamic_prompt_  │ │API failure diagnosis  │  │
+│  │objective switch  │ │ engine)          │ │& recovery             │  │
+│  └─────────────────┘ └─────────────────┘ └──────────────────────┘  │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌──────────────────────┐  │
+│  │StrategySynth.    │ │ExperimentRunner │ │CausalReasoner         │  │
+│  │(strategy_        │ │(experiment_     │ │(causal_reasoning)     │  │
+│  │ synthesizer)     │ │ runner)          │ │Why-did-X-happen       │  │
+│  │LLM code gen      │ │Sandboxed testing │ │analysis                │  │
+│  └─────────────────┘ └─────────────────┘ └──────────────────────┘  │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌──────────────────────┐  │
+│  │AGIOrchestrator  │ │LLMCostTracker   │ │AGIPromotionPipeline   │  │
+│  │(agi_orchestrator)│ │(llm_cost_tracker)│ │(agi_promotion_       │  │
+│  │Unified control  │ │$10/day budget   │ │ pipeline)              │  │
+│  │loop             │ │enforcement       │ │shadow→paper→live      │  │
+│  └─────────────────┘ └─────────────────┘ └──────────────────────┘  │
+│  ┌─────────────────┐                                                  │
+│  │RegimeAware      │                                                  │
+│  │Allocator         │                                                  │
+│  │(strategy_alloc.) │                                                  │
+│  │Capital allocation │                                                  │
+│  └─────────────────┘                                                  │
+└──────────────────────────────────────────────────────────────────────┘
+        │                     │                      │
+        ▼                     ▼                      ▼
 ┌──────────────────────────────────────────────────────────────────────┐
 │                       DATA LAYER                                      │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────────┐ │
@@ -120,7 +155,22 @@ polyedge/
 │   │   ├── settlement.py      # Trade settlement tracking
 │   │   ├── calibration.py     # Brier score, signal accuracy
 │   │   ├── circuit_breaker.py # Automatic trading halts
-│   │   └── scheduler.py       # APScheduler job definitions
+│   │   ├── scheduler.py       # APScheduler job definitions
+│   │   ├── regime_detector.py # Market regime classification (bull/bear/sideways/volatile)
+│   │   ├── knowledge_graph.py  # Persistent entity-relationship memory
+│   │   ├── strategy_composer.py # Block-based strategy composition
+│   │   ├── strategy_allocator.py # Regime-aware capital allocation
+│   │   ├── dynamic_prompt_engine.py # Evolving AI prompts
+│   │   ├── agi_goal_engine.py  # Regime-aware objective switching
+│   │   ├── agi_orchestrator.py # Unified AGI control loop
+│   │   ├── agi_types.py       # AGI data types and enums
+│   │   ├── agi_jobs.py         # AGI background job definitions
+│   │   ├── agi_promotion_pipeline.py # shadow→paper→live promotion
+│   │   ├── self_debugger.py    # API failure diagnosis and recovery
+│   │   ├── strategy_synthesizer.py # LLM-driven strategy code generation
+│   │   ├── experiment_runner.py # Sandboxed strategy testing
+│   │   ├── causal_reasoning.py # Why-did-X-happen analysis
+│   │   └── llm_cost_tracker.py # LLM spending budget enforcement
 │   ├── strategies/            # Trading strategy implementations
 │   │   ├── base.py            # BaseStrategy + StrategyContext
 │   │   ├── btc_momentum.py    # BTC 5-min microstructure
@@ -150,9 +200,23 @@ polyedge/
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # React components (Dashboard, Admin, GlobeView)
+│   │   ├── components/        # React components
+│   │   │   ├── dashboard/     # Dashboard tabs (Overview, Trades, Signals, etc.)
+│   │   │   ├── admin/         # Admin tabs (Strategies, Risk, AI config, etc.)
+│   │   │   ├── AGIControlPanel.tsx  # AGI emergency stop, status, goal override
+│   │   │   ├── DecisionAuditLog.tsx # Paginated decision log with filters
+│   │   │   ├── StrategyComposerUI.tsx # Drag-to-compose strategy blocks
+│   │   │   ├── RegimeDisplay.tsx     # Regime icons, confidence gauge, history
+│   │   │   ├── GlobeView.tsx         # 3D globe with city markers
+│   │   │   └── ...                   # Other dashboard components
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx         # Main dashboard
+│   │   │   ├── Admin.tsx             # Admin panel
+│   │   │   └── AGIControl.tsx        # Tabbed AGI control page
+│   │   ├── api/
+│   │   │   ├── api.ts                # Main API client
+│   │   │   └── agi.ts                # AGI API client with typed interfaces
 │   │   ├── hooks/             # TanStack Query hooks
-│   │   ├── pages/             # Page-level components
 │   │   └── test/              # Vitest unit tests
 │   ├── e2e/                   # Playwright E2E tests
 │   ├── vite.config.ts         # Vite build config
@@ -185,9 +249,11 @@ polyedge/
 
 6. **Settlement Tracking** — `settlement.py` + `settlement_helpers.py` monitor open positions and reconcile outcomes. In live mode, settlement preserves the trade ledger and delegates financial cache updates to `bankroll_reconciliation.py`.
 
-7. **Dashboard Updates** — The React frontend polls the FastAPI backend via TanStack Query, rendering real-time signals, trades, strategy performance, and risk metrics.
+7. **AGI Intelligence Layer** — RegimeDetector classifies market conditions, KnowledgeGraph stores cross-session learning, AGIGoalEngine switches objectives based on regime. StrategyComposer creates new strategies from building blocks, CausalReasoner traces why trades succeeded or failed. All AGI actions are bounded by RiskManager gates and LLM cost limits.
 
-8. **Trade Attempt Observability** — Every standard strategy execution attempt that reaches `strategy_executor` is recorded in `TradeAttempt`, including requested size, risk-adjusted size, blocker reason, and execution outcome. The dashboard Control Room reads this ledger to explain no-trade states without rewriting historical `Trade` data.
+8. **Dashboard Updates** — The React frontend polls the FastAPI backend via TanStack Query, rendering real-time signals, trades, strategy performance, risk metrics, and AGI status (regime, goals, decisions).
+
+9. **Trade Attempt Observability** — Every standard strategy execution attempt that reaches `strategy_executor` is recorded in `TradeAttempt`, including requested size, risk-adjusted size, blocker reason, and execution outcome. The dashboard Control Room reads this ledger to explain no-trade states without rewriting historical `Trade` data.
 
 ---
 
@@ -218,14 +284,47 @@ polyedge/
 
 ---
 
-## AGI Modules
+## AGI Intelligence Layer
 
-The system includes an AGI-inspired intelligence layer for autonomous market analysis and strategy optimization:
+The system includes a Level 5 TRUE-AGI intelligence layer for autonomous market analysis, strategy composition, and self-debugging. All AGI actions operate within non-bypassable RiskManager bounds (ADR-004, ADR-005) and require manual approval for live promotion (ADR-006).
 
-- **Research Pipeline** — Automated gathering of market data, news sentiment, and social signals. Uses persistent storage for historical context.
-- **Debate Engine** — Multi-agent consensus system where different LLM personas argue for and against specific trades to reduce bias.
-- **Self-Review** — Post-trade analysis module that evaluates execution quality and signal accuracy.
-- **Self-Improvement** — Feedback loop that adjusts strategy parameters and AI prompts based on historical performance.
+### Core Modules
+
+| Module | File | Description |
+|--------|------|-------------|
+| RegimeDetector | `core/regime_detector.py` | Real-time market regime classification (bull/bear/sideways/volatile) with 5% hysteresis buffer to prevent oscillation |
+| KnowledgeGraph | `core/knowledge_graph.py` | Persistent entity-relationship memory with rollback capability and validation |
+| StrategyComposer | `core/strategy_composer.py` | Block-based strategy composition from 5 building blocks (signal_source, filter, position_sizer, risk_rule, exit_rule) |
+| DynamicPromptEngine | `core/dynamic_prompt_engine.py` | Evolves AI prompts based on outcome feedback to improve signal quality over time |
+| AGIGoalEngine | `core/agi_goal_engine.py` | Regime-aware objective switching (maximize_pnl, preserve_capital, explore, reduce_risk) |
+| SelfDebugger | `core/self_debugger.py` | API failure diagnosis and recovery (404, 503, timeout scenarios) |
+| StrategySynthesizer | `core/strategy_synthesizer.py` | LLM-driven Python strategy code generation with syntax validation |
+| ExperimentRunner | `core/experiment_runner.py` | Sandboxed strategy testing (shadow/paper/live) with statistical promotion gates |
+| CausalReasoner | `core/causal_reasoning.py` | Why-did-X-happen analysis tracing causation chains for trade outcomes |
+| AGIOrchestrator | `core/agi_orchestrator.py` | Unified AGI control loop coordinating all modules |
+| LLMCostTracker | `core/llm_cost_tracker.py` | LLM spending budget enforcement ($10/day cap, per-action limits) |
+| AGIPromotionPipeline | `core/agi_promotion_pipeline.py` | shadow→paper→live promotion with manual approval gate (MIN_TRADES=50, WIN_RATE=0.55, MAX_DRAWDOWN=0.15) |
+| RegimeAwareAllocator | `core/strategy_allocator.py` | Regime-aware capital allocation across strategies (max 30% per strategy) |
+
+### Frontend Components
+
+| Component | File | Description |
+|-----------|------|-------------|
+| AGIControlPanel | `components/AGIControlPanel.tsx` | Emergency stop, status display, goal override |
+| DecisionAuditLog | `components/DecisionAuditLog.tsx` | Paginated decision log with regime/goal filters |
+| StrategyComposerUI | `components/StrategyComposerUI.tsx` | Drag-to-compose strategy blocks interface |
+| RegimeDisplay | `components/RegimeDisplay.tsx` | Regime icons, confidence gauge, goal status card, history timeline |
+| AGIControl | `pages/AGIControl.tsx` | Tabbed AGI page with NavLink routing |
+| AGI API | `api/agi.ts` | Typed API client for AGI endpoints |
+
+### Safety Guardrails
+
+- **SHADOW mode enforced**: All AGI-generated strategies start in shadow mode (`ACTIVE_MODES="paper"`)
+- **RiskManager gates non-bypassable**: Even AGI-generated strategies must validate through risk gates (ADR-004, ADR-005)
+- **Manual promotion gate**: Live trading requires explicit human approval (ADR-006)
+- **LLM budget caps**: Hard $10/day limit on LLM spending for autonomous strategy generation
+- **Experiment isolation**: Sandboxed strategies cannot touch production DB or wallet
+- **Knowledge graph rollback**: Bad data can be rolled back without corrupting decisions
 
 ---
 

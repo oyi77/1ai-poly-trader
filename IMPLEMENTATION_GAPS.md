@@ -1,6 +1,6 @@
 # PolyEdge — Implementation Status & Known Gaps
 
-**Last Updated**: 2026-04-11
+**Last Updated**: 2026-04-30
 
 ## Summary
 
@@ -23,6 +23,8 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 - Prometheus metrics endpoint and monitoring middleware
 - WebSocket market data client (`ws_client.py`)
 - **AGI Intelligence Layer**: Research Pipeline, Debate Engine, Self-Review, and Self-Improvement modules
+- **AGI Level 5 TRUE-AGI Layer**: RegimeDetector, KnowledgeGraph, StrategyComposer, DynamicPromptEngine, AGIGoalEngine, SelfDebugger, StrategySynthesizer, ExperimentRunner, CausalReasoner, AGIOrchestrator, LLMCostTracker, AGIPromotionPipeline, RegimeAwareAllocator — all with full TDD test coverage (304 tests across 22 test files)
+- **AGI Frontend**: AGIControlPanel, DecisionAuditLog, StrategyComposerUI, RegimeDisplay, AGIControl page, AGI API module
 
 ### Intentionally De-Scoped
 - **Email notifications**: `notification_router.py` routes to Telegram and Discord only. Email channel raises `NotImplementedError` — this is a deliberate design choice, not a bug. Telegram and Discord cover all notification needs.
@@ -41,6 +43,9 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 - ~~**Database migrations**: No Alembic setup.~~ → **Fixed**: Alembic initialized with autogenerate from current schema. Initial migration at `alembic/versions/51c2bc15c671_initial_schema.py`.
 - **Kalshi API**: Base URL `https://api.elections.kalshi.com/trade-api/v2` confirmed working (returns 200). Authenticated endpoints (portfolio, orders) require valid `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PATH`. The 404 was from testing without credentials.
 - **Polymarket Testnet Clarification**: The Polymarket Builder Program operates on MAINNET (chain_id=137), not a separate testnet. The "testnet" mode in PolyEdge uses mainnet CLOB with Builder auth for gasless trading. There is no functional testnet CLOB host (clob-staging.polymarket.com returns 503). Testnet trades are REAL but gasless; track separately from paper/live modes.
+- **AGI LLM Cost Tracking**: LLMCostTracker uses in-memory storage only. Costs reset on process restart. For production, persist daily spend to database.
+- **AGI Strategy Synthesizer**: Generates Python strategy code via LLM but does not yet auto-validate against live market data. Strategies must pass manual review before shadow deployment.
+- **AGI Knowledge Graph**: SQLite-backed with rollback capability. For high-frequency production use, consider migrating to a graph database (Neo4j) for better query performance on large entity graphs.
 
 ---
 
@@ -53,6 +58,12 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 - GlobeView 3D map component (Three.js / react-three-fiber)
 - Playwright E2E test suite
 - Vitest unit test suite (9 files, 36 tests — all passing)
+- **AGI Control Panel**: Emergency stop, status display, goal override (AGIControlPanel.tsx)
+- **Decision Audit Log**: Paginated decision log with regime/goal filters (DecisionAuditLog.tsx)
+- **Strategy Composer UI**: Drag-to-compose strategy blocks interface (StrategyComposerUI.tsx)
+- **Regime Display**: Regime icons, confidence gauge, goal status card, history timeline (RegimeDisplay.tsx)
+- **AGI Control Page**: Tabbed AGI page with NavLink routing (AGIControl.tsx)
+- **AGI API Module**: Typed API client for AGI endpoints (api/agi.ts)
 
 ### Fixed (April 2026 Audit)
 - Vitest config now includes correct `src/**/*.test.{ts,tsx}` pattern (was picking up Playwright e2e files)
@@ -85,17 +96,18 @@ This document tracks what is implemented, what was intentionally de-scoped, and 
 ## Documentation
 
 ### Current State
-- `ARCHITECTURE.md` — Accurate system architecture, directory structure, data flow, strategies (rewritten April 2026)
+- `ARCHITECTURE.md` — Accurate system architecture, directory structure, data flow, strategies, AGI Intelligence Layer (updated April 2026)
 - `README.md` — Project overview, quick start, architecture diagram, doc links
 - `docs/how-it-works.md` — Strategy explanations
 - `docs/api.md` — API endpoint reference
 - `docs/configuration.md` — Environment variables
 - `docs/data-sources.md` — Data provider documentation
-- `docs/project-structure.md` — Codebase layout
+- `docs/project-structure.md` — Codebase layout (updated April 2026)
 - `docs/architecture/adr-001-job-queue.md` — Job queue design decision
+- `docs/architecture/adr-005-static-risk-profiles-and-learning-boundary.md` — Risk boundary ADR
+- `docs/architecture/adr-006-agi-autonomy-framework.md` — AGI autonomy boundaries ADR
 
 ### Known Gaps — Documentation
-- `docs/project-structure.md` may be slightly outdated relative to recent file additions
 - No runbook for production operations (deployment, rollback, incident response)
 
 ---

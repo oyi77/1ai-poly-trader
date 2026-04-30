@@ -77,6 +77,7 @@ from backend.api.analytics import router as analytics_router
 from backend.api.settings import router as settings_router
 from backend.api.activities import router as activities_router
 from backend.api.proposals import router as proposals_router
+from backend.api.agi_routes import router as agi_router
 from backend.api.admin import router as admin_router
 from backend.api.brain import router as brain_router
 from backend.api.errors import router as errors_router
@@ -817,7 +818,7 @@ app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(shared_data_router)
 app.include_router(learning_router, prefix="/api/v1")
-
+app.include_router(agi_router, prefix="/api/v1/agi")
 
 # Add metrics middleware for automatic tracking
 @app.middleware("http")
