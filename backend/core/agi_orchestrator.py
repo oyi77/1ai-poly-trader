@@ -75,7 +75,7 @@ class AGIOrchestrator:
         if self._owns_session:
             self._session.close()
 
-    def run_cycle(self) -> AGICycleResult:
+    async def run_cycle(self) -> AGICycleResult:
         if self._emergency_stop:
             return AGICycleResult(
                 regime=MarketRegime.UNKNOWN,
@@ -88,8 +88,31 @@ class AGIOrchestrator:
 
         try:
             from backend.core.regime_detector import RegimeDetector
+            from backend.data.crypto import fetch_binance_klines
             detector = RegimeDetector()
-            regime = detector.detect_regime(market_data={}).regime
+            
+            # Fetch real BTC prices to feed the RegimeDetector
+            market_data = {}
+            try:
+                # Fetch 250 candles to ensure we have enough for 200 SMA
+                candles = await fetch_binance_klines(limit=250)
+                if candles and len(candles) >= 200:
+                    closes = [float(c[4]) for c in candles]
+                    volumes = [float(c[5]) for c in candles]
+                    market_data["prices"] = closes
+                    market_data["volumes"] = volumes
+                    # Calculate simple SMA
+                    market_data["sma_50"] = sum(closes[-50:]) / 50 if len(closes) >= 50 else closes[-1]
+                    market_data["sma_200"] = sum(closes[-200:]) / 200 if len(closes) >= 200 else closes[-1]
+                    # Estimate volatility (ATR percent) and drawdown
+                    max_price = max(closes)
+                    market_data["drawdown"] = (max_price - closes[-1]) / max_price if max_price > 0 else 0.0
+                    market_data["atr_percentile"] = 0.5 # Default placeholder
+                    market_data["volume_trend"] = 0.0 # Default placeholder
+            except Exception as e:
+                errors.append(f"Crypto data fetch failed: {e}")
+                
+            regime = detector.detect_regime(market_data=market_data).regime
             self._current_regime = regime
             actions += 1
         except Exception as e:
@@ -106,6 +129,7 @@ class AGIOrchestrator:
             errors.append(f"Goal engine failed: {e}")
             goal = AGIGoal.PRESERVE_CAPITAL
 
+        kg = None
         try:
             from backend.core.strategy_allocator import RegimeAwareAllocator
             from backend.core.knowledge_graph import KnowledgeGraph
@@ -116,6 +140,82 @@ class AGIOrchestrator:
         except Exception as e:
             errors.append(f"Allocation failed: {e}")
             allocations = {}
+
+        # --- Populate Knowledge Graph with this cycle's findings ---
+        if kg is not None:
+            try:
+                cycle_id = f"cycle_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{id(self)}"
+                kg.add_entity("regime", f"regime:{regime.value}", {
+                    "value": regime.value,
+                    "detected_at": datetime.now(timezone.utc).isoformat(),
+                })
+                kg.add_entity("goal", f"goal:{goal.value}", {
+                    "value": goal.value,
+                    "set_at": datetime.now(timezone.utc).isoformat(),
+                })
+                for strat_name, amount in allocations.items():
+                    kg.add_entity("strategy", f"strategy:{strat_name}", {
+                        "name": strat_name,
+                        "allocated_capital": amount,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                    kg.add_relation(
+                        f"regime:{regime.value}",
+                        f"strategy:{strat_name}",
+                        "allocates_to",
+                        weight=amount / 10000.0,
+                        confidence=0.8,
+                    )
+                kg.add_relation(
+                    f"regime:{regime.value}",
+                    f"goal:{goal.value}",
+                    "triggers_goal",
+                    weight=1.0,
+                    confidence=0.9,
+                )
+                actions += 1
+            except Exception as e:
+                errors.append(f"KG population failed: {e}")
+
+        # --- Auto-compose strategies for the current regime ---
+        try:
+            from backend.core.strategy_composer import StrategyComposer
+            from backend.core.agi_types import StrategyBlock
+            composer = StrategyComposer(session=self._session)
+            signal_source = {
+                MarketRegime.BULL: "btc_momentum_signal",
+                MarketRegime.BEAR: "whale_tracker_signal",
+                MarketRegime.SIDEWAYS: "oracle_signal",
+                MarketRegime.SIDEWAYS_VOLATILE: "weather_signal",
+                MarketRegime.CRISIS: "whale_tracker_signal",
+            }.get(regime, "btc_momentum_signal")
+            risk_rule = {
+                MarketRegime.BULL: "max_2pct",
+                MarketRegime.BEAR: "max_1pct",
+                MarketRegime.SIDEWAYS: "max_1pct",
+                MarketRegime.SIDEWAYS_VOLATILE: "max_1pct",
+                MarketRegime.CRISIS: "daily_loss_5pct",
+            }.get(regime, "max_1pct")
+            sizer = {
+                MarketRegime.BULL: "kelly_sizer",
+                MarketRegime.BEAR: "half_kelly",
+                MarketRegime.SIDEWAYS: "fixed_005",
+                MarketRegime.SIDEWAYS_VOLATILE: "fixed_005",
+                MarketRegime.CRISIS: "fixed_005",
+            }.get(regime, "fixed_005")
+            block = StrategyBlock(
+                signal_source=signal_source,
+                filter="min_edge_005",
+                position_sizer=sizer,
+                risk_rule=risk_rule,
+                exit_rule="take_profit_10pct",
+            )
+            composed_name = f"auto_{regime.value}_{goal.value}"
+            composed = composer.compose([block], name=composed_name)
+            composer.register_composed(composed)
+            actions += 1
+        except Exception as e:
+            errors.append(f"Strategy composition failed: {e}")
 
         self._log_cycle(regime, goal, allocations, errors)
 

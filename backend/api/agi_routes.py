@@ -75,9 +75,11 @@ async def list_composed_strategies(db: Session = Depends(get_db)):
                 "id": str(r.id),
                 "name": r.name,
                 "status": r.status,
+                "blocks": r.strategy_composition.get("blocks", []) if r.strategy_composition else [],
                 "shadow_pnl": r.shadow_pnl,
                 "shadow_trades": r.shadow_trades,
                 "shadow_win_rate": r.shadow_win_rate,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
             }
             for r in records
         ]
@@ -157,7 +159,7 @@ async def get_status(db: Session = Depends(get_db)):
 @router.post("/run-cycle")
 async def run_cycle(db: Session = Depends(get_db)):
     orchestrator = AGIOrchestrator(session=db)
-    result = orchestrator.run_cycle()
+    result = await orchestrator.run_cycle()
     return result.to_dict()
 
 

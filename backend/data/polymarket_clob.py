@@ -35,6 +35,24 @@ from backend.core.circuit_breaker_pybreaker import polymarket_breaker
 
 logger = logging.getLogger("trading_bot")
 
+
+def ensure_token_id(token_id: str) -> str:
+    """Ensure token_id is a decimal string for CLOB API.
+    
+    Polymarket CLOB exchange_order_builder expects tokenId to be 
+    convertible to int via int(tokenId). Gamma/Data APIs return 
+    token IDs as decimal strings.
+    """
+    if not token_id:
+        return token_id
+    if token_id.startswith("0x"):
+        try:
+            return str(int(token_id, 16))
+        except ValueError:
+            return token_id
+    return token_id
+
+
 clob_breaker = CircuitBreaker("polymarket_clob")
 
 CLOB_HOST = "https://clob.polymarket.com"  # Polymarket has a single CLOB API; no testnet CLOB exists
@@ -206,27 +224,27 @@ class PolymarketCLOB:
                     api_secret=api_secret,
                     api_passphrase=api_passphrase,
                 )
-            elif builder_api_key and builder_secret and builder_passphrase:
-                creds = ApiCreds(
-                    api_key=builder_api_key,
-                    api_secret=builder_secret,
-                    api_passphrase=builder_passphrase,
-                )
+            
             builder_config = None
             if builder_api_key and builder_secret and builder_passphrase:
                 try:
-                    from py_clob_client_v2.clob_types import BuilderConfig, BuilderApiKey
+                    from py_clob_client_v2.clob_types import BuilderConfig
 
-                    # BuilderConfig takes builder_address and builder_code (the builder program code)
-                    # The actual key credentials are passed as the main ApiCreds above
+                    # Builder code must be a hex string (bytes32). 
+                    # If it's a UUID, remove hyphens and pad to 64 chars.
+                    builder_code = (builder_api_key or "").replace("-", "").lower()
+                    if builder_code and len(builder_code) < 64:
+                        builder_code = builder_code.ljust(64, "0")
+                    elif not builder_code:
+                        builder_code = "0" * 64
+
                     builder_config = BuilderConfig(
                         builder_address=builder_address or "",
-                        builder_code=builder_api_key,
+                        builder_code=builder_code,
                     )
-                    # We use ApiCreds for the creds parameter as ClobClient expects it.
-                    # BuilderApiKey is not a subclass of ApiCreds and has different field names.
                     logger.info(
-                        "[polymarket_clob.__init__] Builder Program credentials loaded (BuilderConfig + ApiCreds)"
+                        "[polymarket_clob.__init__] Builder Program configured with code: %s",
+                        builder_code
                     )
                 except ImportError:
                     logger.warning(
@@ -577,12 +595,15 @@ class PolymarketCLOB:
 
         mode_label = "[TESTNET]" if self.mode == "testnet" else "[LIVE]"
         try:
+            # Ensure token_id is in the decimal format expected by py-clob-client
+            clean_token_id = ensure_token_id(token_id)
+
             # In CLOB V2, OrderArgsV2.size is shares.
             # In PolyEdge, size argument is USDC to spend.
             shares = size / price if side == "BUY" else size
             
             order_args = OrderArgs(
-                token_id=token_id,
+                token_id=clean_token_id,
                 price=price,
                 size=shares,
                 side=side,

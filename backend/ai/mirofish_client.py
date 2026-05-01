@@ -174,12 +174,12 @@ class MiroFishClient:
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create async HTTP client."""
         if self._client is None:
+            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             self._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(self.timeout),
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
             )
         return self._client
 

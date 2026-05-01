@@ -5,7 +5,7 @@ Called by online_learner after each trade settlement and by scheduler every cycl
 """
 import math
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
@@ -256,7 +256,7 @@ class StrategyHealthMonitor:
                 brier_score=health["brier_score"],
                 psi_score=health["psi_score"],
                 status=health["status"],
-                last_updated=datetime.utcnow(),
+                last_updated=datetime.now(timezone.utc),
             )
             db.add(record)
             db.commit()

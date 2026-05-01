@@ -1,6 +1,6 @@
 """Integration test: full learning feedback loop end-to-end."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -51,7 +51,7 @@ def _make_trade(trade_id, strategy, result, pnl, prob=0.65):
     t.market_price_at_entry = 0.60
     t.edge_at_entry = 0.05
     t.confidence = 0.70
-    t.settlement_time = datetime.utcnow()
+    t.settlement_time = datetime.now(timezone.utc)
     return t
 
 

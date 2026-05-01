@@ -334,7 +334,9 @@ class BtcOracleStrategy(BaseStrategy):
                         clob_token_ids = _json.loads(clob_token_ids)
                     except Exception:
                         clob_token_ids = []
-                if clob_token_ids:
+                if clob_token_ids and len(clob_token_ids) >= 2:
+                    clob_token_id = str(clob_token_ids[0] if direction in ("yes", "up") else clob_token_ids[1])
+                elif clob_token_ids:
                     clob_token_id = str(clob_token_ids[0])
 
                 # Populate result.decisions so scan_and_trade_job() / strategy_cycle_job()

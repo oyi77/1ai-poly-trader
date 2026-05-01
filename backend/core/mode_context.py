@@ -51,7 +51,7 @@ def get_context(mode: str) -> ModeExecutionContext:
         KeyError: If mode context has not been registered.
     """
     if mode not in _contexts:
-        raise KeyError(f"No execution context registered for mode: {mode}")
+        raise KeyError(f"No execution context registered for mode: {mode} (available: {list(_contexts.keys())})")
     return _contexts[mode]
 
 

@@ -76,7 +76,7 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
         except Exception as _e:
             await self._on_failure()
-            logger.debug(f"Circuit breaker {self.name} caught error, failing: {_e}")
+            logger.warning(f"Circuit breaker {self.name} caught error, failing ({self.failure_count}/{self.failure_threshold}): {_e}")
             raise
         finally:
             if is_half_open_probe:

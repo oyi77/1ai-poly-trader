@@ -533,7 +533,9 @@ class WeatherEMOSStrategy(BaseStrategy):
                     except Exception as e:
                         logger.debug(f"Failed to parse clobTokenIds JSON: {e}")
                         clob_token_ids = []
-                if clob_token_ids:
+                if clob_token_ids and len(clob_token_ids) >= 2:
+                    clob_token_id = str(clob_token_ids[0] if trade_side == "YES" else clob_token_ids[1])
+                elif clob_token_ids:
                     clob_token_id = str(clob_token_ids[0])
 
                 bankroll = 100.0
@@ -599,7 +601,7 @@ class WeatherEMOSStrategy(BaseStrategy):
                 if ctx.clob:
                     try:
                         order_result = await ctx.clob.place_limit_order(
-                            token_id=market.ticker,
+                            token_id=clob_token_id or market.ticker,
                             side="BUY",
                             price=entry_price,
                             size=trade_size,

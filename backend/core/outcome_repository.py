@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.models.outcome_tables import StrategyOutcome, ParamChange, StrategyHealthRecord
 
 
@@ -33,7 +33,7 @@ def record_outcome(trade, db) -> Optional[StrategyOutcome]:
             result=getattr(trade, 'result', None),
             pnl=getattr(trade, 'pnl', None),
             reward=reward,
-            settled_at=getattr(trade, 'settlement_time', None) or datetime.utcnow(),
+            settled_at=getattr(trade, 'settlement_time', None) or datetime.now(timezone.utc),
             trade_id=trade.id,
         )
         db.add(outcome)
@@ -95,7 +95,7 @@ def record_param_change(strategy: str, param: str, old_val: float, new_val: floa
             old_value=old_val,
             new_value=new_val,
             change_pct=change_pct,
-            applied_at=datetime.utcnow(),
+            applied_at=datetime.now(timezone.utc),
             auto_applied=False,
         )
         db.add(change)
@@ -111,7 +111,7 @@ def mark_param_reverted(change_id: int, post_sharpe: float, db) -> None:
     try:
         change = db.query(ParamChange).filter(ParamChange.id == change_id).first()
         if change:
-            change.reverted_at = datetime.utcnow()
+            change.reverted_at = datetime.now(timezone.utc)
             change.post_change_sharpe = post_sharpe
             db.commit()
     except Exception:

@@ -56,17 +56,19 @@ class TestAGIOrchestratorGetStatus:
 
 
 class TestAGIOrchestratorRunCycle:
-    def test_run_cycle_emergency_stop(self):
+    @pytest.mark.asyncio
+    async def test_run_cycle_emergency_stop(self):
         orchestrator, _, _ = make_orchestrator_session()
         orchestrator.emergency_stop()
-        result = orchestrator.run_cycle()
+        result = await orchestrator.run_cycle()
         assert result.regime == MarketRegime.UNKNOWN
         assert result.goal == AGIGoal.PRESERVE_CAPITAL
         assert any("Emergency stop" in e for e in result.errors)
 
-    def test_run_cycle_basic(self):
+    @pytest.mark.asyncio
+    async def test_run_cycle_basic(self):
         orchestrator, session, _ = make_orchestrator_session()
-        result = orchestrator.run_cycle()
+        result = await orchestrator.run_cycle()
         assert result.regime is not None
         assert result.goal is not None
         assert result.actions_taken >= 0

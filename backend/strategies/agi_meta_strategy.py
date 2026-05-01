@@ -28,10 +28,8 @@ class AGIMetaStrategy(BaseStrategy):
         
         orchestrator = AGIOrchestrator(session=ctx.db)
         try:
-            # run_cycle is currently synchronous in the implementation, 
-            # so we run it in a thread to avoid blocking the async loop.
-            import asyncio
-            result = await asyncio.to_thread(orchestrator.run_cycle)
+            # run_cycle is now asynchronous, await it directly
+            result = await orchestrator.run_cycle()
             
             ctx.logger.info(
                 f"[{self.name}] AGI cycle complete. Regime: {result.regime.value}, Goal: {result.goal.value}"
