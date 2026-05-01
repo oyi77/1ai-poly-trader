@@ -134,7 +134,7 @@ export function HFTSignals({ maxRows = 10 }: Props) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[600px]">
-        <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+        <thead className="sticky top-0 bg-neutral-950 z-10">
           <tr className="text-neutral-600 text-left text-[10px] border-b border-neutral-800">
             <th className="py-1.5 px-2 font-medium w-16">Type</th>
             <th className="py-1.5 px-2 font-medium">Market</th>

@@ -28,6 +28,12 @@ class ProposalResponse(BaseModel):
     change_details: dict
     expected_impact: str
     admin_decision: str
+    status: Optional[str] = None
+    auto_promotable: Optional[bool] = None
+    backtest_passed: Optional[bool] = None
+    backtest_sharpe: Optional[float] = None
+    backtest_win_rate: Optional[float] = None
+    proposed_params: Optional[dict] = None
     created_at: str
     executed_at: Optional[str] = None
 
@@ -56,7 +62,9 @@ async def list_proposals(
     query = db.query(DBProposal)
     
     if status:
-        query = query.filter(DBProposal.admin_decision == status)
+        query = query.filter(
+            (DBProposal.admin_decision == status) | (DBProposal.status == status)
+        )
     
     proposals = query.order_by(DBProposal.created_at.desc()).all()
     
@@ -67,6 +75,12 @@ async def list_proposals(
             change_details=p.change_details,
             expected_impact=p.expected_impact,
             admin_decision=p.admin_decision,
+            status=p.status,
+            auto_promotable=p.auto_promotable,
+            backtest_passed=p.backtest_passed,
+            backtest_sharpe=p.backtest_sharpe,
+            backtest_win_rate=p.backtest_win_rate,
+            proposed_params=p.proposed_params,
             created_at=p.created_at.isoformat() if p.created_at else "",
             executed_at=p.executed_at.isoformat() if p.executed_at else None
         )

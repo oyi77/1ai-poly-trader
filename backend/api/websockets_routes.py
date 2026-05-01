@@ -294,10 +294,6 @@ async def websocket_stats(websocket: WebSocket, token: str = ""):
 
 @router.websocket("/ws/livestream")
 async def websocket_livestream(websocket: WebSocket, token: str = ""):
-    if settings.ADMIN_API_KEY and token != settings.ADMIN_API_KEY:
-        await websocket.close(code=1008, reason="Unauthorized")
-        return
-
     allowed, error_msg = await connection_limiter.check_ws_limit(websocket)
     if not allowed:
         await websocket.close(code=1008, reason=error_msg)

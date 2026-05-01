@@ -549,16 +549,39 @@ Be specific and actionable. Do not suggest vague improvements."""
 
 
 def auto_promote_eligible_proposals():
-    """Auto-deploy low-risk parameter tweak proposals. Safe for scheduled jobs."""
+    """Auto-deploy low-risk parameter tweak proposals. Safe for scheduled jobs.
+    
+    GATE: Proposals must pass backtest validation before promotion.
+    Requires: backtest_sharpe > 0.3 OR backtest_win_rate > 0.45.
+    """
     try:
         from backend.models.database import SessionLocal, StrategyProposal as DBProposal, StrategyConfig
+        from backend.core.strategy_composer import StrategyComposer, ComposedStrategy
+        from backend.core.agi_types import StrategyBlock, MarketRegime
         db = SessionLocal()
         try:
             eligible = db.query(DBProposal).filter(
                 DBProposal.status == "pending",
                 DBProposal.auto_promotable == True,
+                DBProposal.backtest_passed == False,
             ).all()
+
             for proposal in eligible:
+                try:
+                    bt_result = _run_backtest_for_proposal(db, proposal)
+                    proposal.backtest_sharpe = bt_result.get("sharpe", 0.0)
+                    proposal.backtest_win_rate = bt_result.get("win_rate", 0.0)
+                    proposal.backtest_passed = bt_result.get("passed", False)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+
+            promotable = db.query(DBProposal).filter(
+                DBProposal.status == "pending",
+                DBProposal.auto_promotable == True,
+                DBProposal.backtest_passed == True,
+            ).all()
+            for proposal in promotable:
                 try:
                     config = db.query(StrategyConfig).filter(
                         StrategyConfig.strategy_name == proposal.strategy_name
@@ -574,6 +597,7 @@ def auto_promote_eligible_proposals():
                         config.params = current_params
                         proposal.status = "auto_approved"
                         proposal.admin_decision = "auto_approved"
+                        proposal.executed_at = datetime.now(timezone.utc)
                         db.commit()
                 except Exception:
                     db.rollback()
@@ -581,3 +605,44 @@ def auto_promote_eligible_proposals():
             db.close()
     except Exception:
         pass
+
+
+def _run_backtest_for_proposal(db, proposal) -> dict:
+    """Run backtest for a proposal. Returns {sharpe, win_rate, passed}."""
+    try:
+        from backend.core.strategy_composer import StrategyComposer, ComposedStrategy
+        from backend.core.agi_types import StrategyBlock, MarketRegime
+        from backend.models.database import Trade
+        from sqlalchemy.sql import func
+
+        stats = db.query(
+            func.count(Trade.id).label("cnt"),
+            func.count(Trade.id).filter(Trade.result == "win").label("wins"),
+            func.avg(Trade.pnl).label("avg_pnl"),
+        ).filter(
+            Trade.strategy_name == proposal.strategy_name,
+            Trade.settled == True,
+        ).first()
+
+        cnt = stats.cnt or 0
+        wins = stats.wins or 0
+        win_rate = wins / cnt if cnt > 0 else 0.0
+        avg_pnl = float(stats.avg_pnl or 0)
+
+        sharpe = 0.0
+        if cnt >= 10:
+            pnl_values = [t.pnl for t in db.query(Trade.pnl).filter(
+                Trade.strategy_name == proposal.strategy_name,
+                Trade.settled == True,
+                Trade.pnl.isnot(None),
+            ).all() if t.pnl is not None]
+            if pnl_values:
+                import statistics
+                mean_pnl = statistics.mean(pnl_values)
+                std_pnl = statistics.stdev(pnl_values) if len(pnl_values) > 1 else 1.0
+                sharpe = mean_pnl / std_pnl if std_pnl > 0 else 0.0
+
+        passed = (sharpe > 0.3 or win_rate > 0.45) and cnt >= 5
+        return {"sharpe": round(sharpe, 4), "win_rate": round(win_rate, 4), "passed": passed}
+    except Exception:
+        return {"sharpe": 0.0, "win_rate": 0.0, "passed": False}

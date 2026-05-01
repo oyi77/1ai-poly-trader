@@ -28,7 +28,7 @@ export default function LiveMarketView({ url }: { url?: string }) {
   const reconnecting = status === 'reconnecting';
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
+    <div className="bg-neutral-800 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-neutral-200 uppercase tracking-wider">Live Markets</h3>
         <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${
@@ -53,13 +53,13 @@ export default function LiveMarketView({ url }: { url?: string }) {
       )}
 
       {ticks.length === 0 ? (
-        <p className="text-gray-400 text-sm">Waiting for market data...</p>
+        <p className="text-neutral-400 text-sm">Waiting for market data...</p>
       ) : (
         <ul className="space-y-2">
           {ticks.map((tick, i) => (
             <li
               key={`${tick.market_id}-${i}`}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-gray-900/60 rounded px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-neutral-900/60 rounded px-3 py-2 text-xs"
             >
               <span className="text-neutral-200 font-medium truncate max-w-full sm:max-w-[40%]">{tick.market_id}</span>
               <span className="text-green-400">YES {((tick.yes_price ?? 0) * 100).toFixed(1)}¢</span>

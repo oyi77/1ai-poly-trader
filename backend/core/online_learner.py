@@ -17,7 +17,16 @@ _param_tuner = SafeParamTuner()
 
 class OnlineLearner:
     def on_trade_settled(self, trade, db: Session) -> None:
-        strategy = getattr(trade, "strategy", "unknown") or "unknown"
+        strategy = getattr(trade, "strategy", None)
+        if not strategy or strategy == "unknown":
+            try:
+                from backend.models.database import TradeContext
+                ctx = db.query(TradeContext).filter(TradeContext.trade_id == trade.id).first()
+                if ctx and ctx.strategy_name:
+                    strategy = ctx.strategy_name
+            except Exception:
+                pass
+        strategy = strategy or "general_scanner"
 
         outcome = record_outcome(trade, db)
         if outcome is None:

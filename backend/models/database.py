@@ -592,6 +592,9 @@ class StrategyProposal(Base):
     status = Column(String(20), default="pending")
     auto_promotable = Column(Boolean, default=False)
     proposed_params = Column(JSON, nullable=True)
+    backtest_passed = Column(Boolean, default=False)
+    backtest_sharpe = Column(Float, nullable=True)
+    backtest_win_rate = Column(Float, nullable=True)
     executed_at = Column(DateTime, nullable=True)
     impact_measured = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
@@ -1547,6 +1550,22 @@ def ensure_schema():
                     logger.info("Added 'mode' column to strategy_config")
         except Exception as e:
             logger.warning(f"Schema migration: could not add strategy_config.mode: {e}")
+
+    # Add strategy_proposal columns for auto-promotion (v2 learning loop)
+    try:
+        proposal_columns = inspect(engine).get_columns("strategy_proposal")
+        proposal_col_names = {c["name"] for c in proposal_columns} if proposal_columns else set()
+    except Exception:
+        proposal_col_names = set()
+    for col, col_type in [("status", "TEXT DEFAULT 'pending'"), ("auto_promotable", "BOOLEAN DEFAULT 0"), ("proposed_params", "JSON"), ("backtest_passed", "BOOLEAN DEFAULT 0"), ("backtest_sharpe", "REAL"), ("backtest_win_rate", "REAL")]:
+        if col not in proposal_col_names:
+            try:
+                with engine.connect() as conn:
+                    with conn.begin():
+                        conn.execute(text(f"ALTER TABLE strategy_proposal ADD COLUMN {col} {col_type}"))
+                        logger.info(f"Added '{col}' column to strategy_proposal")
+            except Exception as e:
+                logger.warning(f"Schema migration: could not add strategy_proposal.{col}: {e}")
 
 
 def log_audit(action: str, actor: str = "system", details: dict = None):

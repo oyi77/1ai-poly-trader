@@ -87,6 +87,17 @@ class AGIOrchestrator:
         actions = 0
 
         try:
+            from backend.mesh.health import SourceHealthMonitor
+            from backend.mesh.registry import list_active
+            monitor = SourceHealthMonitor()
+            source_mult = monitor.global_risk_multiplier()
+            if source_mult < 1.0:
+                logger.warning(f"DataMesh health degraded: risk_multiplier={source_mult}")
+        except Exception as e:
+            logger.debug(f"DataMesh health check skipped: {e}")
+            source_mult = 1.0
+
+        try:
             from backend.core.regime_detector import RegimeDetector
             from backend.data.crypto import fetch_binance_klines
             detector = RegimeDetector()
@@ -135,7 +146,7 @@ class AGIOrchestrator:
             from backend.core.knowledge_graph import KnowledgeGraph
             kg = KnowledgeGraph(session=self._session)
             allocator = RegimeAwareAllocator(kg=kg)
-            allocations = allocator.allocate(["btc_momentum", "weather_emos"], regime, capital=10000.0)
+            allocations = allocator.allocate(["btc_momentum", "weather_emos"], regime, capital=10000.0 * source_mult)
             actions += 1
         except Exception as e:
             errors.append(f"Allocation failed: {e}")

@@ -462,6 +462,22 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 )
                 db.rollback()
 
+        # Auto-topup paper bankroll if depleted
+        try:
+            paper_min = float(os.getenv("PAPER_MIN_BANKROLL", "50"))
+            paper_topup_amt = float(os.getenv("PAPER_TOPUP_AMOUNT", "500"))
+            max_topups = int(os.getenv("MAX_TOPUPS", "10"))
+            paper_state = db.query(BotState).filter_by(mode="paper").first()
+            if paper_state:
+                current = float(paper_state.paper_bankroll or 0)
+                topup_count = getattr(paper_state, "_topup_count", 0) if hasattr(paper_state, "_topup_count") else 0
+                if current < paper_min and topup_count < max_topups:
+                    paper_state.paper_bankroll = current + paper_topup_amt
+                    paper_state._topup_count = topup_count + 1
+                    db.commit()
+        except Exception:
+            pass
+
         return settled_trades
 
 

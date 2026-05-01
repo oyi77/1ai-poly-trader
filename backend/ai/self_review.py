@@ -122,7 +122,7 @@ def _format_trade_summary(trade: Trade) -> str:
     ts = trade.timestamp.strftime("%Y-%m-%d %H:%M") if trade.timestamp else "?"
     return (
         f"[{ts}] {trade.strategy or '?'} | {trade.market_type or '?'} | "
-        f"dir={trade.direction} edge={trade.edge_at_entry:.3f} "
+        f"dir={trade.direction} edge={(trade.edge_at_entry or 0):.3f} "
         f"conf={trade.confidence or 0:.2f} pnl={trade.pnl or 0:.2f} → {trade.result}"
     )
 
@@ -428,15 +428,85 @@ class SelfReview:
             except Exception as e:
                 logger.warning("Diary posting failed (non-fatal): %s", e)
 
+            # 6. Auto-generate proposals for bleeding strategies
+            proposals_generated = 0
+            try:
+                proposals_generated = self._generate_proposals_for_bleeders(db=session)
+            except Exception as e:
+                logger.debug("Proposal generation skipped: %s", e)
+
+            # 7. Rejection learning — feed blocked/rejected patterns back into proposals
+            rejection_proposals = []
+            try:
+                from backend.ai.rejection_learner import generate_rejection_proposals
+                rejection_proposals = generate_rejection_proposals()
+            except Exception as e:
+                logger.debug("Rejection learning skipped: %s", e)
+
             return {
                 "win_rates": win_rates,
                 "postmortems": postmortems,
                 "degradation_alerts": degradation_alerts,
                 "diary_posted": diary_posted,
+                "proposals_generated": proposals_generated,
+                "rejection_proposals": rejection_proposals,
             }
         finally:
             if close:
                 session.close()
+
+    def _generate_proposals_for_bleeders(self, db=None):
+        session = db or self._get_db()
+        close = db is None
+        try:
+            from backend.models.database import StrategyProposal, StrategyConfig
+            from backend.models.outcome_tables import StrategyOutcome
+            strategies = session.query(StrategyOutcome.strategy).distinct().all()
+            generated = 0
+            for (strategy_name,) in strategies:
+                if strategy_name in ("unknown", "?"):
+                    continue
+                outcomes = session.query(StrategyOutcome).filter(
+                    StrategyOutcome.strategy == strategy_name
+                ).order_by(StrategyOutcome.settled_at.desc()).limit(20).all()
+                if len(outcomes) < 10:
+                    continue
+                wins = sum(1 for o in outcomes if o.result == 'win')
+                win_rate = wins / len(outcomes)
+                if win_rate < 0.40:
+                    cfg = session.query(StrategyConfig).filter(
+                        StrategyConfig.strategy_name == strategy_name
+                    ).first()
+                    current_params = (cfg.params if cfg and cfg.params else None) or {"kelly_fraction": 0.2, "min_edge": 0.05, "confidence_threshold": 0.5}
+                    proposed = {}
+                    for k, v in current_params.items():
+                        if isinstance(v, (int, float)) and not isinstance(v, bool):
+                            deviation = 0.15
+                            proposed[k] = round(v * (1 + deviation if win_rate < 0.5 else 1 - deviation), 4)
+                    if proposed:
+                        proposal = StrategyProposal(
+                            strategy_name=strategy_name,
+                            change_details=proposed,
+                            expected_impact=f"Win rate {win_rate:.1%} over last {len(outcomes)} trades",
+                            admin_decision="pending",
+                            status="pending",
+                            auto_promotable=True,
+                            proposed_params=proposed,
+                        )
+                        session.add(proposal)
+                        generated += 1
+            if generated:
+                session.commit()
+                logger.info(f"Self-review: generated {generated} auto-proposals for bleeders")
+        except Exception as e:
+            logger.warning(f"Self-review proposal generation failed: {e}")
+            if close:
+                try: session.rollback()
+                except Exception: pass
+        finally:
+            if close:
+                session.close()
+        return generated
 
     async def _send_critical_alerts(
         self,

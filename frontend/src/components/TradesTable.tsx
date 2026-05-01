@@ -93,7 +93,7 @@ export function TradesTable({ trades }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-neutral-800 bg-[#0a0a0a]">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-neutral-800 bg-neutral-950">
         <Filter className="w-3 h-3 text-neutral-600" />
         {filterButtons.map(({ key, label, count }) => (
           <button
@@ -113,7 +113,7 @@ export function TradesTable({ trades }: Props) {
       </div>
       <div className="flex-1 overflow-auto">
         <table className="w-full">
-      <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+      <thead className="sticky top-0 bg-neutral-950 z-10">
         <tr className="text-neutral-600 text-left text-[10px] border-b border-neutral-800">
           <th className="py-1.5 px-1.5 font-medium w-5"></th>
           <th

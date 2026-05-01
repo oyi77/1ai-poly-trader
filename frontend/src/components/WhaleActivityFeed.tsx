@@ -48,7 +48,7 @@ export default function WhaleActivityFeed() {
   }, []);
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
+    <div className="bg-neutral-800 rounded-lg p-4">
       <h3 className="text-sm font-semibold text-neutral-200 uppercase tracking-wider mb-3">
         Whale Activity
       </h3>
@@ -56,7 +56,7 @@ export default function WhaleActivityFeed() {
       {loading && (
         <div className="space-y-2">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-8 bg-gray-700/50 rounded animate-pulse" />
+            <div key={i} className="h-8 bg-neutral-700/50 rounded animate-pulse" />
           ))}
         </div>
       )}
@@ -66,7 +66,7 @@ export default function WhaleActivityFeed() {
       )}
 
       {!loading && !error && items.length === 0 && (
-        <p className="text-gray-400 text-sm">No recent whale trades.</p>
+        <p className="text-neutral-400 text-sm">No recent whale trades.</p>
       )}
 
       {!loading && !error && items.length > 0 && (
@@ -74,7 +74,7 @@ export default function WhaleActivityFeed() {
           {items.map(it => (
             <li
               key={it.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-gray-900/60 rounded px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-neutral-900/60 rounded px-3 py-2 text-xs"
             >
               <code className="text-neutral-400 font-mono">{it.wallet.slice(0, 10)}…</code>
               {it.market_id && (

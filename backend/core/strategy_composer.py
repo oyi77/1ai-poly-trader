@@ -123,13 +123,37 @@ class StrategyComposer:
         return ValidationResult(len(errors) == 0, errors)
 
     def backtest_composed(self, composed: ComposedStrategy, regime: MarketRegime) -> BacktestResult:
-        return BacktestResult(
+        from datetime import datetime, timezone, timedelta
+        from backend.core.backtester import BacktestEngine, BacktestConfig
+
+        end_dt = datetime.now(timezone.utc)
+        start_dt = end_dt - timedelta(days=30)
+
+        bt_config = BacktestConfig(
             strategy_name=composed.name,
-            regime=regime.value,
-            trades=0,
-            win_rate=0.0,
-            pnl=0.0,
+            start_date=start_dt,
+            end_date=end_dt,
+            initial_bankroll=1000.0,
         )
+        engine = BacktestEngine(bt_config)
+        try:
+            import asyncio
+            result = asyncio.get_event_loop().run_until_complete(engine.run(db=self._session))
+            return BacktestResult(
+                strategy_name=composed.name,
+                regime=regime.value,
+                trades=result.total_trades,
+                win_rate=result.win_rate,
+                pnl=result.total_pnl,
+            )
+        except Exception:
+            return BacktestResult(
+                strategy_name=composed.name,
+                regime=regime.value,
+                trades=0,
+                win_rate=0.0,
+                pnl=0.0,
+            )
 
     def register_composed(self, composed: ComposedStrategy) -> str:
         validation = self.validate_composition(composed)

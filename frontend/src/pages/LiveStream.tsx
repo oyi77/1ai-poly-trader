@@ -60,14 +60,6 @@ export function LiveStreamPanel() {
       return
     }
 
-    const adminKey = localStorage.getItem('adminApiKey') || ''
-    if (!adminKey) {
-      reconnectRef.current += 1
-      setTimeout(connectWs, Math.min(5000, 1000 * Math.pow(2, reconnectRef.current - 1)))
-      setWsStatus('disconnected')
-      return
-    }
-
     const ws = new WebSocket(getWsUrl('/ws/livestream'))
 
     wsRef.current = ws

@@ -142,7 +142,7 @@ export function SignalsTable({ signals, weatherSignals, onSimulateTrade, isSimul
 
   return (
     <table className="w-full">
-      <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+      <thead className="sticky top-0 bg-neutral-950 z-10">
         <tr className="text-neutral-600 text-left text-[10px] border-b border-neutral-800">
           <th className="py-1.5 px-1.5 font-medium w-6"></th>
           <th className="py-1.5 px-1.5 font-medium w-5"></th>

@@ -284,7 +284,7 @@ const NotificationCard = forwardRef(function NotificationCard({
         transition={{ duration: 0.2, ease: 'easeOut' }}
         className="cursor-pointer select-none"
         style={{
-          background: '#0a0a0a',
+          background: 'rgb(10,10,10)',
           border: `1px solid ${border}`,
           boxShadow: glow ?? 'none',
           width: 320,
@@ -385,7 +385,7 @@ const NotificationCard = forwardRef(function NotificationCard({
       onClick={() => onDismiss(notification.id)}
       className="cursor-pointer select-none"
       style={{
-        background: '#0a0a0a',
+        background: 'rgb(10,10,10)',
         border: `1px solid ${border}`,
         boxShadow: glow ?? 'none',
         width: 260,

@@ -29,7 +29,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   const isPnlPositive = pnl >= 0
 
   return (
-    <div className="bg-[#0a0a0a] border border-neutral-800 px-2 py-1.5 min-w-[110px]">
+    <div className="bg-neutral-950 border border-neutral-800 px-2 py-1.5 min-w-[110px]">
       <p className="text-[9px] text-neutral-600 mb-1 truncate max-w-[140px]">{label}</p>
       <div className="space-y-0.5">
         <div className="flex items-center justify-between gap-3">

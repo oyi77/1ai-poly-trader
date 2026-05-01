@@ -35,6 +35,9 @@ from backend.core.agi_jobs import self_review_job, research_pipeline_job
 from backend.core.db_backup import backup_job
 from backend.core.cache_cleanup import cache_cleanup_job
 from backend.ai.training.train import run_training_pipeline
+from backend.mesh.auditor import audit_source_performance
+from backend.mesh.learning import update_source_weights_from_outcomes
+from backend.ai.rejection_learner import generate_rejection_proposals
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trading_bot")
@@ -421,6 +424,36 @@ def start_scheduler():
         logger.info("Scheduled hourly auto-promote job for eligible proposals")
     except Exception:
         pass
+
+    scheduler.add_job(
+        audit_source_performance,
+        'cron',
+        hour=3, minute=0,
+        id='source_performance_audit',
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled source performance audit job at 03:00 UTC")
+
+    scheduler.add_job(
+        update_source_weights_from_outcomes,
+        'cron',
+        minute=30,
+        id='source_weight_update',
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled source weight update job every hour at :30")
+
+    scheduler.add_job(
+        generate_rejection_proposals,
+        'cron',
+        hour=4, minute=0,
+        id='rejection_learner',
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled rejection learner job at 04:00 UTC")
 
     # Initialize queue worker if enabled
     if settings.JOB_WORKER_ENABLED:

@@ -51,13 +51,13 @@ export function MarketsTab() {
         <button
           onClick={() => setPage(p => Math.max(0, p - 1))}
           disabled={page === 0}
-          className="px-3 py-1 rounded bg-gray-700 text-white disabled:opacity-40"
+          className="px-3 py-1 rounded bg-neutral-700 text-white disabled:opacity-40"
         >Previous</button>
-        <span className="text-gray-400 text-sm">Page {page + 1}</span>
+        <span className="text-neutral-400 text-sm">Page {page + 1}</span>
         <button
           onClick={() => setPage(p => p + 1)}
           disabled={polymarketMarkets.length < 50}
-          className="px-3 py-1 rounded bg-gray-700 text-white disabled:opacity-40"
+          className="px-3 py-1 rounded bg-neutral-700 text-white disabled:opacity-40"
         >Next</button>
       </div>
     </div>

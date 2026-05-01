@@ -200,7 +200,7 @@ export function GlobeView({ forecasts, signals }: Props) {
 
     // Hover card
     const card = document.createElement('div')
-    card.style.cssText = 'display:none;position:absolute;left:16px;top:14px;background:#0a0a0a;border:1px solid #333;padding:10px 12px;white-space:nowrap;font-family:ui-monospace,monospace;font-size:10px;z-index:100;min-width:160px;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.8);'
+    card.style.cssText = 'display:none;position:absolute;left:16px;top:14px;background:rgb(10,10,10);border:1px solid #333;padding:10px 12px;white-space:nowrap;font-family:ui-monospace,monospace;font-size:10px;z-index:100;min-width:160px;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.8);'
 
     const title = document.createElement('div')
     title.style.cssText = 'font-weight:700;color:#e5e5e5;margin-bottom:2px;font-size:11px;letter-spacing:0.5px;'

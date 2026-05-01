@@ -13,6 +13,10 @@ def set_task_manager(tm):
     global _task_manager
     _task_manager = tm
 
+
+def get_task_manager():
+    return _task_manager
+
 _pipeline_cards: List[Dict[str, Any]] = []
 _max_cards = 50
 
