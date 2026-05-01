@@ -51,3 +51,12 @@ class OnlineLearner:
 
     def get_calibrated_prob(self, strategy: str, raw_prob: float) -> float:
         return _calibration.calibrate_probability(strategy, raw_prob)
+
+    def get_strategy_rankings(self) -> dict[str, float]:
+        try:
+            return self.get_allocation(
+                ["btc_momentum", "weather_emos", "btc_oracle", "copy_trader",
+                 "market_maker", "kalshi_arb", "bond_scanner", "whale_pnl",
+                 "realtime_scanner"], total_capital=1.0)
+        except Exception:
+            return {}

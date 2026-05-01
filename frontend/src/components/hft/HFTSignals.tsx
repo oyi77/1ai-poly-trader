@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Anchor, Fish, TrendingUp } from 'lucide-react'
+import { api } from '../../api'
 
 interface HFTSignal {
   id: string
@@ -52,19 +54,48 @@ function StatusBadge({ status }: { status: HFTSignal['status'] }) {
   return <span className={`text-[9px] font-semibold uppercase ${cls}`}>{status}</span>
 }
 
-const MOCK_SIGNALS: HFTSignal[] = [
-  { id: '1', type: 'edge', strategy: 'universal_scanner', market: 'btc-updown-5m', direction: 'buy', confidence: 0.82, latency_ms: 45, edge_pct: 5.2, size_usd: 25, timestamp: new Date().toISOString(), status: 'executed' },
-  { id: '2', type: 'arbitrage', strategy: 'probability_arb', market: 'will-fed-cut-june', direction: 'buy', confidence: 1.0, latency_ms: 28, edge_pct: 8.1, size_usd: 50, timestamp: new Date().toISOString(), status: 'executed' },
-  { id: '3', type: 'whale', strategy: 'whale_frontrun', market: 'trump-trial-verdict', direction: 'sell', confidence: 0.91, latency_ms: 67, edge_pct: 3.4, size_usd: 100, timestamp: new Date().toISOString(), status: 'pending' },
-  { id: '4', type: 'orderbook', strategy: 'orderbook_hft', market: 'btc-100k-endyear', direction: 'buy', confidence: 0.74, latency_ms: 12, edge_pct: 2.1, size_usd: 10, timestamp: new Date().toISOString(), status: 'executed' },
-  { id: '5', type: 'arbitrage', strategy: 'cross_market_arb', market: 'election-winner', direction: 'buy', confidence: 0.95, latency_ms: 89, edge_pct: 4.5, size_usd: 75, timestamp: new Date().toISOString(), status: 'rejected', reason: 'circuit_open' },
-]
+const EDGE_TYPES: Record<string, HFTSignal['type']> = {
+  universal_scanner: 'edge',
+  probability_arb: 'arbitrage',
+  cross_market_arb: 'arbitrage',
+  whale_frontrun: 'whale',
+}
+
+function mapApiSignal(s: any, index: number): HFTSignal {
+  return {
+    id: s.id || `hft_${index}`,
+    type: EDGE_TYPES[s.strategy] || 'orderbook',
+    strategy: s.strategy || s.name || 'unknown',
+    market: s.market_ticker || s.market || s.ticker || '—',
+    direction: s.direction === 'buy' || s.direction === 'up' ? 'buy' : 'sell',
+    confidence: s.confidence ?? s.probability ?? 0,
+    latency_ms: s.latency_ms ?? 0,
+    edge_pct: s.edge != null ? (typeof s.edge === 'number' ? Math.abs(s.edge) * 100 : 0) : (s.edge_pct ?? 0),
+    size_usd: s.size ?? s.suggested_size ?? 0,
+    timestamp: s.timestamp || s.created_at || new Date().toISOString(),
+    status: s.status || 'pending',
+    reason: s.reason || undefined,
+  }
+}
 
 export function HFTSignals({ maxRows = 10 }: Props) {
   const [sortKey, setSortKey] = useState<'latency' | 'edge' | 'confidence' | 'size'>('latency')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
-  const signals = MOCK_SIGNALS
+  const { data: apiSignals = [] } = useQuery({
+    queryKey: ['hft-signals'],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get('/v1/signals', { params: { limit: 50 } })
+        return (data?.items || data?.signals || data || []).map(mapApiSignal)
+      } catch {
+        return []
+      }
+    },
+    refetchInterval: 5000,
+  })
+
+  const signals: HFTSignal[] = apiSignals
 
   const sorted = useMemo(() => {
     return [...signals].sort((a, b) => {
@@ -95,7 +126,7 @@ export function HFTSignals({ maxRows = 10 }: Props) {
       <div className="flex flex-col items-center justify-center py-6 text-neutral-600">
         <Zap className="w-6 h-6 mb-2 opacity-30" />
         <p className="text-xs">No HFT signals yet</p>
-        <p className="text-[10px] mt-0.5 text-neutral-700">Scanner running...</p>
+        <p className="text-[10px] mt-0.5 text-neutral-700">Enable HFT strategies in Admin</p>
       </div>
     )
   }

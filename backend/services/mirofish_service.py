@@ -1,8 +1,8 @@
-"""MiroFish service lifecycle management.
+"""MiroFish service lifecycle management — powered by built-in debate engine.
 
-Manages the MiroFish integration state machine:
-- RUNNING: Active signal fetching and integration
-- PAUSED: Temporarily suspended (preserves config)
+Manages the debate engine state machine:
+- RUNNING: Active Bull/Bear/Judge debate via Groq/Claude LLMs
+- PAUSED: Temporarily suspended (preserves state)
 - STOPPED: Fully disabled
 
 State transitions:
@@ -10,7 +10,7 @@ State transitions:
 - RUNNING → PAUSED (pause)
 - RUNNING → STOPPED (stop)
 - PAUSED → RUNNING (resume/start)
-- Any → RUNNING (restart: resets monitor + client)
+- Any → RUNNING (restart)
 """
 
 import logging
@@ -144,29 +144,10 @@ class MiroFishService:
                 self._started_at, tz=timezone.utc
             ).isoformat()
 
-        monitor_info = {}
-        try:
-            from backend.services.mirofish_monitor import get_monitor
-            monitor = get_monitor()
-            metrics = monitor.get_health_metrics()
-            state_info = monitor.get_state_info()
-            monitor_info = {
-                "health_status": metrics.status,
-                "latency_ms": round(metrics.latency_ms, 2),
-                "error_rate": round(metrics.error_rate, 2),
-                "circuit_breaker_state": metrics.circuit_breaker_state,
-                "total_requests": metrics.total_requests,
-                "failed_requests": metrics.failed_requests,
-                "consecutive_failures": metrics.consecutive_failures,
-                "last_success_time": metrics.last_success_time,
-                "last_failure_time": metrics.last_failure_time,
-                "circuit_breaker_config": state_info.get("config", {}),
-            }
-        except Exception:
-            monitor_info = {
-                "health_status": "unknown",
-                "circuit_breaker_state": "UNKNOWN",
-            }
+        from backend.config import settings as app
+        engine_type = "builtin_debate_engine"
+        if app.MIROFISH_ENABLED and app.MIROFISH_API_URL:
+            engine_type = "external_mirofish_api"
 
         return {
             "state": self._state.value,
@@ -175,7 +156,8 @@ class MiroFishService:
             "last_signal_fetch": last_fetch,
             "total_signals_fetched": self._total_signals_fetched,
             "error_message": self._error_message,
-            "monitor": monitor_info,
+            "engine": engine_type,
+            "engine_url": app.MIROFISH_API_URL if engine_type == "external_mirofish_api" else None,
         }
 
     def _transition(self, prev: str):

@@ -440,3 +440,35 @@ class KnowledgeGraph:
                     properties=strategy_model.properties or {},
                 ))
         return results
+
+    def store_trade_memory(self, trade_id, strategy, market_id, signal_reasoning, outcome_pnl, outcome_correct):
+        try:
+            trade_entity_id = f"trade:{trade_id}"
+            self.add_entity("trade_memory", trade_entity_id, {
+                "trade_id": trade_id,
+                "strategy": strategy,
+                "market_id": str(market_id),
+                "reasoning": str(signal_reasoning)[:500],
+                "pnl": float(outcome_pnl or 0),
+                "correct": bool(outcome_correct),
+            })
+            self.add_relation(trade_entity_id, f"strategy:{strategy}", "executed_by", weight=1.0, confidence=1.0)
+        except Exception:
+            pass
+
+    def retrieve_similar_trades(self, strategy: str, market_context: str = "", limit: int = 5) -> list:
+        try:
+            from backend.models.kg_models import KGEntity
+            entities = self._session.query(KGEntity).filter(
+                KGEntity.entity_type == "trade_memory"
+            ).order_by(KGEntity.created_at.desc()).limit(limit * 3).all()
+            results = []
+            for e in entities:
+                props = e.properties or {}
+                if props.get("strategy") == strategy:
+                    results.append(props)
+                    if len(results) >= limit:
+                        break
+            return results
+        except Exception:
+            return []

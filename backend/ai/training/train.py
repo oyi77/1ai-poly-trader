@@ -100,3 +100,26 @@ def _synthetic_examples(n: int) -> List[TrainingExample]:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+async def run_training_pipeline(min_examples: int = 200) -> dict:
+    try:
+        collector = DataCollector(page_size=100, max_pages=10)
+        examples = await collector.collect()
+        if len(examples) < min_examples:
+            return {"status": "skipped", "reason": f"only {len(examples)} examples, need {min_examples}", "n_examples": len(examples), "accuracy": 0.0}
+        train_set, eval_set = _split(examples, holdout_frac=0.2)
+        trainer = ModelTrainer()
+        result = trainer.train(train_set)
+        trainer.write_metadata(result)
+        fe = FeatureEngineer()
+        import pickle
+        with open(result.model_path, "rb") as fh:
+            bundle = pickle.load(fh)
+        model = bundle["model"]
+        X_eval = np.array([fe.to_vector(ex.features) for ex in eval_set], dtype=float)
+        accuracy = float(model.score(X_eval, [ex.label for ex in eval_set])) if len(X_eval) > 0 else result.train_accuracy
+        return {"status": "ok", "accuracy": accuracy, "n_examples": result.n_examples, "model_path": result.model_path, "train_accuracy": result.train_accuracy}
+    except Exception as e:
+        logger.error(f"Training pipeline failed: {e}")
+        return {"status": "error", "reason": str(e), "n_examples": 0, "accuracy": 0.0}

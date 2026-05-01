@@ -231,6 +231,26 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                         except Exception as e:
                             logger.debug(f"Broadcast event failed: {e}")
 
+                        # Store trade memory in Knowledge Graph
+                        try:
+                            from backend.core.knowledge_graph import KnowledgeGraph
+                            from backend.models.database import SessionLocal as _SessionLocal
+                            kg_db = _SessionLocal()
+                            try:
+                                kg = KnowledgeGraph(session=kg_db)
+                                kg.store_trade_memory(
+                                    trade_id=trade.id,
+                                    strategy=getattr(trade, "strategy", "unknown") or "unknown",
+                                    market_id=trade.market_ticker or "unknown",
+                                    signal_reasoning=getattr(trade, "reasoning", "") or "",
+                                    outcome_pnl=trade.pnl or 0.0,
+                                    outcome_correct=(trade.result == "win"),
+                                )
+                            finally:
+                                kg_db.close()
+                        except Exception:
+                            pass
+
                 if closed_count > 0:
                     db.commit()
                     logger.info(

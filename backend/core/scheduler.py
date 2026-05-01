@@ -34,6 +34,7 @@ from backend.core.strategy_ranker import strategy_ranking_job
 from backend.core.agi_jobs import self_review_job, research_pipeline_job
 from backend.core.db_backup import backup_job
 from backend.core.cache_cleanup import cache_cleanup_job
+from backend.ai.training.train import run_training_pipeline
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trading_bot")
@@ -386,6 +387,40 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info("Scheduled impact measurement and auto-rollback job every 2 hours")
+
+    scheduler.add_job(
+        run_training_pipeline,
+        'cron',
+        hour=2, minute=0,
+        id='nightly_retrain',
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled nightly model retraining job at 02:00 UTC")
+
+    scheduler.add_job(
+        self_review_job,
+        'cron',
+        hour=0, minute=30,
+        id='daily_self_review',
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info("Scheduled daily self-review job at 00:30 UTC")
+
+    try:
+        from backend.ai.proposal_generator import auto_promote_eligible_proposals
+        scheduler.add_job(
+            auto_promote_eligible_proposals,
+            'cron',
+            minute=0,
+            id='hourly_auto_promote',
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled hourly auto-promote job for eligible proposals")
+    except Exception:
+        pass
 
     # Initialize queue worker if enabled
     if settings.JOB_WORKER_ENABLED:

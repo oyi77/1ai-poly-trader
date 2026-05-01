@@ -55,7 +55,7 @@ module.exports = {
       out_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-bot-out.log',
     },
     {
-      name: 'polyedge-mirofish-mock',
+      name: 'polyedge-bot',
       script: 'python3',
       args: '-m backend.services.mirofish_mock_server',
       cwd: '/home/openclaw/projects/polyedge',

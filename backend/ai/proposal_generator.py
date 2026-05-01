@@ -546,3 +546,38 @@ Be specific and actionable. Do not suggest vague improvements."""
             return False
         finally:
             db.close()
+
+
+def auto_promote_eligible_proposals():
+    """Auto-deploy low-risk parameter tweak proposals. Safe for scheduled jobs."""
+    try:
+        from backend.models.database import SessionLocal, StrategyProposal as DBProposal, StrategyConfig
+        db = SessionLocal()
+        try:
+            eligible = db.query(DBProposal).filter(
+                DBProposal.status == "pending",
+                DBProposal.auto_promotable == True,
+            ).all()
+            for proposal in eligible:
+                try:
+                    config = db.query(StrategyConfig).filter(
+                        StrategyConfig.strategy_name == proposal.strategy_name
+                    ).first()
+                    if config and proposal.change_details:
+                        current_params = config.params or {}
+                        for key, val in proposal.change_details.items():
+                            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                                current_val = float(current_params.get(key, val))
+                                deviation = abs(val - current_val) / max(abs(current_val), 1e-9)
+                                if deviation <= 0.20:
+                                    current_params[key] = val
+                        config.params = current_params
+                        proposal.status = "auto_approved"
+                        proposal.admin_decision = "auto_approved"
+                        db.commit()
+                except Exception:
+                    db.rollback()
+        finally:
+            db.close()
+    except Exception:
+        pass

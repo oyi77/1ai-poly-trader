@@ -25,7 +25,8 @@ class ExtendedSettings(BaseSettings):
     BTC_MOMENTUM_ENABLED: bool = True
     MARKET_MAKER_ENABLED: bool = True
     KALSHI_ARB_ENABLED: bool = True
-    MIROFISH_API_URL: Optional[str] = "http://localhost:5001"
+    MIROFISH_ENABLED: bool = True
+    MIROFISH_API_URL: Optional[str] = None
     MIROFISH_API_KEY: Optional[str] = None
     MIROFISH_API_TIMEOUT: float = 10.0
     POLYGON_RPC_URL: str = "https://polygon-bor-rpc.publicnode.com"

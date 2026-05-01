@@ -229,6 +229,12 @@ class Settings(BaseSettings):
     WEBSEARCH_MAX_RESULTS: int = 5
     WEBSEARCH_TIMEOUT_SECONDS: float = 15.0
 
+    # MiroFish Integration
+    MIROFISH_ENABLED: bool = True
+    MIROFISH_API_URL: Optional[str] = None
+    MIROFISH_API_KEY: Optional[str] = None
+    MIROFISH_API_TIMEOUT: float = 10.0
+
     # Request Timeout Settings
     API_REQUEST_TIMEOUT: float = 30.0  # API request timeout in seconds
     DATABASE_QUERY_TIMEOUT: float = 10.0  # Database query timeout in seconds

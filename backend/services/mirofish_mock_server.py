@@ -8,6 +8,7 @@ Endpoints:
 """
 
 import asyncio
+import json
 import logging
 import random
 from datetime import datetime, timezone
@@ -38,51 +39,89 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simulated signal templates
-SIGNAL_TEMPLATES = [
-    {
-        "market_id": "0x1a2b3c4d5e6f7890abcdef1234567890",
-        "market_question": "Will Bitcoin reach $100k by end of 2024?",
-        "market_type": "crypto",
-        "prediction": 0.72,  # 0.0-1.0 probability
-        "confidence": 0.72,
-        "edge": 0.08,
-        "fair_value": 0.65,
-        "current_price": 0.57,
-        "reasoning": "Strong momentum indicators and institutional accumulation suggest upside potential.",
-        "sources": ["on-chain data", "technical analysis", "sentiment analysis"],
-    },
-    {
-        "market_id": "0x2b3c4d5e6f7890abcdef1234567890ab",
-        "market_question": "Will the Fed raise rates in Q4 2024?",
-        "market_type": "politics",
-        "prediction": 0.35,  # Low probability = NO bet
-        "confidence": 0.68,
-        "edge": 0.06,
-        "fair_value": 0.35,
-        "current_price": 0.41,
-        "reasoning": "Economic data suggests inflation is cooling faster than expected.",
-        "sources": ["economic indicators", "Fed statements", "market expectations"],
-    },
-    {
-        "market_id": "0x3c4d5e6f7890abcdef1234567890abcd",
-        "market_question": "Will NYC temperature exceed 90°F on July 15?",
-        "market_type": "weather",
-        "prediction": 0.81,  # High probability = YES bet
-        "confidence": 0.81,
-        "edge": 0.12,
-        "fair_value": 0.78,
-        "current_price": 0.66,
-        "reasoning": "GFS ensemble models show consistent high-pressure system over Northeast.",
-        "sources": ["GFS ensemble", "NWS forecast", "historical patterns"],
-    },
-]
+# Simulated signal templates — will be replaced with live Polymarket data on startup
+SIGNAL_TEMPLATES: list = []
+
+_fetched_from_polymarket = False
+
+
+async def _fetch_live_market_templates():
+    """Fetch real Polymarket markets to use as signal templates, with retry."""
+    global _fetched_from_polymarket, SIGNAL_TEMPLATES
+    if _fetched_from_polymarket and SIGNAL_TEMPLATES:
+        return
+
+    for attempt in range(3):
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params={"limit": 20, "active": "true", "closed": "false", "order": "volume", "ascending": "false"},
+                )
+                resp.raise_for_status()
+                markets = resp.json()
+                if not markets:
+                    raise ValueError("Empty response from Gamma API")
+                live_templates = []
+                for m in markets[:6]:
+                    outcomes_str = m.get("outcomes", "[]")
+                    prices_str = m.get("outcomePrices", "[]")
+                    try:
+                        prices = json.loads(prices_str) if isinstance(prices_str, str) else prices_str
+                        yes_price = float(prices[0]) if prices else 0.5
+                    except (json.JSONDecodeError, IndexError, KeyError, ValueError, TypeError):
+                        yes_price = 0.5
+                    live_templates.append({
+                        "market_id": str(m.get("id", f"poly_{len(live_templates)}")),
+                        "market_question": str(m.get("question", "Unknown market")),
+                        "market_type": str(m.get("category", "crypto")),
+                        "prediction": yes_price,
+                        "confidence": round(random.uniform(0.55, 0.85), 2),
+                        "edge": round(abs(yes_price - 0.5) * random.uniform(0.1, 0.3), 3),
+                        "fair_value": round(yes_price + random.uniform(-0.05, 0.05), 3),
+                        "current_price": yes_price,
+                        "reasoning": f"Live Polymarket: {str(m.get('question', ''))[:80]}...",
+                        "sources": ["Polymarket Gamma API", "live order book"],
+                    })
+                if live_templates:
+                    SIGNAL_TEMPLATES = live_templates
+                    _fetched_from_polymarket = True
+                    logger.info(
+                        "MiroFish mock: loaded %d live Polymarket markets (attempt %d)",
+                        len(live_templates), attempt + 1,
+                    )
+                    return
+        except Exception as e:
+            logger.warning(
+                "MiroFish mock: fetch attempt %d/3 failed: %s", attempt + 1, e
+            )
+            if attempt < 2:
+                await asyncio.sleep(2 * (attempt + 1))
+
+    logger.error("MiroFish mock: all fetch attempts failed — signals will use placeholder data")
 
 
 def generate_signal() -> Dict[str, Any]:
-    """Generate a random simulated signal."""
+    """Generate a signal using live Polymarket market data as templates."""
+    if not SIGNAL_TEMPLATES:
+        logger.warning("No market templates available — returning empty signal")
+        return {
+            "market_id": "unknown",
+            "market_question": "Waiting for live market data...",
+            "market_type": "unknown",
+            "prediction": 0.5,
+            "confidence": 0.5,
+            "edge": 0.0,
+            "fair_value": 0.5,
+            "current_price": 0.5,
+            "reasoning": "No live Polymarket data available. Check network connectivity.",
+            "sources": [],
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "signal_id": f"mock_{random.randint(10000, 99999)}",
+        }
     template = random.choice(SIGNAL_TEMPLATES)
-    # Add some randomness to prices and confidence
     noise = random.uniform(-0.05, 0.05)
     return {
         **template,
@@ -90,7 +129,7 @@ def generate_signal() -> Dict[str, Any]:
         "edge": max(0.02, template["edge"] + noise),
         "current_price": max(0.1, min(0.9, template["current_price"] + noise * 0.5)),
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "signal_id": f"mock_{random.randint(10000, 99999)}",
+        "signal_id": f"livepoly_{random.randint(10000, 99999)}",
     }
 
 
@@ -213,6 +252,7 @@ async def run_debate(
 
 async def main():
     """Run the mock server."""
+    await _fetch_live_market_templates()
     config = uvicorn.Config(
         app,
         host="0.0.0.0",

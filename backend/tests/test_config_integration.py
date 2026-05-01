@@ -73,9 +73,9 @@ class TestSettingsPriority:
 class TestExtendedSettings:
     def test_extended_defaults(self):
         settings = ExtendedSettings()
-        assert settings.MIROFISH_API_URL is not None
         assert settings.POLYGON_RPC_URL is not None
         assert settings.MIROFISH_API_TIMEOUT == 10.0
+        assert settings.MIROFISH_ENABLED == True
 
     def test_extended_env_override(self):
         with patch.dict(os.environ, {
@@ -90,7 +90,7 @@ class TestExtendedSettings:
         settings = UnifiedSettings()
         assert hasattr(settings, 'INITIAL_BANKROLL')
         assert hasattr(settings, 'MIROFISH_API_URL')
-        assert settings.MIROFISH_API_URL is not None
+        assert hasattr(settings, 'MIROFISH_ENABLED')
 
 
 class TestRiskSettings:
