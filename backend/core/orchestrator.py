@@ -8,7 +8,7 @@ from typing import Optional, Dict
 from cachetools import TTLCache
 
 from backend.config import settings
-from backend.data.polymarket_clob import PolymarketCLOB, clob_from_settings
+from backend.data.polymarket_clob import PolymarketCLOB, clob_from_settings, clob_breaker
 
 logger = logging.getLogger("trading_bot")
 
@@ -29,6 +29,9 @@ class Orchestrator:
         """Start all subsystems."""
         self._running = True
         logger.info("Orchestrator starting...")
+        
+        # Reset CLOB circuit breaker to ensure we start in CLOSED state
+        clob_breaker.reset()
 
         self._clob = clob_from_settings()
         await self._clob.__aenter__()
@@ -103,6 +106,7 @@ class Orchestrator:
             
             # Register context
             register_context(mode, context)
+            logger.info(f"Registered ModeExecutionContext for mode: {mode} (client={'SET' if clob_client else 'NONE'})")
             logger.info(f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies")
 
         self._patch_weather_job()

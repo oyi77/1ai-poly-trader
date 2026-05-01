@@ -82,7 +82,7 @@ async def _refresh_balance_cache():
             clob_balance = balance_data.get("usdc_balance", 0.0)
             
             if clob_balance >= 0:
-                from backend.api.main import _balance_cache
+                # Use local _balance_cache
                 _balance_cache["balance"] = clob_balance
                 _balance_cache["timestamp"] = time.time()
                 _balance_cache["mode"] = settings.TRADING_MODE
@@ -275,7 +275,7 @@ async def _startup_polymarket_websocket():
             exc_info=True
         )
     
-    from backend.api.main import _polymarket_ws_tasks
+    # Use local _polymarket_ws_tasks
     _polymarket_ws_tasks["market"] = market_ws_task
     _polymarket_ws_tasks["user"] = user_ws_task
 
@@ -447,7 +447,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             exc_info=True,
         )
     
-    start_scheduler()
+    if __import__("os").getenv("DISABLE_TRADING_SCHEDULER") != "true":
+        start_scheduler()
+    else:
+        logger.info("Trading scheduler disabled for this process (DISABLE_TRADING_SCHEDULER=true)")
     log_event("success", "BTC 5-min trading bot initialized")
     
     logger.info("Bot is now running!")
@@ -464,8 +467,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("  - Weather trading: DISABLED")
     logger.info("=" * 60)
     
-    # Initialize background task caches
-    from backend.api.main import _balance_cache, _polymarket_ws_tasks
+    # Use local caches
+    global _balance_cache, _polymarket_ws_tasks
     _balance_cache = {"balance": None, "timestamp": 0, "mode": settings.TRADING_MODE}
     _polymarket_ws_tasks = {"market": None, "user": None}
     
@@ -541,7 +544,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.warning(f"   ⚠ Error shutting down connection limiter: {e}")
         
         logger.info("6. Shutting down Polymarket WebSocket...")
-        from backend.api.main import _polymarket_ws_tasks
+        # Use local _polymarket_ws_tasks
         if _polymarket_ws_tasks.get("market"):
             try:
                 await shutdown_market_websocket()

@@ -129,36 +129,38 @@ async def fetch_pm_total_equity(wallet: Optional[str] = None) -> Optional[float]
 
     cash = 0.0
     try:
-        # 1. Try fetching directly from Polygon RPC for real USDC.e balance
-        # Polymarket uses bridged USDC.e on Polygon POS for collateral
         import httpx
-
-        usdc_e = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
-        rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
-        data = "0x70a08231000000000000000000000000" + wallet_address.lower()[2:]
-        payload = {
-            "jsonrpc": "2.0",
-            "method": "eth_call",
-            "params": [{"to": usdc_e, "data": data}, "latest"],
-            "id": 1,
+        from backend.config import settings
+        
+        tokens = {
+            "USDC.e": settings.USDC_E_ADDRESS,
+            "USDC Native": settings.USDC_NATIVE_ADDRESS,
+            "pUSD": settings.PUSD_ADDRESS
         }
-
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            res = await client.post(
-                rpc_url, json=payload, headers={"User-Agent": "polyedge-finance"}
-            )
-            if res.status_code == 200 and "result" in res.json():
-                hex_val = res.json()["result"]
-                if hex_val == "0x":
-                    hex_val = "0x0"
-                cash = int(hex_val, 16) / 1e6
-                logger.info(
-                    "Fetched %.2f USDC cash from Polygon RPC for %s",
-                    cash,
-                    wallet_address[:10],
-                )
-            else:
-                raise ValueError(f"RPC returned {res.status_code} or missing result")
+        
+        rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for name, addr in tokens.items():
+                data = "0x70a08231000000000000000000000000" + wallet_address.lower()[2:]
+                payload = {
+                    "jsonrpc": "2.0",
+                    "method": "eth_call",
+                    "params": [{"to": addr, "data": data}, "latest"],
+                    "id": 1,
+                }
+                try:
+                    res = await client.post(
+                        rpc_url, json=payload, headers={"User-Agent": "polyedge-finance"}
+                    )
+                    if res.status_code == 200 and "result" in res.json():
+                        hex_val = res.json()["result"]
+                        if hex_val == "0x" or not hex_val: hex_val = "0x0"
+                        cash += int(hex_val, 16) / 1e6
+                except Exception as e:
+                    logger.warning(f"Failed to fetch {name} balance in reconciliation: {e}")
+        
+        logger.info("Total cash balance from RPC: %.2f", cash)
     except Exception as exc:
         logger.warning("Polygon RPC cash fetch failed, falling back to CLOB: %s", exc)
         # 2. Fallback to CLOB API if RPC fails
@@ -175,8 +177,8 @@ async def fetch_pm_total_equity(wallet: Optional[str] = None) -> Optional[float]
                 )
                 return None
             cash = float(balance.get("usdc_balance") or 0.0)
-        except Exception as fallback_exc:
-            logger.warning("CLOB cash balance fallback failed: %s", fallback_exc)
+        except Exception as clob_exc:
+            logger.warning("CLOB cash balance fetch failed: %s", clob_exc)
             return None
 
     return round(cash + float(open_value), 6)

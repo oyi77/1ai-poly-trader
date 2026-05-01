@@ -107,6 +107,12 @@ class CircuitBreaker:
             self.last_failure_time = time.monotonic()
 
             current_state = self._state
+            logger.warning(
+                "CircuitBreaker '%s' failure recorded: count=%d, state=%s",
+                self.name,
+                self.failure_count,
+                current_state,
+            )
             if current_state == State.HALF_OPEN:
                 self._transition(State.OPEN)
             elif (
@@ -119,9 +125,7 @@ class CircuitBreaker:
         async with self._lock:
             current_state = self._state
 
-            if current_state == State.HALF_OPEN or (
-                current_state == State.OPEN and self._state == State.HALF_OPEN
-            ):
+            if current_state == State.HALF_OPEN:
                 self.success_count += 1
                 if self.success_count >= self.half_open_max:
                     self._transition(State.CLOSED)
@@ -140,10 +144,13 @@ class CircuitBreaker:
             self._half_open_probes = 0
         elif new_state == State.OPEN:
             self._half_open_probes = 0
+            # Reset success count when tripping back to OPEN
+            self.success_count = 0
 
         logger.warning(
-            "CircuitBreaker '%s': %s -> %s",
+            "CircuitBreaker '%s' TRANSITION: %s -> %s (failure_count was %d)",
             self.name,
             old_state,
             new_state,
+            self.failure_count,
         )

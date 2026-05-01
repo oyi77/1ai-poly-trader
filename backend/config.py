@@ -1,16 +1,24 @@
 """Configuration settings for the BTC 5-min trading bot."""
 
-from pydantic import model_validator
+import os
+from pydantic import model_validator, ConfigDict
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
 from typing import Optional
 
+# Project root directory
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(ROOT_DIR, "tradingbot.db")
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database (SQLite for Phase 1, PostgreSQL for production)
-    DATABASE_URL: str = "sqlite:///./tradingbot.db"
+    DATABASE_URL: str = f"sqlite:///{DB_PATH}"
+
+    # Polymarket Token Addresses
+    USDC_E_ADDRESS: str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    USDC_NATIVE_ADDRESS: str = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+    PUSD_ADDRESS: str = "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb"
 
     # API Keys (optional)
     POLYMARKET_API_KEY: Optional[str] = None
@@ -61,7 +69,7 @@ class Settings(BaseSettings):
     AI_API_KEY: Optional[str] = None  # API key for custom/omniroute providers
 
     # AI Feature Flags
-    AI_ENABLED: bool = False  # Master toggle for AI-enhanced signals
+    AI_ENABLED: bool = True  # Master toggle for AI-enhanced signals
     AI_LOG_ALL_CALLS: bool = True
     AI_DAILY_BUDGET_USD: float = 1.0
     AI_SIGNAL_WEIGHT: float = 0.30  # Weight of AI in ensemble (0 = disabled, max 0.50)
@@ -164,7 +172,7 @@ class Settings(BaseSettings):
     )
 
     AUTO_APPROVE_MIN_CONFIDENCE: float = 0.50  # Auto-approve 50%+ (winners had 40-90% distribution)
-    AUTO_TRADER_ENABLED: bool = False
+    AUTO_TRADER_ENABLED: bool = True
 
     # Signal approval mode: "manual", "auto_approve", "auto_deny"
     # manual: always show popup for user approval

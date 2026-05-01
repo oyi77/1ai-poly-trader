@@ -21,10 +21,10 @@ import httpx
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 
-from py_clob_client.client import ClobClient
-from py_clob_client.clob_types import (
+from py_clob_client_v2.client import ClobClient
+from py_clob_client_v2.clob_types import (
     ApiCreds,
-    OrderArgs,
+    OrderArgsV2 as OrderArgs,
     OrderType,
     BalanceAllowanceParams,
     AssetType,
@@ -206,29 +206,31 @@ class PolymarketCLOB:
                     api_secret=api_secret,
                     api_passphrase=api_passphrase,
                 )
+            elif builder_api_key and builder_secret and builder_passphrase:
+                creds = ApiCreds(
+                    api_key=builder_api_key,
+                    api_secret=builder_secret,
+                    api_passphrase=builder_passphrase,
+                )
             builder_config = None
             if builder_api_key and builder_secret and builder_passphrase:
                 try:
-                    from py_builder_signing_sdk.config import (
-                        BuilderConfig,
-                        BuilderApiKeyCreds,
-                    )
+                    from py_clob_client_v2.clob_types import BuilderConfig, BuilderApiKey
 
+                    # BuilderConfig takes builder_address and builder_code (the builder program code)
+                    # The actual key credentials are passed as the main ApiCreds above
                     builder_config = BuilderConfig(
-                        local_builder_creds=BuilderApiKeyCreds(
-                            key=builder_api_key,
-                            secret=builder_secret,
-                            passphrase=builder_passphrase,
-                        )
+                        builder_address=builder_address or "",
+                        builder_code=builder_api_key,
                     )
+                    # We use ApiCreds for the creds parameter as ClobClient expects it.
+                    # BuilderApiKey is not a subclass of ApiCreds and has different field names.
                     logger.info(
-                        "[polymarket_clob.__init__] Builder Program credentials loaded"
+                        "[polymarket_clob.__init__] Builder Program credentials loaded (BuilderConfig + ApiCreds)"
                     )
                 except ImportError:
                     logger.warning(
-                        "[polymarket_clob.__init__] py_builder_signing_sdk not installed — "
-                        "Builder Program auth unavailable. Install with: "
-                        "pip install py-builder-signing-sdk"
+                        "[polymarket_clob.__init__] py_clob_client_v2 BuilderConfig unavailable"
                     )
             try:
                 self._clob_client = ClobClient(
@@ -267,7 +269,9 @@ class PolymarketCLOB:
         self._http = httpx.AsyncClient(
             timeout=httpx.Timeout(15.0, connect=5.0),
             limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
-            headers={"User-Agent": "PolyEdge/1.0"},
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
         )
         return self
 
@@ -446,11 +450,18 @@ class PolymarketCLOB:
         if not self._clob_client:
             logger.error("ClobClient not initialised — private_key required")
             return None
+            
+        if self._clob_client.creds and self._clob_client.creds.api_key and self._clob_client.creds.api_secret:
+            self.api_key = self._clob_client.creds.api_key
+            self.api_secret = self._clob_client.creds.api_secret
+            self.api_passphrase = self._clob_client.creds.api_passphrase
+            return self._clob_client.creds
+            
         try:
             creds = await asyncio.to_thread(
-                self._clob_client.create_or_derive_api_creds
+                self._clob_client.derive_api_key
             )
-            if creds:
+            if creds and creds.api_secret:
                 # Store and upgrade the client to L2
                 self.api_key = creds.api_key
                 self.api_secret = creds.api_secret
@@ -566,10 +577,14 @@ class PolymarketCLOB:
 
         mode_label = "[TESTNET]" if self.mode == "testnet" else "[LIVE]"
         try:
+            # In CLOB V2, OrderArgsV2.size is shares.
+            # In PolyEdge, size argument is USDC to spend.
+            shares = size / price if side == "BUY" else size
+            
             order_args = OrderArgs(
                 token_id=token_id,
                 price=price,
-                size=size,
+                size=shares,
                 side=side,
             )
 
@@ -629,7 +644,7 @@ class PolymarketCLOB:
         if self.is_paper or not self._clob_client or not self._clob_client.creds:
             return []
         try:
-            return await asyncio.to_thread(self._clob_client.get_orders)
+            return await asyncio.to_thread(self._clob_client.get_open_orders)
         except Exception as e:
             logger.error(
                 f"[polymarket_clob.get_open_orders] {type(e).__name__}: Failed to get open orders: {e}",
@@ -679,30 +694,43 @@ class PolymarketCLOB:
             import httpx
             
             wallet_address = self.builder_address if self.builder_address else self._account.address
-            usdc_e = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
-            rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
-            data = "0x70a08231000000000000000000000000" + wallet_address.lower()[2:]
+            from backend.config import settings
             
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                res = await client.post(
-                    rpc_url,
-                    json={
-                        "jsonrpc": "2.0",
-                        "method": "eth_call",
-                        "params": [{"to": usdc_e, "data": data}, "latest"],
-                        "id": 1
-                    },
-                    headers={"User-Agent": "polyedge-finance"}
-                )
-                if res.status_code == 200 and "result" in res.json():
-                    hex_val = res.json()["result"]
-                    if hex_val == "0x": hex_val = "0x0"
-                    usdc_balance = int(hex_val, 16) / 1e6
-                    return {
-                        "usdc_balance": usdc_balance,
-                        "token_balances": {},
-                        "error": None
-                    }
+            tokens = {
+                "USDC.e": settings.USDC_E_ADDRESS,
+                "USDC Native": settings.USDC_NATIVE_ADDRESS,
+                "pUSD": settings.PUSD_ADDRESS
+            }
+            
+            rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
+            total_balance = 0.0
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                for name, addr in tokens.items():
+                    data = "0x70a08231000000000000000000000000" + wallet_address.lower()[2:]
+                    try:
+                        res = await client.post(
+                            rpc_url,
+                            json={
+                                "jsonrpc": "2.0",
+                                "method": "eth_call",
+                                "params": [{"to": addr, "data": data}, "latest"],
+                                "id": 1
+                            },
+                            headers={"User-Agent": "polyedge-finance"}
+                        )
+                        if res.status_code == 200 and "result" in res.json():
+                            hex_val = res.json()["result"]
+                            if hex_val == "0x" or not hex_val: hex_val = "0x0"
+                            total_balance += int(hex_val, 16) / 1e6
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch {name} balance: {e}")
+            
+            return {
+                "usdc_balance": total_balance,
+                "token_balances": {},
+                "error": None
+            }
         except Exception as e:
             logger.warning(f"Polygon RPC balance fetch failed: {e}")
 

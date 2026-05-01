@@ -108,6 +108,7 @@ def load_all_strategies() -> None:
         "backend.strategies.probability_arb",
         "backend.strategies.cross_market_arb",
         "backend.strategies.whale_frontrun",
+        "backend.strategies.agi_meta_strategy",
         "backend.strategies.types_hft",
     ]
     for module in strategy_modules:

@@ -8,7 +8,7 @@ module.exports = {
       interpreter: 'none',
       env: {
         PYTHONPATH: '/home/openclaw/projects/polyedge',
-        ACTIVE_MODES: 'paper',
+        DISABLE_TRADING_SCHEDULER: 'true',
       },
       env_file: '.env',
       watch: false,
