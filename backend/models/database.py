@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     ForeignKey,
     Index,
+    Enum,
 )
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SQLAlchemySession, declarative_base
@@ -759,6 +760,45 @@ class AlertConfig(Base):
             f"<AlertConfig(type={self.alert_type}, enabled={self.enabled}, "
             f"threshold={self.threshold_value} {self.threshold_unit})>"
         )
+
+
+class TransactionEvent(Base):
+    """Immutable ledger of all bankroll movements.
+
+    Captures every deposit, withdrawal, trade P&L, reconciliation adjustment,
+    and allocation change. Serves as the single source of truth for bankroll
+    audit trails, profit analysis, and regulatory reporting.
+    """
+
+    __tablename__ = "transaction_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), index=True, nullable=False
+    )
+    # Event type discriminator
+    type = Column(
+        Enum(
+            "deposit",
+            "settlement_win",
+            "settlement_loss",
+            "reconciliation_adjustment",
+            "allocation",
+            "fee",
+            "withdrawal",
+            name="transaction_event_type",
+        ),
+        nullable=False,
+        index=True,
+    )
+    # Amount change (positive for inflow, negative for outflow)
+    amount = Column(Float, nullable=False)
+    # Bankroll balance immediately after this event
+    balance_after = Column(Float, nullable=False)
+    # Optional context: strategy, market_ticker, trade_id, experiment_id, etc.
+    context = Column(JSON, nullable=True)
+    # Human-readable reason/note (optional)
+    note = Column(String, nullable=True)
 
 
 class Setting(Base):
