@@ -1098,10 +1098,16 @@ async def process_settled_trade(
     if trade.result == "loss":
         try:
             from backend.core.trade_forensics import trade_forensics
-            # Await forensics analysis; it's fast and provides immediate insights
             await trade_forensics.analyze_losing_trade(trade.id)
         except Exception as e:
             logger.debug(f"[settlement_helpers] Trade forensics failed for trade {trade.id}: {e}")
+
+    # Update strategy performance registry (async-safe — creates its own session)
+    try:
+        from backend.core.strategy_performance_registry import strategy_performance_registry
+        strategy_performance_registry.update_from_settlement(trade.strategy, db=db)
+    except Exception as e:
+        logger.debug(f"[settlement_helpers] Performance registry update failed for {trade.strategy}: {e}")
 
     return True
 

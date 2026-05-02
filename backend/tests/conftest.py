@@ -56,6 +56,7 @@ from backend.models.database import (
 )  # noqa: F401
 from backend.models.backtest import BacktestRun, BacktestTrade  # noqa: F401
 from backend.models.kg_models import LLMCostRecord  # noqa: F401
+from backend.core.strategy_performance_registry import StrategyPerformanceSnapshot  # noqa: F401
 
 _db_mod.engine = test_engine
 _db_mod.SessionLocal = TestSessionLocal
