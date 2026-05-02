@@ -670,7 +670,12 @@ class Experiment(Base):
 
     __tablename__ = "experiments"
     id = Column(Integer, primary_key=True, index=True)
-    strategy_name = Column(String, nullable=False, index=True)
+    strategy_name = Column(
+        String,
+        ForeignKey("strategy_config.strategy_name", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     params_json = Column(JSON, nullable=False)
     metrics_json = Column(JSON, nullable=True)
     status = Column(String, default="candidate")  # candidate|active|retired
