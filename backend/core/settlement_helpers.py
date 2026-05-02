@@ -1109,6 +1109,29 @@ async def process_settled_trade(
     except Exception as e:
         logger.debug(f"[settlement_helpers] Performance registry update failed for {trade.strategy}: {e}")
 
+    # Record TransactionEvent for settlement P&L (ledger entry)
+    try:
+        from backend.models.database import TransactionEvent, BotState
+        event_type = "settlement_win" if trade.result == "win" else "settlement_loss"
+        bot = db.query(BotState).first()
+        prior_balance = bot.bankroll if bot else 0.0
+        estimated_balance = prior_balance + pnl
+        event = TransactionEvent(
+            type=event_type,
+            amount=pnl,
+            balance_after=estimated_balance,
+            context={
+                "trade_id": trade.id,
+                "strategy": trade.strategy,
+                "market_ticker": trade.market_ticker,
+                "direction": trade.direction,
+            },
+            note=f"Trade {trade.id} settled {trade.result} (P&L: {pnl:.2f})",
+        )
+        db.add(event)
+    except Exception as e:
+        logger.debug(f"[settlement_helpers] TransactionEvent recording failed for trade {trade.id}: {e}")
+
     return True
 
 

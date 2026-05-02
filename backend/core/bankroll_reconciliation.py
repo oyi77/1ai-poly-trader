@@ -478,6 +478,26 @@ async def reconcile_bot_state(
                     new_value={**_snapshot_state(state, mode), "report": report.to_dict()},
                     user_id=source,
                 )
+                try:
+                    from backend.models.database import TransactionEvent
+                    delta = report.new_bankroll - report.old_bankroll
+                    event = TransactionEvent(
+                        type="reconciliation_adjustment",
+                        amount=delta,
+                        balance_after=report.new_bankroll,
+                        context={
+                            "mode": mode,
+                            "old_bankroll": report.old_bankroll,
+                            "new_bankroll": report.new_bankroll,
+                            "old_total_pnl": report.old_total_pnl,
+                            "new_total_pnl": report.new_total_pnl,
+                            "source": source,
+                        },
+                        note=f"Reconciliation {mode}: bankroll ${report.old_bankroll:.2f} → ${report.new_bankroll:.2f}",
+                    )
+                    db.add(event)
+                except Exception as e:
+                    logger.debug(f"[reconciliation] TransactionEvent recording failed: {e}")
                 logger.warning(
                     "BotState reconciled (%s): bankroll $%.2f -> $%.2f, pnl $%.2f -> $%.2f",
                     mode,

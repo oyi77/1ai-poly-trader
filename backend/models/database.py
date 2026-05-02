@@ -793,8 +793,8 @@ class TransactionEvent(Base):
     )
     # Amount change (positive for inflow, negative for outflow)
     amount = Column(Float, nullable=False)
-    # Bankroll balance immediately after this event
-    balance_after = Column(Float, nullable=False)
+    # Bankroll balance immediately after this event (null if not yet reconciled)
+    balance_after = Column(Float, nullable=True)
     # Optional context: strategy, market_ticker, trade_id, experiment_id, etc.
     context = Column(JSON, nullable=True)
     # Human-readable reason/note (optional)
