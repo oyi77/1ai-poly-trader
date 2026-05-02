@@ -30,7 +30,7 @@ LLM-generated strategy code (Python modules) MUST follow the existing promotion 
 - LIVE_FAILED: Demoted from live after performance degradation
 - RETIRED: Permanently removed from rotation
 
-No generated strategy may skip stages or bypass the promotion manager. Human approval is required for LIVE_PROMOTED status.
+No generated strategy may skip stages or bypass the promotion manager. Human approval is required for LIVE_PROMOTED status **by default**. The `AGI_AUTO_PROMOTE` environment flag (default `false`) can opt‑in to fully automatic paper→live promotion when the system must operate unsupervised; this override remains bound by the same statistical promotion thresholds.
 
 ### 3. LLM Spending Has Hard Caps
 Autonomous LLM operations (strategy generation, market analysis, self-debugging) are budgeted per cycle:
@@ -65,5 +65,5 @@ Experiments run in ExperimentStatus.DRAFT or SHADOW status cannot modify product
 - Generated strategies follow the same promotion pipeline as human-created strategies
 - LLM costs are predictable and bounded
 - Production capital and data are protected from experiment failures
-- Human operators retain final authority over live trading via the promotion gate
+- Human operators retain final authority over live trading via the promotion gate **(override possible only via explicit `AGI_AUTO_PROMOTE=true` opt-in)**
 - Future adaptive sizing can be layered inside existing caps without changing the risk authority boundary (consistent with ADR-005)

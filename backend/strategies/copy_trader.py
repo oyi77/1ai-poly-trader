@@ -81,7 +81,7 @@ class CopyTrader:
     """
 
     def __init__(
-        self, bankroll: float = 1000.0, max_wallets: int = 10, min_score: float = 60.0
+        self, bankroll: float = 1000.0, max_wallets: int = 10, min_score: float = 30.0
     ):
         self.bankroll = bankroll
         self.max_wallets = max_wallets
@@ -129,10 +129,10 @@ class CopyTrader:
         seen_condition_ids: set = set()
 
         for trader in self._tracked:
-            if not trader.wallet:
+            if not trader.user:
                 continue
             try:
-                new_buys, new_exits = await self._watcher.poll(trader.wallet)
+                new_buys, new_exits = await self._watcher.poll(trader.user)
 
                 for trade in new_buys:
                     if trade.condition_id in seen_condition_ids:
@@ -187,7 +187,7 @@ class CopyTraderStrategy(BaseStrategy):
 
     default_params = {
         "max_wallets": 20,
-        "min_score": 60.0,
+        "min_score": 30.0,
         "poll_interval": 60,
         "interval_seconds": 60,
     }
@@ -196,7 +196,7 @@ class CopyTraderStrategy(BaseStrategy):
     description = "Mirror top Polymarket whale traders proportionally to our bankroll"
     category = "copy_trading"
 
-    def __init__(self, max_wallets: int = 20, min_score: float = 60.0):
+    def __init__(self, max_wallets: int = 20, min_score: float = 30.0):
         super().__init__()
         # Resolve bankroll from DB (BotState) or fall back to default
         bankroll = self._resolve_bankroll()
@@ -251,7 +251,7 @@ class CopyTraderStrategy(BaseStrategy):
         from backend.models.database import WalletConfig
 
         max_wallets = ctx.params.get("max_wallets", 20)
-        min_score = ctx.params.get("min_score", 60.0)
+        min_score = ctx.params.get("min_score", 30.0)
 
         # 1. Get user-configured wallets
         user_wallets = [
@@ -267,7 +267,8 @@ class CopyTraderStrategy(BaseStrategy):
             traders = await self._engine._scorer.fetch_and_score(top_n=50)
             scored = [t for t in traders if t.score >= min_score]
             scored.sort(key=lambda t: t.score, reverse=True)
-            leaderboard_wallets = [t.wallet for t in scored[:max_wallets]]
+            ctx.logger.info(f"CopyTrader: min_score={min_score}, total traders={len(traders)}, scored (>=min_score)={len(scored)}, top5_scores={[round(t.score,1) for t in scored[:5]]}")
+            leaderboard_wallets = [t.user for t in scored[:max_wallets]]
         except Exception as e:
             ctx.logger.warning(f"CopyTrader: leaderboard fetch failed: {e}")
 
@@ -285,7 +286,7 @@ class CopyTraderStrategy(BaseStrategy):
         from backend.models.database import DecisionLog
 
         max_wallets = ctx.params.get("max_wallets", 20)
-        min_score = ctx.params.get("min_score", 60.0)
+        min_score = ctx.params.get("min_score", 30.0)
 
         result = CycleResult(decisions_recorded=0, trades_attempted=0, trades_placed=0)
         try:
@@ -340,7 +341,9 @@ class CopyTraderStrategy(BaseStrategy):
                     confidence=wallet_signals[0].trader_score / 100.0
                     if wallet_signals
                     else None,
-                    signal_data=signal_data,
+                    signal_data=signal_data if wallet_signals else json.dumps(
+                        {"min_score": min_score, "max_wallets": max_wallets, "sources": ["copy_trader"]}
+                    ),
                     reason=reason,
                 )
                 ctx.db.add(log_row)
@@ -382,7 +385,7 @@ class CopyTraderStrategy(BaseStrategy):
                     decision_type="entry",
                     data={
                         "market_ticker": signal.source_trade.condition_id,
-                        "whale_address": signal.source_trade.wallet_address,
+                        "whale_address": signal.source_trade.wallet,  # wallet address (0x...)
                         "trader_score": signal.trader_score,
                         "our_size": signal.our_size,
                         "direction": copy_direction,

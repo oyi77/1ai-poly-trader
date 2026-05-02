@@ -19,7 +19,7 @@ from backend.core.wallet_reconciliation import WalletReconciler
 from backend.data.polymarket_clob import clob_from_settings
 from backend.data.polymarket_websocket import get_market_websocket, shutdown_market_websocket, get_user_websocket, shutdown_user_websocket
 from backend.data.orderbook_cache import get_orderbook_cache
-from backend.models.database import SessionLocal, BotState, MarketWatch, Trade
+from backend.models.database import SessionLocal, BotState, MarketWatch, Trade, StrategyConfig
 from backend.core.mode_context import ModeExecutionContext, register_context
 from backend.core.risk_manager import RiskManager
 from backend.strategies.registry import load_all_strategies
@@ -641,24 +641,25 @@ async def _startup_wallet_sync():
         logger.warning(f"Wallet sync failed: {e}", exc_info=True)
 
 
-async def _seed_strategy_configs() -> None:
+def _seed_strategy_configs() -> None:
     """Seed default strategy configurations into the database."""
     import json as _json
+    logger.info("Seeding strategy configs - START")
     
     db = SessionLocal()
     try:
         added = 0
-        for name, enabled, interval, params in [
-            ("copy_trader", True, 60, {"max_wallets": 20, "min_score": 60.0, "poll_interval": 60}),
+        for name, enabled, interval, params in [            ("copy_trader", True, 60, {"max_wallets": 20, "min_score": 30.0, "poll_interval": 60}),
+            ("whale_frontrun", True, 10, {"min_whale_size": 10000, "max_slippage": 0.02}),
             ("weather_emos", True, 300, {"min_edge": 0.05, "max_position_usd": 100, "calibration_window_days": 40}),
             ("kalshi_arb", True, 60, {"min_edge": 0.02, "allow_live_execution": False}),
-            ("btc_oracle", True, 30, {"min_edge": 0.03, "max_minutes_to_resolution": 10}),
+            ("btc_oracle", False, 30, {"min_edge": 0.03, "max_minutes_to_resolution": 10}),
             ("btc_5m", False, 60, {}),
-            ("btc_momentum", True, 60, {"max_trade_fraction": 0.03}),
-            ("general_scanner", True, 300, {"min_volume": 50000, "min_edge": 0.05, "max_position_usd": 150}),
-            ("bond_scanner", True, 600, {"min_price": 0.92, "max_price": 0.98, "max_position_usd": 200}),
-            ("realtime_scanner", True, 60, {"min_edge": 0.03, "max_position_usd": 100}),
-            ("whale_pnl_tracker", True, 120, {"min_wallet_pnl": 10000, "max_position_usd": 100}),
+            ("btc_momentum", False, 60, {"max_trade_fraction": 0.03}),
+            ("general_scanner", False, 300, {"min_volume": 50000, "min_edge": 0.05, "max_position_usd": 150}),
+            ("bond_scanner", False, 600, {"min_price": 0.92, "max_price": 0.98, "max_position_usd": 200}),
+            ("realtime_scanner", False, 60, {"min_edge": 0.03, "max_position_usd": 100}),
+            ("whale_pnl_tracker", True, 30, {"min_wallet_pnl": 10000, "max_position_usd": 100}),
             ("market_maker", False, 30, {"spread": 0.02, "max_position_usd": 200}),
         ]:
             exists = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
@@ -670,8 +671,16 @@ async def _seed_strategy_configs() -> None:
                     params=_json.dumps(params),
                 ))
                 added += 1
+            else:
+                exists.enabled = enabled
+                exists.interval_seconds = interval
+                exists.params = _json.dumps(params)
+                added += 1
         if added:
             db.commit()
+            logger.info(f"Committed {added} strategy config changes")
             logger.info(f"Seeded {added} strategy configs into database")
+        else:
+            logger.info("No strategy config changes needed")
     finally:
         db.close()

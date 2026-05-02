@@ -196,6 +196,14 @@ class Settings(BaseSettings):
     RESEARCH_PIPELINE_ENABLED: bool = True
     RESEARCH_PIPELINE_INTERVAL_HOURS: int = 4  # Run every 4 hours
 
+    # AGI Autonomy Controls (full automatic operation)
+    AGI_AUTO_PROMOTE: bool = False  # Allow paper→live without human approval (default: off for safety)
+    AGI_AUTO_ENABLE: bool = False  # Auto-enable strategies upon promotion to live
+    AGI_PROMOTION_INTERVAL_HOURS: int = 6  # How often to evaluate experiments for promotion
+    AGI_STRATEGY_HEALTH_ENABLED: bool = True  # Auto-disable underperforming strategies
+    AGI_BANKROLL_ALLOCATION_ENABLED: bool = False  # Auto-reallocate capital by strategy rank
+    AGI_BANKROLL_ALLOCATION_INTERVAL_DAYS: int = 1  # Rebalance frequency
+
     # Database backup settings
     DB_BACKUP_INTERVAL_HOURS: int = 6  # Run every 6 hours (0 to disable)
     DB_BACKUP_DIR: str = "backups"

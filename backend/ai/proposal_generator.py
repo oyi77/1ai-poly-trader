@@ -620,7 +620,7 @@ def _run_backtest_for_proposal(db, proposal) -> dict:
             func.count(Trade.id).filter(Trade.result == "win").label("wins"),
             func.avg(Trade.pnl).label("avg_pnl"),
         ).filter(
-            Trade.strategy_name == proposal.strategy_name,
+            Trade.strategy == proposal.strategy_name,
             Trade.settled == True,
         ).first()
 
@@ -632,7 +632,7 @@ def _run_backtest_for_proposal(db, proposal) -> dict:
         sharpe = 0.0
         if cnt >= 10:
             pnl_values = [t.pnl for t in db.query(Trade.pnl).filter(
-                Trade.strategy_name == proposal.strategy_name,
+                Trade.strategy == proposal.strategy_name,
                 Trade.settled == True,
                 Trade.pnl.isnot(None),
             ).all() if t.pnl is not None]
@@ -644,5 +644,6 @@ def _run_backtest_for_proposal(db, proposal) -> dict:
 
         passed = (sharpe > 0.3 or win_rate > 0.45) and cnt >= 5
         return {"sharpe": round(sharpe, 4), "win_rate": round(win_rate, 4), "passed": passed}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Backtest failed for proposal {proposal.id}: {e}")
         return {"sharpe": 0.0, "win_rate": 0.0, "passed": False}

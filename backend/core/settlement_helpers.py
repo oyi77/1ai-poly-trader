@@ -1094,6 +1094,15 @@ async def process_settled_trade(
             f"[settlement_helpers.process_settled_trade] {type(e).__name__}: online_learner hook failed: {e}",
         )
 
+    # Trade forensics: analyze losing trades for patterns (non-blocking)
+    if trade.result == "loss":
+        try:
+            from backend.core.trade_forensics import trade_forensics
+            # Await forensics analysis; it's fast and provides immediate insights
+            await trade_forensics.analyze_losing_trade(trade.id)
+        except Exception as e:
+            logger.debug(f"[settlement_helpers] Trade forensics failed for trade {trade.id}: {e}")
+
     return True
 
 

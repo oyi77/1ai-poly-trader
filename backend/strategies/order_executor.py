@@ -32,7 +32,8 @@ BTC_5M_SLUG_PATTERN = "btc-updown-5m"
 class ScoredTrader:
     """Represents a scored trader from the leaderboard."""
 
-    wallet: str
+    user: str  # Polymarket user ID (for /trades API)
+    wallet: str  # Wallet address (0x...) for on-chain stuff
     pseudonym: str
     profit_30d: float
     win_rate: float
@@ -186,16 +187,25 @@ class LeaderboardScorer:
             win_rate = float(e.get("pnlPercentage", 0)) / 100
             trades = int(e.get("tradesCount", 0))
 
-            wallet = e.get("proxyWallet", e.get("address", ""))
+            user = e.get("id", e.get("user", ""))          # user ID for /trades API
+            proxy = e.get("proxyWallet", e.get("address", ""))  # 0x... wallet address
 
-            actual_bankroll = await self._fetch_actual_bankroll(wallet)
+            # For scraped entries, use proxyWallet as user if no id
+            if not user:
+                user = proxy
+
+            if not user:
+                continue
+
+            actual_bankroll = await self._fetch_actual_bankroll(user)
             if actual_bankroll and actual_bankroll >= 100:
                 est_bankroll = actual_bankroll
             else:
                 est_bankroll = max(abs(profit) * 5, 1000.0)
 
             trader = ScoredTrader(
-                wallet=e.get("proxyWallet", e.get("address", "")),
+                user=user,
+                wallet=proxy,
                 pseudonym=e.get("name", e.get("pseudonym", "unknown")),
                 profit_30d=profit,
                 win_rate=max(0.0, min(1.0, win_rate)),
@@ -224,10 +234,12 @@ class LeaderboardScorer:
 
             traders.append(trader)
 
+        if not traders:
+            logger.info("[order_executor] No traders to score")
+            return []
+
         traders.sort(key=lambda t: t.score, reverse=True)
-        logger.info(
-            f"Scored {len(traders)} traders. Top: {traders[0].pseudonym} score={traders[0].score:.1f}"
-        )
+        logger.info(f"Scored {len(traders)} traders. Top: {traders[0].pseudonym} score={traders[0].score:.1f}")
         return traders
 
 
@@ -356,7 +368,7 @@ class OrderExecutor:
         )
 
         return CopySignal(
-            source_wallet=trader.wallet,
+            source_wallet=trader.user,
             source_trade=trade,
             our_side="BUY",
             our_outcome=trade.outcome,
@@ -380,7 +392,7 @@ class OrderExecutor:
         )
 
         return CopySignal(
-            source_wallet=trader.wallet,
+            source_wallet=trader.user,
             source_trade=trade,
             our_side="SELL",
             our_outcome=trade.outcome,

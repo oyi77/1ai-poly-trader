@@ -174,6 +174,23 @@ MiroFish provides dual debate system integration:
 - Credentials stored in database with priority: Database → Environment → Defaults
 - Test connection via Settings UI before enabling
 
+## AGI Autonomy
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGI_AUTO_PROMOTE` | `false` | Allow paper→live promotion without human approval (safety off for full-auto) |
+| `AGI_AUTO_ENABLE` | `false` | Auto-enable `StrategyConfig` upon promotion to live mode |
+| `AGI_PROMOTION_INTERVAL_HOURS` | `6` | How often (hours) the `autonomous_promotion_job` evaluates experiments |
+| `AGI_STRATEGY_HEALTH_ENABLED` | `true` | Enable `StrategyHealthMonitor` auto-disable for underperforming strategies |
+| `AGI_BANKROLL_ALLOCATION_ENABLED` | `false` | Enable daily bankroll rebalancing across ranked strategies |
+| `AGI_BANKROLL_ALLOCATION_INTERVAL_DAYS` | `1` | Frequency (days) for `bankroll_allocation_job` |
+
+These flags control the autonomous experiment lifecycle:
+- Experiments flow: `DRAFT` → `SHADOW` → `PAPER` → `LIVE_PROMOTED` → `RETIRED`
+- Health-based kill checks run on every cycle (live strategies can be auto-retired)
+- Bankroll allocator writes allocation weights to `BotState.misc_data` for observability
+- See `docs/architecture/adr-006-agi-autonomy-framework.md` for governance boundaries
+
 ## Admin Settings
 
 | Variable | Default | Description |

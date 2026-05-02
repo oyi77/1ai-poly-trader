@@ -161,8 +161,12 @@ class WalletReconciler:
         Returns:
             Count of newly imported trades
         """
+        if not self.wallet_address:
+            self.logger.warning("Wallet address is empty, skipping blockchain history import")
+            return 0
+
         self.logger.info(f"Importing blockchain history for {self.wallet_address}")
-        
+
         try:
             # Fetch positions from Data API
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -271,6 +275,10 @@ class WalletReconciler:
         /activity endpoint's REDEEM records are the only way to recover these
         trades and ensure accurate P&L.
         """
+        if not self.wallet_address:
+            self.logger.warning("Wallet address is empty, skipping REDEEM activity import")
+            return 0
+
         self.logger.info(f"Importing REDEEM activity for {self.wallet_address}")
 
         try:
@@ -610,8 +618,12 @@ class WalletReconciler:
                 ...
             ]
         """
+        if not self.wallet_address:
+            self.logger.warning("Wallet address is empty, skipping open positions fetch")
+            return []
+
         self.logger.info(f"Fetching open positions for {self.wallet_address}")
-        
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(

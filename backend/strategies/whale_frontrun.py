@@ -79,6 +79,30 @@ class WhaleFrontrun(BaseStrategy):
         self._activity_buffer: list[WhaleActivity] = []
         self._reconnect_count = 0
         self._running = False
+        self._ws_initialized = False
+
+    async def start(self, ctx: StrategyContext) -> None:
+        """Start the whale front-runner - connect WebSocket on first cycle."""
+        if not self._ws_initialized:
+            self._running = True
+            self._ws_initialized = True
+            asyncio.create_task(self._ws_loop())
+            logger.info("[whale_frontrun] Started with WebSocket background loop")
+
+    async def _ws_loop(self) -> None:
+        """Background loop to keep WebSocket alive for real-time whale activity."""
+        while self._running:
+            try:
+                if not hasattr(self, '_ws') or self._ws is None:
+                    await asyncio.sleep(5)
+                    continue
+                # Keep alive - send ping every 25s
+                await asyncio.sleep(25)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"[whale_frontrun] WS loop error: {e}")
+                await asyncio.sleep(5)
 
     def detect_and_frontrun(self, activity: WhaleActivity) -> FrontrunResult:
         """Detect whale activity and place front-run order."""
@@ -104,6 +128,9 @@ class WhaleFrontrun(BaseStrategy):
         start = time.monotonic()
         frontruns = 0
         errors = []
+
+        if not self._ws_initialized:
+            await self.start(ctx)
 
         try:
             buffered = list(self._activity_buffer)

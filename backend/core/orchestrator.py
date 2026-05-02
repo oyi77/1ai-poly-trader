@@ -69,7 +69,16 @@ class Orchestrator:
         from backend.models.database import SessionLocal
 
         load_all_strategies()  # trigger auto-registration
-
+        
+        logger.info("About to seed strategies...")
+        try:
+            from backend.api.lifespan import _seed_strategy_configs
+            logger.info("Imported seed function, calling it...")
+            _seed_strategy_configs()
+            logger.info("Seed function completed")
+        except Exception as e:
+            logger.error(f"Failed to seed strategies: {e}", exc_info=True)
+        
         db = SessionLocal()
         try:
             db.commit()

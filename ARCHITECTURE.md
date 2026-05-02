@@ -286,16 +286,19 @@ polyedge/
 
 ## AGI Intelligence Layer
 
-The system includes a Level 5 TRUE-AGI intelligence layer for autonomous market analysis, strategy composition, and self-debugging. All AGI actions operate within non-bypassable RiskManager bounds (ADR-004, ADR-005) and require manual approval for live promotion (ADR-006).
+The system includes a Level 5 TRUE-AGI intelligence layer for autonomous market analysis,
+strategy composition, and self-debugging. All AGI actions operate within non-bypassable
+RiskManager bounds (ADR-004, ADR-005). Live promotion requires manual approval unless
+`AGI_AUTO_PROMOTE=true` (override).
 
 ### Core Modules
 
 | Module | File | Description |
 |--------|------|-------------|
-| RegimeDetector | `core/regime_detector.py` | Real-time market regime classification (bull/bear/sideways/volatile) with 5% hysteresis buffer to prevent oscillation |
-| KnowledgeGraph | `core/knowledge_graph.py` | Persistent entity-relationship memory with rollback capability and validation |
+| RegimeDetector | `core/regime_detector.py` | Real-time market regime classification (bull/bear/sideways/volatile) with 5% hysteresis buffer |
+| KnowledgeGraph | `core/knowledge_graph.py` | Persistent entity-relationship memory with rollback and validation |
 | StrategyComposer | `core/strategy_composer.py` | Block-based strategy composition from 5 building blocks (signal_source, filter, position_sizer, risk_rule, exit_rule) |
-| DynamicPromptEngine | `core/dynamic_prompt_engine.py` | Evolves AI prompts based on outcome feedback to improve signal quality over time |
+| DynamicPromptEngine | `core/dynamic_prompt_engine.py` | Evolves AI prompts based on outcome feedback to improve signal quality |
 | AGIGoalEngine | `core/agi_goal_engine.py` | Regime-aware objective switching (maximize_pnl, preserve_capital, explore, reduce_risk) |
 | SelfDebugger | `core/self_debugger.py` | API failure diagnosis and recovery (404, 503, timeout scenarios) |
 | StrategySynthesizer | `core/strategy_synthesizer.py` | LLM-driven Python strategy code generation with syntax validation |
@@ -303,8 +306,26 @@ The system includes a Level 5 TRUE-AGI intelligence layer for autonomous market 
 | CausalReasoner | `core/causal_reasoning.py` | Why-did-X-happen analysis tracing causation chains for trade outcomes |
 | AGIOrchestrator | `core/agi_orchestrator.py` | Unified AGI control loop coordinating all modules |
 | LLMCostTracker | `core/llm_cost_tracker.py` | LLM spending budget enforcement ($10/day cap, per-action limits) |
-| AGIPromotionPipeline | `core/agi_promotion_pipeline.py` | shadow→paper→live promotion with manual approval gate (MIN_TRADES=50, WIN_RATE=0.55, MAX_DRAWDOWN=0.15) |
+| AGIPromotionPipeline | `core/agi_promotion_pipeline.py` | shadow→paper→live promotion pipeline with manual approval gate |
 | RegimeAwareAllocator | `core/strategy_allocator.py` | Regime-aware capital allocation across strategies (max 30% per strategy) |
+
+### Autonomous Lifecycle Daemons
+
+These scheduler-run daemons implement the complete experiment lifecycle without human intervention:
+
+| Daemon | File | Schedule | Role |
+|--------|------|----------|------|
+| **AutonomousPromoter** | `core/autonomous_promoter.py` | Every 6h (configurable) | Evaluates all experiments across DRAFT→SHADOW→PAPER→LIVE_PROMOTED→RETIRED. Applies promotion criteria. Kills underperforming strategies via health assessments. Auto-enables strategies upon promotion if `AGI_AUTO_ENABLE=true`. |
+| **BankrollAllocator** | `core/bankroll_allocator.py` | Daily (configurable) | Computes capital allocation weights via `StrategyRanker.auto_allocate()`. Writes allocations to `BotState.misc_data["allocations"]` for observability. |
+| **StrategyHealthMonitor** | `core/strategy_health.py` | Called on-demand by promoter & settlement | Computes health metrics (win rate, Sharpe, max drawdown, Brier score, PSI). Issues `killed` or `warned` status. Auto-disables killed strategies in `StrategyConfig`. |
+| **TradeForensics** | `core/trade_forensics.py` | Called on every settlement loss | Analyzes losing trades, diagnoses root causes, aggregates pattern insights for AGI improvement loop. |
+
+**Promotion thresholds:**
+- SHADOW → PAPER: ≥100 trades, ≥7 days, ≥45% win rate, ≤25% drawdown
+- PAPER → LIVE: ≥50 trades, ≥3 days, ≥50% win rate, Sharpe ≥0.5, ≤20% drawdown
+- Kill thresholds (any mode): win rate <5%, OR Sharpe <−2.0 WITH drawdown >50%
+
+**Health-based kill check runs on every cycle for all live and paper experiments.** If `assess()` returns `status="killed"`, experiment is immediately retired.
 
 ### Frontend Components
 

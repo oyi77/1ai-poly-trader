@@ -24,6 +24,10 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 | `POLYMARKET_SETUP.md` | Polymarket API credential setup guide |
 | `IMPLEMENTATION_GAPS.md` | Known gaps and incomplete features |
 | `test_backtest_data.py` | Root-level backtest data validation tests |
+| `backend/core/autonomous_promoter.py` | Experiment lifecycle daemon — auto-promotes DRAFT→SHADOW→PAPER→LIVE, auto-retires killed experiments, health-based kill checks |
+| `backend/core/bankroll_allocator.py` | Daily capital allocator — computes allocations via `StrategyRanker`, persists to `BotState.misc_data` |
+| `backend/core/trade_forensics.py` | Per-loss trade analysis — diagnoses root causes, aggregates pattern insights |
+| `docs/architecture/adr-006-agi-autonomy-framework.md` | AGI autonomy governance — promotion gates, safety boundaries, human-in-the-loop override |
 
 ## Subdirectories
 
@@ -54,7 +58,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 - Do not run live trading tests without `SHADOW_MODE=true`
 
 ### Common Patterns
-- `.env` feature flags control system behavior (e.g., `JOB_WORKER_ENABLED`, `SHADOW_MODE`)
+- `.env` feature flags control system behavior (e.g., `JOB_WORKER_ENABLED`, `SHADOW_MODE`, `AGI_AUTO_PROMOTE`, `AGI_AUTO_ENABLE`, `AGI_STRATEGY_HEALTH_ENABLED`, `AGI_BANKROLL_ALLOCATION_ENABLED`)
 - All sensitive operations guarded by circuit breakers and risk limits
 - Redis optional — falls back to SQLite queue when unavailable
 

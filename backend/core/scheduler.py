@@ -34,6 +34,8 @@ from backend.core.strategy_ranker import strategy_ranking_job
 from backend.core.agi_jobs import self_review_job, research_pipeline_job
 from backend.core.db_backup import backup_job
 from backend.core.cache_cleanup import cache_cleanup_job
+from backend.core.autonomous_promoter import autonomous_promotion_job
+from backend.core.bankroll_allocator import bankroll_allocation_job
 from backend.ai.training.train import run_training_pipeline
 from backend.mesh.auditor import audit_source_performance
 from backend.mesh.learning import update_source_weights_from_outcomes
@@ -107,7 +109,7 @@ def schedule_strategy(strategy_name: str, interval_seconds: int, mode: str = "pa
         kwargs={"strategy_name": strategy_name, "mode": mode},
         id=job_id,
         replace_existing=True,
-        max_instances=1,
+        max_instances=5,
         misfire_grace_time=grace,
     )
     logger.info(
@@ -269,6 +271,23 @@ def start_scheduler():
         )
     logger.info(f"scheduler started: jobs={[j.id for j in scheduler.get_jobs()]}")
 
+    # Schedule all enabled strategies from DB
+    logger.info("Scheduling enabled strategies from DB...")
+    from backend.models.database import SessionLocal, StrategyConfig
+    db = SessionLocal()
+    try:
+        configs = db.query(StrategyConfig).filter(StrategyConfig.enabled == True).all()
+        logger.info(f"Found {len(configs)} enabled strategies in DB")
+        modes = ["paper", "testnet", "live"]
+        for config in configs:
+            strategy_modes = [config.mode] if config.mode else modes
+            for mode in strategy_modes:
+                logger.info(f"Scheduling {config.strategy_name} for mode {mode}")
+                schedule_strategy(config.strategy_name, config.interval_seconds, mode)
+    finally:
+        db.close()
+    logger.info("Done scheduling strategies from DB")
+
     if settings.NEWS_FEED_ENABLED:
         scheduler.add_job(
             news_feed_scan_job,
@@ -298,7 +317,7 @@ def start_scheduler():
                 max_instances=1,
             )
 
-    # Strategy ranking job - weekly ranking and auto-disable
+    # Strategy ranking job - daily ranking and auto-disable
     scheduler.add_job(
         strategy_ranking_job,
         IntervalTrigger(days=1),
@@ -307,6 +326,17 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info("Scheduled daily strategy ranking job")
+
+    # Bankroll allocator - daily, runs after ranking to use fresh scores
+    if getattr(settings, "AGI_BANKROLL_ALLOCATION_ENABLED", False):
+        scheduler.add_job(
+            bankroll_allocation_job,
+            IntervalTrigger(days=getattr(settings, "AGI_BANKROLL_ALLOCATION_INTERVAL_DAYS", 1)),
+            id="bankroll_allocation",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled daily bankroll allocation job")
 
     # Auto-improvement job - learns from trade outcomes
     if settings.AUTO_IMPROVE_ENABLED:
@@ -347,6 +377,17 @@ def start_scheduler():
             "Scheduled research pipeline job every %d hour(s)",
             settings.RESEARCH_PIPELINE_INTERVAL_HOURS,
         )
+
+    # Autonomous promoter - evaluates experiments and auto-promotes/retires
+    promotion_interval = getattr(settings, "AGI_PROMOTION_INTERVAL_HOURS", 6)
+    scheduler.add_job(
+        autonomous_promotion_job,
+        IntervalTrigger(hours=promotion_interval),
+        id="autonomous_promotion",
+        replace_existing=True,
+        max_instances=1,
+    )
+    logger.info(f"Scheduled autonomous promotion job every {promotion_interval} hour(s)")
 
     backup_interval = getattr(settings, "DB_BACKUP_INTERVAL_HOURS", 6)
     if backup_interval > 0:
@@ -434,6 +475,58 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info("Scheduled source performance audit job at 03:00 UTC")
+
+    def auto_disable_losing_strategies():
+        from backend.models.database import SessionLocal, Trade, StrategyConfig
+        from datetime import datetime, timezone, timedelta
+
+        db = SessionLocal()
+        disabled = []
+        try:
+            since = datetime.now(timezone.utc) - timedelta(hours=1)
+
+            for config in db.query(StrategyConfig).filter(StrategyConfig.enabled == True).all():
+                if config.strategy_name in ('copy_trader', 'weather_emos', 'agi_orchestrator'):
+                    continue
+
+                trades = db.query(Trade).filter(
+                    Trade.strategy == config.strategy_name,
+                    Trade.settled == True,
+                    Trade.timestamp >= since,
+                ).all()
+
+                if len(trades) < 3:
+                    continue
+
+                wins = sum(1 for t in trades if t.result == 'win')
+                win_rate = wins / len(trades)
+                pnl = sum(t.pnl for t in trades if t.pnl)
+
+                if win_rate < 0.30 or pnl < -50.0:
+                    config.enabled = False
+                    disabled.append(f"{config.strategy_name}: win_rate={win_rate:.0%}, pnl=${pnl:.0f}")
+                    logger.warning(f"Auto-disabled {config.strategy_name}: win_rate={win_rate:.0%}, pnl=${pnl:.0f}")
+
+            if disabled:
+                db.commit()
+                logger.info(f"Auto-disabled {len(disabled)} losing strategies: {disabled}")
+        except Exception as e:
+            logger.warning(f"Auto-disable check failed: {e}")
+        finally:
+            db.close()
+
+    try:
+        scheduler.add_job(
+            auto_disable_losing_strategies,
+            'cron',
+            minute=15,
+            id='auto_disable_losing',
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled auto-disable losing strategies job at :15 every hour")
+    except Exception:
+        pass
 
     scheduler.add_job(
         update_source_weights_from_outcomes,

@@ -129,9 +129,11 @@ async def watchdog_job() -> None:
         healths = get_strategy_health(db)
         for h in healths:
             if not h["healthy"] and h["lag_seconds"] is not None:
-                logger.error(
+                threshold = max(h["interval_seconds"] * 4, 300)
+                if h["lag_seconds"] > threshold:
+                    logger.error(
                     f"[WATCHDOG] Strategy {h['name']} heartbeat stale: "
-                    f"lag={h['lag_seconds']}s threshold={h['interval_seconds'] * 2}s",
+                    f"lag={h['lag_seconds']}s threshold={threshold}s",
                     extra={"component": "watchdog"},
                 )
                 record_decision(

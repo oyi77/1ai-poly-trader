@@ -20,6 +20,7 @@ class WalletTrade:
 
     def __init__(
         self,
+        user: str,
         wallet: str,
         condition_id: str,
         outcome: str,  # "YES" or "NO"
@@ -30,6 +31,7 @@ class WalletTrade:
         tx_hash: str = "",
         title: str = "",
     ):
+        self.user = user
         self.wallet = wallet
         self.condition_id = condition_id
         self.outcome = outcome
@@ -164,11 +166,36 @@ class WalletWatcher:
         if is_first_poll:
             self._seen[wallet] = set()
             self._sell_sizes[wallet] = {}
-            # Seed with existing trades (don't mirror history)
+            # Seed AND return signals from initial fetch
+            new_buys: list[WalletTrade] = []
+            new_exits: list[WalletTrade] = []
             for t in trades_raw:
                 key = t.get("transactionHash", "") or t.get("id", "")
                 self._seen[wallet].add(key)
-            return [], []
+                # Also create WalletTrade objects for initial signals
+                outcome_idx = t.get("outcomeIndex", 0)
+                outcome = "YES" if outcome_idx == 0 else "NO"
+                side = t.get("side", "BUY").upper()
+                size = float(t.get("size", 0))
+                price = float(t.get("price", 0))
+                condition_id = t.get("conditionId", "")
+                trade = WalletTrade(
+                    user=wallet,
+                    wallet=t.get("proxyWallet", ""),
+                    condition_id=condition_id,
+                    outcome=outcome,
+                    side=side,
+                    price=price,
+                    size=size,
+                    timestamp=t.get("timestamp", ""),
+                    tx_hash=key,
+                    title=t.get("title", ""),
+                )
+                if side == "BUY":
+                    new_buys.append(trade)
+                else:
+                    new_exits.append(trade)
+            return new_buys, new_exits
 
         seen = self._seen[wallet]
         new_buys: list[WalletTrade] = []
