@@ -39,6 +39,7 @@ from backend.core.agi_jobs import (
     strategy_rehabilitation_job,
     historical_data_collection_job,
     forensics_integration_job,
+    fronttest_validation_job,
 )
 from backend.core.db_backup import backup_job
 from backend.core.cache_cleanup import cache_cleanup_job
@@ -451,6 +452,16 @@ def start_scheduler():
         replace_existing=True,
         max_instances=1,
     )
+
+    if getattr(settings, "AGI_FRONTTEST_DAYS", 14) > 0:
+        scheduler.add_job(
+            fronttest_validation_job,
+            IntervalTrigger(hours=6),
+            id="fronttest_validation",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled fronttest validation job every 6 hour(s)")
 
     backup_interval = getattr(settings, "DB_BACKUP_INTERVAL_HOURS", 6)
     if backup_interval > 0:

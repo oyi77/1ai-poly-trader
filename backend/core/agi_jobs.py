@@ -131,3 +131,46 @@ async def forensics_integration_job() -> None:
     except Exception as exc:
         logger.exception("forensics_integration_job failed: %s", exc)
         log_event("error", f"Forensics integration failed: {exc}")
+
+
+async def fronttest_validation_job() -> None:
+    from backend.core.scheduler import log_event
+
+    log_event("info", "Running fronttest validation...")
+    try:
+        from backend.core.fronttest_validator import fronttest_validator
+        from backend.models.database import SessionLocal, StrategyProposal
+        from backend.config import settings
+
+        results = fronttest_validator.validate_all_pending()
+        passed = [r for r in results if r.get("approved")]
+        failed = [r for r in results if not r.get("approved")]
+
+        if passed:
+            db = SessionLocal()
+            try:
+                for r in passed:
+                    proposal = db.query(StrategyProposal).filter(
+                        StrategyProposal.id == r["proposal_id"]
+                    ).first()
+                    if proposal and getattr(settings, "AGI_AUTO_PROMOTE", False):
+                        proposal.admin_decision = "approved"
+                        logger.info(
+                            "[fronttest] Auto-approved proposal %d for '%s' (wr=%.1f%%, %d trades)",
+                            r["proposal_id"], r["strategy"],
+                            r.get("win_rate", 0) * 100, r.get("trade_count", 0),
+                        )
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.warning("[fronttest] Auto-approve failed: %s", e)
+            finally:
+                db.close()
+
+        log_event(
+            "success" if not failed else "warning",
+            f"Fronttest validation: {len(passed)} passed, {len(failed)} not ready",
+        )
+    except Exception as exc:
+        logger.exception("fronttest_validation_job failed: %s", exc)
+        log_event("error", f"Fronttest validation failed: {exc}")
