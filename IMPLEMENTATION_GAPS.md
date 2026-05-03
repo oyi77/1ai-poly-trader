@@ -96,6 +96,8 @@ Format:
 
 ~~**Hardcoded safe_param_tuner thresholds** — `MAX_CHANGE_PCT`, `MIN_TRADES_FOR_TUNING`, `REVERT_SIGMA_THRESHOLD` were constants.~~ → **Fixed** (2026-05-03): Added `SAFE_TUNER_MAX_CHANGE_PCT`, `SAFE_TUNER_MIN_TRADES_FOR_TUNING`, `SAFE_TUNER_REVERT_SIGMA_THRESHOLD` to config, converted `safe_param_tuner.py` to read from settings. Commit `1c6dd32`.
 
+~~**Hardcoded HFT risk limits: POSITION_SIZE_PCT and MAX_POSITION_USD** — HFT risk manager had hardcoded position size percentage and max position cap.~~ → **Fixed** (2026-05-03): Added `HFT_POSITION_SIZE_PCT` and `HFT_MAX_POSITION_USD` to config, converted `risk_manager_hft.py` to use `_cfg()` pattern. Commit `1c6dd32`.
+
 ---
 
 ## Known Gaps

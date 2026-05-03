@@ -4,11 +4,17 @@ import logging
 from typing import Optional
 
 from backend.strategies.types_hft import HFTSignal, HFTStrategyConfig
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.hft_risk")
 
-POSITION_SIZE_PCT = 0.25
-MAX_POSITION_USD = 1000.0
+
+def _cfg(key: str, default=None):
+    return getattr(settings, key, default) if hasattr(settings, key) else default
+
+
+POSITION_SIZE_PCT = _cfg("HFT_POSITION_SIZE_PCT", 0.25)
+MAX_POSITION_USD = _cfg("HFT_MAX_POSITION_USD", 1000.0)
 
 
 class HRiskManager:

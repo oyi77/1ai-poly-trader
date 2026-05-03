@@ -121,6 +121,10 @@ class Settings(BaseSettings):
     # Volume filter
     MIN_MARKET_VOLUME: float = 100.0  # Low volume for 5-min markets
 
+    # HFT risk parameters
+    HFT_POSITION_SIZE_PCT: float = 0.25
+    HFT_MAX_POSITION_USD: float = 1000.0
+
     # Parameter tuning safeguards (safe_param_tuner)
     SAFE_TUNER_MAX_CHANGE_PCT: float = 0.10  # Max 10% parameter drift per tuning cycle
     SAFE_TUNER_MIN_TRADES_FOR_TUNING: int = 20  # Require at least 20 trades before tuning
