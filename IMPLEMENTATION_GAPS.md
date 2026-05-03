@@ -1,6 +1,6 @@
 # Implementation Gaps — PolyEdge Trading Bot
 
-**Last Updated:** 2026-05-03
+**Last Updated:** 2026-05-03 (diagnostic session)
 
 This file is the single source of truth for what's built vs planned. Every future agent must
 read this before proposing work — avoid re-litigating already-completed items.
@@ -102,7 +102,15 @@ Format:
 
 ## Known Gaps
 
-_None._
+~~**Test SessionLocal isolation broken across conftest files** — Two conftest.py files (backend/tests/ and tests/) each create their own in-memory SQLite engine and patch `_db_mod.SessionLocal`; 25+ production modules capture the stale factory at import time via `from backend.models.database import SessionLocal`, causing autonomy loop and forensics tests to fail when the full suite runs together (pass standalone).~~ → **Fixed** (2026-05-03): `backend/tests/conftest.py` db fixture now patches SessionLocal in all 25+ modules via `_MODULES_WITH_SESSIONLOCAL` list; uses savepoint-based transaction management with `after_transaction_end` listener for robust rollback; `test_autonomy_loop_integration.py` switched from static `SessionLocal` import to `_db_mod.SessionLocal` for dynamic resolution.
+
+~~**WalletWatcher test stale — expected empty first poll** — `test_first_poll_seeds_and_returns_empty` asserted `buys == []` but WalletWatcher implementation was intentionally changed to "Seed AND return signals from initial fetch" (wallet_sync.py:170-199). Test was not updated.~~ → **Fixed** (2026-05-03): Renamed test to `test_first_poll_seeds_and_returns_trades`; assertions now verify the BUY signal is returned and seen set is populated.
+
+~~**docs/agi-log/ directory missing** — AGI nightly review job writes to `docs/agi-log/YYYY-MM-DD.md` but directory didn't exist.~~ → **Fixed** (2026-05-03): Created `docs/agi-log/` with `.gitkeep`.
+
+**btc_oracle 0% win rate — model always predicts same direction** — btc_oracle strategy has 33 trades with 0% win rate; `model_probability` is always 1.0 (absolute certainty) but every trade loses. The oracle consistently predicts "down" direction but BTC resolves "up" (or vice versa). Strategy is disabled in DB (enabled=0) but still generating signals (69 in last 7d). This is an operational/model issue, not a code bug. Recommend: investigate oracle signal generation logic, verify price feed directionality, add sanity check that model_probability < 1.0. Related: drawdown breaker correctly blocks all trading (7d loss $343.25 > 30% of $1000 limit = $300). Self-clears when losses age past 7d window.
+
+**Drawdown breaker blocking all strategies** — As of 2026-05-03, the weekly drawdown breaker is correctly triggered (7d paper loss $343.25 > 30% limit $300). All 100,985+ trade attempts in last 7 days rejected by `REJECTED_DRAWDOWN_BREAKER`. This is correct safety behavior, not a bug. Will self-clear as btc_oracle losses from 2026-05-01 age past the 7d window. No code change needed — monitor and verify trading resumes after window clears.
 
 ## Intentionally De-Scoped
 
