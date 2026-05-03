@@ -90,6 +90,8 @@ Format:
 
 ~~**Hardcoded frontend polling intervals** — 55 `refetchInterval` values across 35 .tsx files were hardcoded milliseconds.~~ → **Fixed** (2026-05-03): Created `frontend/src/polling.ts` with `POLL.FAST` (2s), `POLL.NORMAL` (10s), `POLL.SLOW` (30s), `POLL.VERY_SLOW` (60s) constants configurable via `VITE_POLL_*_MS` env vars. All 35 files updated. MiroFish hardcoded ports (5001/3200) now read from `VITE_MIROFISH_*` env vars. Commit `cf46a76`.
 
+~~**Remaining hardcoded URLs in 17+ backend files** — First pass missed wallet_reconciliation, bankroll_reconciliation, auto_redeem, position_valuation, whale_discovery, WebSocket clients (5 files), weather geocoding/ensemble, web search providers, mirofish_client, CLOB book/midpoint URLs, historical_data_collector, heartbeat Telegram URL.~~ → **Fixed** (2026-05-03): Added 16 more config fields to `backend/config.py` (`POLYMARKET_RELAYER_URL`, `POLYMARKET_WS_CLOB_URL`, `POLYMARKET_WS_USER_URL`, `POLYMARKET_WS_RTDS_URL`, `POLYMARKET_WS_WHALE_URL`, `POLYMARKET_WS_ORDERBOOK_URL`, `QUICKNODE_RPC_URL`, `OPEN_METEO_ENSEMBLE_URL`, `OPEN_METEO_GEOCODING_URL`, `TELEGRAM_API_BASE`, `MIROFISH_API_URL`, `TAVILY_API_URL`, `EXA_API_URL`, `SERPER_API_URL`, `DDG_HTML_URL`, `POLYMARKET_WS_RTDS_URL`). All 22 files updated. Commit `78c1a3a`.
+
 ---
 
 ## Known Gaps
