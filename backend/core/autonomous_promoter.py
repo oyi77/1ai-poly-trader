@@ -82,7 +82,7 @@ class AutonomousPromoter:
     MIN_WARMUP_TRADES = 30
 
     def __init__(self, runner: Optional[ExperimentRunner] = None):
-        self.runner = runner or ExperimentRunner()
+        self.runner = runner
         self._last_run: Optional[datetime] = None
 
     async def run_once(self) -> dict[str, int]:
@@ -93,7 +93,7 @@ class AutonomousPromoter:
         stats = {"shadow_to_paper": 0, "paper_to_live": 0, "retired": 0, "errors": 0}
         db = SessionLocal()
         try:
-            health_mon = StrategyHealthMonitor()
+            health_mon = StrategyHealthMonitor() if getattr(settings, "AGI_STRATEGY_HEALTH_ENABLED", True) else None
             # 1. Promote DRAFT → SHADOW (no criteria, just create)
             drafts = (
                 db.query(ExperimentRecord)
@@ -153,8 +153,9 @@ class AutonomousPromoter:
                 .all()
             )
             for exp in papers:
-                # 3a. Health-based kill check first
-                health = health_mon.assess(exp.name, db)
+                strategy_name = exp.strategy_name or exp.name
+
+                health = health_mon.assess(strategy_name, db) if health_mon else {"status": "active", "total_trades": 0, "win_rate": 0.0, "sharpe": 0.0, "max_drawdown": 0.0, "brier_score": 1.0, "psi_score": 0.0}
                 if health.get("status") == "killed":
                     exp.status = ExperimentStatus.RETIRED.value
                     exp.retired_at = datetime.now(timezone.utc)
@@ -166,9 +167,8 @@ class AutonomousPromoter:
                         f"dd={health.get('max_drawdown', 0):.1%}"
                     )
                     stats["retired"] += 1
-                    continue  # skip promotion evaluation
+                    continue
 
-                # 3b. Promotion eligibility check using real metrics
                 meets, reasons = self._check_paper_criteria_from_health(exp, health)
                 if meets:
                     if not settings.AGI_AUTO_PROMOTE:
@@ -178,14 +178,12 @@ class AutonomousPromoter:
                         )
                         continue
 
-                    # Promote to live
                     exp.status = ExperimentStatus.LIVE_PROMOTED.value
                     exp.promoted_at = datetime.now(timezone.utc)
                     db.add(exp)
 
-                    # Auto-enable in StrategyConfig if configured
                     if settings.AGI_AUTO_ENABLE:
-                        await self._enable_strategy(exp.name, db)
+                        await self._enable_strategy(strategy_name, db)
 
                     logger.info(
                         f"[AutonomousPromoter] PAPER→LIVE '{exp.name}' promoted automatically "
@@ -193,7 +191,6 @@ class AutonomousPromoter:
                     )
                     stats["paper_to_live"] += 1
                 else:
-                    # If too old and not meeting criteria, retire
                     ref_time = exp.promoted_at or exp.created_at
                     if ref_time.tzinfo is None:
                         ref_time = ref_time.replace(tzinfo=timezone.utc)
@@ -217,7 +214,8 @@ class AutonomousPromoter:
                 .all()
             )
             for exp in lives:
-                health = health_mon.assess(exp.name, db)
+                strategy_name = exp.strategy_name or exp.name
+                health = health_mon.assess(strategy_name, db) if health_mon else {"status": "active", "total_trades": 0, "win_rate": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}
                 if health.get("status") == "killed":
                     exp.status = ExperimentStatus.RETIRED.value
                     exp.retired_at = datetime.now(timezone.utc)
@@ -272,12 +270,8 @@ class AutonomousPromoter:
         return (len(reasons) == 0, reasons)
 
     def _check_paper_criteria(self, exp: ExperimentRecord) -> tuple[bool, list[str]]:
-        """Check if experiment meets paper→live criteria."""
         reasons = []
-        # For now, use same shadow metrics (paper uses its own metrics stored separately)
-        # ExperimentRecord doesn't yet have paper_* columns; we'll infer from outcomes once settled
-        # For now, assume shadow metrics apply to paper too (stub)
-        trades = exp.shadow_trades or 0  # TODO: separate paper_trades field
+        trades = exp.shadow_trades or 0
         win_rate = exp.shadow_win_rate or 0.0
 
         if trades < self.MIN_TRADES_PAPER:
@@ -285,12 +279,15 @@ class AutonomousPromoter:
         if win_rate < self.MIN_WIN_RATE_PAPER:
             reasons.append(f"win_rate {win_rate:.1%} < {self.MIN_WIN_RATE_PAPER:.1%}")
 
-        age_days = (datetime.now(timezone.utc) - exp.promoted_at or exp.created_at).days
-        if age_days < self.MIN_DAYS_PAPER:
-            reasons.append(f"paper age {age_days}d < {self.MIN_DAYS_PAPER}d")
-
-        # TODO: Sharpe ratio from settled trades
-        # TODO: Max drawdown from equity curve
+        ref_time = exp.promoted_at or exp.created_at
+        if ref_time is None:
+            reasons.append(f"no reference time for paper age check")
+        else:
+            if ref_time.tzinfo is None:
+                ref_time = ref_time.replace(tzinfo=timezone.utc)
+            age_days = (datetime.now(timezone.utc) - ref_time).days
+            if age_days < self.MIN_DAYS_PAPER:
+                reasons.append(f"paper age {age_days}d < {self.MIN_DAYS_PAPER}d")
 
         return (len(reasons) == 0, reasons)
 

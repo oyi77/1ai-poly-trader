@@ -1,5 +1,6 @@
 """Risk manager — validates trades against position size, exposure, drawdown, and confidence rules."""
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -53,6 +54,7 @@ class RiskManager:
         slippage: Optional[float] = None,
         db=None,
         mode: Optional[str] = None,
+        strategy_name: Optional[str] = None,
     ) -> RiskDecision:
         effective_mode = mode or self.s.TRADING_MODE
 
@@ -101,6 +103,24 @@ class RiskManager:
 
         if slippage is not None and slippage > self.s.SLIPPAGE_TOLERANCE:
             return RiskDecision(False, f"slippage {slippage:.4f} > tolerance", 0.0)
+
+        # Per-strategy allocation cap: if BankrollAllocator has assigned a
+        # budget to this strategy, cap the trade to remaining allocation.
+        if strategy_name and db is not None:
+            allocation_cap = self._strategy_allocation_cap(
+                strategy_name, db=db, mode=effective_mode
+            )
+            if allocation_cap is not None and adjusted > allocation_cap:
+                if allocation_cap <= 0:
+                    return RiskDecision(
+                        False,
+                        f"strategy {strategy_name} allocation exhausted",
+                        0.0,
+                    )
+                logger.info(
+                    f"[risk_manager] Capping {strategy_name} trade from ${adjusted:.2f} to allocation remaining ${allocation_cap:.2f}"
+                )
+                adjusted = allocation_cap
 
         return RiskDecision(True, "ok", adjusted)
 
@@ -239,3 +259,32 @@ class RiskManager:
         finally:
             if owns_db:
                 db.close()
+
+    def _strategy_allocation_cap(
+        self, strategy_name: str, db, mode: str
+    ) -> Optional[float]:
+        """Return remaining allocation budget for a strategy, or None if no allocation exists."""
+        try:
+            state = db.query(BotState).first()
+            if not state or not state.misc_data:
+                return None
+            misc = json.loads(state.misc_data)
+            allocations = misc.get("allocations", {})
+            if strategy_name not in allocations:
+                return None
+            total_budget = float(allocations[strategy_name])
+            strategy_exposure = (
+                db.query(func.coalesce(func.sum(Trade.size), 0.0))
+                .filter(
+                    Trade.strategy == strategy_name,
+                    Trade.settled.is_(False),
+                    Trade.trading_mode == mode,
+                )
+                .scalar()
+                or 0.0
+            )
+            remaining = total_budget - float(strategy_exposure)
+            return max(0.0, remaining)
+        except Exception as e:
+            logger.error(f"[risk_manager._strategy_allocation_cap] {type(e).__name__}: {e}", exc_info=True)
+            return None

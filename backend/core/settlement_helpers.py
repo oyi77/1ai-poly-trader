@@ -954,6 +954,12 @@ async def process_settled_trade(
     if not is_settled or settlement_value is None:
         return False
 
+    if getattr(trade, "settled", False) and trade.pnl is not None:
+        logger.debug(
+            f"[settlement_helpers.process_settled_trade] Trade {trade.id} already settled (pnl={trade.pnl}), skipping"
+        )
+        return False
+
     trade.settled = True
     trade.settlement_value = settlement_value
     trade.pnl = pnl
@@ -1102,12 +1108,12 @@ async def process_settled_trade(
         except Exception as e:
             logger.debug(f"[settlement_helpers] Trade forensics failed for trade {trade.id}: {e}")
 
-    # Update strategy performance registry (async-safe — creates its own session)
-    try:
-        from backend.core.strategy_performance_registry import strategy_performance_registry
-        strategy_performance_registry.update_from_settlement(trade.strategy, db=db)
-    except Exception as e:
-        logger.debug(f"[settlement_helpers] Performance registry update failed for {trade.strategy}: {e}")
+    if trade.strategy:
+        try:
+            from backend.core.strategy_performance_registry import strategy_performance_registry
+            strategy_performance_registry.update_from_settlement(trade.strategy, db=db)
+        except Exception as e:
+            logger.debug(f"[settlement_helpers] Performance registry update failed for {trade.strategy}: {e}")
 
     # Record TransactionEvent for settlement P&L (ledger entry)
     try:

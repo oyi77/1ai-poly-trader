@@ -154,7 +154,12 @@ def generate_rejection_proposals(min_rejections: int = MIN_REJECTIONS) -> List[s
                     StrategyConfig.strategy_name == strategy_name
                 ).first()
 
-                current_params = (cfg.params if cfg and cfg.params else {}) or {}
+                raw_params = cfg.params if cfg and cfg.params else "{}"
+                try:
+                    import json as _json
+                    current_params = _json.loads(raw_params) if isinstance(raw_params, str) else (raw_params or {})
+                except Exception:
+                    current_params = {}
                 proposed = {}
                 for key, multiplier in param_changes.items():
                     current_val = current_params.get(key)

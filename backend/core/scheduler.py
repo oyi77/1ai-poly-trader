@@ -478,12 +478,14 @@ def start_scheduler():
 
     def auto_disable_losing_strategies():
         from backend.models.database import SessionLocal, Trade, StrategyConfig
+        from backend.config import settings
         from datetime import datetime, timezone, timedelta
 
         db = SessionLocal()
         disabled = []
         try:
             since = datetime.now(timezone.utc) - timedelta(hours=1)
+            current_mode = settings.TRADING_MODE
 
             for config in db.query(StrategyConfig).filter(StrategyConfig.enabled == True).all():
                 if config.strategy_name in ('copy_trader', 'weather_emos', 'agi_orchestrator'):
@@ -493,6 +495,7 @@ def start_scheduler():
                     Trade.strategy == config.strategy_name,
                     Trade.settled == True,
                     Trade.timestamp >= since,
+                    Trade.trading_mode == current_mode,
                 ).all()
 
                 if len(trades) < 3:

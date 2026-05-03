@@ -204,7 +204,18 @@ class Settings(BaseSettings):
     AGI_BANKROLL_ALLOCATION_ENABLED: bool = False  # Auto-reallocate capital by strategy rank
     AGI_BANKROLL_ALLOCATION_INTERVAL_DAYS: int = 1  # Rebalance frequency
 
-    # Database backup settings
+    AGI_HEALTH_CHECK_ENABLED: bool = True
+    AGI_HEALTH_CHECK_INTERVAL_MINUTES: int = 15
+    AGI_NIGHTLY_REVIEW_ENABLED: bool = True
+    AGI_NIGHTLY_REVIEW_HOUR: int = 2
+    AGI_REHABILITATION_ENABLED: bool = True
+    AGI_FRONTTEST_DAYS: int = 14
+    AGI_FRONTTEST_MIN_TRADES: int = 10
+
+    HISTORICAL_DATA_COLLECTOR_ENABLED: bool = True
+    HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS: int = 6
+
+    DATABASE_URL: str = "sqlite:///./tradingbot.db"
     DB_BACKUP_INTERVAL_HOURS: int = 6  # Run every 6 hours (0 to disable)
     DB_BACKUP_DIR: str = "backups"
     DB_BACKUP_RETENTION_DAYS: int = 30

@@ -232,6 +232,7 @@ async def execute_decision(
                 market_ticker=market_ticker,
                 db=db,
                 mode=mode,
+                strategy_name=strategy_name,
             )
             if not risk.allowed:
                 logger.info(

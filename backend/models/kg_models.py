@@ -60,6 +60,7 @@ class ExperimentRecord(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
+    strategy_name = Column(String, ForeignKey("strategy_config.strategy_name", ondelete="SET NULL"), nullable=True, index=True)
     strategy_composition = Column(JSON)
     status = Column(String, nullable=False, default="draft")
     shadow_pnl = Column(Float, default=0.0)

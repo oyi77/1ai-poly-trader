@@ -15,6 +15,14 @@ _health_monitor = StrategyHealthMonitor()
 _param_tuner = SafeParamTuner()
 
 
+def _health_enabled() -> bool:
+    try:
+        from backend.config import settings
+        return getattr(settings, "AGI_STRATEGY_HEALTH_ENABLED", True)
+    except Exception:
+        return True
+
+
 class OnlineLearner:
     def on_trade_settled(self, trade, db: Session) -> None:
         strategy = getattr(trade, "strategy", None)
@@ -40,17 +48,19 @@ class OnlineLearner:
             _calibration.record(strategy, prob, actual)
             _sampler.update(strategy, won=(result == "win"))
 
-        health = _health_monitor.assess(strategy, db)
-        if health.get("status") == "killed":
-            logger.warning(f"[OnlineLearner] Strategy '{strategy}' killed by health monitor")
-            return
+        if _health_enabled():
+            health = _health_monitor.assess(strategy, db)
+            if health.get("status") == "killed":
+                logger.warning(f"[OnlineLearner] Strategy '{strategy}' killed by health monitor")
+                return
 
         _param_tuner.revert_if_degraded(strategy, db)
 
     def run_cycle(self, strategy: str, db: Session) -> None:
-        health = _health_monitor.assess(strategy, db)
-        if health.get("status") == "killed":
-            return
+        if _health_enabled():
+            health = _health_monitor.assess(strategy, db)
+            if health.get("status") == "killed":
+                return
 
         _param_tuner.revert_if_degraded(strategy, db)
         _param_tuner.tune(strategy, db)

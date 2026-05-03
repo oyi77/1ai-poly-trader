@@ -258,7 +258,6 @@ class StrategyPerformanceRegistry:
                 else:
                     consec = 0
 
-            # Calibration — use StrategyHealthMonitor for Brier/PSI
             from backend.core.strategy_health import StrategyHealthMonitor
             health_mon = StrategyHealthMonitor()
             outcomes = [
@@ -270,7 +269,24 @@ class StrategyPerformanceRegistry:
                 if getattr(t, 'model_probability', None) is not None
             ]
             brier = health_mon._brier_from_outcomes(outcomes) if outcomes else 1.0
-            psi = health_mon.compute_psi(strategy, session)  # requires strategy oltp table
+
+            if len(trades) >= 60:
+                import math
+                recent = trades[-30:]
+                previous = trades[-60:-30]
+                r_wins = sum(1 for t in recent if t.result == "win")
+                p_wins = sum(1 for t in previous if t.result == "win")
+                r_wr = r_wins / len(recent)
+                p_wr = p_wins / len(previous)
+                eps = 1e-6
+                r_wr = max(eps, min(1 - eps, r_wr))
+                p_wr = max(eps, min(1 - eps, p_wr))
+                psi = abs(
+                    (r_wr - p_wr) * math.log(r_wr / p_wr) +
+                    ((1 - r_wr) - (1 - p_wr)) * math.log((1 - r_wr) / (1 - p_wr))
+                )
+            else:
+                psi = 0.0
 
             # Edge quality
             edges_entry = [getattr(t, 'edge_at_entry', 0.0) or 0.0 for t in trades]

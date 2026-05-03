@@ -93,6 +93,11 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
         strategy = verify_db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
         assert strategy.enabled is True
 
+    from backend.core import scheduler as sched_mod
+    assert hasattr(sched_mod, "schedule_strategy")
+    assert sched_mod.schedule_strategy.call_count >= 1
+    sched_mod.schedule_strategy.assert_called_with(strategy_name, 60, mode="live")
+
     # Mock health to trigger kill
     with patch("backend.core.strategy_health.StrategyHealthMonitor.assess") as mock_assess:
         mock_assess.return_value = {

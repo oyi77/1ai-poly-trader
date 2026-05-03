@@ -9,6 +9,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.ranker")
 
 
@@ -153,7 +155,7 @@ class StrategyRanker:
         """Allocate bankroll across strategies proportional to risk-adjusted return.
 
         Returns dict of {strategy_name: allocation_dollars}.
-        Max 50% to any single strategy.
+        Max 50% to any single strategy. Excess from caps is redistributed.
         """
         ranked = self.rank_all(db, lookback_days)
 
@@ -167,13 +169,28 @@ class StrategyRanker:
             return {}
 
         total_score = sum(r.rank_score for r in positive)
+        cap = bankroll * 0.50
         allocations = {}
+        allocated = 0.0
 
         for r in positive:
             raw_alloc = (r.rank_score / total_score) * bankroll
-            # Cap at 50% of bankroll per strategy
-            capped = min(raw_alloc, bankroll * 0.50)
+            capped = min(raw_alloc, cap)
             allocations[r.name] = round(capped, 2)
+            allocated += capped
+
+        # Redistribute excess from capped strategies to uncapped ones
+        if allocated < bankroll:
+            uncapped = [r for r in positive if allocations[r.name] < cap]
+            if uncapped:
+                remaining = bankroll - allocated
+                uncapped_score = sum(r.rank_score for r in uncapped)
+                if uncapped_score > 0:
+                    for r in uncapped:
+                        extra = (r.rank_score / uncapped_score) * remaining
+                        allocations[r.name] = round(
+                            min(allocations[r.name] + extra, cap), 2
+                        )
 
         return allocations
 
@@ -183,6 +200,7 @@ class StrategyRanker:
         min_sharpe: float = 0.0,
         min_trades: int = 30,
         lookback_days: int = 30,
+        trading_mode: Optional[str] = None,
     ) -> list[str]:
         """Disable strategies with Sharpe below threshold after sufficient trades.
 
@@ -233,7 +251,7 @@ async def strategy_ranking_job() -> None:
                 )
 
             # Auto-disable underperformers with enough data
-            disabled = ranker.disable_underperformers(db, min_sharpe=0.0, min_trades=30)
+            disabled = ranker.disable_underperformers(db, min_sharpe=0.0, min_trades=30, trading_mode=settings.TRADING_MODE)
             if disabled:
                 logger.info(f"Auto-disabled underperformers: {disabled}")
         else:

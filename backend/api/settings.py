@@ -645,6 +645,70 @@ async def mirofish_service_restart(_: None = Depends(require_admin)):
     )
 
 
+class RiskProfileResponse(BaseModel):
+    name: str
+    display_name: str
+    kelly_fraction: float
+    min_edge_threshold: float
+    max_trade_size: float
+    max_position_fraction: float
+    max_total_exposure_fraction: float
+    daily_loss_limit: float
+    daily_drawdown_limit_pct: float
+    weekly_drawdown_limit_pct: float
+    slippage_tolerance: float
+    auto_approve_min_confidence: float
+
+
+class RiskProfileListResponse(BaseModel):
+    active: str
+    profiles: Dict[str, RiskProfileResponse]
+
+
+class SetRiskProfileRequest(BaseModel):
+    profile: str
+
+
+@router.get("/risk/profile", response_model=RiskProfileListResponse)
+async def get_risk_profiles():
+    from backend.core.risk_profiles import PROFILES, get_active_profile_name
+    active = get_active_profile_name()
+    profiles = {}
+    for k, p in PROFILES.items():
+        profiles[k] = RiskProfileResponse(
+            name=p.name,
+            display_name=p.display_name,
+            kelly_fraction=p.kelly_fraction,
+            min_edge_threshold=p.min_edge_threshold,
+            max_trade_size=p.max_trade_size,
+            max_position_fraction=p.max_position_fraction,
+            max_total_exposure_fraction=p.max_total_exposure_fraction,
+            daily_loss_limit=p.daily_loss_limit,
+            daily_drawdown_limit_pct=p.daily_drawdown_limit_pct,
+            weekly_drawdown_limit_pct=p.weekly_drawdown_limit_pct,
+            slippage_tolerance=p.slippage_tolerance,
+            auto_approve_min_confidence=p.auto_approve_min_confidence,
+        )
+    return RiskProfileListResponse(active=active, profiles=profiles)
+
+
+@router.put("/risk/profile")
+async def set_risk_profile(
+    body: SetRiskProfileRequest,
+    _: None = Depends(require_admin),
+):
+    from backend.core.risk_profiles import PROFILES, apply_profile
+    if body.profile not in PROFILES:
+        raise HTTPException(status_code=400, detail=f"Unknown profile: {body.profile}. Available: {list(PROFILES.keys())}")
+    profile = apply_profile(body.profile)
+    logger.info(f"Risk profile changed to '{profile.display_name}'")
+    return {
+        "status": "ok",
+        "active_profile": profile.name,
+        "display_name": profile.display_name,
+    }
+
+
 @router.get("/mirofish/signals")
 async def get_mirofish_signals(market: str = "polymarket", question: str = "", db: Session = Depends(get_db)):
     """Get AI-powered trading signals — routes to external MiroFish or built-in debate engine.

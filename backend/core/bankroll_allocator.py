@@ -37,7 +37,9 @@ class BankrollAllocator:
         db = SessionLocal()
         try:
             # Read current bankroll for the active mode
-            state = db.query(BotState).first()
+            state = db.query(BotState).filter_by(mode=settings.TRADING_MODE).first()
+            if not state:
+                state = db.query(BotState).first()
             if not state:
                 logger.warning("[BankrollAllocator] No BotState found, skipping allocation")
                 return {}

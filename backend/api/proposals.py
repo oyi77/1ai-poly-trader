@@ -62,9 +62,7 @@ async def list_proposals(
     query = db.query(DBProposal)
     
     if status:
-        query = query.filter(
-            (DBProposal.admin_decision == status) | (DBProposal.status == status)
-        )
+        query = query.filter(DBProposal.admin_decision == status)
     
     proposals = query.order_by(DBProposal.created_at.desc()).all()
     
