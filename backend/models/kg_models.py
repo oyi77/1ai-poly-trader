@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Text, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Text, ForeignKey, UniqueConstraint, Index, Boolean
 
 from backend.models.database import Base
 
@@ -66,6 +66,12 @@ class ExperimentRecord(Base):
     shadow_pnl = Column(Float, default=0.0)
     shadow_trades = Column(Integer, default=0)
     shadow_win_rate = Column(Float, default=0.0)
+    backtest_passed = Column(Integer, default=0)
+    backtest_sharpe = Column(Float, nullable=True)
+    backtest_win_rate = Column(Float, nullable=True)
+    degradation_count = Column(Integer, default=0)
+    last_degradation_at = Column(DateTime, nullable=True)
+    review_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     promoted_at = Column(DateTime, nullable=True)
     retired_at = Column(DateTime, nullable=True)

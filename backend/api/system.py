@@ -536,7 +536,7 @@ async def get_stats(
 
 @router.get("/stats/strategies")
 async def get_strategy_stats(
-    db: Session = Depends(get_db), _: None = Depends(require_admin)
+    db: Session = Depends(get_db),
 ):
     """Return P&L breakdown per strategy."""
     from sqlalchemy import case
@@ -582,7 +582,7 @@ async def get_strategy_stats(
 
 @router.get("/ai/status")
 async def get_ai_status(
-    db: Session = Depends(get_db), _: None = Depends(require_admin)
+    db: Session = Depends(get_db),
 ):
     """Return AI system status: enabled, provider, budget usage."""
     today_start = datetime.now(timezone.utc).replace(
@@ -875,7 +875,6 @@ async def quick_backtest(
     days_back: int = 30,
     initial_bankroll: float = 1000.0,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
 ):
     """Quick backtest for recent N days."""
     from backend.core.backtesting import run_quick_backtest
@@ -916,7 +915,7 @@ async def quick_backtest(
 
 
 @router.get("/events", response_model=List[EventResponse])
-async def get_events(limit: int = 50, _: None = Depends(require_admin)):
+async def get_events(limit: int = 50):
     from backend.core.scheduler import get_recent_events
 
     limit = min(limit, 500)
@@ -1053,7 +1052,6 @@ async def list_trade_attempts(
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
 ):
     """List trade execution attempts with operator-focused filtering."""
     if sort not in _ALLOWED_ATTEMPT_SORT:
@@ -1097,7 +1095,6 @@ async def list_trade_attempts(
 async def trade_attempts_summary(
     mode: str | None = None,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
 ):
     """Summarize current execution blockers for the Trade Control Room."""
     query = db.query(TradeAttempt)
@@ -1181,7 +1178,6 @@ async def list_decisions(
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
 ):
     """List decision log entries with filtering."""
     if sort not in _ALLOWED_DECISION_SORT:
@@ -1247,7 +1243,6 @@ async def export_decisions(
     decision: str | None = None,
     limit: int = 10000,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
 ):
     """Export decision log as JSONL for ML training."""
     limit = min(limit, 5000)
@@ -1294,7 +1289,7 @@ async def export_decisions(
 
 @router.get("/decisions/{decision_id}")
 async def get_decision(
-    decision_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
+    decision_id: int, db: Session = Depends(get_db),
 ):
     """Get a single decision log entry by ID."""
     decision = db.query(DecisionLog).filter(DecisionLog.id == decision_id).first()
@@ -1346,7 +1341,7 @@ async def get_signal_config():
 
 @router.get("/strategies")
 async def list_strategies(
-    db: Session = Depends(get_db), _: None = Depends(require_admin)
+    db: Session = Depends(get_db),
 ):
     """List all registered strategies with their DB config."""
     from backend.strategies.registry import STRATEGY_REGISTRY
@@ -1401,7 +1396,6 @@ class StrategyUpdateRequest(BaseModel):
 async def get_strategy(
     name: str,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin),
 ):
     """Get a single strategy config by name."""
     from backend.strategies.registry import STRATEGY_REGISTRY, load_all_strategies

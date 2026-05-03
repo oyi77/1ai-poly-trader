@@ -27,6 +27,15 @@ TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_eng
 from backend.models import database as _db_mod
 from backend.models.database import Base
 
+# Ensure all ORM models are registered with Base.metadata before create_all()
+import backend.models.kg_models  # noqa: F401 — ExperimentRecord, StrategyProposal
+import backend.models.outcome_tables  # noqa: F401 — StrategyOutcome, EvolutionLineage
+import backend.models.historical_data  # noqa: F401 — HistoricalCandle, MarketOutcome
+try:
+    from backend.core.strategy_performance_registry import StrategyPerformanceSnapshot  # noqa: F401
+except Exception:
+    pass
+
 _db_mod.engine = test_engine
 _db_mod.SessionLocal = TestSessionLocal
 

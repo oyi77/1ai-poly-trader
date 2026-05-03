@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting, TradeAttemptSummary, TradeAttemptsResponse } from './types'
+import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting, TradeAttemptSummary, TradeAttemptsResponse, KanbanBoard, KanbanCard } from './types'
 
 const getApiBase = () => {
   const env = import.meta.env.VITE_API_URL
@@ -831,5 +831,15 @@ export async function stopMiroFishProcesses(): Promise<MiroFishProcessAction> {
 
 export async function restartMiroFishProcesses(): Promise<MiroFishProcessAction> {
   const { data } = await adminApi.post<MiroFishProcessAction>('/settings/mirofish/processes/restart')
+  return data
+}
+
+export async function fetchKanbanBoard(): Promise<KanbanBoard> {
+  const { data } = await api.get<KanbanBoard>('/agi/kanban')
+  return data
+}
+
+export async function moveKanbanCard(experimentId: number, targetStatus: string, reason?: string): Promise<{ id: string; old_status: string; new_status: string; card: KanbanCard }> {
+  const { data } = await adminApi.post(`/agi/kanban/${experimentId}/move`, { target_status: targetStatus, reason: reason ?? null })
   return data
 }

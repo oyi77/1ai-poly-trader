@@ -91,6 +91,9 @@ class AutonomousPromoter:
     KILL_SHARPE = -2.0
     KILL_DRAWDOWN = 0.50
     MIN_WARMUP_TRADES = 30
+    DEGRADATION_WR_THRESHOLD = 0.35
+    DEGRADATION_SHARPE_THRESHOLD = -0.5
+    MAX_DEGRADATIONS_BEFORE_REVIEW = 2
 
     def __init__(self, runner: Optional[ExperimentRunner] = None):
         self.runner = runner
@@ -105,21 +108,75 @@ class AutonomousPromoter:
         db = SessionLocal()
         try:
             health_mon = StrategyHealthMonitor() if getattr(settings, "AGI_STRATEGY_HEALTH_ENABLED", True) else None
-            # 1. Promote DRAFT → SHADOW (no criteria, just create)
+
+            # 0. Evaluate REVIEW experiments → back to BACKTEST after improvement cycle
+            reviews = (
+                db.query(ExperimentRecord)
+                .filter_by(status=ExperimentStatus.REVIEW.value)
+                .all()
+            )
+            for exp in reviews:
+                improved = self._check_review_completion(exp, db)
+                if improved:
+                    exp.status = ExperimentStatus.BACKTEST.value
+                    exp.degradation_count = 0
+                    exp.review_reason = None
+                    db.add(exp)
+                    logger.info(f"[AutonomousPromoter] REVIEW→BACKTEST '{exp.name}' (improvements applied)")
+                elif self._is_review_expired(exp):
+                    exp.status = ExperimentStatus.RETIRED.value
+                    exp.retired_at = datetime.now(timezone.utc)
+                    db.add(exp)
+                    logger.warning(f"[AutonomousPromoter] RETIRED '{exp.name}' (review expired without improvement)")
+                    stats["retired"] += 1
+            if reviews:
+                db.commit()
+
+            # 1. Promote DRAFT → BACKTEST (requires backtest validation before shadow)
             drafts = (
                 db.query(ExperimentRecord)
                 .filter_by(status=ExperimentStatus.DRAFT.value)
                 .all()
             )
             for exp in drafts:
-                exp.status = ExperimentStatus.SHADOW.value
-                exp.shadow_trades = 0
-                exp.shadow_win_rate = 0.0
-                exp.shadow_pnl = 0.0
-                exp.created_at = datetime.now(timezone.utc)
+                exp.status = ExperimentStatus.BACKTEST.value
                 db.add(exp)
-                logger.info(f"[AutonomousPromoter] Draft '{exp.name}' → SHADOW (initialized)")
+                logger.info(f"[AutonomousPromoter] Draft '{exp.name}' → BACKTEST (awaiting validation)")
             if drafts:
+                db.commit()
+
+            # 1b. Evaluate BACKTEST → SHADOW (must pass backtest gate)
+            backtests = (
+                db.query(ExperimentRecord)
+                .filter_by(status=ExperimentStatus.BACKTEST.value)
+                .all()
+            )
+            for exp in backtests:
+                bt_result = self._check_backtest_gate(exp, db)
+                if bt_result:
+                    exp.status = ExperimentStatus.SHADOW.value
+                    exp.shadow_trades = 0
+                    exp.shadow_win_rate = 0.0
+                    exp.shadow_pnl = 0.0
+                    exp.backtest_passed = True
+                    exp.created_at = datetime.now(timezone.utc)
+                    db.add(exp)
+                    logger.info(
+                        f"[AutonomousPromoter] BACKTEST→SHADOW '{exp.name}': "
+                        f"sharpe={exp.backtest_sharpe:.2f} wr={exp.backtest_win_rate:.1%}"
+                    )
+                else:
+                    ref_time = exp.created_at
+                    if ref_time and ref_time.tzinfo is None:
+                        ref_time = ref_time.replace(tzinfo=timezone.utc)
+                    age_days = (datetime.now(timezone.utc) - (ref_time or datetime.now(timezone.utc))).days
+                    if age_days > 7:
+                        exp.status = ExperimentStatus.RETIRED.value
+                        exp.retired_at = datetime.now(timezone.utc)
+                        db.add(exp)
+                        logger.warning(f"[AutonomousPromoter] RETIRED '{exp.name}' (backtest failed after 7d)")
+                        stats["retired"] += 1
+            if backtests:
                 db.commit()
 
             # 2. Evaluate SHADOW → PAPER
@@ -218,7 +275,7 @@ class AutonomousPromoter:
             if papers:
                 db.commit()
 
-            # 4. Evaluate LIVE_PROMOTED experiments for kill/retirement
+            # 4. Evaluate LIVE_PROMOTED experiments for degradation → REVIEW fallback
             lives = (
                 db.query(ExperimentRecord)
                 .filter_by(status=ExperimentStatus.LIVE_PROMOTED.value)
@@ -238,6 +295,33 @@ class AutonomousPromoter:
                         f"dd={health.get('max_drawdown', 0):.1%}"
                     )
                     stats["retired"] += 1
+                    continue
+
+                wr = health.get("win_rate", 0.0)
+                sharpe = health.get("sharpe", 0.0)
+                total_trades = health.get("total_trades", 0)
+                if total_trades >= self.MIN_WARMUP_TRADES and (
+                    wr < self.DEGRADATION_WR_THRESHOLD or sharpe < self.DEGRADATION_SHARPE_THRESHOLD
+                ):
+                    exp.degradation_count = (exp.degradation_count or 0) + 1
+                    exp.last_degradation_at = datetime.now(timezone.utc)
+                    if exp.degradation_count >= self.MAX_DEGRADATIONS_BEFORE_REVIEW:
+                        exp.status = ExperimentStatus.REVIEW.value
+                        exp.review_reason = (
+                            f"Degraded: wr={wr:.1%} sharpe={sharpe:.2f} over {total_trades} trades "
+                            f"({exp.degradation_count} degradation events)"
+                        )
+                        exp.degradation_count = 0
+                        await self._disable_strategy(strategy_name, db)
+                        logger.warning(
+                            f"[AutonomousPromoter] LIVE→REVIEW '{exp.name}': {exp.review_reason}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[AutonomousPromoter] DEGRADATION #{exp.degradation_count} '{exp.name}': "
+                            f"wr={wr:.1%} sharpe={sharpe:.2f}"
+                        )
+                    db.add(exp)
             if lives:
                 db.commit()
 
@@ -426,11 +510,59 @@ class AutonomousPromoter:
             logger.info(f"[AutonomousPromoter] Created & enabled StrategyConfig '{strategy_name}' (interval={interval}s)")
         db.commit()
 
-        # Dynamic scheduling so it starts immediately without restart
         try:
             schedule_strategy(strategy_name, interval, mode="live")
         except Exception as e:
             logger.warning(f"[AutonomousPromoter] Failed to dynamically schedule '{strategy_name}': {e}")
+
+    async def _disable_strategy(self, strategy_name: str, db: Session) -> None:
+        config = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
+        if config:
+            config.enabled = False
+            db.commit()
+            logger.info(f"[AutonomousPromoter] Disabled StrategyConfig '{strategy_name}' (degradation fallback)")
+
+    def _check_backtest_gate(self, exp: ExperimentRecord, db: Session) -> bool:
+        from backend.models.database import StrategyProposal
+        proposal = (
+            db.query(StrategyProposal)
+            .filter_by(strategy_name=exp.strategy_name, status="pending")
+            .order_by(StrategyProposal.created_at.desc())
+            .first()
+        )
+        if proposal and proposal.backtest_passed:
+            exp.backtest_sharpe = proposal.backtest_sharpe
+            exp.backtest_win_rate = proposal.backtest_win_rate
+            return True
+        if exp.backtest_passed:
+            return True
+        return False
+
+    def _check_review_completion(self, exp: ExperimentRecord, db: Session) -> bool:
+        from backend.models.database import StrategyProposal
+        new_proposals = (
+            db.query(StrategyProposal)
+            .filter(
+                StrategyProposal.strategy_name == exp.strategy_name,
+                StrategyProposal.status == "pending",
+                StrategyProposal.backtest_passed.is_(True),
+            )
+            .order_by(StrategyProposal.created_at.desc())
+            .first()
+        )
+        if new_proposals:
+            exp.backtest_sharpe = new_proposals.backtest_sharpe
+            exp.backtest_win_rate = new_proposals.backtest_win_rate
+            return True
+        return False
+
+    def _is_review_expired(self, exp: ExperimentRecord) -> bool:
+        ref = exp.last_degradation_at or exp.created_at
+        if ref and ref.tzinfo is None:
+            ref = ref.replace(tzinfo=timezone.utc)
+        if not ref:
+            return False
+        return (datetime.now(timezone.utc) - ref).days > 14
 
 
 # Module-level singleton

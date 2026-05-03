@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
@@ -8,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from backend.models.database import get_db, Base, engine
+from backend.api.auth import require_admin
 from backend.core.agi_orchestrator import AGIOrchestrator, AGIStatus
 from backend.core.agi_goal_engine import AGIGoalEngine
 from backend.core.strategy_composer import StrategyComposer, ComposedStrategy
@@ -246,3 +248,101 @@ async def counterfactual_run(db: Session = Depends(get_db)):
     from backend.ai.counterfactual_scorer import run_counterfactual_cycle
     result = await run_counterfactual_cycle(db=db)
     return result
+
+
+PIPELINE_COLUMNS = [
+    {"id": "backtest", "label": "Backtest", "order": 0},
+    {"id": "shadow", "label": "Shadow", "order": 1},
+    {"id": "paper", "label": "Paper", "order": 2},
+    {"id": "live_promoted", "label": "Live", "order": 3},
+    {"id": "review", "label": "Review", "order": 4},
+    {"id": "retired", "label": "Retired", "order": 5},
+]
+
+STATUS_TO_COLUMN = {
+    "draft": "backtest",
+    "backtest": "backtest",
+    "shadow": "shadow",
+    "paper": "paper",
+    "live_promoted": "live_promoted",
+    "live_failed": "review",
+    "review": "review",
+    "retired": "retired",
+}
+
+
+def _experiment_to_card(r: ExperimentRecord) -> dict:
+    return {
+        "id": str(r.id),
+        "name": r.name,
+        "strategy_name": r.strategy_name,
+        "status": r.status,
+        "column": STATUS_TO_COLUMN.get(r.status, "backtest"),
+        "backtest_passed": bool(r.backtest_passed) if r.backtest_passed else False,
+        "backtest_sharpe": r.backtest_sharpe,
+        "backtest_win_rate": r.backtest_win_rate,
+        "shadow_trades": r.shadow_trades,
+        "shadow_win_rate": r.shadow_win_rate,
+        "shadow_pnl": r.shadow_pnl,
+        "degradation_count": r.degradation_count or 0,
+        "review_reason": r.review_reason,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "promoted_at": r.promoted_at.isoformat() if r.promoted_at else None,
+        "retired_at": r.retired_at.isoformat() if r.retired_at else None,
+    }
+
+
+@router.get("/kanban")
+async def kanban_board(db: Session = Depends(get_db)):
+    experiments = db.query(ExperimentRecord).order_by(ExperimentRecord.created_at.desc()).all()
+    cards = [_experiment_to_card(r) for r in experiments]
+
+    columns = {}
+    for col in PIPELINE_COLUMNS:
+        columns[col["id"]] = {**col, "cards": []}
+    for card in cards:
+        col_id = card["column"]
+        if col_id in columns:
+            columns[col_id]["cards"].append(card)
+
+    return {
+        "columns": list(columns.values()),
+        "total_experiments": len(cards),
+    }
+
+
+@router.post("/kanban/{experiment_id}/move")
+async def kanban_move_card(
+    experiment_id: int,
+    target_status: str = Body(..., embed=True),
+    reason: Optional[str] = Body(None, embed=True),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    from backend.core.agi_types import ExperimentStatus
+
+    valid_targets = {e.value for e in ExperimentStatus}
+    if target_status not in valid_targets:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {target_status}")
+
+    exp = db.query(ExperimentRecord).filter_by(id=experiment_id).first()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+
+    old_status = exp.status
+    exp.status = target_status
+
+    if target_status == "retired":
+        exp.retired_at = datetime.now(timezone.utc)
+    elif target_status in ("paper", "live_promoted"):
+        exp.promoted_at = datetime.now(timezone.utc)
+    elif target_status == "review" and reason:
+        exp.review_reason = reason
+
+    db.commit()
+    return {
+        "id": str(exp.id),
+        "old_status": old_status,
+        "new_status": target_status,
+        "card": _experiment_to_card(exp),
+    }

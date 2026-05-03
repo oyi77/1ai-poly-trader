@@ -285,3 +285,34 @@ export interface SyncStatus {
   testnet: SyncModeStatus
   live: SyncModeStatus
 }
+
+export interface KanbanCard {
+  id: string
+  name: string
+  strategy_name: string
+  status: string
+  column: string
+  backtest_passed: boolean
+  backtest_sharpe: number | null
+  backtest_win_rate: number | null
+  shadow_trades: number | null
+  shadow_win_rate: number | null
+  shadow_pnl: number | null
+  degradation_count: number
+  review_reason: string | null
+  created_at: string | null
+  promoted_at: string | null
+  retired_at: string | null
+}
+
+export interface KanbanColumn {
+  id: string
+  label: string
+  order: number
+  cards: KanbanCard[]
+}
+
+export interface KanbanBoard {
+  columns: KanbanColumn[]
+  total_experiments: number
+}

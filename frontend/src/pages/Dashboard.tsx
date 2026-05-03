@@ -21,6 +21,7 @@ const PerformanceTab = lazy(() => import('../components/dashboard/PerformanceTab
 const BrainGraph = lazy(() => import('../components/BrainGraph'))
 const HFTTab = lazy(() => import('../components/hft').then(m => ({ default: m.default })))
 const ControlRoomTab = lazy(() => import('../components/dashboard/ControlRoomTab').then(m => ({ default: m.ControlRoomTab })))
+const KanbanTab = lazy(() => import('../components/dashboard/KanbanTab').then(m => ({ default: m.KanbanTab })))
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ function RefreshBar({ interval }: { interval: number }) {
 
 // ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 
-const DASHBOARD_TABS = ['Overview', 'Control Room', 'Performance', 'Brain', 'Trades', 'Markets', 'HFT'] as const
+const DASHBOARD_TABS = ['Overview', 'Control Room', 'AGI Pipeline', 'Performance', 'Brain', 'Trades', 'Markets', 'HFT'] as const
 type DashboardTab = typeof DASHBOARD_TABS[number]
 
 export default function Dashboard() {
@@ -266,6 +267,7 @@ export default function Dashboard() {
             )}
             {activeTab === 'Performance' && <PerformanceTab />}
             {activeTab === 'Control Room' && <ControlRoomTab isAdmin={isAuthenticated} onLoginRequired={() => setShowLogin(true)} />}
+            {activeTab === 'AGI Pipeline' && <KanbanTab isAdmin={isAuthenticated} />}
             {activeTab === 'Brain' && <BrainGraph />}
             {activeTab === 'Trades' && <TradesTab />}
             {activeTab === 'Markets' && <MarketsTab />}
