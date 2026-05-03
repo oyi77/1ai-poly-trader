@@ -377,13 +377,22 @@ async def agi_improvement_cycle_job() -> None:
     except Exception as e:
         stats["errors"].append(f"composition: {e}")
 
+    try:
+        from backend.ai.counterfactual_scorer import run_counterfactual_cycle
+        cf_result = await run_counterfactual_cycle()
+        stats["counterfactual_scored"] = cf_result.get("scoring", {}).get("scored", 0)
+        stats["counterfactual_insights"] = cf_result.get("insights", {}).get("insights", 0)
+    except Exception as e:
+        stats["errors"].append(f"counterfactual: {e}")
+
     logger.info(
-        "[agi_improvement_cycle] feedback=%d meta=%d evolved=%d promoted=%d composed=%d replaced=%d errors=%d",
+        "[agi_improvement_cycle] feedback=%d meta=%d evolved=%d promoted=%d composed=%d replaced=%d cf_scored=%d errors=%d",
         stats["feedback_measured"],
         stats["meta_learned"],
         stats["evolution_variants"],
         stats["proposals_promoted"],
         stats["strategies_composed"],
         stats["strategies_replaced"],
+        stats.get("counterfactual_scored", 0),
         len(stats["errors"]),
     )

@@ -134,3 +134,58 @@ class MetaLearningRecord(Base):
     avg_wr_delta = Column(Float, default=0.0)
     avg_sharpe_delta = Column(Float, default=0.0)
     last_updated = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class BlockedSignalCounterfactual(Base):
+    __tablename__ = 'blocked_signal_counterfactual'
+    __table_args__ = (
+        Index("ix_bsc_strategy", "strategy"),
+        Index("ix_bsc_block_reason", "block_reason_code"),
+        Index("ix_bsc_market", "market_ticker"),
+        Index("ix_bsc_scored", "scored"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    source_table = Column(String, nullable=False)  # "trade_attempt" | "decision_log"
+    source_id = Column(Integer, nullable=False)
+    strategy = Column(String, nullable=False, index=True)
+    market_ticker = Column(String, nullable=False)
+    direction = Column(String, nullable=True)  # "up"|"down"|"yes"|"no"
+    confidence = Column(Float, nullable=True)
+    edge = Column(Float, nullable=True)
+    model_probability = Column(Float, nullable=True)
+    market_price = Column(Float, nullable=True)
+    requested_size = Column(Float, nullable=True)
+    entry_price = Column(Float, nullable=True)
+    block_reason = Column(Text, nullable=True)
+    block_reason_code = Column(String, nullable=True)
+    block_phase = Column(String, nullable=True)  # "preflight"|"risk_gate"|"sizing"|"context"
+    scored = Column(Boolean, default=False, index=True)
+    actual_outcome = Column(String, nullable=True)  # "up"|"down"|"yes"|"no"
+    settlement_value = Column(Float, nullable=True)  # 1.0 or 0.0
+    would_have_won = Column(Boolean, nullable=True)
+    hypothetical_pnl = Column(Float, nullable=True)
+    resolution_source = Column(String, nullable=True)  # "market_outcome"|"gamma_api"|"signal_calibration"
+    resolved_at = Column(DateTime, nullable=True)
+    signal_blocked_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    scored_at = Column(DateTime, nullable=True)
+
+
+class CounterfactualInsight(Base):
+    __tablename__ = 'counterfactual_insights'
+    __table_args__ = (
+        Index("ix_ci_dimension", "dimension", "dimension_value"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    dimension = Column(String, nullable=False)  # "strategy"|"block_reason"|"edge_range"|"confidence_range"
+    dimension_value = Column(String, nullable=False)  # e.g. "btc_oracle", "RISK_REJECTED_LOW_CONFIDENCE"
+    total_blocked = Column(Integer, default=0)
+    total_would_win = Column(Integer, default=0)
+    total_would_lose = Column(Integer, default=0)
+    counterfactual_wr = Column(Float, default=0.0)
+    hypothetical_total_pnl = Column(Float, default=0.0)
+    lost_profit = Column(Float, default=0.0)
+    sample_period_start = Column(DateTime, nullable=True)
+    sample_period_end = Column(DateTime, nullable=True)
+    computed_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

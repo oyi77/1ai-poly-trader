@@ -609,7 +609,8 @@ def auto_promote_eligible_proposals():
                                     applied = True
 
                         if applied:
-                            config.params = current_params
+                            import json as _json
+                            config.params = _json.dumps(current_params) if not isinstance(current_params, str) else current_params
                             proposal.status = "auto_approved"
                             proposal.admin_decision = "auto_approved"
                             proposal.executed_at = datetime.now(timezone.utc)

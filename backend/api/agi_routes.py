@@ -177,3 +177,72 @@ async def override_goal(
     engine = AGIGoalEngine(session=db)
     audit = engine.set_goal(goal_enum, reason)
     return {"goal": goal, "reason": reason, "timestamp": audit.timestamp.isoformat()}
+
+
+@router.get("/counterfactual/summary")
+async def counterfactual_summary(db: Session = Depends(get_db)):
+    from backend.models.outcome_tables import BlockedSignalCounterfactual, CounterfactualInsight
+    from sqlalchemy import func
+
+    total = db.query(func.count(BlockedSignalCounterfactual.id)).scalar() or 0
+    scored = db.query(func.count(BlockedSignalCounterfactual.id)).filter(
+        BlockedSignalCounterfactual.scored.is_(True)
+    ).scalar() or 0
+    won = db.query(func.count(BlockedSignalCounterfactual.id)).filter(
+        BlockedSignalCounterfactual.would_have_won.is_(True)
+    ).scalar() or 0
+    lost = db.query(func.count(BlockedSignalCounterfactual.id)).filter(
+        BlockedSignalCounterfactual.would_have_won.is_(False)
+    ).scalar() or 0
+    hyp_pnl = db.query(func.sum(BlockedSignalCounterfactual.hypothetical_pnl)).filter(
+        BlockedSignalCounterfactual.scored.is_(True)
+    ).scalar() or 0.0
+    lost_profit = db.query(func.sum(BlockedSignalCounterfactual.hypothetical_pnl)).filter(
+        BlockedSignalCounterfactual.would_have_won.is_(True)
+    ).scalar() or 0.0
+
+    insights = db.query(CounterfactualInsight).order_by(
+        CounterfactualInsight.lost_profit.desc()
+    ).limit(20).all()
+
+    return {
+        "total_blocked_signals": total,
+        "scored": scored,
+        "pending_resolution": total - scored,
+        "would_have_won": won,
+        "would_have_lost": lost,
+        "counterfactual_wr": round(won / scored, 3) if scored > 0 else None,
+        "hypothetical_total_pnl": round(float(hyp_pnl), 2),
+        "lost_profit_from_blocking": round(float(lost_profit), 2),
+        "top_insights": [
+            {
+                "dimension": i.dimension,
+                "value": i.dimension_value,
+                "total_blocked": i.total_blocked,
+                "would_win": i.total_would_win,
+                "counterfactual_wr": i.counterfactual_wr,
+                "hypothetical_pnl": i.hypothetical_total_pnl,
+                "lost_profit": i.lost_profit,
+            }
+            for i in insights
+        ],
+    }
+
+
+@router.get("/counterfactual/strategy/{strategy_name}")
+async def counterfactual_strategy(strategy_name: str, db: Session = Depends(get_db)):
+    from backend.ai.counterfactual_scorer import get_strategy_counterfactual_stats
+    return get_strategy_counterfactual_stats(db, strategy_name)
+
+
+@router.get("/counterfactual/recommendations")
+async def counterfactual_recommendations(db: Session = Depends(get_db)):
+    from backend.ai.counterfactual_scorer import get_risk_calibration_recommendations
+    return {"recommendations": get_risk_calibration_recommendations(db)}
+
+
+@router.post("/counterfactual/run")
+async def counterfactual_run(db: Session = Depends(get_db)):
+    from backend.ai.counterfactual_scorer import run_counterfactual_cycle
+    result = await run_counterfactual_cycle(db=db)
+    return result
