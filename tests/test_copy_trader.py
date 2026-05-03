@@ -129,8 +129,8 @@ class TestWalletWatcher:
     """Test trade deduplication and exit threshold logic."""
 
     @pytest.mark.asyncio
-    async def test_first_poll_seeds_and_returns_empty(self):
-        """First poll for a wallet seeds seen set, returns no new trades."""
+    async def test_first_poll_seeds_and_returns_trades(self):
+        """First poll seeds seen set AND returns initial trades for copy-trading."""
         from backend.strategies.copy_trader import WalletWatcher
 
         mock_http = AsyncMock()
@@ -145,9 +145,13 @@ class TestWalletWatcher:
         watcher = WalletWatcher(mock_http)
         buys, exits = await watcher.poll("0xwallet")
 
-        # First poll: seeds seen set, returns nothing
-        assert buys == []
+        # First poll: seeds seen set AND returns initial BUY signals
+        assert len(buys) == 1
+        assert buys[0].condition_id == "c1"
+        assert buys[0].side == "BUY"
         assert exits == []
+        # Verify seen set was populated so next poll deduplicates
+        assert "0xtx1" in watcher._seen["0xwallet"]
 
     @pytest.mark.asyncio
     async def test_second_poll_detects_new_trade(self):

@@ -8,7 +8,8 @@ from backend.config import settings
 from backend.core.autonomous_promoter import AutonomousPromoter
 from backend.core.bankroll_allocator import BankrollAllocator
 from backend.core.trade_forensics import TradeForensics
-from backend.models.database import SessionLocal, StrategyConfig, BotState, Trade
+from backend.models import database as _db_mod
+from backend.models.database import StrategyConfig, BotState, Trade
 from backend.models.kg_models import ExperimentRecord
 from backend.core.agi_types import ExperimentStatus
 
@@ -50,13 +51,13 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
     # Run 1: DRAFT → SHADOW
     await promoter.run_once()
     # Verify using a fresh session to see committed changes
-    with SessionLocal() as verify_db:
+    with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
         assert exp_v.status == ExperimentStatus.SHADOW.value
         assert exp_v.shadow_trades == 0
 
     # Simulate shadow trading results
-    with SessionLocal() as update_db:
+    with _db_mod.SessionLocal() as update_db:
         exp_u = update_db.get(ExperimentRecord, exp_id)
         exp_u.shadow_trades = 150
         exp_u.shadow_win_rate = 0.62
@@ -65,7 +66,7 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
 
     # Run 2: SHADOW → PAPER
     await promoter.run_once()
-    with SessionLocal() as verify_db:
+    with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
         assert exp_v.status == ExperimentStatus.PAPER.value
         assert exp_v.promoted_at is not None
@@ -84,12 +85,12 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
         }
         await promoter.run_once()
 
-    with SessionLocal() as verify_db:
+    with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
         assert exp_v.status == ExperimentStatus.LIVE_PROMOTED.value
 
     # Strategy should be auto-enabled
-    with SessionLocal() as verify_db:
+    with _db_mod.SessionLocal() as verify_db:
         strategy = verify_db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
         assert strategy.enabled is True
 
@@ -109,7 +110,7 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
         }
         await promoter.run_once()
 
-    with SessionLocal() as verify_db:
+    with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
         assert exp_v.status == ExperimentStatus.RETIRED.value
         assert exp_v.retired_at is not None

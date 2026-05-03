@@ -5,7 +5,7 @@ import sys
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -111,17 +111,84 @@ def client(db):
         app.dependency_overrides[get_db] = _override_get_db
 
 
+_MODULES_WITH_SESSIONLOCAL = [
+    "backend.core.nightly_review",
+    "backend.core.decisions",
+    "backend.core.signals",
+    "backend.core.whale_discovery",
+    "backend.core.autonomous_promoter",
+    "backend.core.heartbeat",
+    "backend.core.risk_manager",
+    "backend.core.auto_trader",
+    "backend.core.strategy_executor",
+    "backend.core.bankroll_allocator",
+    "backend.core.agi_health_check",
+    "backend.core.trade_forensics",
+    "backend.core.strategy_rehabilitator",
+    "backend.core.monitoring_job",
+    "backend.core.settlement_ws",
+    "backend.core.forensics_integration",
+    "backend.core.activity_logger",
+    "backend.core.retrain_trigger",
+    "backend.core.auto_improve",
+    "backend.core.weather_signals",
+    "backend.core.backtester",
+    "backend.core.historical_data_collector",
+    "backend.core.strategy_performance_registry",
+    "backend.core.llm_cost_tracker",
+    "backend.core.risk_profiles",
+    "backend.core.settlement_helpers",
+    "backend.strategies.wallet_sync",
+]
+
+
 @pytest.fixture(scope="function")
 def db():
     connection = test_engine.connect()
-    transaction = connection.begin()
-    session = TestSessionLocal(bind=connection)
-    
+    connection.begin()
+    nested = connection.begin_nested()
+
+    _conn_session_factory = sessionmaker(autocommit=False, autoflush=False, bind=connection)
+
+    _original_sl = _db_mod.SessionLocal
+    _db_mod.SessionLocal = _conn_session_factory
+
+    # Patch SessionLocal in every module that imported it at module level
+    # so production code reaches the test connection, not a stale engine.
+    _saved_refs: dict[str, object] = {}
+    for mod_name in _MODULES_WITH_SESSIONLOCAL:
+        mod = sys.modules.get(mod_name)
+        if mod is not None and hasattr(mod, "SessionLocal"):
+            _saved_refs[mod_name] = mod.SessionLocal
+            mod.SessionLocal = _conn_session_factory
+
+    session = _conn_session_factory()
+
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(sess, txn):
+        if nested.is_active:
+            return
+        try:
+            connection.begin_nested()
+        except Exception:
+            pass
+
     yield session
-    
-    session.close()
-    transaction.rollback()
-    connection.close()
+
+    _db_mod.SessionLocal = _original_sl
+    for mod_name, orig in _saved_refs.items():
+        mod = sys.modules.get(mod_name)
+        if mod is not None:
+            mod.SessionLocal = orig
+
+    try:
+        session.close()
+    except Exception:
+        pass
+    try:
+        connection.close()
+    except Exception:
+        pass
 
 
 @pytest.fixture(autouse=True)
@@ -129,6 +196,7 @@ def cleanup_proposals_between_tests(db):
     from backend.models.database import (
         BotState, Trade, Signal, StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, TradeAttempt, MiroFishSignal
     )
+    from backend.models.kg_models import ExperimentRecord
     db.query(Trade).delete()
     db.query(Signal).delete()
     db.query(StrategyProposal).delete()
@@ -137,6 +205,7 @@ def cleanup_proposals_between_tests(db):
     db.query(TradeAttempt).delete()
     db.query(MiroFishSignal).delete()
     db.query(StrategyConfig).delete()
+    db.query(ExperimentRecord).delete()
     
     db.info["allow_live_financial_update"] = True
     for mode in ["paper", "testnet", "live"]:
