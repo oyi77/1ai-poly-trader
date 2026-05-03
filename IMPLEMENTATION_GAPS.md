@@ -102,8 +102,7 @@ Format:
 
 ## Known Gaps
 
-### Observability & Safety
-- **Test isolation**: `tests/test_agi_autonomous_loop.py` patches global `SessionLocal` at import time, causing cross-contamination when run alongside `backend/tests/test_autonomy_loop_integration.py`. Pre-existing issue; tests pass individually.
+_None._
 
 ## Intentionally De-Scoped
 
