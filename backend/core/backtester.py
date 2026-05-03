@@ -587,6 +587,121 @@ class BacktestEngine:
 
         return direction, model_prob, edge
 
+    def run_with_params(
+        self,
+        strategy_name: str,
+        param_overrides: dict[str, Any],
+        db: Optional[Session] = None,
+    ) -> BacktestResult:
+        """RL-style parameterized backtest: replay settled trades with arbitrary param overrides.
+
+        Reads historical Trade rows for the strategy, replays them applying param_overrides
+        to sizing (kelly_fraction, max_trade_size, min_edge) and cost (slippage) calculations.
+        Returns a full BacktestResult for comparison against baseline.
+
+        Args:
+            strategy_name: Strategy to replay trades for.
+            param_overrides: Keys override BacktestConfig fields (kelly_fraction, slippage,
+                max_trade_size, max_position_fraction, daily_loss_limit) AND strategy-specific
+                params (min_edge, cooldown_minutes, etc.).
+            db: Optional session; creates own if None.
+        """
+        _owned = db is None
+        if _owned:
+            db = SessionLocal()
+        try:
+            cfg = self.config
+            kelly = float(param_overrides.get("kelly_fraction", cfg.kelly_fraction))
+            max_size = float(param_overrides.get("max_trade_size", cfg.max_trade_size))
+            slippage = float(param_overrides.get("slippage", cfg.slippage))
+            max_pos_frac = float(param_overrides.get("max_position_fraction", cfg.max_position_fraction))
+            min_edge = float(param_overrides.get("min_edge", 0.0))
+            daily_limit = float(param_overrides.get("daily_loss_limit", cfg.daily_loss_limit))
+
+            trades = (
+                db.query(Trade)
+                .filter(
+                    Trade.strategy == strategy_name,
+                    Trade.settled.is_(True),
+                    Trade.timestamp >= cfg.start_date,
+                    Trade.timestamp <= cfg.end_date,
+                )
+                .order_by(Trade.timestamp.asc())
+                .all()
+            )
+
+            bankroll = cfg.initial_bankroll
+            equity_curve: list[dict] = []
+            bt_trades: list[BacktestTrade] = []
+            daily_pnl: dict[date, float] = {}
+            total_exposure = 0.0
+
+            for trade in trades:
+                trade_date = trade.timestamp.date()
+                day_loss = daily_pnl.get(trade_date, 0.0)
+                if day_loss <= -daily_limit:
+                    continue
+
+                edge = trade.edge_at_entry if hasattr(trade, "edge_at_entry") and trade.edge_at_entry else 0.1
+                if edge < min_edge:
+                    continue
+
+                kelly_size = bankroll * kelly * edge
+                size = min(kelly_size, max_size, bankroll * max_pos_frac)
+                if size <= 0:
+                    continue
+
+                if (total_exposure + size) / max(bankroll, 1.0) > cfg.max_total_exposure:
+                    continue
+
+                entry_price = trade.entry_price or 0.5
+                settlement_value = trade.settlement_value
+
+                pnl: Optional[float] = None
+                if settlement_value is not None:
+                    bt_dir = trade.direction
+                    if bt_dir in ("up", "yes"):
+                        pnl = ((size / entry_price) - size) if settlement_value == 1.0 else -size
+                    else:
+                        pnl = ((size / entry_price) - size) if settlement_value == 0.0 else -size
+                elif trade.pnl is not None:
+                    orig_size = trade.size or size
+                    scale = size / orig_size if orig_size > 0 else 1.0
+                    pnl = trade.pnl * scale
+
+                if pnl is not None:
+                    pnl = round(pnl - slippage, 4)
+
+                bt_trades.append(BacktestTrade(
+                    timestamp=trade.timestamp,
+                    market_ticker=trade.market_ticker,
+                    direction=trade.direction or "up",
+                    entry_price=entry_price,
+                    size=size,
+                    edge=edge,
+                    settlement_value=settlement_value,
+                    pnl=pnl,
+                    settled=True,
+                ))
+
+                if pnl is not None:
+                    bankroll += pnl
+                    total_exposure = max(0.0, total_exposure - size)
+                    daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
+                else:
+                    total_exposure += size
+
+                equity_curve.append({
+                    "timestamp": trade.timestamp.isoformat(),
+                    "bankroll": round(bankroll, 4),
+                })
+
+            metrics = self._calculate_metrics(bt_trades, equity_curve, cfg.initial_bankroll)
+            return BacktestResult(config=cfg, trades=bt_trades, equity_curve=equity_curve, **metrics)
+        finally:
+            if _owned:
+                db.close()
+
     def _empty_result(self) -> BacktestResult:
         return BacktestResult(
             config=self.config,

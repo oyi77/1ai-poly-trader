@@ -194,7 +194,7 @@ class AutonomousPromoter:
                     db.add(exp)
 
                     if settings.AGI_AUTO_ENABLE:
-                        await self._enable_strategy(strategy_name, db)
+                        await self._enable_strategy(strategy_name, db, experiment=exp)
 
                     logger.info(
                         f"[AutonomousPromoter] PAPER→LIVE '{exp.name}' promoted automatically "
@@ -350,8 +350,14 @@ class AutonomousPromoter:
         # Additional kill checks would require outcome metrics (sharpe, drawdown)
         return False
 
-    async def _enable_strategy(self, strategy_name: str, db: Session) -> None:
-        """Create/enable StrategyConfig for the promoted experiment and schedule it."""
+    async def _enable_strategy(self, strategy_name: str, db: Session, experiment: Optional[ExperimentRecord] = None) -> None:
+        """Create/enable StrategyConfig for the promoted experiment and schedule it.
+
+        If experiment carries evolved params (strategy_composition), merge them into
+        the strategy's live config — this closes the RL loop: evolver generates variants,
+        best variant promotes to live, params get applied.
+        """
+        import json as _json
         from backend.core.scheduler import schedule_strategy  # Lazy to avoid circular import
 
         config = (
@@ -363,6 +369,32 @@ class AutonomousPromoter:
             config.enabled = True
             config.updated_at = datetime.now(timezone.utc)
             interval = config.interval_seconds or 60
+
+            # Apply evolved params from experiment if available
+            if experiment and experiment.strategy_composition:
+                evolved_params = experiment.strategy_composition
+                if isinstance(evolved_params, str):
+                    try:
+                        evolved_params = _json.loads(evolved_params)
+                    except (_json.JSONDecodeError, TypeError):
+                        evolved_params = {}
+                # Strip internal evolver metadata
+                evolved_params = {k: v for k, v in evolved_params.items() if not k.startswith("_")}
+
+                current_params = config.params or {}
+                if isinstance(current_params, str):
+                    try:
+                        current_params = _json.loads(current_params)
+                    except (_json.JSONDecodeError, TypeError):
+                        current_params = {}
+
+                merged = {**current_params, **evolved_params}
+                config.params = merged
+                logger.info(
+                    f"[AutonomousPromoter] Applied evolved params to '{strategy_name}': "
+                    f"merged {len(evolved_params)} param(s) into live config"
+                )
+
             logger.info(f"[AutonomousPromoter] Enabled existing StrategyConfig '{strategy_name}' (interval={interval}s)")
         else:
             # Infer interval from strategy registry
@@ -371,11 +403,23 @@ class AutonomousPromoter:
             default_interval = 60
             if strategy_cls and hasattr(strategy_cls, "default_interval"):
                 default_interval = getattr(strategy_cls, "default_interval", 60)
+
+            initial_params = {}
+            if experiment and experiment.strategy_composition:
+                initial_params = experiment.strategy_composition
+                if isinstance(initial_params, str):
+                    try:
+                        initial_params = _json.loads(initial_params)
+                    except (_json.JSONDecodeError, TypeError):
+                        initial_params = {}
+                initial_params = {k: v for k, v in initial_params.items() if not k.startswith("_")}
+
             config = StrategyConfig(
                 strategy_name=strategy_name,
                 enabled=True,
                 interval_seconds=default_interval,
                 mode="live",
+                params=initial_params if initial_params else None,
             )
             db.add(config)
             interval = default_interval

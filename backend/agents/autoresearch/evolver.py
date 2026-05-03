@@ -18,6 +18,8 @@ TUNABLE_PARAM_RANGES = {
     "max_position_usd": (5.0, 100.0),
     "interval_seconds": (15, 300),
     "max_minutes_to_resolution": (10, 120),
+    "kelly_fraction": (0.01, 0.25),
+    "slippage_buffer": (0.5, 2.0),
 }
 
 EVOLVABLE_WIN_RATE_FLOOR = 0.0
@@ -39,17 +41,23 @@ class StrategyEvolver:
             for strategy_name, stats in strategies.items():
                 if self._has_active_experiment(strategy_name, db):
                     continue
-                variants = self._generate_variants(strategy_name, db)
+                is_broken = stats.get("win_rate", 1.0) <= FUNDAMENTALLY_BROKEN_WIN_RATE and stats.get("total", 0) >= FUNDAMENTALLY_BROKEN_MIN_TRADES
+                variants = self._generate_variants(strategy_name, db, aggressive=is_broken)
                 for variant in variants:
+                    clean = {k: v for k, v in variant.items() if not k.startswith("_")}
                     exp = ExperimentRecord(
                         name=f"{strategy_name}_evolve_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}_{random.randint(1000,9999)}",
                         strategy_name=strategy_name,
-                        strategy_composition=variant,
+                        strategy_composition=clean,
                         status=ExperimentStatus.DRAFT.value,
                         created_at=datetime.now(timezone.utc),
                     )
                     db.add(exp)
-                    created.append(exp.id if exp.id else 0)
+                    db.flush()
+                    created.append(exp.id)
+
+                    self._create_proposal_for_variant(db, strategy_name, clean, exp.id, is_broken)
+
             if created:
                 db.commit()
                 logger.info(
@@ -69,6 +77,32 @@ class StrategyEvolver:
         finally:
             if _owned:
                 db.close()
+
+    def _create_proposal_for_variant(
+        self, db: Session, strategy_name: str, params: dict, experiment_id: int, is_broken: bool
+    ) -> None:
+        """Create a StrategyProposal for the variant so it passes through forward simulation gate."""
+        from backend.models.database import StrategyProposal
+
+        existing = db.query(StrategyProposal).filter(
+            StrategyProposal.strategy_name == strategy_name,
+            StrategyProposal.status == "pending",
+            StrategyProposal.auto_promotable == True,
+        ).count()
+
+        if existing >= 5:
+            return
+
+        db.add(StrategyProposal(
+            strategy_name=strategy_name,
+            change_details=params,
+            expected_impact=f"Evolver variant from experiment #{experiment_id}" + (" (priority: broken strategy)" if is_broken else ""),
+            admin_decision="pending",
+            status="pending",
+            auto_promotable=True,
+            backtest_passed=False,
+            created_at=datetime.now(timezone.utc),
+        ))
 
     def _find_evolvable_strategies(self, db: Session) -> dict:
         from sqlalchemy import func
@@ -120,7 +154,7 @@ class StrategyEvolver:
             is not None
         )
 
-    def _generate_variants(self, strategy_name: str, db: Session) -> list[dict]:
+    def _generate_variants(self, strategy_name: str, db: Session, aggressive: bool = False) -> list[dict]:
         config = (
             db.query(StrategyConfig)
             .filter(StrategyConfig.strategy_name == strategy_name)
@@ -147,7 +181,8 @@ class StrategyEvolver:
             for param_key, (lo, hi) in TUNABLE_PARAM_RANGES.items():
                 if param_key in variant:
                     current = float(variant[param_key])
-                    perturbation = current * PARAM_PERTURBATION * random.choice([-1, 1])
+                    magnitude = PARAM_PERTURBATION * (3.0 if aggressive else 1.0)
+                    perturbation = current * magnitude * random.choice([-1, 1])
                     new_val = max(lo, min(hi, current + perturbation))
                     if isinstance(variant[param_key], int):
                         new_val = int(round(new_val))
