@@ -92,6 +92,10 @@ Format:
 
 ~~**Remaining hardcoded URLs in 17+ backend files** — First pass missed wallet_reconciliation, bankroll_reconciliation, auto_redeem, position_valuation, whale_discovery, WebSocket clients (5 files), weather geocoding/ensemble, web search providers, mirofish_client, CLOB book/midpoint URLs, historical_data_collector, heartbeat Telegram URL.~~ → **Fixed** (2026-05-03): Added 16 more config fields to `backend/config.py` (`POLYMARKET_RELAYER_URL`, `POLYMARKET_WS_CLOB_URL`, `POLYMARKET_WS_USER_URL`, `POLYMARKET_WS_RTDS_URL`, `POLYMARKET_WS_WHALE_URL`, `POLYMARKET_WS_ORDERBOOK_URL`, `QUICKNODE_RPC_URL`, `OPEN_METEO_ENSEMBLE_URL`, `OPEN_METEO_GEOCODING_URL`, `TELEGRAM_API_BASE`, `MIROFISH_API_URL`, `TAVILY_API_URL`, `EXA_API_URL`, `SERPER_API_URL`, `DDG_HTML_URL`, `POLYMARKET_WS_RTDS_URL`). All 22 files updated. Commit `78c1a3a`.
 
+~~**Hardcoded trading parameter: MIN_ORDER_USDC = 5.0** — Critical business logic constant embedded in `polymarket_clob.py`.~~ → **Fixed** (2026-05-03): Added `MIN_ORDER_USDC` and `PAPER_MIN_ORDER_USDC` to config, converted `polymarket_clob.py` and `strategy_executor.py` to use `_cfg()` pattern. Commit `1c6dd32`.
+
+~~**Hardcoded safe_param_tuner thresholds** — `MAX_CHANGE_PCT`, `MIN_TRADES_FOR_TUNING`, `REVERT_SIGMA_THRESHOLD` were constants.~~ → **Fixed** (2026-05-03): Added `SAFE_TUNER_MAX_CHANGE_PCT`, `SAFE_TUNER_MIN_TRADES_FOR_TUNING`, `SAFE_TUNER_REVERT_SIGMA_THRESHOLD` to config, converted `safe_param_tuner.py` to read from settings. Commit `1c6dd32`.
+
 ---
 
 ## Known Gaps
