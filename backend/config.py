@@ -280,9 +280,18 @@ class Settings(BaseSettings):
     MIROFISH_API_TIMEOUT: float = 10.0
 
     # Request Timeout Settings
-    API_REQUEST_TIMEOUT: float = 30.0  # API request timeout in seconds
-    DATABASE_QUERY_TIMEOUT: float = 10.0  # Database query timeout in seconds
-    EXTERNAL_API_TIMEOUT: float = 15.0  # External API call timeout in seconds
+    API_REQUEST_TIMEOUT: float = 30.0
+    DATABASE_QUERY_TIMEOUT: float = 10.0
+    EXTERNAL_API_TIMEOUT: float = 15.0
+
+    # Polygon RPC (for on-chain balance checks)
+    POLYGON_RPC_URL: str = "https://polygon-bor-rpc.publicnode.com"
+
+    # Brain / BK-Hub integration
+    BRAIN_API_URL: str = "http://localhost:9099"
+
+    # RSS News Feeds (comma-separated URLs)
+    RSS_FEED_URLS: str = "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
 
     @model_validator(mode="after")
     def _validate_trading_credentials(self) -> "Settings":

@@ -723,7 +723,7 @@ class PolymarketCLOB:
                 "pUSD": settings.PUSD_ADDRESS
             }
             
-            rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
+            rpc_url = settings.POLYGON_RPC_URL
             total_balance = 0.0
             
             async with httpx.AsyncClient(timeout=10.0) as client:

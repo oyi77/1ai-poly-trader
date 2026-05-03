@@ -134,10 +134,6 @@ class TradeForensics:
         finally:
             db_for_health.close()
 
-        # 4. Check market regime mismatch (needs regime detection data; stub)
-        # Could compare against MarketRegimeSnapshot
-
-        # 5. Multiple losses in a row → tilt / drawdown
         ts = trade.timestamp or datetime.now(timezone.utc)
         recent_losses = (
             db.query(Trade)

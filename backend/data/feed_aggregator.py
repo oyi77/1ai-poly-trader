@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.feeds")
 
 DEFAULT_FEEDS = [
@@ -15,6 +17,13 @@ DEFAULT_FEEDS = [
     "https://cointelegraph.com/rss",
     "https://coindesk.com/arc/outboundfeeds/rss/",
 ]
+
+
+def _resolve_feeds() -> List[str]:
+    configured = getattr(settings, "RSS_FEED_URLS", "")
+    if configured:
+        return [u.strip() for u in configured.split(",") if u.strip()]
+    return list(DEFAULT_FEEDS)
 
 
 @dataclass
@@ -32,7 +41,7 @@ class NewsItem:
 
 class FeedAggregator:
     def __init__(self, feeds: Optional[List[str]] = None):
-        self.feeds = feeds or DEFAULT_FEEDS
+        self.feeds = feeds or _resolve_feeds()
 
     async def fetch_all(self) -> List[NewsItem]:
         tasks = [self._fetch_one(url) for url in self.feeds]

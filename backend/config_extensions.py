@@ -30,7 +30,7 @@ class ExtendedSettings(BaseSettings):
     MIROFISH_API_KEY: Optional[str] = None
     MIROFISH_API_TIMEOUT: float = 10.0
     POLYGON_RPC_URL: str = "https://polygon-bor-rpc.publicnode.com"
-    BRAIN_API_URL: Optional[str] = "http://localhost:9099"
+    BRAIN_API_URL: Optional[str] = None
     PORT: int = 8000
     RELOAD_ON_CHANGE: bool = True
 

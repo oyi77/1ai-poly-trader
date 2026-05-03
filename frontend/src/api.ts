@@ -7,8 +7,6 @@ const getApiBase = () => {
     const isEnvLocal = env.includes('localhost') || env.includes('127.0.0.1')
     const isPageLocal = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
     
-    // If we're on a production domain but VITE_API_URL is localhost/127.0.0.1, 
-    // it likely means the build was misconfigured. Fallback to relative.
     if (isEnvLocal && !isPageLocal) {
       return ''
     }
@@ -17,6 +15,8 @@ const getApiBase = () => {
   return ''
 }
 export const API_BASE = getApiBase()
+
+const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT_MS) || 15000
 
 /**
  * Build a WebSocket URL for the given path.
@@ -37,13 +37,12 @@ export function getWsUrl(path: string): string {
 
 export const api = axios.create({
   baseURL: `${API_BASE}/api/v1`,
-  timeout: 15000,
+  timeout: API_TIMEOUT,
 })
 
-// Admin API instance — injects Authorization header from localStorage
 export const adminApi = axios.create({
   baseURL: `${API_BASE}/api/v1`,
-  timeout: 15000,
+  timeout: API_TIMEOUT,
 })
 
 adminApi.interceptors.request.use(config => {
