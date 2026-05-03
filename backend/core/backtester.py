@@ -4,7 +4,7 @@ import logging
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Any
 
 from sqlalchemy.orm import Session
 
@@ -419,3 +419,189 @@ class BacktestEngine:
             "final_bankroll": round(final_bankroll, 4),
             "return_pct": round(return_pct, 4),
         }
+
+    async def run_from_historical_markets(
+        self,
+        strategy_fn: Optional[callable] = None,
+        db: Session = None,
+    ) -> BacktestResult:
+        """Backtest against historical resolved markets from Polymarket.
+
+        Fetches MarketOutcome rows, pairs BTC markets with candle data,
+        and replays strategy decisions. If strategy_fn is provided, calls
+        it for each market to get (direction, model_probability, edge).
+        Otherwise uses a simple momentum-based heuristic.
+        """
+        _owned = db is None
+        if _owned:
+            db = SessionLocal()
+        try:
+            from backend.models.historical_data import MarketOutcome, HistoricalCandle
+
+            query = db.query(MarketOutcome).filter(
+                MarketOutcome.resolution_time >= self.config.start_date,
+                MarketOutcome.resolution_time <= self.config.end_date,
+            ).order_by(MarketOutcome.resolution_time.asc())
+
+            outcomes = query.all()
+            if not outcomes:
+                logger.info("[backtester] No historical market outcomes found")
+                return self._empty_result()
+
+            logger.info(
+                "[backtester] Running historical market backtest: %d resolved markets",
+                len(outcomes),
+            )
+
+            bankroll = self.config.initial_bankroll
+            equity_curve: list[dict] = []
+            bt_trades: list[BacktestTrade] = []
+            daily_pnl: dict[date, float] = {}
+            total_exposure = 0.0
+
+            for outcome in outcomes:
+                resolution_dt = outcome.resolution_time
+                if resolution_dt is None:
+                    continue
+
+                trade_date = resolution_dt.date()
+
+                day_loss = daily_pnl.get(trade_date, 0.0)
+                if day_loss <= -self.config.daily_loss_limit:
+                    continue
+
+                final_price = outcome.final_price or 0.5
+
+                if strategy_fn:
+                    decision = await strategy_fn(outcome, db)
+                    if decision is None:
+                        continue
+                    direction, model_prob, edge = decision
+                else:
+                    direction, model_prob, edge = self._default_decision(
+                        outcome, resolution_dt, db
+                    )
+
+                if edge <= 0:
+                    continue
+
+                entry_price = final_price if direction == "up" else (1.0 - final_price)
+                entry_price = max(0.01, min(0.99, entry_price))
+
+                kelly_size = bankroll * self.config.kelly_fraction * edge
+                size = min(
+                    kelly_size,
+                    self.config.max_trade_size,
+                    bankroll * self.config.max_position_fraction,
+                )
+                if size <= 0:
+                    continue
+
+                if (total_exposure + size) / bankroll > self.config.max_total_exposure:
+                    continue
+
+                won = (
+                    (direction == "up" and outcome.outcome in ("Yes", "up"))
+                    or (direction == "down" and outcome.outcome in ("No", "down"))
+                )
+                pnl = ((size / entry_price) - size) if won else -size
+                pnl = round(pnl - self.config.slippage, 4)
+
+                bt_trade = BacktestTrade(
+                    timestamp=resolution_dt,
+                    market_ticker=outcome.market_ticker or "",
+                    direction=direction,
+                    entry_price=entry_price,
+                    size=size,
+                    edge=edge,
+                    settlement_value=1.0 if won else 0.0,
+                    pnl=pnl,
+                    settled=True,
+                )
+                bt_trades.append(bt_trade)
+
+                if pnl is not None:
+                    bankroll += pnl
+                    total_exposure = max(0.0, total_exposure - size)
+                    daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
+
+                equity_curve.append({
+                    "timestamp": resolution_dt.isoformat(),
+                    "bankroll": round(bankroll, 4),
+                })
+
+            metrics = self._calculate_metrics(
+                bt_trades, equity_curve, self.config.initial_bankroll
+            )
+            return BacktestResult(
+                config=self.config,
+                trades=bt_trades,
+                equity_curve=equity_curve,
+                **metrics,
+            )
+        finally:
+            if _owned:
+                db.close()
+
+    def _default_decision(
+        self,
+        outcome: Any,
+        resolution_dt: datetime,
+        db: Session,
+    ) -> tuple[str, float, float]:
+        """Default backtest decision: momentum heuristic from BTC candles."""
+        from backend.models.historical_data import HistoricalCandle
+
+        raw_data = outcome.raw_data or {}
+        category = outcome.category or ""
+        is_btc = (
+            "btc" in category.lower()
+            or "bitcoin" in (raw_data.get("question") or "").lower()
+            or "btc" in (raw_data.get("slug") or "").lower()
+        )
+
+        if not is_btc:
+            return "up", 0.5, 0.0
+
+        resolution_ts = resolution_dt.timestamp() if resolution_dt else 0
+        candle = (
+            db.query(HistoricalCandle)
+            .filter(
+                HistoricalCandle.symbol == "BTCUSDT",
+                HistoricalCandle.timestamp <= resolution_dt,
+            )
+            .order_by(HistoricalCandle.timestamp.desc())
+            .first()
+        )
+
+        if not candle:
+            return "up", 0.5, 0.0
+
+        momentum = (candle.close - candle.open) / candle.open if candle.open > 0 else 0.0
+        direction = "up" if momentum > 0 else "down"
+        model_prob = 0.50 + min(abs(momentum) * 5.0, 0.10)
+
+        entry = outcome.final_price if direction == "up" else (1.0 - (outcome.final_price or 0.5))
+        entry = max(0.01, min(0.99, entry or 0.5))
+        edge = abs(model_prob - entry)
+
+        return direction, model_prob, edge
+
+    def _empty_result(self) -> BacktestResult:
+        return BacktestResult(
+            config=self.config,
+            trades=[],
+            equity_curve=[],
+            total_pnl=0.0,
+            total_trades=0,
+            winning_trades=0,
+            win_rate=0.0,
+            max_drawdown=0.0,
+            sharpe_ratio=0.0,
+            sortino_ratio=0.0,
+            profit_factor=0.0,
+            avg_edge=0.0,
+            avg_trade_size=0.0,
+            final_bankroll=self.config.initial_bankroll,
+            return_pct=0.0,
+        )

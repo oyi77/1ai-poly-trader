@@ -65,6 +65,7 @@ Base = declarative_base()
 
 try:
     import backend.models.outcome_tables  # noqa: F401 — registers learning tables with Base.metadata
+    import backend.models.historical_data  # noqa: F401 — registers HistoricalCandle, MarketOutcome, WeatherSnapshot
 except Exception:
     pass
 

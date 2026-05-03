@@ -6,7 +6,9 @@ to retrieve active markets from the Polymarket Gamma API.
 """
 
 import logging
-from typing import Any
+import asyncio
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 import httpx
 
@@ -15,6 +17,8 @@ from backend.config import settings
 logger = logging.getLogger("trading_bot")
 
 GAMMA_API_URL = f"{settings.GAMMA_API_URL}/markets"
+_RATE_LIMIT_RETRY_DELAY = 2.0
+_RATE_LIMIT_MAX_RETRIES = 3
 
 
 async def fetch_markets(
@@ -61,3 +65,135 @@ async def fetch_markets(
     except Exception as e:
         logger.warning(f"[gamma] Gamma API fetch failed: {e}")
         return []
+
+
+async def fetch_resolved_markets(
+    limit: int = 500,
+    tag: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Fetch resolved (settled) markets from Polymarket Gamma API.
+
+    Returns markets with their final outcome prices, suitable for
+    historical backtesting. Paginates through all available results.
+    """
+    all_markets = []
+    offset = 0
+    page_size = min(limit, 100)
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            while len(all_markets) < limit:
+                params: dict[str, Any] = {
+                    "active": "false",
+                    "closed": "true",
+                    "limit": page_size,
+                    "offset": offset,
+                    "order": "endDate",
+                    "ascending": "false",
+                }
+                if tag:
+                    params["tag"] = tag
+
+                page = None
+                for attempt in range(_RATE_LIMIT_MAX_RETRIES):
+                    resp = await client.get(GAMMA_API_URL, params=params)
+                    if resp.status_code == 429:
+                        delay = _RATE_LIMIT_RETRY_DELAY * (attempt + 1)
+                        logger.debug("[gamma] Rate limited, retrying in %.1fs (attempt %d)", delay, attempt + 1)
+                        await asyncio.sleep(delay)
+                        continue
+                    resp.raise_for_status()
+                    page = resp.json()
+                    break
+
+                if page is None:
+                    logger.warning("[gamma] Rate limited after %d retries at offset %d", _RATE_LIMIT_MAX_RETRIES, offset)
+                    break
+
+                if not isinstance(page, list) or not page:
+                    break
+
+                for m in page:
+                    if not m.get("resolved"):
+                        continue
+                    all_markets.append(m)
+
+                if len(page) < page_size:
+                    break
+                offset += page_size
+
+        logger.info(
+            "[gamma] Fetched %d resolved markets (limit=%d, tag=%s)",
+            len(all_markets), limit, tag,
+        )
+        return all_markets[:limit]
+
+    except Exception as e:
+        logger.warning("[gamma] Resolved markets fetch failed: %s", e)
+        return all_markets
+
+
+async def fetch_settled_markets() -> list[dict[str, Any]]:
+    """Fetch settled Polymarket markets formatted for historical data storage.
+
+    Called by HistoricalDataCollector.collect_market_outcomes().
+    """
+    raw = await fetch_resolved_markets(limit=500)
+    results = []
+    for m in raw:
+        tokens = m.get("tokens", [])
+        if not tokens:
+            continue
+
+        winning_token = None
+        for t in tokens:
+            if t.get("winner"):
+                winning_token = t
+                break
+
+        if winning_token is None:
+            winning_outcome = m.get("outcome", "")
+        else:
+            winning_outcome = winning_token.get("outcome", "unknown")
+
+        final_price = None
+        if winning_token:
+            final_price = float(winning_token.get("price", 0))
+        elif m.get("outcomePrices"):
+            try:
+                prices = m["outcomePrices"]
+                if isinstance(prices, str):
+                    import json
+                    prices = json.loads(prices)
+                if isinstance(prices, list) and prices:
+                    final_price = float(prices[0])
+            except (ValueError, TypeError):
+                pass
+
+        end_date_str = m.get("endDate") or m.get("end_date_iso")
+        resolution_time = None
+        if end_date_str:
+            try:
+                resolution_time = datetime.fromisoformat(
+                    end_date_str.replace("Z", "+00:00")
+                )
+            except (ValueError, TypeError):
+                pass
+
+        results.append({
+            "ticker": m.get("conditionId", m.get("id", "")),
+            "platform": "polymarket",
+            "outcome": winning_outcome,
+            "final_price": final_price,
+            "resolution_time": resolution_time,
+            "volume": float(m.get("volume", 0) or 0),
+            "category": m.get("category", m.get("groupItemTitle")),
+            "raw_data": {
+                "question": m.get("question", ""),
+                "slug": m.get("slug", ""),
+                "outcomes": m.get("outcomes", ""),
+                "outcomePrices": m.get("outcomePrices"),
+            },
+        })
+
+    return results
