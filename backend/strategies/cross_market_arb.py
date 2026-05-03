@@ -63,11 +63,11 @@ def detect_cross_arb(poly_yes: float, kalshi_yes: float) -> Optional[CrossMarket
     if sum_price >= 1.0:
         return None
 
-        fees = _cfg("ARB_POLYMARKET_FEE", 0.01) + _cfg("ARB_KALSHI_FEE", 0.01)
+    fees = _cfg("ARB_POLYMARKET_FEE", 0.01) + _cfg("ARB_KALSHI_FEE", 0.01)
     profit = 1.0 - sum_price
     net_profit = profit - fees
 
-        if net_profit < _cfg("ARB_MIN_PROFIT", 0.02):
+    if net_profit < _cfg("ARB_MIN_PROFIT", 0.02):
         return None
 
     cheaper = "polymarket" if poly_yes < kalshi_yes else "kalshi"

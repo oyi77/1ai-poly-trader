@@ -164,7 +164,7 @@ class WhaleFrontrun(BaseStrategy):
 
     async def _delayed_sell(self, activity: WhaleActivity, profit: Optional[float]) -> None:
         """Sell 1 second after whale's order to capture momentum."""
-            await asyncio.sleep(_cfg("WHALE_FRONTRUN_SELL_DELAY_MS", 1000) / 1000.0)
+        await asyncio.sleep(_cfg("WHALE_FRONTRUN_SELL_DELAY_MS", 1000) / 1000.0)
         logger.debug(
             f"[whale_frontrun] Selling after whale order on {activity.market}"
         )
