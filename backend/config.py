@@ -106,6 +106,8 @@ class Settings(BaseSettings):
     # Risk management — tuned for $100 bankroll
     DAILY_LOSS_LIMIT: float = 5.0
     MAX_TRADE_SIZE: float = 8.0
+    MIN_ORDER_USDC: float = 5.0  # Polymarket minimum order size (live mode)
+    PAPER_MIN_ORDER_USDC: float = 1.0  # Simulated minimum for paper/testing
     MIN_TIME_REMAINING: int = 60  # Don't trade windows closing in < 60s
     MAX_TIME_REMAINING: int = 1800  # Trade windows up to 30min out
 
@@ -119,7 +121,10 @@ class Settings(BaseSettings):
     # Volume filter
     MIN_MARKET_VOLUME: float = 100.0  # Low volume for 5-min markets
 
-    # Weather trading settings
+    # Parameter tuning safeguards (safe_param_tuner)
+    SAFE_TUNER_MAX_CHANGE_PCT: float = 0.10  # Max 10% parameter drift per tuning cycle
+    SAFE_TUNER_MIN_TRADES_FOR_TUNING: int = 20  # Require at least 20 trades before tuning
+    SAFE_TUNER_REVERT_SIGMA_THRESHOLD: float = 2.0  # Degrade >2σ triggers parameter revert
     WEATHER_ENABLED: bool = True
     WEATHER_SCAN_INTERVAL_SECONDS: int = 300  # 5 min
     WEATHER_SETTLEMENT_INTERVAL_SECONDS: int = 1800  # 30 min

@@ -20,6 +20,10 @@ from sqlalchemy.exc import OperationalError
 logger = logging.getLogger("trading_bot.executor")
 risk_manager = RiskManager()
 
+
+def _cfg(key: str, default=None):
+    return getattr(settings, key, default) if hasattr(settings, key) else default
+
 # Serialize trade execution so bankroll reads and deductions are atomic.
 # Two concurrent decisions would otherwise both pass risk validation with the
 # same stale bankroll/exposure snapshot and double-count against limits.
@@ -260,14 +264,16 @@ async def execute_decision(
             )
 
             # Paper mode is simulated — no real CLOB interaction, so allow smaller sizes
-            MIN_ORDER_SIZE = 1.0 if mode == "paper" else 5.0
-            if adjusted_size < MIN_ORDER_SIZE:
+            min_size = _cfg("MIN_ORDER_USDC", 5.0)
+            if mode == "paper":
+                min_size = _cfg("PAPER_MIN_ORDER_USDC", min(1.0, min_size))
+            if adjusted_size < min_size:
                 logger.info(
                     f"[{mode.upper()}][{strategy_name}] Order rejected for {market_ticker}: "
-                    f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE}"
+                    f"Size ${adjusted_size:.2f} below minimum ${min_size}"
                 )
                 attempt_recorder.record_rejected(
-                    f"Size ${adjusted_size:.2f} below minimum ${MIN_ORDER_SIZE:.2f}",
+                    f"Size ${adjusted_size:.2f} below minimum ${min_size:.2f}",
                     phase="sizing",
                     reason_code="REJECTED_ORDER_TOO_SMALL",
                     adjusted_size=adjusted_size,

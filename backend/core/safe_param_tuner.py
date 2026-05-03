@@ -9,12 +9,18 @@ from backend.models.outcome_tables import StrategyOutcome, ParamChange
 from backend.models.database import StrategyConfig
 from backend.core.outcome_repository import record_param_change, mark_param_reverted
 from backend.core.walk_forward import WalkForwardValidator
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-MAX_CHANGE_PCT = 0.10
-MIN_TRADES_FOR_TUNING = 20
-REVERT_SIGMA_THRESHOLD = 2.0
+
+def _cfg(key: str, default=None):
+    return getattr(settings, key, default) if hasattr(settings, key) else default
+
+
+MAX_CHANGE_PCT = _cfg("SAFE_TUNER_MAX_CHANGE_PCT", 0.10)
+MIN_TRADES_FOR_TUNING = _cfg("SAFE_TUNER_MIN_TRADES_FOR_TUNING", 20)
+REVERT_SIGMA_THRESHOLD = _cfg("SAFE_TUNER_REVERT_SIGMA_THRESHOLD", 2.0)
 
 
 def _sharpe(pnls):

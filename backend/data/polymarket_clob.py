@@ -37,6 +37,10 @@ from backend.config import settings
 logger = logging.getLogger("trading_bot")
 
 
+def _cfg(key: str, default=None):
+    return getattr(settings, key, default) if hasattr(settings, key) else default
+
+
 def ensure_token_id(token_id: str) -> str:
     """Ensure token_id is a decimal string for CLOB API.
     
@@ -60,9 +64,6 @@ CLOB_HOST = settings.CLOB_API_URL
 GAMMA_HOST = settings.GAMMA_API_URL
 DATA_HOST = settings.DATA_API_URL
 CHAIN_ID = 137  # Polygon mainnet — Builder Program and all trading run on mainnet
-
-# Polymarket minimum order size
-MIN_ORDER_USDC = 5.0
 
 
 # Keys currently being processed (in-flight guard against concurrent duplicate calls)
@@ -516,9 +517,9 @@ class PolymarketCLOB:
         price: [0.01, 0.99] — the limit price in USDC per share
         size: USDC amount to spend
         """
-        if size < MIN_ORDER_USDC:
+        if size < _cfg("MIN_ORDER_USDC", 5.0):
             return OrderResult(
-                success=False, error=f"Size ${size:.2f} below minimum ${MIN_ORDER_USDC}"
+                success=False, error=f"Size ${size:.2f} below minimum ${_cfg('MIN_ORDER_USDC', 5.0)}"
             )
 
         # Fail fast for live/testnet mode without credentials (before touching the DB)
