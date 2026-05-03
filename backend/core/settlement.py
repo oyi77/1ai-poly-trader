@@ -158,6 +158,13 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
     except Exception as e:
         logger.warning(f"BTC 5min CEX fallback also failed for {ticker}: {e}")
 
+    max_settle_age_hours = 24
+    if now < trade.timestamp + timedelta(hours=max_settle_age_hours):
+        logger.info(
+            f"BTC 5min {ticker}: could not resolve yet, will retry next cycle"
+        )
+        return None
+
     trade.settled = True
     trade.result = "expired_unresolved"
     trade.pnl = -size
@@ -165,7 +172,7 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
     trade.settlement_source = "btc_5min_unresolved"
     trade.settlement_value = 0.0
     logger.warning(
-        f"BTC 5min {ticker}: could not resolve via Polymarket or CEX, "
+        f"BTC 5min {ticker}: could not resolve via Polymarket or CEX after {max_settle_age_hours}h, "
         f"marking as expired_unresolved (assumed loss)"
     )
     return trade
@@ -203,14 +210,11 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                                 f"Position reconciliation: trade {trade.id} settled with resolution (pnl=${pnl:+.2f})"
                             )
                         else:
-                            trade.settled = True
-                            trade.result = "loss"
-                            trade.settlement_time = now
-                            trade.pnl = -float(trade.size or 0)
-                            trade.settlement_value = 0.0
-                            trade.settlement_source = "closed_unresolved"
-                            logger.info(
-                                f"Position reconciliation: trade {trade.id} closed without resolution (assumed loss, pnl=${trade.pnl:+.2f})"
+                            trade.settled = False
+                            trade.settlement_source = "reconcile_pending_resolution"
+                            logger.warning(
+                                f"Position reconciliation: trade {trade.id} position gone but resolution unavailable — "
+                                f"leaving unsettled for next cycle (market={trade.market_ticker})"
                             )
                         
                         closed_count += 1
@@ -372,32 +376,24 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 if market_end < now:
                     expired_ago = (now - market_end).total_seconds()
 
-                    if expired_ago < 3600:
-                        try:
-                            is_resolved_retry, sv_retry = await fetch_resolution_for_trade(trade)
-                            if is_resolved_retry and sv_retry is not None:
-                                pnl_retry = calculate_pnl(trade, sv_retry)
-                                if await process_settled_trade(
-                                    trade, True, sv_retry, pnl_retry, db
-                                ):
-                                    logger.info(
-                                        f"Trade {trade.id} rescued on expiry retry: "
-                                        f"pnl=${pnl_retry:+.2f}"
-                                    )
-                                    settled_trades.append(trade)
-                                    continue
-                        except Exception as e:
-                            logger.debug(f"Expired market retry failed for trade {trade.id}: {e}")
+                    expired_resolution_grace_hours = 72
+                    if expired_ago < expired_resolution_grace_hours * 3600:
+                        logger.info(
+                            f"Trade {trade.id}: market expired {expired_ago/3600:.1f}h ago, "
+                            f"deferring settlement (grace period {expired_resolution_grace_hours}h)"
+                        )
+                        continue
 
                     trade.settled = True
-                    trade.result = "loss"
+                    trade.result = "expired_unresolved"
                     trade.settlement_time = now
                     trade.pnl = -float(trade.size or 0)
                     trade.settlement_value = 0.0
                     trade.settlement_source = "expired_unresolved"
                     settled_trades.append(trade)
-                    logger.info(
-                        f"Trade {trade.id} expired: market end_date {market_end.isoformat()} passed (assumed loss)"
+                    logger.warning(
+                        f"Trade {trade.id}: market expired {expired_ago/3600:.1f}h ago, "
+                        f"resolution unavailable after grace period (assumed loss)"
                     )
                     continue
 
@@ -405,10 +401,15 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
             if ts and ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
             if ts and ts < stale_threshold:
-                # Last-chance individual resolution check before expiring.
-                # The batch resolution above may have missed this market due to
-                # transient API errors, caching, or timing. One final direct
-                # call can recover trades that would otherwise expire at pnl=0.
+                trade_age_hours = (now - ts).total_seconds() / 3600
+                stale_grace_hours = 72
+                if trade_age_hours < stale_grace_hours:
+                    logger.info(
+                        f"Trade {trade.id}: stale ({trade_age_hours:.1f}h old) but within grace period, "
+                        f"deferring settlement"
+                    )
+                    continue
+
                 try:
                     is_resolved_retry, sv_retry = await fetch_resolution_for_trade(trade)
                     if is_resolved_retry and sv_retry is not None:
@@ -427,7 +428,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                     )
 
                 trade.settled = True
-                trade.result = "loss"
+                trade.result = "expired_unresolved"
                 trade.settlement_time = now
                 trade.pnl = -float(trade.size or 0)
                 trade.settlement_value = 0.0
