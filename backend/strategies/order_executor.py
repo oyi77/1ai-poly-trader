@@ -12,20 +12,18 @@ from typing import Optional
 import httpx
 
 from backend.strategies.wallet_sync import WalletTrade
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
 DATA_HOST = "https://data-api.polymarket.com"
 GAMMA_HOST = "https://gamma-api.polymarket.com"
 
-# Minimum trade size (USDC) from whale to indicate conviction
-MIN_WHALE_TRADE_SIZE = 50.0
-
-# Minimum days until resolution to copy a trade
-MIN_DAYS_TO_RESOLUTION = 7
-
-# BTC 5-min market slug pattern to skip
 BTC_5M_SLUG_PATTERN = "btc-updown-5m"
+
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 
 @dataclass
@@ -295,30 +293,12 @@ class OrderExecutor:
     ) -> Optional[CopySignal]:
         """Async version of mirror_buy with market resolution lookups."""
         # Filter 1: minimum whale trade size (conviction filter)
-        if trade.size < MIN_WHALE_TRADE_SIZE:
-            logger.debug(
-                f"Skipping copy: trade size ${trade.size:.2f} < ${MIN_WHALE_TRADE_SIZE} min | {trade.title[:40]}"
-            )
-            return None
+    if trade.size < _cfg("ORDER_EXECUTOR_MIN_WHALE_SIZE", 50.0):
+        f"Skipping copy: trade size ${trade.size:.2f} < ${_cfg('ORDER_EXECUTOR_MIN_WHALE_SIZE', 50.0)} min | {trade.title[:40]}"
+        return None
 
-        # Filter 2: fetch market metadata for slug and end_date checks
-        meta = await self._fetch_market_meta(trade.condition_id)
-        if meta:
-            slug, end_date_iso = meta
-
-            # Filter 3: skip BTC 5-min markets
-            if BTC_5M_SLUG_PATTERN in slug:
-                logger.debug(f"Skipping copy: BTC 5-min market slug={slug}")
-                return None
-
-            # Filter 4: only copy markets with resolution > 7 days away
-            if end_date_iso:
-                try:
-                    end_dt = datetime.fromisoformat(end_date_iso.replace("Z", "+00:00"))
-                    days_remaining = (end_dt - datetime.now(timezone.utc)).days
-                    if days_remaining < MIN_DAYS_TO_RESOLUTION:
-                        logger.debug(
-                            f"Skipping copy: only {days_remaining}d to resolution (need {MIN_DAYS_TO_RESOLUTION}d) | {trade.title[:40]}"
+    if days_remaining < _cfg("ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION", 7):
+        f"Skipping copy: only {days_remaining}d to resolution (need {_cfg('ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION', 7)}d) | {trade.title[:40]}"
                         )
                         return None
                 except ValueError as e:
@@ -336,9 +316,9 @@ class OrderExecutor:
             return None
 
         # Filter: minimum whale trade size (conviction filter)
-        if trade.size < MIN_WHALE_TRADE_SIZE:
+        if trade.size < _cfg("ORDER_EXECUTOR_MIN_WHALE_SIZE", 50.0):
             logger.debug(
-                f"Skipping copy: trade size ${trade.size:.2f} < ${MIN_WHALE_TRADE_SIZE} min | {trade.title[:40]}"
+                f"Skipping copy: trade size ${trade.size:.2f} < ${_cfg('ORDER_EXECUTOR_MIN_WHALE_SIZE', 50.0)} min | {trade.title[:40]}"
             )
             return None
 

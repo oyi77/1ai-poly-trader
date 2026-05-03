@@ -293,6 +293,54 @@ class Settings(BaseSettings):
     # RSS News Feeds (comma-separated URLs)
     RSS_FEED_URLS: str = "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
 
+    # Arb / probability arb thresholds
+    ARB_MIN_PROFIT: float = 0.02
+    ARB_MAX_RETRIES: int = 3
+    ARB_CIRCUIT_BREAKER_THRESHOLD: int = 5
+    ARB_CIRCUIT_BREAKER_TIMEOUT: float = 60.0
+    ARB_POLYMARKET_FEE: float = 0.01
+    ARB_KALSHI_FEE: float = 0.01
+    ARB_DEFAULT_FEE_RATE: float = 0.02
+    ARB_DEFAULT_MIN_SPREAD: float = 0.03
+
+    # Whale frontrun thresholds
+    WHALE_FRONTRUN_MIN_SIZE: float = 10000.0
+    WHALE_FRONTRUN_MIN_SCORE: float = 0.8
+    WHALE_FRONTRUN_MAX_RECONNECT: int = 5
+    WHALE_FRONTRUN_DELAY_MS: int = 50
+    WHALE_FRONTRUN_SELL_DELAY_MS: int = 1000
+
+    # Universal scanner thresholds
+    SCANNER_PAGE_SIZE: int = 500
+    SCANNER_SEMAPHORE_LIMIT: int = 50
+    SCANNER_MIN_EDGE: float = 0.02
+    SCANNER_STALE_THRESHOLD_SECONDS: float = 5.0
+    SCANNER_MAX_MARKETS: int = 10000
+
+    # Order executor thresholds
+    ORDER_EXECUTOR_MIN_WHALE_SIZE: float = 50.0
+    ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION: int = 7
+
+    # Line movement detector confidence weights
+    LINE_MOVE_BASE_CONFIDENCE: float = 0.5
+    LINE_MOVE_HUGE_THRESHOLD: float = 15.0
+    LINE_MOVE_HUGE_BOOST: float = 0.2
+    LINE_MOVE_LARGE_THRESHOLD: float = 10.0
+    LINE_MOVE_LARGE_BOOST: float = 0.15
+    LINE_MOVE_MEDIUM_THRESHOLD: float = 7.0
+    LINE_MOVE_MEDIUM_BOOST: float = 0.1
+    LINE_MOVE_SMALL_BOOST: float = 0.05
+    LINE_MOVE_HIGH_VOL_THRESHOLD: float = 100000.0
+    LINE_MOVE_HIGH_VOL_BOOST: float = 0.1
+    LINE_MOVE_MED_VOL_THRESHOLD: float = 50000.0
+    LINE_MOVE_MED_VOL_BOOST: float = 0.05
+    LINE_MOVE_NEWS_BOOST: float = 0.1
+    LINE_MOVE_MAX_CONFIDENCE: float = 0.95
+
+    # Weather EMOS thresholds
+    WEATHER_KELLY_FRACTION: float = 0.15
+    WEATHER_MAX_BANKROLL_FRACTION: float = 0.05
+
     @model_validator(mode="after")
     def _validate_trading_credentials(self) -> "Settings":
         import logging

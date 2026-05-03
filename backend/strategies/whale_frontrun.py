@@ -15,14 +15,13 @@ from dataclasses import dataclass
 from typing import Optional
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.whale_frontrun")
 
-MIN_WHALE_SIZE = 10000.0
-MIN_WHALE_SCORE = 0.8
-MAX_RECONNECT_RETRIES = 5
-FRONTRUN_DELAY_MS = 50
-SELL_DELAY_MS = 1000
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 
 @dataclass
@@ -68,9 +67,9 @@ class WhaleFrontrun(BaseStrategy):
     )
     category = "whale"
     default_params = {
-        "min_size": MIN_WHALE_SIZE,
-        "min_score": MIN_WHALE_SCORE,
-        "frontrun_delay_ms": FRONTRUN_DELAY_MS,
+            "min_size": _cfg("WHALE_FRONTRUN_MIN_SIZE", 10000.0),
+            "min_score": _cfg("WHALE_FRONTRUN_MIN_SCORE", 0.8),
+            "frontrun_delay_ms": _cfg("WHALE_FRONTRUN_DELAY_MS", 50),
     }
 
     def __init__(self):
@@ -165,7 +164,7 @@ class WhaleFrontrun(BaseStrategy):
 
     async def _delayed_sell(self, activity: WhaleActivity, profit: Optional[float]) -> None:
         """Sell 1 second after whale's order to capture momentum."""
-        await asyncio.sleep(SELL_DELAY_MS / 1000.0)
+            await asyncio.sleep(_cfg("WHALE_FRONTRUN_SELL_DELAY_MS", 1000) / 1000.0)
         logger.debug(
             f"[whale_frontrun] Selling after whale order on {activity.market}"
         )
@@ -201,7 +200,7 @@ class WhaleFrontrun(BaseStrategy):
 
     async def _try_reconnect(self) -> None:
         """Auto-reconnect with exponential backoff (max 5 retries)."""
-        if self._reconnect_count >= MAX_RECONNECT_RETRIES:
+        if self._reconnect_count >= _cfg("WHALE_FRONTRUN_MAX_RECONNECT", 5):
             logger.error("[whale_frontrun] Max reconnection attempts reached")
             return
 

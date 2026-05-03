@@ -24,19 +24,20 @@ import httpx
 
 from backend.strategies.base import BaseStrategy, CycleResult, MarketInfo, StrategyContext
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.universal_scanner")
 
-# --- Configuration ---
-GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
-PAGE_SIZE = 500  # Gamma API default max
-SEMAPHORE_LIMIT = 50  # 50 concurrent fetches
-MIN_EDGE_THRESHOLD = 0.02
-MAX_RETRIES = 3
-STALE_THRESHOLD_SECONDS = 5.0
-MAX_MARKETS = 10000  # Hard cap for safety
 
-# --- Shared state ---
+def _cfg(name, default):
+    return getattr(settings, name, default)
+
+
+GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
+
+PAGE_SIZE = _cfg("SCANNER_PAGE_SIZE", 500)
+MAX_MARKETS = _cfg("SCANNER_MAX_MARKETS", 10000)
+
 _gamma_breaker = CircuitBreaker(
     "gamma_api", failure_threshold=5, recovery_timeout=60.0
 )
@@ -67,7 +68,7 @@ def _parse_market(m: dict) -> Optional[MarketInfo]:
             try:
                 updated_dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
                 age = (datetime.now(timezone.utc) - updated_dt).total_seconds()
-                if age > STALE_THRESHOLD_SECONDS:
+                if age > _cfg("SCANNER_STALE_THRESHOLD_SECONDS", 5.0):
                     return None  # Stale data rejected
             except (ValueError, TypeError):
                 pass  # If timestamp parse fails, accept the market
@@ -109,7 +110,7 @@ async def _do_request(
         params={
             "active": "true",
             "closed": "false",
-            "limit": PAGE_SIZE,
+            "limit": _cfg("SCANNER_PAGE_SIZE", 500),
             "offset": offset,
             "order": "volume",
             "ascending": "false",
@@ -149,7 +150,7 @@ async def _fetch_page_with_retry(
         except CircuitOpenError:
             raise
         except Exception as exc:
-            if retry_count < MAX_RETRIES:
+            if retry_count < _cfg("ARB_MAX_RETRIES", 3):
                 # Exponential backoff: 0.1s, 0.2s, 0.4s
                 wait = 0.1 * (2 ** retry_count)
                 await asyncio.sleep(wait)
@@ -157,7 +158,7 @@ async def _fetch_page_with_retry(
                     client, offset, semaphore, retry_count + 1, breaker
                 )
             logger.warning(
-                f"[universal_scanner] Page offset={offset} failed after {MAX_RETRIES} retries: {exc}"
+                f"[universal_scanner] Page offset={offset} failed after {_cfg('ARB_MAX_RETRIES', 3)} retries: {exc}"
             )
             return ([], False)
 
@@ -179,7 +180,7 @@ class UniversalScanner(BaseStrategy):
     )
     category = "general"
     default_params = {
-        "min_edge": MIN_EDGE_THRESHOLD,
+            "min_edge": _cfg("SCANNER_MIN_EDGE", 0.02),
         "min_volume": 1000.0,
         "max_signals": 100,
     }
@@ -207,7 +208,7 @@ class UniversalScanner(BaseStrategy):
         - Stress: hard cap at 10000 markets prevents runaway
         """
         start = time.monotonic()
-        semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
+        semaphore = asyncio.Semaphore(_cfg("SCANNER_SEMAPHORE_LIMIT", 50))
 
         async with httpx.AsyncClient() as client:
             # Step 1: Fetch first page to determine market availability
@@ -226,10 +227,10 @@ class UniversalScanner(BaseStrategy):
                     markets.append(parsed)
 
             # Step 3: If first page is full, paginate in parallel
-            if len(first_page) >= PAGE_SIZE and len(markets) < MAX_MARKETS:
-                # Estimate: fetch 10 pages (5000 markets) in parallel first
-                # Then extend if we got all of them
-                initial_batch = list(range(PAGE_SIZE, PAGE_SIZE * 11, PAGE_SIZE))
+            ps = _cfg("SCANNER_PAGE_SIZE", 500)
+            mm = _cfg("SCANNER_MAX_MARKETS", 10000)
+            if len(first_page) >= ps and len(markets) < mm:
+                initial_batch = list(range(ps, ps * 11, ps))
 
                 results = await asyncio.gather(
                     *[
@@ -248,25 +249,24 @@ class UniversalScanner(BaseStrategy):
                             parsed = _parse_market(m)
                             if parsed:
                                 markets.append(parsed)
-                                if len(markets) >= MAX_MARKETS:
+                                if len(markets) >= mm:
                                     break
 
-                # Step 4: If we filled all 10 initial pages, keep extending
-                if len(markets) >= MAX_MARKETS - PAGE_SIZE:
+                if len(markets) >= mm - ps:
                     offset = len(markets)
                     while offset < 50000:
                         page, ok = await _fetch_page_with_retry(
                             client, offset, semaphore
                         )
-                        if not ok or not page or len(page) < PAGE_SIZE:
+                        if not ok or not page or len(page) < ps:
                             break
                         for m in page:
                             parsed = _parse_market(m)
                             if parsed:
                                 markets.append(parsed)
-                                if len(markets) >= MAX_MARKETS:
+                                if len(markets) >= mm:
                                     break
-                        offset += PAGE_SIZE
+                        offset += ps
 
             elapsed = time.monotonic() - start
             logger.info(

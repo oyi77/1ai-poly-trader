@@ -16,18 +16,16 @@ from typing import Optional
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
 from backend.core.errors import CircuitOpenError
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.prob_arb")
 
-MIN_PROFIT = 0.02
-MAX_RETRIES = 3
-CIRCUIT_BREAKER_THRESHOLD = 5
-CIRCUIT_BREAKER_TIMEOUT = 60.0
-POLYMARKET_FEE = 0.01
-KALSHI_FEE = 0.01
-
 _execution_breaker_active = asyncio.Semaphore(1)
 _pending_arbs: dict[str, dict] = {}
+
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 
 @dataclass
@@ -58,10 +56,10 @@ def detect_arb(yes_price: float, no_price: float) -> Optional[ArbOpportunity]:
     if sum_price >= 1.0:
         return None
 
-    fees = POLYMARKET_FEE + KALSHI_FEE
+        fees = _cfg("ARB_POLYMARKET_FEE", 0.01) + _cfg("ARB_KALSHI_FEE", 0.01)
     profit = (1.0 - sum_price) - fees
 
-    if profit < MIN_PROFIT:
+        if profit < _cfg("ARB_MIN_PROFIT", 0.02):
         return None
 
     return ArbOpportunity(
@@ -135,7 +133,7 @@ async def execute_arb(
                 "success": False,
                 "queued": True,
                 "error": str(exc),
-                "retries": MAX_RETRIES,
+                "retries": _cfg("ARB_MAX_RETRIES", 3),
             }
 
 
@@ -163,7 +161,7 @@ async def _place_order_with_retry(
         return result.order_id if hasattr(result, "order_id") else None
 
     except Exception as exc:
-        if retry_count < MAX_RETRIES:
+        if retry_count < _cfg("ARB_MAX_RETRIES", 3):
             wait = 0.1 * (2 ** retry_count)
             await asyncio.sleep(wait)
             return await _place_order_with_retry(
@@ -189,7 +187,7 @@ class ProbabilityArb(BaseStrategy):
     )
     category = "arb"
     default_params = {
-        "min_profit": MIN_PROFIT,
+            "min_profit": _cfg("ARB_MIN_PROFIT", 0.02),
         "max_position": 100.0,
         "enabled": True,
     }

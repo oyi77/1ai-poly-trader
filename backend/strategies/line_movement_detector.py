@@ -28,8 +28,13 @@ from backend.strategies.base import (
     MarketInfo,
 )
 from backend.core.decisions import record_decision
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
+
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 GAMMA_EVENTS_URL = "https://gamma-api.polymarket.com/events"
 
@@ -343,24 +348,24 @@ class LineMovementDetectorStrategy(BaseStrategy):
         }
 
     def _calculate_confidence(self, movement: LineMovement, news_context: str) -> float:
-        base_confidence = 0.5
+        base_confidence = _cfg("LINE_MOVE_BASE_CONFIDENCE", 0.5)
 
         move_size = abs(movement.price_change_pct)
-        if move_size >= 15:
-            base_confidence += 0.2
-        elif move_size >= 10:
-            base_confidence += 0.15
-        elif move_size >= 7:
-            base_confidence += 0.1
+        if move_size >= _cfg("LINE_MOVE_HUGE_THRESHOLD", 15.0):
+            base_confidence += _cfg("LINE_MOVE_HUGE_BOOST", 0.2)
+        elif move_size >= _cfg("LINE_MOVE_LARGE_THRESHOLD", 10.0):
+            base_confidence += _cfg("LINE_MOVE_LARGE_BOOST", 0.15)
+        elif move_size >= _cfg("LINE_MOVE_MEDIUM_THRESHOLD", 7.0):
+            base_confidence += _cfg("LINE_MOVE_MEDIUM_BOOST", 0.1)
         else:
-            base_confidence += 0.05
+            base_confidence += _cfg("LINE_MOVE_SMALL_BOOST", 0.05)
 
-        if movement.volume_24h >= 100000:
-            base_confidence += 0.1
-        elif movement.volume_24h >= 50000:
-            base_confidence += 0.05
+        if movement.volume_24h >= _cfg("LINE_MOVE_HIGH_VOL_THRESHOLD", 100000.0):
+            base_confidence += _cfg("LINE_MOVE_HIGH_VOL_BOOST", 0.1)
+        elif movement.volume_24h >= _cfg("LINE_MOVE_MED_VOL_THRESHOLD", 50000.0):
+            base_confidence += _cfg("LINE_MOVE_MED_VOL_BOOST", 0.05)
 
         if news_context:
-            base_confidence += 0.1
+            base_confidence += _cfg("LINE_MOVE_NEWS_BOOST", 0.1)
 
-        return min(base_confidence, 0.95)
+        return min(base_confidence, _cfg("LINE_MOVE_MAX_CONFIDENCE", 0.95))

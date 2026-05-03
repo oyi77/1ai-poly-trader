@@ -11,12 +11,13 @@ import logging
 from dataclasses import dataclass
 
 from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-POLYMARKET_FEE = 0.02   # 2% maker fee
-KALSHI_FEE = 0.01       # 1% taker fee
-MIN_ARB_EDGE = 0.02     # minimum net edge after fees to fire
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 
 @dataclass
@@ -35,7 +36,7 @@ def compute_arb_edge(poly_yes: float, kalshi_yes: float) -> float:
     Positive means guaranteed profit exists.
     """
     gross = 1.0 - poly_yes - kalshi_yes
-    fees = POLYMARKET_FEE + KALSHI_FEE
+    fees = _cfg("ARB_POLYMARKET_FEE", 0.02) + _cfg("ARB_KALSHI_FEE", 0.01)
     return gross - fees
 
 
@@ -44,7 +45,7 @@ class KalshiArbStrategy(BaseStrategy):
     description = "Kalshi <-> Polymarket arbitrage scanner. Requires KALSHI_API_KEY. Seeded disabled."
     category = "arbitrage"
     default_params = {
-        "min_edge": MIN_ARB_EDGE,
+        "min_edge": _cfg("ARB_MIN_PROFIT", 0.02),
         "allow_live_execution": False,
         "interval_seconds": 30,
     }

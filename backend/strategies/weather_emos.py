@@ -35,6 +35,11 @@ from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult
 from backend.core.market_scanner import MarketInfo
 from backend.core.decisions import record_decision
 from backend.core.activity_logger import activity_logger
+from backend.config import settings
+
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 logger = logging.getLogger("trading_bot")
 
@@ -145,12 +150,12 @@ def _calculate_weather_kelly_size(
     q = 1.0 - p
     kelly_full = (p * b - q) / b if b != 0 else 0
 
-    kelly_fraction = 0.15
+    kelly_fraction = _cfg("WEATHER_KELLY_FRACTION", 0.15)
     kelly_fractional = max(0.0, kelly_full * kelly_fraction)
 
     size = kelly_fractional * bankroll
 
-    max_fraction = 0.05
+    max_fraction = _cfg("WEATHER_MAX_BANKROLL_FRACTION", 0.05)
     size = min(size, bankroll * max_fraction)
 
     return max(10.0, size)

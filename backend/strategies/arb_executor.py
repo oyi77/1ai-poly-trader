@@ -10,10 +10,13 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.arb")
 
-DEFAULT_FEE_RATE = 0.02   # 2% per leg
-DEFAULT_MIN_SPREAD = 0.03  # 3% minimum cross-platform spread
+
+def _cfg(name, default):
+    return getattr(settings, name, default)
 
 
 @dataclass
@@ -28,10 +31,12 @@ class ArbOpportunity:
 def detect_intra_market_arb(
     yes_price: float,
     no_price: float,
-    fee_rate: float = DEFAULT_FEE_RATE,
+    fee_rate: float = None,
     market_id: str = "unknown",
     max_size: float = 100.0,
 ) -> Optional[ArbOpportunity]:
+    if fee_rate is None:
+        fee_rate = _cfg("ARB_DEFAULT_FEE_RATE", 0.02)
     """
     Detect YES/NO intra-market arbitrage.
 
@@ -62,11 +67,15 @@ def detect_intra_market_arb(
 def detect_cross_platform_arb(
     poly_price: float,
     kalshi_price: float,
-    min_spread: float = DEFAULT_MIN_SPREAD,
+    min_spread: float = None,
     market_id: str = "unknown",
-    fee_rate: float = DEFAULT_FEE_RATE,
+    fee_rate: float = None,
     max_size: float = 100.0,
 ) -> Optional[ArbOpportunity]:
+    if min_spread is None:
+        min_spread = _cfg("ARB_DEFAULT_MIN_SPREAD", 0.03)
+    if fee_rate is None:
+        fee_rate = _cfg("ARB_DEFAULT_FEE_RATE", 0.02)
     """
     Detect cross-platform arbitrage between Polymarket and Kalshi.
 
@@ -98,11 +107,13 @@ def detect_cross_platform_arb(
 
 def detect_negrisk_arb(
     outcome_prices: list[float],
-    fee_rate: float = DEFAULT_FEE_RATE,
+    fee_rate: float = None,
     market_id: str = "unknown",
     max_size: float = 100.0,
     min_deviation: float = 0.02,
 ) -> Optional[ArbOpportunity]:
+    if fee_rate is None:
+        fee_rate = _cfg("ARB_DEFAULT_FEE_RATE", 0.02)
     """
     Detect neg-risk arbitrage across mutually exclusive outcomes.
 
