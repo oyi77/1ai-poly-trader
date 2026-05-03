@@ -154,7 +154,8 @@ class MiroFishClient:
         
         # Apply defaults
         if not self.api_url:
-            self.api_url = "https://polyedge-mirofish-api.aitradepulse.com"
+            from backend.config import settings as _s
+            self.api_url = _s.MIROFISH_API_URL
         if not self.api_key:
             self.api_key = ""
         if not self.timeout:

@@ -14,6 +14,8 @@ import random
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
+from backend.config import settings
+
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -57,7 +59,7 @@ async def _fetch_live_market_templates():
 
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.get(
-                    "https://gamma-api.polymarket.com/markets",
+                    f"{settings.GAMMA_API_URL}/markets",
                     params={"limit": 20, "active": "true", "closed": "false", "order": "volume", "ascending": "false"},
                 )
                 resp.raise_for_status()

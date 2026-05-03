@@ -85,7 +85,7 @@ async def fetch_pm_open_position_value(wallet: Optional[str] = None) -> Optional
 
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.get(
-                "https://data-api.polymarket.com/value",
+                f"{settings.DATA_API_URL}/value",
                 params={"user": wallet_address.lower()},
             )
         if resp.status_code != 200:
@@ -138,7 +138,7 @@ async def fetch_pm_total_equity(wallet: Optional[str] = None) -> Optional[float]
             "pUSD": settings.PUSD_ADDRESS
         }
         
-        rpc_url = "https://rpc-mainnet.matic.quiknode.pro"
+        rpc_url = settings.QUICKNODE_RPC_URL
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             for name, addr in tokens.items():

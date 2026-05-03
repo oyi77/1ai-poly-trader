@@ -4,9 +4,11 @@ import asyncio
 import logging
 from typing import Optional, AsyncIterator
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.ob_hft_ws")
 
-OB_WS_URL = "wss://ws.polymarket.com/orderbook"
+OB_WS_URL = settings.POLYMARKET_WS_ORDERBOOK_URL
 
 
 class OrderbookHFTWS:

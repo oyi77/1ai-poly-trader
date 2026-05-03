@@ -182,7 +182,7 @@ async def fetch_polymarket_resolution(
             # Try slug-based query first (market_id may be a slug, not numeric ID)
             try:
                 slug_response = await client.get(
-                    "https://gamma-api.polymarket.com/markets",
+                    f"{settings.GAMMA_API_URL}/markets",
                     params={"slug": market_id},
                     timeout=5.0,
                 )
@@ -276,7 +276,7 @@ async def _check_clob_resolution(market_id: str) -> Tuple[bool, Optional[float]]
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
-                f"https://clob.polymarket.com/markets?slug={market_id}"
+                f"{settings.CLOB_API_URL}/markets?slug={market_id}"
             )
             if response.status_code == 200:
                 data = response.json()

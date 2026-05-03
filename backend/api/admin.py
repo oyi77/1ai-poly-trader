@@ -97,7 +97,7 @@ def _grouped_settings() -> Dict[str, Dict[str, Any]]:
     }
     # Also return flat format for frontend compatibility
     grouped["mirofish_enabled"] = getattr(s, "MIROFISH_ENABLED", False)
-    grouped["mirofish_api_url"] = getattr(s, "MIROFISH_API_URL", "http://localhost:5001")
+    grouped["mirofish_api_url"] = getattr(s, "MIROFISH_API_URL", settings.MIROFISH_API_URL)
     grouped["mirofish_api_key"] = _mask("MIROFISH_API_KEY", getattr(s, "MIROFISH_API_KEY", ""))
     grouped["trading_mode"] = s.TRADING_MODE
     grouped["strategies"] = {

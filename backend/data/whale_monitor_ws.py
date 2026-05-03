@@ -13,10 +13,11 @@ from typing import AsyncIterator, Optional
 import websockets
 
 from backend.core.circuit_breaker import CircuitBreaker
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.whale_monitor_ws")
 
-WHALE_WS_URL = "wss://ws.polymarket.com/whale"
+WHALE_WS_URL = settings.POLYMARKET_WS_WHALE_URL
 RECONNECT_MAX_RETRIES = 5
 RECONNECT_BASE_DELAY = 0.1
 

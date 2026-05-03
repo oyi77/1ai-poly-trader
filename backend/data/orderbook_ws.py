@@ -12,9 +12,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Callable
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.orderbook")
 
-WS_URL = "wss://ws-live-data.polymarket.com"
+WS_URL = settings.POLYMARKET_WS_RTDS_URL
 MAX_BACKOFF_S = 30.0
 PING_INTERVAL_S = 30.0
 

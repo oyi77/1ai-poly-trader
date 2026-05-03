@@ -185,7 +185,7 @@ def _send_telegram_alert_sync(message: str) -> None:
             continue
         try:
             httpx.post(
-                f"https://api.telegram.org/bot{token}/sendMessage",
+                f"{settings.TELEGRAM_API_BASE}/bot{token}/sendMessage",
                 json={"chat_id": chat_id, "text": message},
                 timeout=5.0,
             )

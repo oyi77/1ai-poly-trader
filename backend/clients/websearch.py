@@ -19,13 +19,14 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Literal
 from datetime import datetime, timezone
 
+from backend.config import settings
+
 logger = logging.getLogger(__name__)
 
-# API endpoints
-TAVILY_API_URL = "https://api.tavily.com/search"
-EXA_API_URL = "https://api.exa.ai/search"
-SERPER_API_URL = "https://google.serper.dev/search"
-DDG_HTML_URL = "https://html.duckduckgo.com/html/"
+TAVILY_API_URL = settings.TAVILY_API_URL
+EXA_API_URL = settings.EXA_API_URL
+SERPER_API_URL = settings.SERPER_API_URL
+DDG_HTML_URL = settings.DDG_HTML_URL
 
 # Supported providers
 ProviderType = Literal["tavily", "exa", "serper", "duckduckgo"]

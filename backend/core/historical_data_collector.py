@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.models.database import SessionLocal
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.historical_data")
 
@@ -178,7 +179,7 @@ class HistoricalDataCollector:
         try:
             import httpx
 
-            url = "https://api.binance.com/api/v3/klines"
+            url = settings.BINANCE_KLINES_URL
             params = {
                 "symbol": "BTCUSDT",
                 "interval": "1m",

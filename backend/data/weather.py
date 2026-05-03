@@ -102,7 +102,7 @@ async def geocode_city(city_name: str) -> Optional[dict]:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
-                "https://geocoding-api.open-meteo.com/v1/search",
+                settings.OPEN_METEO_GEOCODING_URL,
                 params={"name": city_name, "count": 1, "language": "en", "format": "json"},
             )
             resp.raise_for_status()
@@ -255,7 +255,7 @@ async def fetch_ensemble_forecast(city_key: str, target_date: Optional[date] = N
                 # Open-Meteo Ensemble API — GFS ensemble with 31 members
                 # For non-US cities (unit="C"), fetch Celsius and convert to Fahrenheit locally
                 response = await client.get(
-                    "https://ensemble-api.open-meteo.com/v1/ensemble",
+                    settings.OPEN_METEO_ENSEMBLE_URL,
                     params=req_params,
                 )
                 response.raise_for_status()

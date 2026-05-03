@@ -359,6 +359,21 @@ class Settings(BaseSettings):
     KALSHI_API_URL: str = "https://api.elections.kalshi.com/trade-api/v2"
     GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
     RESEARCH_RSS_FEEDS: str = "https://polymarket.com/feed.xml,https://metaculus.com/feed/"
+    POLYMARKET_RELAYER_URL: str = "https://relayer-v2.polymarket.com"
+    POLYMARKET_WS_CLOB_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+    POLYMARKET_WS_USER_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
+    POLYMARKET_WS_RTDS_URL: str = "wss://ws-live-data.polymarket.com"
+    POLYMARKET_WS_WHALE_URL: str = "wss://ws.polymarket.com/whale"
+    POLYMARKET_WS_ORDERBOOK_URL: str = "wss://ws.polymarket.com/orderbook"
+    QUICKNODE_RPC_URL: str = "https://rpc-mainnet.matic.quiknode.pro"
+    OPEN_METEO_ENSEMBLE_URL: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
+    OPEN_METEO_GEOCODING_URL: str = "https://geocoding-api.open-meteo.com/v1/search"
+    TELEGRAM_API_BASE: str = "https://api.telegram.org"
+    MIROFISH_API_URL: str = "https://polyedge-mirofish-api.aitradepulse.com"
+    TAVILY_API_URL: str = "https://api.tavily.com/search"
+    EXA_API_URL: str = "https://api.exa.ai/search"
+    SERPER_API_URL: str = "https://google.serper.dev/search"
+    DDG_HTML_URL: str = "https://html.duckduckgo.com/html/"
 
     @model_validator(mode="after")
     def _validate_trading_credentials(self) -> "Settings":

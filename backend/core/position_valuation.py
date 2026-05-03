@@ -225,7 +225,7 @@ async def _fetch_prices_with_fallback(
             if ticker.isdigit():
                 # Token ID - use CLOB API midpoint
                 r = await client.get(
-                    f"https://clob.polymarket.com/midpoint?token_id={ticker}",
+                    f"{settings.CLOB_API_URL}/midpoint?token_id={ticker}",
                     timeout=5.0,
                 )
                 r.raise_for_status()

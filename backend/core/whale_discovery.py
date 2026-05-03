@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from backend.models.database import SessionLocal, WalletConfig
 from backend.core.whale_scoring import calculate_whale_score
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.whale_discovery")
 
@@ -51,7 +52,7 @@ class WhaleDiscovery:
         """
         if not wallet:
             return []
-        url = f"https://data-api.polymarket.com/positions?user={wallet}&limit=200"
+        url = f"{settings.DATA_API_URL}/positions?user={wallet}&limit=200"
         try:
             import httpx
 

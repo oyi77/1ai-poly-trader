@@ -494,7 +494,7 @@ class GeneralMarketScanner(BaseStrategy):
                 try:
                     async with httpx.AsyncClient(timeout=10.0) as clob_client:
                         book_resp = await clob_client.get(
-                            "https://clob.polymarket.com/book",
+                            f"{settings.CLOB_API_URL}/book",
                             params={"token_id": clob_token_id},
                         )
                         if book_resp.status_code == 200:

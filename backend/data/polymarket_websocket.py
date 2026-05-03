@@ -20,6 +20,8 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+
+from backend.config import settings
 from typing import Optional, Callable, Dict, List, Any
 from enum import Enum
 
@@ -131,9 +133,9 @@ class PolymarketWebSocket:
 
     # WebSocket endpoints
     ENDPOINTS = {
-        ChannelType.MARKET: "wss://ws-subscriptions-clob.polymarket.com/ws/market",
-        ChannelType.USER: "wss://ws-subscriptions-clob.polymarket.com/ws/user",
-        ChannelType.RTDS: "wss://ws-live-data.polymarket.com",
+        ChannelType.MARKET: settings.POLYMARKET_WS_CLOB_URL,
+        ChannelType.USER: settings.POLYMARKET_WS_USER_URL,
+        ChannelType.RTDS: settings.POLYMARKET_WS_RTDS_URL,
     }
 
     def __init__(self, config: WebSocketConfig):

@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from backend.data.polymarket_clob import PolymarketCLOB
 from backend.models.database import Trade
 from backend.core.alert_manager import AlertManager
+from backend.config import settings
 
 logger = logging.getLogger("wallet_reconciler")
 
@@ -171,7 +172,7 @@ class WalletReconciler:
             # Fetch positions from Data API
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
-                    "https://data-api.polymarket.com/positions",
+                    settings.DATA_API_URL + "/positions",
                     params={"user": self.wallet_address}
                 )
                 response.raise_for_status()
@@ -284,7 +285,7 @@ class WalletReconciler:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
-                    "https://data-api.polymarket.com/activity",
+                    settings.DATA_API_URL + "/activity",
                     params={"user": self.wallet_address, "limit": 200},
                 )
                 response.raise_for_status()
@@ -627,7 +628,7 @@ class WalletReconciler:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
-                    "https://data-api.polymarket.com/positions",
+                    settings.DATA_API_URL + "/positions",
                     params={"user": self.wallet_address}
                 )
                 response.raise_for_status()

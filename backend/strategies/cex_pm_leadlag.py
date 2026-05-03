@@ -22,10 +22,11 @@ from backend.core.decisions import record_decision_standalone
 from backend.core.activity_logger import activity_logger
 from backend.data.crypto import compute_btc_microstructure
 from backend.data.btc_markets import BtcMarket, fetch_active_btc_markets
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-PM_MIDPOINT_URL = "https://clob.polymarket.com/midpoint"
+PM_MIDPOINT_URL = f"{settings.CLOB_API_URL}/midpoint"
 
 
 async def _fetch_pm_mid(client: httpx.AsyncClient, token_id: str) -> float | None:

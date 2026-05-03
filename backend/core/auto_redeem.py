@@ -25,11 +25,12 @@ from web3 import Web3
 from eth_account import Account
 
 from backend.config_extensions import settings
+from backend.config import settings as _main_settings
 
 logger = logging.getLogger("auto_redeem")
 
 POLYGON_RPC = settings.POLYGON_RPC_URL
-RELAYER_URL = "https://relayer-v2.polymarket.com"
+RELAYER_URL = _main_settings.POLYMARKET_RELAYER_URL
 CTF_ADDRESS = Web3.to_checksum_address("0x4D97DCd97eC945f40cF65F87097ACe5EA0476045")
 USDC_POLYGON = Web3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")
 NEG_RISK_ADAPTER = Web3.to_checksum_address("0x3b7A7A13387bD2066E9123F6ae0525e3a10a26DB")
@@ -282,7 +283,7 @@ def _redeem_direct(
 def get_redeemable_positions(wallet: str) -> list[dict]:
     """Fetch redeemable positions from Polymarket Data API."""
     resp = httpx.get(
-        f"https://data-api.polymarket.com/positions?user={wallet}&limit=200"
+        f"{_main_settings.DATA_API_URL}/positions?user={wallet}&limit=200"
     )
     positions = resp.json()
     return [p for p in positions if p.get("redeemable") and p.get("conditionId")]
