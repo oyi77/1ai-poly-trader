@@ -2,7 +2,6 @@
 Backtesting API endpoints for PolyEdge strategy evaluation.
 """
 
-import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
@@ -604,7 +603,7 @@ async def collect_historical_data(
         except Exception as exc:
             _collection_tasks[task_id] = {"status": "failed", "error": str(exc)}
 
-    background_tasks.add_task(lambda: asyncio.get_event_loop().create_task(_run()))
+    background_tasks.add_task(_run)
     return {"task_id": task_id, "status": "started"}
 
 
