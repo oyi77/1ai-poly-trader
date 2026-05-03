@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.config import settings
-from backend.models.database import SessionLocal, StrategyConfig, BotState
+from backend.models.database import SessionLocal, StrategyConfig, BotState, Trade
 from backend.models.kg_models import ExperimentRecord
 from backend.core.experiment_runner import ExperimentRunner, EvaluationResult
 from backend.core.agi_types import ExperimentStatus
@@ -33,18 +33,29 @@ logger = logging.getLogger("trading_bot.autonomous_promoter")
 class AutonomousPromoter:
     """Daemon that evaluates and promotes experiments without human intervention."""
 
-    # Shadow → Paper criteria (matches AGIPromotionPipeline defaults)
-    MIN_TRADES_SHADOW = 100
-    MIN_DAYS_SHADOW = 7
-    MIN_WIN_RATE_SHADOW = 0.45
-    MAX_DRAWDOWN_SHADOW = 0.25  # Not yet enforced in ExperimentRunner.evaluate (TODO)
+    @property
+    def _s(self):
+        from backend.config import settings as _s
+        return _s
 
-    # Paper → Live criteria
-    MIN_TRADES_PAPER = 50
-    MIN_DAYS_PAPER = 3
-    MIN_WIN_RATE_PAPER = 0.50
-    MIN_SHARPE_PAPER = 0.5  # Risk-adjusted threshold
-    MAX_DRAWDOWN_PAPER = 0.20
+    @property
+    def MIN_TRADES_SHADOW(self): return self._s.AGI_PROMOTER_SHADOW_MIN_TRADES
+    @property
+    def MIN_DAYS_SHADOW(self): return self._s.AGI_PROMOTER_SHADOW_MIN_DAYS
+    @property
+    def MIN_WIN_RATE_SHADOW(self): return self._s.AGI_PROMOTER_SHADOW_MIN_WIN_RATE
+    @property
+    def MAX_DRAWDOWN_SHADOW(self): return self._s.AGI_PROMOTER_SHADOW_MAX_DRAWDOWN
+    @property
+    def MIN_TRADES_PAPER(self): return self._s.AGI_PROMOTER_PAPER_MIN_TRADES
+    @property
+    def MIN_DAYS_PAPER(self): return self._s.AGI_PROMOTER_PAPER_MIN_DAYS
+    @property
+    def MIN_WIN_RATE_PAPER(self): return self._s.AGI_PROMOTER_PAPER_MIN_WIN_RATE
+    @property
+    def MIN_SHARPE_PAPER(self): return self._s.AGI_PROMOTER_PAPER_MIN_SHARPE
+    @property
+    def MAX_DRAWDOWN_PAPER(self): return self._s.AGI_PROMOTER_PAPER_MAX_DRAWDOWN
 
     def _check_paper_criteria_from_health(
         self, exp: ExperimentRecord, health: dict
@@ -118,7 +129,7 @@ class AutonomousPromoter:
                 .all()
             )
             for exp in shadows:
-                meets, reasons = self._check_shadow_criteria(exp)
+                meets, reasons = self._check_shadow_criteria(exp, db)
                 if meets:
                     exp.status = ExperimentStatus.PAPER.value
                     exp.promoted_at = datetime.now(timezone.utc)
@@ -246,7 +257,7 @@ class AutonomousPromoter:
         finally:
             db.close()
 
-    def _check_shadow_criteria(self, exp: ExperimentRecord) -> tuple[bool, list[str]]:
+    def _check_shadow_criteria(self, exp: ExperimentRecord, db: Session) -> tuple[bool, list[str]]:
         """Check if experiment meets shadow→paper criteria."""
         reasons = []
         trades = exp.shadow_trades or 0
@@ -265,9 +276,40 @@ class AutonomousPromoter:
         if age_days < self.MIN_DAYS_SHADOW:
             reasons.append(f"age {age_days}d < {self.MIN_DAYS_SHADOW}d")
 
-        # TODO: drawdown from shadow outcomes (need outcome table)
+        drawdown = self._compute_shadow_drawdown(exp, db)
+        if drawdown > self.MAX_DRAWDOWN_SHADOW:
+            reasons.append(f"drawdown {drawdown:.1%} > {self.MAX_DRAWDOWN_SHADOW:.1%}")
 
         return (len(reasons) == 0, reasons)
+
+    def _compute_shadow_drawdown(self, exp: ExperimentRecord, db: Session) -> float:
+        try:
+            trades = (
+                db.query(Trade)
+                .filter(
+                    Trade.strategy == exp.strategy_name,
+                    Trade.trading_mode == "paper",
+                    Trade.settled.is_(True),
+                    Trade.result.in_(["win", "loss"]),
+                )
+                .order_by(Trade.timestamp.asc())
+                .all()
+            )
+            if not trades:
+                return 0.0
+            peak = 0.0
+            cumulative = 0.0
+            max_dd = 0.0
+            for t in trades:
+                cumulative += t.pnl or 0.0
+                if cumulative > peak:
+                    peak = cumulative
+                dd = (peak - cumulative) / peak if peak > 0 else 0.0
+                if dd > max_dd:
+                    max_dd = dd
+            return max_dd
+        except Exception:
+            return 0.0
 
     def _check_paper_criteria(self, exp: ExperimentRecord) -> tuple[bool, list[str]]:
         reasons = []

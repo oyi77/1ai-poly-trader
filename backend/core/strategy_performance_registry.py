@@ -335,7 +335,7 @@ class StrategyPerformanceRegistry:
                 is_profitable=meets,
                 promotion_blocked_reason=reason,
                 report_generated_at=datetime.now(timezone.utc),
-                report_covers_days=0,  # TODO: compute from first→last trade
+                report_covers_days=self._compute_coverage_days(strategy, db),
             )
 
             # Update cache
@@ -372,6 +372,21 @@ class StrategyPerformanceRegistry:
         finally:
             if db is None:
                 session.close()
+
+    def _compute_coverage_days(self, strategy: str, db) -> int:
+        try:
+            session = db or SessionLocal()
+            first_trade = session.query(Trade.timestamp).filter(
+                Trade.strategy == strategy
+            ).order_by(Trade.timestamp.asc()).first()
+            last_trade = session.query(Trade.timestamp).filter(
+                Trade.strategy == strategy
+            ).order_by(Trade.timestamp.desc()).first()
+            if first_trade and last_trade and first_trade[0] and last_trade[0]:
+                return max(1, (last_trade[0] - first_trade[0]).days)
+        except Exception:
+            pass
+        return 0
 
 
 # Global singleton — import and use everywhere

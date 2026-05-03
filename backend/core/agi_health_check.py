@@ -8,6 +8,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.models.database import SessionLocal, Trade, StrategyConfig, BotState
 
 logger = logging.getLogger("trading_bot.agi_health")
@@ -57,7 +58,7 @@ class AGIHealthChecker:
                 return {"healthy": True, "enabled_count": 0}
 
             now = datetime.now(timezone.utc)
-            stale_threshold = timedelta(hours=2)
+            stale_threshold = timedelta(hours=settings.AGI_HEALTH_STALE_STRATEGY_HOURS)
             stale = []
             for c in configs:
                 last_run = getattr(c, "last_run_at", None)
@@ -87,7 +88,7 @@ class AGIHealthChecker:
 
             age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
             return {
-                "healthy": age_hours < 24,
+                "healthy": age_hours < settings.AGI_HEALTH_DATA_FRESHNESS_HOURS,
                 "latest_trade_age_hours": round(age_hours, 1),
             }
         except Exception as e:
@@ -109,7 +110,7 @@ class AGIHealthChecker:
 
             daily_loss = bot.daily_pnl or 0.0
             loss_limit = settings.DAILY_LOSS_LIMIT
-            near_limit = abs(daily_loss) > loss_limit * 0.8 if daily_loss < 0 else False
+            near_limit = abs(daily_loss) > loss_limit * settings.AGI_HEALTH_BUDGET_NEAR_LIMIT_PCT if daily_loss < 0 else False
 
             return {
                 "healthy": not near_limit,
@@ -132,7 +133,7 @@ class AGIHealthChecker:
 
     def _check_orphaned_positions(self, db: Session) -> dict:
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=settings.AGI_HEALTH_ORPHAN_MAX_AGE_DAYS)
             orphans = (
                 db.query(Trade)
                 .filter(

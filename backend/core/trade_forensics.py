@@ -105,9 +105,22 @@ class TradeForensics:
             confidence -= 0.1
             factors.append(f"signal confidence {signal.confidence:.1%}")
 
-        # 2. Check for high slippage (if we have both entry and orderbook data)
-        # For now, stub: if market conditions were volatile at entry time
-        # TODO: pull orderbook snapshot from market data store
+        if trade.entry_price and trade.market_ticker:
+            try:
+                signal_record = (
+                    db.query(Signal)
+                    .filter(Signal.market_ticker == trade.market_ticker)
+                    .order_by(Signal.timestamp.desc())
+                    .first()
+                )
+                if signal_record and signal_record.price:
+                    slippage = abs(trade.entry_price - signal_record.price) / signal_record.price if signal_record.price > 0 else 0
+                    if slippage > 0.02:
+                        causes.append("high_slippage")
+                        confidence += 0.15
+                        factors.append(f"slippage {slippage:.1%}")
+            except Exception:
+                pass
 
         # 3. Check if strategy was already warned
         from backend.core.strategy_health import StrategyHealthMonitor

@@ -9,6 +9,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.models.database import SessionLocal, StrategyProposal, Trade
 
 logger = logging.getLogger("trading_bot.fronttest")
@@ -17,9 +18,9 @@ logger = logging.getLogger("trading_bot.fronttest")
 class FronttestValidator:
     """Validates that a parameter change survives a paper-trial period before going live."""
 
-    def __init__(self, trial_days: int = 14, min_trades: int = 10):
-        self.trial_days = trial_days
-        self.min_trades = min_trades
+    def __init__(self, trial_days: int = None, min_trades: int = None):
+        self.trial_days = trial_days if trial_days is not None else settings.AGI_FRONTTEST_DAYS
+        self.min_trades = min_trades if min_trades is not None else settings.AGI_FRONTTEST_MIN_TRADES
 
     def can_go_live(self, proposal_id: int, db: Optional[Session] = None) -> dict:
         _owned = db is None
@@ -76,7 +77,7 @@ class FronttestValidator:
             win_rate = wins / len(settled)
             pnl = sum(t.pnl or 0.0 for t in settled)
 
-            if win_rate < 0.40:
+            if win_rate < settings.AGI_FRONTTEST_MIN_WIN_RATE:
                 return {
                     "approved": False,
                     "reason": f"paper win rate too low ({win_rate:.0%})",

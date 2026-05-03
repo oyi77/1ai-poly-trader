@@ -10,6 +10,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.models.database import SessionLocal, Trade, StrategyConfig, BotState
 
 logger = logging.getLogger("trading_bot.nightly_review")
@@ -18,8 +19,8 @@ logger = logging.getLogger("trading_bot.nightly_review")
 class NightlyReviewWriter:
     """Generates nightly AGI review reports as markdown files."""
 
-    def __init__(self, output_dir: str = "docs/agi-log"):
-        self.output_dir = output_dir
+    def __init__(self, output_dir: str = None):
+        self.output_dir = output_dir or settings.AGI_NIGHTLY_REVIEW_OUTPUT_DIR
 
     def generate(self, db: Optional[Session] = None) -> Optional[str]:
         _owned = db is None
@@ -92,9 +93,10 @@ class NightlyReviewWriter:
     def _section_strategy_metrics(self, db: Session, now: datetime) -> list[str]:
         from datetime import timedelta
 
-        lines = ["\n## Strategy Performance (7-day)\n"]
+        lookback_days = settings.AGI_NIGHTLY_REVIEW_LOOKBACK_DAYS
+        lines = [f"\n## Strategy Performance ({lookback_days}-day)\n"]
         try:
-            week_ago = now - timedelta(days=7)
+            week_ago = now - timedelta(days=lookback_days)
             configs = db.query(StrategyConfig).all()
             for cfg in configs:
                 trades = (

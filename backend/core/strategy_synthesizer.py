@@ -83,7 +83,10 @@ class {strategy_name}(BaseStrategy):
 
     async def run(self, ctx: StrategyContext) -> list[TradingSignal]:
         risk = RiskManager()
-        # TODO: implement based on: {description}
+        # Strategy: {description}
+        # Implement signal generation logic based on the description above
+        # Use ctx.settings for configurable thresholds
+        # Return list of TradingSignal when edge is detected
         return []
 
     def validate(self, ctx: StrategyContext) -> bool:

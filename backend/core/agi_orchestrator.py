@@ -118,8 +118,18 @@ class AGIOrchestrator:
                     # Estimate volatility (ATR percent) and drawdown
                     max_price = max(closes)
                     market_data["drawdown"] = (max_price - closes[-1]) / max_price if max_price > 0 else 0.0
-                    market_data["atr_percentile"] = 0.5 # Default placeholder
-                    market_data["volume_trend"] = 0.0 # Default placeholder
+                    if len(closes) >= 15:
+                        trs = [abs(closes[-i] - closes[-i-1]) for i in range(1, 15)]
+                        atr = sum(trs) / len(trs)
+                        market_data["atr_percentile"] = atr / closes[-1] if closes[-1] > 0 else 0.0
+                    else:
+                        market_data["atr_percentile"] = 0.0
+                    if len(volumes) >= 20:
+                        vol_recent = sum(volumes[-10:]) / 10
+                        vol_prior = sum(volumes[-20:-10]) / 10
+                        market_data["volume_trend"] = (vol_recent - vol_prior) / vol_prior if vol_prior > 0 else 0.0
+                    else:
+                        market_data["volume_trend"] = 0.0
             except Exception as e:
                 errors.append(f"Crypto data fetch failed: {e}")
                 

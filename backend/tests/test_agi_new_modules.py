@@ -237,7 +237,6 @@ class TestStrategyRehabilitator:
         db.commit()
 
         rehab = StrategyRehabilitator()
-        rehab.REHAB_COOLDOWN_DAYS = 7
         result = rehab.run(db=db)
         assert "old_strat" in result
 
@@ -264,7 +263,6 @@ class TestStrategyRehabilitator:
         db.commit()
 
         rehab = StrategyRehabilitator()
-        rehab.REHAB_COOLDOWN_DAYS = 7
         result = rehab.run(db=db)
         assert "recent_strat" not in result
 

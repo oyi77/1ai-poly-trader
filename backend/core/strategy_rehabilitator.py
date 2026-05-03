@@ -16,9 +16,17 @@ logger = logging.getLogger("trading_bot.rehabilitation")
 class StrategyRehabilitator:
     """Re-enables disabled strategies if they pass paper-mode validation."""
 
-    REHAB_PAPER_TRADES = 10
-    REHAB_WIN_RATE_THRESHOLD = 0.50
-    REHAB_COOLDOWN_DAYS = 7
+    @property
+    def _s(self):
+        from backend.config import settings as _s
+        return _s
+
+    @property
+    def REHAB_COOLDOWN_DAYS(self): return self._s.AGI_REHAB_COOLDOWN_DAYS
+    @property
+    def REHAB_PAPER_TRADES(self): return self._s.AGI_REHAB_MIN_TRADES
+    @property
+    def REHAB_WIN_RATE_THRESHOLD(self): return self._s.AGI_REHAB_WIN_RATE_THRESHOLD
 
     def run(self, db: Optional[Session] = None) -> list[str]:
         _owned = db is None

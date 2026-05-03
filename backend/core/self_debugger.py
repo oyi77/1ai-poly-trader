@@ -26,7 +26,10 @@ class RecoveryResult:
 
 
 class SelfDebugger:
-    MAX_RECOVERY_ATTEMPTS = 3
+    @property
+    def MAX_RECOVERY_ATTEMPTS(self):
+        from backend.config import settings
+        return settings.SELF_DEBUGGER_MAX_RECOVERY_ATTEMPTS
 
     def __init__(self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"):
         self._recovery_attempts: dict[str, int] = {}
