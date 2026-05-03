@@ -45,6 +45,9 @@ class StrategyHealthMonitor:
             .all()
         )
 
+        if not outcomes:
+            outcomes = self._outcomes_from_trades(strategy, db)
+
         total = len(outcomes)
         wins = sum(1 for o in outcomes if o.result == "win")
         losses = sum(1 for o in outcomes if o.result == "loss")
@@ -285,3 +288,12 @@ class StrategyHealthMonitor:
             "psi_score": 0.0,
             "status": status,
         }
+
+    def _outcomes_from_trades(self, strategy: str, db: Session) -> list:
+        from backend.models.database import Trade
+        return (
+            db.query(Trade)
+            .filter(Trade.strategy == strategy, Trade.settled == 1, Trade.result.in_(["win", "loss"]))
+            .order_by(Trade.settlement_time.asc())
+            .all()
+        )

@@ -81,6 +81,10 @@ class Orchestrator:
         
         db = SessionLocal()
         try:
+            from backend.core.outcome_repository import backfill_missing_outcomes
+            backfilled = backfill_missing_outcomes(db)
+            if backfilled > 0:
+                logger.info(f"Backfilled {backfilled} missing strategy outcomes on startup")
             db.commit()
         finally:
             db.close()

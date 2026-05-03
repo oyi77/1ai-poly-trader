@@ -14,8 +14,16 @@ def compute_reward(trade, recent_sharpe: float = 1.0, recent_drawdown_pct: float
 
 
 def record_outcome(trade, db) -> Optional[StrategyOutcome]:
-    """Insert a StrategyOutcome from a settled Trade. Returns None on error."""
+    """Insert a StrategyOutcome from a settled Trade. Returns None on error or duplicate."""
+    import logging
+    _logger = logging.getLogger(__name__)
     try:
+        trade_id = getattr(trade, 'id', None)
+        if trade_id is not None:
+            existing = db.query(StrategyOutcome).filter(StrategyOutcome.trade_id == trade_id).first()
+            if existing:
+                return existing
+
         mode_weights = {'paper': 1.0, 'testnet': 10.0, 'live': 100.0}
         mode = getattr(trade, 'trading_mode', 'paper') or 'paper'
         weight = mode_weights.get(mode, 1.0)
@@ -39,7 +47,8 @@ def record_outcome(trade, db) -> Optional[StrategyOutcome]:
         db.add(outcome)
         db.commit()
         return outcome
-    except Exception:
+    except Exception as e:
+        _logger.warning(f"[outcome_repository] record_outcome failed for trade {getattr(trade, 'id', '?')}: {e}")
         db.rollback()
         return None
 
@@ -116,3 +125,29 @@ def mark_param_reverted(change_id: int, post_sharpe: float, db) -> None:
             db.commit()
     except Exception:
         db.rollback()
+
+
+def backfill_missing_outcomes(db) -> int:
+    """Backfill strategy_outcomes for settled trades missing outcomes. Returns count."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    try:
+        from backend.models.database import Trade
+        existing_ids = set(r[0] for r in db.query(StrategyOutcome.trade_id).all())
+        settled = db.query(Trade).filter(
+            Trade.settled == 1,
+            Trade.result.in_(["win", "loss"]),
+        ).all()
+        missing = [t for t in settled if t.id not in existing_ids]
+        if not missing:
+            return 0
+        count = 0
+        for t in missing:
+            outcome = record_outcome(t, db)
+            if outcome:
+                count += 1
+        _logger.info(f"[outcome_repository] Backfilled {count} missing outcomes from {len(missing)} settled trades")
+        return count
+    except Exception as e:
+        _logger.warning(f"[outcome_repository] backfill failed: {e}")
+        return 0

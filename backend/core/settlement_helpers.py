@@ -1097,8 +1097,8 @@ async def process_settled_trade(
         learner = OnlineLearner()
         learner.on_trade_settled(trade, db)
     except Exception as e:
-        logger.debug(
-            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: online_learner hook failed: {e}",
+        logger.warning(
+            f"[settlement_helpers.process_settled_trade] {type(e).__name__}: online_learner hook failed for trade {getattr(trade, 'id', '?')}: {e}",
         )
 
     # Trade forensics: analyze losing trades for patterns (non-blocking)
