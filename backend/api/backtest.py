@@ -2,9 +2,11 @@
 Backtesting API endpoints for PolyEdge strategy evaluation.
 """
 
+import asyncio
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,7 +23,7 @@ from backend.api.validation import BacktestRunRequest as ValidatedBacktestRunReq
 
 logger = logging.getLogger("trading_bot")
 
-logger = logging.getLogger("trading_bot")
+_collection_tasks: Dict[str, Dict[str, Any]] = {}
 
 
 def get_all_strategies() -> dict:
@@ -508,3 +510,110 @@ async def execute_backtest_trade(
         "result": result,
         "edge_at_entry": signal.get("edge", 0),
     }
+
+
+class HistoricalBacktestRequest(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    initial_bankroll: float = 100.0
+    kelly_fraction: float = 0.0625
+    max_trade_size: float = 10.0
+    daily_loss_limit: float = 15.0
+
+
+@router.post("/historical")
+async def run_historical_backtest(
+    body: HistoricalBacktestRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
+    """Run backtest against historical resolved Polymarket markets."""
+    from backend.core.backtester import BacktestEngine, BacktestConfig
+
+    end_date = _parse_date(body.end_date, datetime.now(timezone.utc))
+    start_date = _parse_date(body.start_date, end_date - timedelta(days=90))
+
+    config = BacktestConfig(
+        strategy_name="",
+        start_date=start_date,
+        end_date=end_date,
+        initial_bankroll=body.initial_bankroll,
+        kelly_fraction=body.kelly_fraction,
+        max_trade_size=body.max_trade_size,
+        daily_loss_limit=body.daily_loss_limit,
+    )
+
+    engine = BacktestEngine(config)
+    result = await engine.run_from_historical_markets(db=db)
+
+    cumulative_bankroll = body.initial_bankroll
+    trade_log = []
+    for bt in result.trades:
+        pnl_val = bt.pnl if bt.pnl is not None else 0.0
+        cumulative_bankroll += pnl_val
+        trade_log.append({
+            "timestamp": bt.timestamp.isoformat(),
+            "market_ticker": bt.market_ticker,
+            "direction": bt.direction,
+            "entry_price": bt.entry_price,
+            "size": bt.size,
+            "pnl": pnl_val,
+            "result": "win" if pnl_val > 0 else "loss",
+            "edge_at_entry": bt.edge,
+            "bankroll_after_trade": round(cumulative_bankroll, 4),
+        })
+
+    return {
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "results": {
+            "summary": {
+                "total_trades": result.total_trades,
+                "winning_trades": result.winning_trades,
+                "win_rate": result.win_rate,
+                "initial_bankroll": body.initial_bankroll,
+                "final_equity": result.final_bankroll,
+                "total_pnl": result.total_pnl,
+                "total_return_pct": result.return_pct,
+                "sharpe_ratio": result.sharpe_ratio,
+                "max_drawdown": result.max_drawdown,
+            },
+            "trade_log": trade_log,
+            "equity_curve": result.equity_curve,
+        },
+    }
+
+
+@router.post("/collect-historical")
+async def collect_historical_data(
+    background_tasks: BackgroundTasks,
+    _: None = Depends(require_admin),
+):
+    task_id = str(uuid.uuid4())[:8]
+    _collection_tasks[task_id] = {"status": "running", "results": None}
+
+    async def _run():
+        from backend.core.historical_data_collector import historical_data_collector
+        try:
+            results = await historical_data_collector.run_collection_cycle()
+            _collection_tasks[task_id] = {
+                "status": "completed",
+                "results": results,
+                "total_rows": sum(results.values()),
+            }
+        except Exception as exc:
+            _collection_tasks[task_id] = {"status": "failed", "error": str(exc)}
+
+    background_tasks.add_task(lambda: asyncio.get_event_loop().create_task(_run()))
+    return {"task_id": task_id, "status": "started"}
+
+
+@router.get("/collect-historical/{task_id}")
+async def get_collection_status(
+    task_id: str,
+    _: None = Depends(require_admin),
+):
+    info = _collection_tasks.get(task_id)
+    if not info:
+        raise HTTPException(404, "Task not found")
+    return info

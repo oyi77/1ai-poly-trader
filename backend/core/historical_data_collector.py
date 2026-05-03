@@ -175,34 +175,57 @@ class HistoricalDataCollector:
         logger.info("Historical data collection: %s (%d total rows)", results, total)
         return results
 
-    async def _fetch_binance_klines(self, since: datetime) -> list[dict]:
+    async def _fetch_binance_klines(
+        self, since: datetime, max_batches: int = 60
+    ) -> list[dict]:
+        """Fetch BTC 1m candles from Binance, paginating backwards from *since*.
+
+        Each batch fetches up to 500 candles (~8 h).  With ``max_batches=60``
+        we cover up to ~20 days of 1-minute history.
+        """
         try:
             import httpx
 
             url = settings.BINANCE_KLINES_URL
-            params = {
-                "symbol": "BTCUSDT",
-                "interval": "1m",
-                "startTime": int(since.timestamp() * 1000),
-                "limit": 500,
-            }
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            lookback_start = since - timedelta(days=20)
+            start_ms = int(lookback_start.timestamp() * 1000)
+            end_ms = int(since.timestamp() * 1000)
 
-            candles = []
-            for k in data:
-                candles.append({
-                    "timestamp": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc),
-                    "open": float(k[1]),
-                    "high": float(k[2]),
-                    "low": float(k[3]),
-                    "close": float(k[4]),
-                    "volume": float(k[5]),
-                    "interval": "1m",
-                })
-            return candles
+            all_candles: list[dict] = []
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                for _ in range(max_batches):
+                    params = {
+                        "symbol": "BTCUSDT",
+                        "interval": "1m",
+                        "startTime": start_ms,
+                        "endTime": end_ms,
+                        "limit": 500,
+                    }
+                    resp = await client.get(url, params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    if not data:
+                        break
+
+                    for k in data:
+                        all_candles.append({
+                            "timestamp": datetime.fromtimestamp(
+                                k[0] / 1000, tz=timezone.utc
+                            ),
+                            "open": float(k[1]),
+                            "high": float(k[2]),
+                            "low": float(k[3]),
+                            "close": float(k[4]),
+                            "volume": float(k[5]),
+                            "interval": "1m",
+                        })
+
+                    last_ts = data[-1][0] + 60_000
+                    if last_ts >= end_ms:
+                        break
+                    start_ms = last_ts
+
+            return all_candles
         except Exception as e:
             logger.warning("Binance kline fetch failed: %s", e)
             return []
