@@ -5,7 +5,6 @@ Subscribes to real-time price/trade updates for tracked token IDs.
 Uses exponential back-off on disconnection, deduplicates subscriptions.
 
 Protocol: wss://ws-subscriptions-clob.polymarket.com/ws/market
-from backend.config import settings
 Message format: {"assets_ids": [...], "type": "market"}
 Requires custom_feature_enabled: true to receive market_resolved events.
 """
@@ -16,6 +15,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
+
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 

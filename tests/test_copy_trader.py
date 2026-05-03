@@ -34,12 +34,12 @@ class TestLeaderboardScorer:
         """Trader with 40/50 unique markets scores higher on diversity than 5/50."""
         from backend.strategies.copy_trader import ScoredTrader
 
-        diverse = ScoredTrader(
+        diverse = ScoredTrader(user="test_user", 
             wallet="0xaaa", pseudonym="A",
             profit_30d=10000, win_rate=0.6, total_trades=50,
             unique_markets=40, estimated_bankroll=50000,
         )
-        concentrated = ScoredTrader(
+        concentrated = ScoredTrader(user="test_user", 
             wallet="0xbbb", pseudonym="B",
             profit_30d=10000, win_rate=0.6, total_trades=50,
             unique_markets=5, estimated_bankroll=50000,
@@ -50,7 +50,7 @@ class TestLeaderboardScorer:
     def test_market_diversity_capped_at_one(self):
         """Diversity never exceeds 1.0 even if unique > total (data anomaly)."""
         from backend.strategies.copy_trader import ScoredTrader
-        trader = ScoredTrader(
+        trader = ScoredTrader(user="test_user", 
             wallet="0x", pseudonym="X",
             profit_30d=0, win_rate=0.5, total_trades=10,
             unique_markets=999, estimated_bankroll=1000,
@@ -60,7 +60,7 @@ class TestLeaderboardScorer:
     def test_zero_trades_diversity_is_zero(self):
         """Trader with 0 trades has 0 diversity."""
         from backend.strategies.copy_trader import ScoredTrader
-        trader = ScoredTrader(
+        trader = ScoredTrader(user="test_user", 
             wallet="0x", pseudonym="X",
             profit_30d=0, win_rate=0, total_trades=0,
             unique_markets=0, estimated_bankroll=1000,
@@ -103,13 +103,13 @@ class TestTradeMirror:
     def test_proportional_sizing_reference_example(self):
         """Reference: wallet_bankroll=10000, our=500, trade=200 → size=10."""
         from backend.strategies.copy_trader import CopyTrader, ScoredTrader, WalletTrade
-        trader = ScoredTrader(
+        trader = ScoredTrader(user="test_user", 
             wallet="0xtest", pseudonym="T",
             profit_30d=5000, win_rate=0.6, total_trades=30,
             unique_markets=20, estimated_bankroll=10000.0,
             score=75.0,
         )
-        trade = WalletTrade(
+        trade = WalletTrade(user="test_user", 
             wallet="0xtest", condition_id="cond123",
             outcome="YES", side="BUY",
             price=0.45, size=200.0,

@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { BotStats } from '../types'
@@ -59,7 +60,7 @@ export function useStats() {
       const dashboard = await fetchDashboard()
       return dashboard.stats
     },
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const stats = wsStats || fallbackData || ({

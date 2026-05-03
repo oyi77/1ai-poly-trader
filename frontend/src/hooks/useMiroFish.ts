@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { MiroFishSignal } from '../types/features'
 import { retryFetch } from '../utils/retryFetch'
+import { POLL } from '../polling'
 
 export function useMiroFish() {
   const { data, isLoading, error, refetch } = useQuery({
@@ -12,7 +13,7 @@ export function useMiroFish() {
       }
       return response.json() as Promise<MiroFishSignal[]>
     },
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
   })
 
   return {

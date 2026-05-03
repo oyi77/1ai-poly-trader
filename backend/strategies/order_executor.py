@@ -291,14 +291,27 @@ class OrderExecutor:
     async def mirror_buy_async(
         self, trader: ScoredTrader, trade: WalletTrade
     ) -> Optional[CopySignal]:
-        """Async version of mirror_buy with market resolution lookups."""
-        # Filter 1: minimum whale trade size (conviction filter)
-    if trade.size < _cfg("ORDER_EXECUTOR_MIN_WHALE_SIZE", 50.0):
-        f"Skipping copy: trade size ${trade.size:.2f} < ${_cfg('ORDER_EXECUTOR_MIN_WHALE_SIZE', 50.0)} min | {trade.title[:40]}"
-        return None
+        if trade.size < _cfg("ORDER_EXECUTOR_MIN_WHALE_SIZE", 50.0):
+            logger.debug(
+                f"Skipping copy: trade size ${trade.size:.2f} < ${_cfg('ORDER_EXECUTOR_MIN_WHALE_SIZE', 50.0)} min | {trade.title[:40]}"
+            )
+            return None
 
-    if days_remaining < _cfg("ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION", 7):
-        f"Skipping copy: only {days_remaining}d to resolution (need {_cfg('ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION', 7)}d) | {trade.title[:40]}"
+        meta = await self._fetch_market_meta(trade.condition_id)
+        if meta:
+            slug, end_date_iso = meta
+
+            if BTC_5M_SLUG_PATTERN in slug:
+                logger.debug(f"Skipping copy: BTC 5-min market slug={slug}")
+                return None
+
+            if end_date_iso:
+                try:
+                    end_dt = datetime.fromisoformat(end_date_iso.replace("Z", "+00:00"))
+                    days_remaining = (end_dt - datetime.now(timezone.utc)).days
+                    if days_remaining < _cfg("ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION", 7):
+                        logger.debug(
+                            f"Skipping copy: only {days_remaining}d to resolution (need {_cfg('ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION', 7)}d) | {trade.title[:40]}"
                         )
                         return None
                 except ValueError as e:

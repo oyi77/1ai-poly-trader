@@ -216,6 +216,7 @@ class WalletWatcher:
             condition_id = t.get("conditionId", "")
 
             trade = WalletTrade(
+                user=t.get("user", wallet),
                 wallet=wallet,
                 condition_id=condition_id,
                 outcome=outcome,

@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useWebSocket } from './useWebSocket'
@@ -59,7 +60,7 @@ export function useBrainGraph(): UseBrainGraphResult {
         return null
       }
     },
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
     enabled: status !== 'connected',
   })
 

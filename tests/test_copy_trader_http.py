@@ -103,7 +103,7 @@ class TestCopyTraderPollOnce:
         ct._running = True
         ct._last_refresh = asyncio.get_event_loop().time()
 
-        trader = ScoredTrader(
+        trader = ScoredTrader(user="test_user", 
             wallet="0xtrader", pseudonym="Test",
             profit_30d=10000, win_rate=0.65, total_trades=100,
             unique_markets=60, estimated_bankroll=20000.0, score=80.0,
@@ -111,7 +111,7 @@ class TestCopyTraderPollOnce:
         ct._tracked = [trader]
 
         mock_watcher = AsyncMock()
-        mock_trade = WalletTrade(
+        mock_trade = WalletTrade(user="test_user", 
             wallet="0xtrader", condition_id="cond1", outcome="YES",
             side="BUY", price=0.55, size=500.0, timestamp="2026-01-01T00:00:00Z",
         )
@@ -136,14 +136,14 @@ class TestCopyTraderPollOnce:
         ct._running = True
         ct._last_refresh = asyncio.get_event_loop().time()
 
-        trader = ScoredTrader(
+        trader = ScoredTrader(user="test_user", 
             wallet="0xtrader", pseudonym="T",
             profit_30d=5000, win_rate=0.6, total_trades=50,
             unique_markets=30, estimated_bankroll=10000.0, score=70.0,
         )
         ct._tracked = [trader]
 
-        sell_trade = WalletTrade(
+        sell_trade = WalletTrade(user="test_user", 
             wallet="0xtrader", condition_id="cond2", outcome="YES",
             side="SELL", price=0.80, size=300.0, timestamp="t",
         )
@@ -165,7 +165,7 @@ class TestCopyTraderPollOnce:
         ct._running = True
         ct._last_refresh = asyncio.get_event_loop().time()
 
-        trader = ScoredTrader(
+        trader = ScoredTrader(user="test_user", 
             wallet="0xbad", pseudonym="Bad",
             profit_30d=1000, win_rate=0.5, total_trades=20,
             unique_markets=10, estimated_bankroll=5000.0, score=65.0,
@@ -209,7 +209,7 @@ class TestCopyTraderPollOnce:
 class TestMirrorBuyEdgeCases:
     def _make_trader(self, bankroll=10000.0, score=75.0):
         from backend.strategies.copy_trader import ScoredTrader
-        return ScoredTrader(
+        return ScoredTrader(user="test_user", 
             wallet="0xtest", pseudonym="T",
             profit_30d=5000, win_rate=0.6, total_trades=30,
             unique_markets=20, estimated_bankroll=bankroll, score=score,
@@ -217,7 +217,7 @@ class TestMirrorBuyEdgeCases:
 
     def _make_trade(self, size=200.0):
         from backend.strategies.copy_trader import WalletTrade
-        return WalletTrade(
+        return WalletTrade(user="test_user", 
             wallet="0xtest", condition_id="cond", outcome="YES",
             side="BUY", price=0.45, size=size, timestamp="t",
         )
