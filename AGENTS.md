@@ -59,6 +59,8 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 
 ### Common Patterns
 - `.env` feature flags control system behavior (e.g., `JOB_WORKER_ENABLED`, `SHADOW_MODE`, `AGI_AUTO_PROMOTE`, `AGI_AUTO_ENABLE`, `AGI_STRATEGY_HEALTH_ENABLED`, `AGI_BANKROLL_ALLOCATION_ENABLED`)
+- All external API base URLs are configurable via env vars (see `GAMMA_API_URL`, `DATA_API_URL`, `CLOB_API_URL`, etc. in `backend/config.py`)
+- Frontend polling intervals are configurable via `VITE_POLL_FAST_MS`, `VITE_POLL_NORMAL_MS`, `VITE_POLL_SLOW_MS`, `VITE_POLL_VERY_SLOW_MS` (see `frontend/src/polling.ts`)
 - All sensitive operations guarded by circuit breakers and risk limits
 - Redis optional — falls back to SQLite queue when unavailable
 

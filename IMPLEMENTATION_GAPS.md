@@ -86,6 +86,10 @@ Format:
 
 ~~**.env.example missing RISK_PROFILE and AGI flags** — New config fields not documented.~~ → **Fixed** (2026-05-03): Added `RISK_PROFILE`, `AGI_HEALTH_CHECK_*`, `AGI_NIGHTLY_REVIEW_*`, `AGI_REHABILITATION_ENABLED`, `AGI_FRONTTEST_*`, `HISTORICAL_DATA_COLLECTOR_*` sections to `.env.example`.
 
+~~**Hardcoded API base URLs across 30+ backend files** — Polymarket Gamma, Data, CLOB, Kalshi, Goldsky, Binance, Coinbase, Kraken, Bybit, CoinGecko, Open-Meteo, NWS URLs were hardcoded string constants.~~ → **Fixed** (2026-05-03): Added 20+ config fields to `backend/config.py` (`GAMMA_API_URL`, `DATA_API_URL`, `CLOB_API_URL`, `POLYMARKET_BASE_URL`, `KALSHI_API_URL`, `GOLDSKY_API_URL`, `BINANCE_API_URL`, `COINBASE_API_URL`, `KRAKEN_API_URL`, `BYBIT_API_URL`, `COINGECKO_API_URL`, `OPEN_METEO_API_URL`, `OPEN_METEO_ARCHIVE_URL`, `NWS_API_URL`, `NWS_BASE_URL`, `BINANCE_KLINES_URL`, `RESEARCH_RSS_FEEDS`). All 30+ files updated to read from settings. Commit `cf46a76`.
+
+~~**Hardcoded frontend polling intervals** — 55 `refetchInterval` values across 35 .tsx files were hardcoded milliseconds.~~ → **Fixed** (2026-05-03): Created `frontend/src/polling.ts` with `POLL.FAST` (2s), `POLL.NORMAL` (10s), `POLL.SLOW` (30s), `POLL.VERY_SLOW` (60s) constants configurable via `VITE_POLL_*_MS` env vars. All 35 files updated. MiroFish hardcoded ports (5001/3200) now read from `VITE_MIROFISH_*` env vars. Commit `cf46a76`.
+
 ---
 
 ## Known Gaps
