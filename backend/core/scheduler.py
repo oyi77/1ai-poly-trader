@@ -31,7 +31,15 @@ from backend.core.scheduling_strategies import (
 )
 from backend.core.auto_improve import auto_improve_job
 from backend.core.strategy_ranker import strategy_ranking_job
-from backend.core.agi_jobs import self_review_job, research_pipeline_job
+from backend.core.agi_jobs import (
+    self_review_job,
+    research_pipeline_job,
+    agi_health_check_job,
+    nightly_review_job,
+    strategy_rehabilitation_job,
+    historical_data_collection_job,
+    forensics_integration_job,
+)
 from backend.core.db_backup import backup_job
 from backend.core.cache_cleanup import cache_cleanup_job
 from backend.core.autonomous_promoter import autonomous_promotion_job
@@ -388,6 +396,61 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info(f"Scheduled autonomous promotion job every {promotion_interval} hour(s)")
+
+    if getattr(settings, "AGI_HEALTH_CHECK_ENABLED", True):
+        health_interval = getattr(settings, "AGI_HEALTH_CHECK_INTERVAL_MINUTES", 15)
+        scheduler.add_job(
+            agi_health_check_job,
+            IntervalTrigger(minutes=health_interval),
+            id="agi_health_check",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled AGI health check every %d minute(s)", health_interval)
+
+    if getattr(settings, "AGI_NIGHTLY_REVIEW_ENABLED", True):
+        from apscheduler.triggers.date import DateTrigger
+        from datetime import datetime as _dt, timedelta as _td
+
+        review_hour = getattr(settings, "AGI_NIGHTLY_REVIEW_HOUR", 2)
+        now = _dt.now()
+        target = now.replace(hour=review_hour, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += _td(days=1)
+        scheduler.add_job(
+            nightly_review_job,
+            "date",
+            run_date=target,
+            id="nightly_review",
+            replace_existing=True,
+        )
+
+    if getattr(settings, "AGI_REHABILITATION_ENABLED", True):
+        scheduler.add_job(
+            strategy_rehabilitation_job,
+            IntervalTrigger(days=1),
+            id="strategy_rehabilitation",
+            replace_existing=True,
+            max_instances=1,
+        )
+
+    if getattr(settings, "HISTORICAL_DATA_COLLECTOR_ENABLED", True):
+        hist_interval = getattr(settings, "HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS", 6)
+        scheduler.add_job(
+            historical_data_collection_job,
+            IntervalTrigger(hours=hist_interval),
+            id="historical_data_collection",
+            replace_existing=True,
+            max_instances=1,
+        )
+
+    scheduler.add_job(
+        forensics_integration_job,
+        IntervalTrigger(days=1),
+        id="forensics_integration",
+        replace_existing=True,
+        max_instances=1,
+    )
 
     backup_interval = getattr(settings, "DB_BACKUP_INTERVAL_HOURS", 6)
     if backup_interval > 0:

@@ -45,3 +45,89 @@ async def research_pipeline_job() -> None:
     except Exception as exc:
         logger.exception("research_pipeline_job failed: %s", exc)
         log_event("error", f"Research pipeline failed: {exc}")
+
+
+async def agi_health_check_job() -> None:
+    from backend.core.scheduler import log_event
+
+    log_event("info", "Running AGI health check...")
+    try:
+        from backend.core.agi_health_check import agi_health_checker
+
+        results = agi_health_checker.run_checks()
+        summary = results.get("summary", {})
+        if summary.get("all_healthy"):
+            log_event("success", "AGI health check: all checks passed")
+        else:
+            passed = summary.get("passed", 0)
+            total = summary.get("total", 0)
+            log_event("warning", f"AGI health check: {passed}/{total} checks passed")
+    except Exception as exc:
+        logger.exception("agi_health_check_job failed: %s", exc)
+        log_event("error", f"AGI health check failed: {exc}")
+
+
+async def nightly_review_job() -> None:
+    from backend.core.scheduler import log_event
+
+    log_event("info", "Running nightly review...")
+    try:
+        from backend.core.nightly_review import nightly_review_writer
+
+        path = nightly_review_writer.generate()
+        if path:
+            log_event("success", f"Nightly review written to {path}")
+        else:
+            log_event("warning", "Nightly review generation returned no path")
+    except Exception as exc:
+        logger.exception("nightly_review_job failed: %s", exc)
+        log_event("error", f"Nightly review failed: {exc}")
+
+
+async def strategy_rehabilitation_job() -> None:
+    from backend.core.scheduler import log_event
+
+    log_event("info", "Running strategy rehabilitation...")
+    try:
+        from backend.core.strategy_rehabilitator import strategy_rehabilitator
+
+        rehabilitated = strategy_rehabilitator.run()
+        if rehabilitated:
+            log_event("success", f"Rehabilitated strategies: {rehabilitated}")
+        else:
+            log_event("info", "No strategies eligible for rehabilitation")
+    except Exception as exc:
+        logger.exception("strategy_rehabilitation_job failed: %s", exc)
+        log_event("error", f"Strategy rehabilitation failed: {exc}")
+
+
+async def historical_data_collection_job() -> None:
+    from backend.core.scheduler import log_event
+
+    log_event("info", "Running historical data collection...")
+    try:
+        from backend.core.historical_data_collector import historical_data_collector
+
+        results = await historical_data_collector.run_collection_cycle()
+        total = sum(results.values())
+        log_event("success", f"Historical data collection: {total} new rows — {results}")
+    except Exception as exc:
+        logger.exception("historical_data_collection_job failed: %s", exc)
+        log_event("error", f"Historical data collection failed: {exc}")
+
+
+async def forensics_integration_job() -> None:
+    from backend.core.scheduler import log_event
+
+    log_event("info", "Running forensics integration...")
+    try:
+        from backend.core.forensics_integration import generate_forensics_proposals
+
+        ids = generate_forensics_proposals()
+        if ids:
+            log_event("success", f"Forensics integration: created {len(ids)} proposals")
+        else:
+            log_event("info", "Forensics integration: no new proposals needed")
+    except Exception as exc:
+        logger.exception("forensics_integration_job failed: %s", exc)
+        log_event("error", f"Forensics integration failed: {exc}")

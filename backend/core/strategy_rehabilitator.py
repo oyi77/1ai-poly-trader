@@ -1,0 +1,104 @@
+"""Strategy rehabilitation — re-enables suspended strategies after paper validation."""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from sqlalchemy.orm import Session
+
+from backend.models.database import SessionLocal, StrategyConfig, Trade
+
+logger = logging.getLogger("trading_bot.rehabilitation")
+
+
+class StrategyRehabilitator:
+    """Re-enables disabled strategies if they pass paper-mode validation."""
+
+    REHAB_PAPER_TRADES = 10
+    REHAB_WIN_RATE_THRESHOLD = 0.50
+    REHAB_COOLDOWN_DAYS = 7
+
+    def run(self, db: Optional[Session] = None) -> list[str]:
+        _owned = db is None
+        db = db or SessionLocal()
+        rehabilitated = []
+        try:
+            disabled = db.query(StrategyConfig).filter(StrategyConfig.enabled == False).all()
+            for cfg in disabled:
+                if self._is_candidate(cfg, db):
+                    if self._passes_validation(cfg, db):
+                        cfg.enabled = True
+                        rehabilitated.append(cfg.strategy_name)
+                        logger.info(
+                            "[Rehabilitation] Re-enabled strategy '%s'",
+                            cfg.strategy_name,
+                        )
+
+            if rehabilitated:
+                db.commit()
+            return rehabilitated
+        except Exception as e:
+            logger.error("[Rehabilitation] Failed: %s", e)
+            if _owned:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+            return rehabilitated
+        finally:
+            if _owned:
+                db.close()
+
+    def _is_candidate(self, cfg: StrategyConfig, db: Session) -> bool:
+        recent_disabled = (
+            db.query(Trade)
+            .filter(
+                Trade.strategy == cfg.strategy_name,
+                Trade.settled.is_(True),
+            )
+            .order_by(Trade.timestamp.desc())
+            .first()
+        )
+        if not recent_disabled or not recent_disabled.timestamp:
+            return False
+
+        last_ts = recent_disabled.timestamp
+        if last_ts.tzinfo is None:
+            last_ts = last_ts.replace(tzinfo=timezone.utc)
+
+        cooldown = datetime.now(timezone.utc) - timedelta(days=self.REHAB_COOLDOWN_DAYS)
+        return last_ts < cooldown
+
+    def _passes_validation(self, cfg: StrategyConfig, db: Session) -> bool:
+        trades = (
+            db.query(Trade)
+            .filter(
+                Trade.strategy == cfg.strategy_name,
+                Trade.settled.is_(True),
+                Trade.result.in_(["win", "loss"]),
+            )
+            .order_by(Trade.timestamp.desc())
+            .limit(self.REHAB_PAPER_TRADES * 3)
+            .all()
+        )
+
+        if len(trades) < self.REHAB_PAPER_TRADES:
+            return False
+
+        recent = trades[:self.REHAB_PAPER_TRADES]
+        wins = sum(1 for t in recent if t.result == "win")
+        win_rate = wins / len(recent)
+
+        if win_rate < self.REHAB_WIN_RATE_THRESHOLD:
+            return False
+
+        pnl = sum(t.pnl or 0.0 for t in recent)
+        if pnl < 0:
+            return False
+
+        return True
+
+
+strategy_rehabilitator = StrategyRehabilitator()

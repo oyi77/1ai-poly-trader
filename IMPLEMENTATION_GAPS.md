@@ -62,34 +62,36 @@ Format:
 
 ~~**StrategyRanker.disable_underperformers didn't pass trading_mode** — Same pattern as auto_disable_losing_strategies; could disable strategies based on wrong mode's data.~~ → **Fixed** (2026-05-03): Added `trading_mode` parameter to `disable_underperformers()`, passed from `strategy_ranking_job` via `settings.TRADING_MODE`.
 
+~~**OnlineLearner bypassed AGI_STRATEGY_HEALTH_ENABLED flag** — `online_learner.py` called `_health_monitor.assess()` unconditionally on every settlement, killing strategies even when the feature flag was disabled.~~ → **Fixed** (2026-05-03): Added `_health_enabled()` helper that checks `settings.AGI_STRATEGY_HEALTH_ENABLED`; health assess calls in `on_trade_settled()` and `run_cycle()` now gated by this check.
+
+~~**Duplicate StrategyOutcome rows per settlement** — Both `OnlineLearner.on_trade_settled()` → `record_outcome()` AND `settlement_helpers.py` direct emission created StrategyOutcome rows for the same trade, doubling health metrics.~~ → **Fixed** (2026-05-03): Removed direct StrategyOutcome emission from `settlement_helpers.py`; `record_outcome()` via `OnlineLearner` is the single source of truth for outcome recording.
+
+~~**self_review.py treated StrategyConfig.params JSON string as dict** — `_generate_proposals_for_bleeders` called `.items()` on `cfg.params` without parsing JSON, causing AttributeError on proposal generation.~~ → **Fixed** (2026-05-03): Added `json.loads()` with fallback for string-typed params.
+
+~~**GET /api/learning/health endpoints disabled strategies as side effect** — `StrategyHealthMonitor.assess()` both computes metrics AND disables killed strategies. GET endpoints triggered this on every dashboard health check.~~ → **Fixed** (2026-05-03): Added `readonly` parameter to `assess()`; API endpoints now pass `readonly=True` to compute metrics without side effects.
+
+~~**trade_forensics.py loss streak query used wrong direction** — `Trade.timestamp >= trade.timestamp` counted future (non-existent) losses instead of preceding losses. Loss streak detection was non-functional.~~ → **Fixed** (2026-05-03): Changed to `<=` with 24-hour lookback window for correct streak detection.
+
+~~**No HistoricalDataCollector** — No collector for BTC candles, weather history, market outcomes. Backtest used unit-test data only.~~ → **Fixed** (2026-05-03): Added `backend/core/historical_data_collector.py` with `HistoricalDataCollector` class that collects BTC candles from Binance, settled market outcomes from Gamma API, and weather snapshots from Open-Meteo. ORM models in `backend/models/historical_data.py` (`HistoricalCandle`, `MarketOutcome`, `WeatherSnapshot`). Scheduled as `historical_data_collection_job` every 6h.
+
+~~**No Fronttest validation** — Parameter changes went to live without a paper-trial gate.~~ → **Fixed** (2026-05-03): Added `backend/core/fronttest_validator.py` with `FronttestValidator` class. Validates that executed proposals survive a 14-day paper-trial period with minimum 10 trades and ≥40% win rate before allowing live deployment. Config: `AGI_FRONTTEST_DAYS`, `AGI_FRONTTEST_MIN_TRADES`.
+
+~~**No AGI health check** — No scheduled job validating strategy health, data freshness, budget exhaustion, orphaned positions, scheduler liveness.~~ → **Fixed** (2026-05-03): Added `backend/core/agi_health_check.py` with `AGIHealthChecker` running 5 checks: strategy staleness, data freshness (<24h), budget status, scheduler liveness, orphaned positions (>7d unsettled). Scheduled as `agi_health_check_job` every 15 minutes.
+
+~~**No nightly review** — No daily markdown log writer; no base rate calibration or improvement plan.~~ → **Fixed** (2026-05-03): Added `backend/core/nightly_review.py` with `NightlyReviewWriter` generating `docs/agi-log/YYYY-MM-DD.md` containing daily summary, strategy performance (7-day), model calibration, and improvement plan with pending proposals + disabled strategies. Scheduled as `nightly_review_job` at configurable hour.
+
+~~**No strategy rehabilitation** — No automated pipeline to re-enable suspended strategies after validation.~~ → **Fixed** (2026-05-03): Added `backend/core/strategy_rehabilitator.py` with `StrategyRehabilitator`. Re-enables disabled strategies after 7-day cooldown if recent trades show ≥50% win rate and positive PnL. Scheduled as `strategy_rehabilitation_job` daily.
+
+~~**TradeForensics not integrated into AGI improvement** — Forensics ran on losses but didn't feed patterns back into proposals.~~ → **Fixed** (2026-05-03): Added `backend/core/forensics_integration.py` with `generate_forensics_proposals()`. Groups losses by strategy over 7 days, creates `StrategyProposal` entries for strategies with ≥5 losses. Scheduled as `forensics_integration_job` daily.
+
+~~**.env.example missing RISK_PROFILE and AGI flags** — New config fields not documented.~~ → **Fixed** (2026-05-03): Added `RISK_PROFILE`, `AGI_HEALTH_CHECK_*`, `AGI_NIGHTLY_REVIEW_*`, `AGI_REHABILITATION_ENABLED`, `AGI_FRONTTEST_*`, `HISTORICAL_DATA_COLLECTOR_*` sections to `.env.example`.
+
 ---
 
 ## Known Gaps
 
-### AGI Framework — Phase 2 (Data & Backtest)
-- **HistoricalDataCollector**: No collector for BTC candles (Coinbase/Kraken/Binance), weather history (Open-Meteo archive), Polymarket outcomes, Kalshi outcomes. Backtest currently unit‑test data only.
-- **BacktestEngine**: No replay engine that runs strategies against historical data with slippage/fees and returns `StrategyReport`.
-- **Fronttest validation**: No 14-day paper‑trial gate for parameter changes before going live.
-- **Proposal pipeline**: No `Proposal` model/API; AGI doesn't generate or validate improvement proposals yet.
-
-### AGI Framework — Phase 3 (Loop & Review)
-- **AGI health check (every 15 min)**: No scheduled job that validates strategy health, data pipeline freshness, scheduler liveness, budget exhaustion, orphaned positions.
-- **Nightly review**: No `docs/agi-log/YYYY-MM-DD.md` writer; no base rate calibration or improvement plan.
-- **Strategy rehabilitation**: No automated pipeline to repair suspended strategies and re‑enter paper after validation.
-
 ### Observability & Safety
-- **TradeForensics scope**: Only runs on settlement losses; not yet integrated into AGI improvement suggestions.
 - **Test isolation**: `tests/test_agi_autonomous_loop.py` patches global `SessionLocal` at import time, causing cross-contamination when run alongside `backend/tests/test_autonomy_loop_integration.py`. Pre-existing issue; tests pass individually.
-
-### Documentation
-- `docs/configuration.md` missing AGI autonomy flags documentation.
-- `docs/how-it-works.md` missing autonomy lifecycle explanation.
-- `docs/api.md` missing risk profile endpoints and AGI endpoints documentation.
-- `ARCHITECTURE.md` missing autonomy daemon section and updated AGI module table.
-- `backend/AGENTS.md` missing notes on risk profiles and allocation enforcement.
-- `.env.example` missing `RISK_PROFILE` and AGI flag section.
-
----
 
 ## Intentionally De-Scoped
 
