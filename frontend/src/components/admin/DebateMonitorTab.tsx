@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -209,7 +210,7 @@ export function DebateMonitorTab() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['decisions', queryParams],
     queryFn: () => fetchDecisions(queryParams),
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const handleRowClick = (row: DecisionLogRow) => {

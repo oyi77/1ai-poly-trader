@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
@@ -18,7 +19,7 @@ export default function Settlements() {
   const { data: settlements, isLoading, isError } = useQuery({
     queryKey: ['settlements'],
     queryFn: () => fetchSettlements(100, 0),
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const columns: ColumnDef<SettlementRow>[] = [

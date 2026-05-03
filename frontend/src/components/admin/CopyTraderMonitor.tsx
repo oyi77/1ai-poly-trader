@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCopyTraderStatus } from '../../api'
 
@@ -5,7 +6,7 @@ export function CopyTraderMonitor() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['copy-trader-status'],
     queryFn: fetchCopyTraderStatus,
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   if (isLoading) {

@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { StrategyProposal } from '../types/features'
@@ -47,7 +48,7 @@ export function ProposalApprovalUI({ isAdmin }: ProposalApprovalUIProps) {
       })
       return response.data
     },
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
   })
   useEffect(() => {
     const wsUrl = getWsUrl('/ws/proposals')

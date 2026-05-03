@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useQuery } from '@tanstack/react-query'
 import type { WeatherForecast, WeatherSignal } from '../types'
 import { platformStyles } from '../utils'
@@ -22,13 +23,13 @@ export function WeatherPanel({ forecasts, signals }: Props) {
   const { data: forecastData, isLoading: forecastsLoading, isError: forecastsError } = useQuery({
     queryKey: ['weather-forecasts'],
     queryFn: fetchWeatherForecasts,
-    refetchInterval: 60_000,
+    refetchInterval: POLL.VERY_SLOW,
     staleTime: 30_000,
   })
   const { data: signalData, isLoading: signalsLoading, isError: signalsError } = useQuery({
     queryKey: ['weather-signals'],
     queryFn: fetchWeatherSignals,
-    refetchInterval: 60_000,
+    refetchInterval: POLL.VERY_SLOW,
     staleTime: 30_000,
   })
 

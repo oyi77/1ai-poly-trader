@@ -17,11 +17,12 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 import httpx
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.polymarket_scraper")
 
-# Polymarket URLs
-POLYMARKET_BASE = "https://polymarket.com"
-POLYMARKET_GAMMA = "https://gamma-api.polymarket.com"
+POLYMARKET_BASE = settings.POLYMARKET_BASE_URL
+POLYMARKET_GAMMA = settings.GAMMA_API_URL
 POLYMARKET_LEADERBOARD = f"{POLYMARKET_BASE}/_next/data/build-TfctsWXpff2fKS/en/leaderboard.json"
 
 # Rate limiting (from polymarket-mcp-server patterns)

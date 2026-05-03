@@ -5,9 +5,11 @@ import logging
 
 import httpx
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.preflight")
 
-CLOB_HOST = "https://clob.polymarket.com"
+CLOB_HOST = settings.CLOB_API_URL
 
 
 async def check_geoblock() -> dict:
@@ -37,8 +39,8 @@ async def run_preflight_checks() -> dict:
 
     # API connectivity checks
     checks = {
-        "polymarket_gamma": ("https://gamma-api.polymarket.com/markets?limit=1", "Gamma API"),
-        "polymarket_clob": ("https://clob.polymarket.com/time", "CLOB API"),
+        "polymarket_gamma": (f"{settings.GAMMA_API_URL}/markets?limit=1", "Gamma API"),
+        "polymarket_clob": (f"{settings.CLOB_API_URL}/time", "CLOB API"),
     }
 
     for name, (url, label) in checks.items():

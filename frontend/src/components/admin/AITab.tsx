@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, adminApi, fetchAISuggest, fetchAdminSettings, updateAdminSettings } from '../../api'
@@ -52,7 +53,7 @@ export function AITab() {
       const { data } = await api.get('/ai/status')
       return data
     },
-    refetchInterval: 10_000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const flat = Object.values(settings ?? {}).reduce((acc, sec) => ({ ...acc, ...(sec as object) }), {}) as Record<string, unknown>

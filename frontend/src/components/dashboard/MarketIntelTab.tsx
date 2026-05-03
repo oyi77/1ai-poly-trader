@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../DataTable'
@@ -19,7 +20,7 @@ function HealthSection() {
   const { data, isLoading } = useQuery({
     queryKey: ['health'],
     queryFn: fetchHealth,
-    refetchInterval: 15000,
+    refetchInterval: POLL.NORMAL,
   })
 
   return (
@@ -89,7 +90,7 @@ function StrategiesSection() {
   const { data: strategies, isLoading } = useQuery({
     queryKey: ['strategies'],
     queryFn: fetchStrategies,
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const toggleMutation = useMutation({
@@ -255,7 +256,7 @@ function MarketWatchSection() {
   const { data, isLoading } = useQuery({
     queryKey: ['market-watches', filterValues],
     queryFn: () => fetchMarketWatches(buildParams()),
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const createMutation = useMutation({

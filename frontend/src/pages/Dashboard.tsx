@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useState, useEffect, lazy, Suspense, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -79,7 +80,7 @@ export default function Dashboard() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboard,
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const scanMutation = useMutation({

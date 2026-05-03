@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchStrategies, updateStrategy, runStrategyNow } from '../../api'
@@ -17,7 +18,7 @@ export function StrategiesTab() {
   const { data: strategies = [], isLoading } = useQuery({
     queryKey: ['strategies'],
     queryFn: fetchStrategies,
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const handleToggle = async (name: string, enabled: boolean) => {

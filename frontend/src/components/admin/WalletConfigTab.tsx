@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -27,7 +28,7 @@ export function WalletConfigTab() {
   const { data: activeWalletData } = useQuery({
     queryKey: ['wallets-active'],
     queryFn: () => getActiveWallet(),
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
   const activeWallet = activeWalletData?.active_wallet ?? null
 
@@ -43,7 +44,7 @@ export function WalletConfigTab() {
   const { data: activeWalletBalance } = useQuery<WalletBalance | null>({
     queryKey: ['wallet-balance', activeWallet],
     queryFn: () => activeWallet ? getWalletBalance(activeWallet) : null,
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
     enabled: !!activeWallet,
   })
 

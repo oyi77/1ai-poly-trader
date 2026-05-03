@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDashboard } from '../api'
@@ -36,7 +37,7 @@ export function StatsCards() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboard,
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
     staleTime: 5000
   })
 

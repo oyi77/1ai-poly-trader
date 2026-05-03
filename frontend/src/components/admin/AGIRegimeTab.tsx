@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useQuery } from '@tanstack/react-query'
 import { agiAPI } from '../../api/agi'
 
@@ -19,13 +20,13 @@ export function AGIRegimeTab() {
   const { data: regimeData, isLoading: regimeLoading } = useQuery({
     queryKey: ['agi', 'regime'],
     queryFn: () => agiAPI.getRegime(),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const { data: goalData, isLoading: goalLoading } = useQuery({
     queryKey: ['agi', 'goal'],
     queryFn: () => agiAPI.getGoal(),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   if (regimeLoading || goalLoading) {

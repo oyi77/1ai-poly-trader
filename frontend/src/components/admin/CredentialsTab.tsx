@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { updateCredentials, changeAdminPassword, fetchSystemStatus, toggleTradingMode } from '../../api'
@@ -98,7 +99,7 @@ export function CredentialsTab() {
   const { data: sysStatus, refetch: refetchStatus } = useQuery({
     queryKey: ['admin-system-creds'],
     queryFn: fetchSystemStatus,
-    refetchInterval: 15_000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const handleSave = async () => {

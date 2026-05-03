@@ -43,8 +43,8 @@ def _cfg(name, default):
 
 logger = logging.getLogger("trading_bot")
 
-OPEN_METEO_BASE = "https://api.open-meteo.com/v1"
-NBM_BASE = "https://api.weather.gov/gridpoints"
+OPEN_METEO_BASE = settings.OPEN_METEO_API_URL
+NBM_BASE = settings.NWS_API_URL
 
 # Major US cities: (name, lat, lon, NWS office, grid_x, grid_y)
 DEFAULT_CITIES = [

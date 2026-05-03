@@ -14,7 +14,7 @@ from backend.core.circuit_breaker_pybreaker import kalshi_breaker
 
 logger = logging.getLogger("trading_bot")
 
-BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
+BASE_URL = settings.KALSHI_API_URL
 
 
 class KalshiClient:

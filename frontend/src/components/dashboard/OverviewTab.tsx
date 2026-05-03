@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useStats } from '../../hooks/useStats'
@@ -59,7 +60,7 @@ export function OverviewTab({
         return []
       }
     },
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const { data: healthData } = useQuery<DetailedHealthData | null>({
@@ -70,7 +71,7 @@ export function OverviewTab({
         return response.data
       } catch { return null }
     },
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const getFilteredValue = (key: 'pnl' | 'bankroll' | 'returnPercent' | 'winRate') => {

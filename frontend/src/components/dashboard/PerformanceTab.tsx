@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useQuery } from '@tanstack/react-query'
 import { useStats } from '../../hooks/useStats'
 import { useModeFilter } from '../../hooks/useModeFilter'
@@ -13,7 +14,7 @@ export function PerformanceTab() {
   const { data: dashboardData } = useQuery({
     queryKey: ['dashboard-equity-perf'],
     queryFn: fetchDashboard,
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const initialBankroll = dashboardData?.stats?.initial_bankroll ?? 10000
@@ -21,25 +22,25 @@ export function PerformanceTab() {
   const { data: health } = useQuery({
     queryKey: ['health-perf'],
     queryFn: fetchHealth,
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const { data: allTrades = [] } = useQuery({
     queryKey: ['trades-perf'],
     queryFn: () => fetchTrades(),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const { data: strategyStatsData } = useQuery({
     queryKey: ['strategy-stats'],
     queryFn: fetchStrategyStats,
-    refetchInterval: 60_000,
+    refetchInterval: POLL.VERY_SLOW,
   })
 
   const { data: strategiesConfig = [] } = useQuery({
     queryKey: ['strategies-config'],
     queryFn: fetchStrategies,
-    refetchInterval: 60_000,
+    refetchInterval: POLL.VERY_SLOW,
   })
 
   const strategies: StrategyHealth[] = health?.strategies ?? []

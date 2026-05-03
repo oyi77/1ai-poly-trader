@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDecisions } from '../../api'
@@ -12,7 +13,7 @@ export function DecisionsTab() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['decisions-tab'],
     queryFn: () => fetchDecisions({ limit: 100 }),
-    refetchInterval: 20_000,
+    refetchInterval: POLL.NORMAL,
   })
 
   if (isLoading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading...</div>

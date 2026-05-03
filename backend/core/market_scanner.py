@@ -7,9 +7,11 @@ from typing import Any
 
 import httpx
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot")
 
-GAMMA_HOST = "https://gamma-api.polymarket.com"
+GAMMA_HOST = settings.GAMMA_API_URL
 _SCAN_SEMAPHORE = asyncio.Semaphore(5)  # max 5 concurrent Gamma requests
 
 

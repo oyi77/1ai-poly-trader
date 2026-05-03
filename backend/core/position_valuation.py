@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 import httpx
 
 from backend.models.database import Trade
+from backend.config import settings
 from backend.core.alert_manager import AlertManager
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,7 @@ async def _fetch_prices_with_fallback(
             else:
                 # Slug - use Gamma API
                 r = await client.get(
-                    f"https://gamma-api.polymarket.com/markets?slug={ticker}",
+                    f"{settings.GAMMA_API_URL}/markets?slug={ticker}",
                     timeout=5.0,
                 )
                 r.raise_for_status()

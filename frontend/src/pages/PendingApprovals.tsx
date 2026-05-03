@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -20,7 +21,7 @@ export default function PendingApprovals() {
   const { data: items = [], isLoading: loading, error: queryError, refetch } = useQuery<PendingApproval[]>({
     queryKey: ['pending-approvals'],
     queryFn: fetchPendingApprovals,
-    refetchInterval: 15000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const error = actionError || (queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null)

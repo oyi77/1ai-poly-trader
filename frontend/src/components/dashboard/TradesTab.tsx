@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTrades } from '../../api'
@@ -13,7 +14,7 @@ export function TradesTab() {
   const { data: trades = [], isLoading, error } = useQuery({
     queryKey: ['trades-full'],
     queryFn: () => fetchTrades(),
-    refetchInterval: 15_000,
+    refetchInterval: POLL.NORMAL,
   })
 
   if (isLoading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading...</div>

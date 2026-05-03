@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchPolymarketMarkets, type PolymarketMarket } from '../../api'
@@ -7,7 +8,7 @@ export function MarketsTab() {
   const { data: polymarketMarkets = [], isLoading } = useQuery({
     queryKey: ['markets', page],
     queryFn: () => fetchPolymarketMarkets(page * 50, 50),
-    refetchInterval: 60_000,
+    refetchInterval: POLL.VERY_SLOW,
   })
 
   return (

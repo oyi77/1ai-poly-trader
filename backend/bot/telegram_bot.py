@@ -167,6 +167,7 @@ class PolyEdgeBot:
         """
         if not self._bot or self._paused:
             return
+        from backend.config import settings
 
         market = signal.market
         condition_id = market.market_id
@@ -211,7 +212,7 @@ class PolyEdgeBot:
                 [
                     InlineKeyboardButton(
                         "📊 View Market",
-                        url=f"https://polymarket.com/event/{market.slug or condition_id}",
+                        url=f"{settings.POLYMARKET_BASE_URL}/event/{market.slug or condition_id}",
                     ),
                 ],
             ]

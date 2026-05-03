@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
@@ -227,7 +228,7 @@ export default function DecisionLog() {
   const { data, isLoading } = useQuery({
     queryKey: ['decisions', state],
     queryFn: () => fetchDecisions(toQueryParams()),
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const columnsWithDetail: ColumnDef<DecisionLogRow>[] = [

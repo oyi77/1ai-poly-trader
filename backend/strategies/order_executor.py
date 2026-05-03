@@ -16,8 +16,8 @@ from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-DATA_HOST = "https://data-api.polymarket.com"
-GAMMA_HOST = "https://gamma-api.polymarket.com"
+DATA_HOST = settings.DATA_API_URL
+GAMMA_HOST = settings.GAMMA_API_URL
 
 BTC_5M_SLUG_PATTERN = "btc-updown-5m"
 

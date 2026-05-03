@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from backend.core.retry import retry
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,10 @@ binance_breaker = CircuitBreaker("binance")
 # Binance 1-min kline fetcher + technical indicators for BTC 5-min trading
 # ---------------------------------------------------------------------------
 
-BINANCE_API = "https://api.binance.com/api/v3"
-BYBIT_API = "https://api.bybit.com/v5/market"
-COINBASE_API = "https://api.exchange.coinbase.com"
-KRAKEN_API = "https://api.kraken.com/0/public"
+BINANCE_API = settings.BINANCE_API_URL
+BYBIT_API = settings.BYBIT_API_URL
+COINBASE_API = settings.COINBASE_API_URL
+KRAKEN_API = settings.KRAKEN_API_URL
 
 # 30-second cache to avoid hammering Binance during a single scan cycle
 _kline_cache: Dict[str, Any] = {"data": None, "ts": 0.0}
@@ -350,7 +351,7 @@ async def compute_btc_microstructure() -> Optional[BtcMicrostructure]:
         )
 
 # CoinGecko API (free tier, no key needed)
-COINGECKO_API = "https://api.coingecko.com/api/v3"
+COINGECKO_API = settings.COINGECKO_API_URL
 
 
 @dataclass

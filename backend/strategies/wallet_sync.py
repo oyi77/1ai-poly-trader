@@ -9,10 +9,11 @@ from typing import Optional, Tuple
 import httpx
 
 from backend.models.database import SessionLocal, CopyTraderEntry
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-DATA_HOST = "https://data-api.polymarket.com"
+DATA_HOST = settings.DATA_API_URL
 
 
 class WalletTrade:

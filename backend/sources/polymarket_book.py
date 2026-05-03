@@ -10,10 +10,11 @@ from datetime import datetime, timezone
 import httpx
 
 from backend.mesh.base import DataSource, DataQuery, RawPacket, Provenance, HealthStatus, SourceState
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.sources.polymarket_book")
 
-GAMMA_URL = "https://gamma-api.polymarket.com"
+GAMMA_URL = settings.GAMMA_API_URL
 
 
 class PolymarketBook(DataSource):

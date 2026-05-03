@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy import not_
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.general")
 
@@ -157,7 +158,7 @@ def _compute_composite_confidence(
     return round(max(0.0, min(1.0, composite)), 4)
 
 
-GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
+GAMMA_API_URL = f"{settings.GAMMA_API_URL}/markets"
 
 SPORTS_KEYWORDS = frozenset(
     {

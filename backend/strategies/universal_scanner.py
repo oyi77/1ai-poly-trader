@@ -33,7 +33,7 @@ def _cfg(name, default):
     return getattr(settings, name, default)
 
 
-GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
+GAMMA_API_URL = f"{settings.GAMMA_API_URL}/markets"
 
 PAGE_SIZE = _cfg("SCANNER_PAGE_SIZE", 500)
 MAX_MARKETS = _cfg("SCANNER_MAX_MARKETS", 10000)

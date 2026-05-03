@@ -334,7 +334,7 @@ class Orchestrator:
         try:
             async with _httpx.AsyncClient() as client:
                 resp = await client.get(
-                    "https://gamma-api.polymarket.com/markets",
+                    f"{settings.GAMMA_API_URL}/markets",
                     params={"conditionId": condition_id},
                     timeout=10.0,
                 )

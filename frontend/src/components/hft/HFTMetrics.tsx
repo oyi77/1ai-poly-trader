@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
@@ -33,7 +34,7 @@ export function HFTMetrics() {
       const { data } = await api.get<HFTMetrics>('/hft/metrics')
       return data
     },
-    refetchInterval: 2000,
+    refetchInterval: POLL.FAST,
     retry: 1,
   })
 
@@ -110,7 +111,7 @@ export function HFTStrategyCards() {
       const { data } = await api.get<{ strategies: HFTStrategyStatus[] }>('/hft/strategies')
       return data.strategies
     },
-    refetchInterval: 5000,
+    refetchInterval: POLL.FAST,
     retry: 1,
   })
 

@@ -10,6 +10,7 @@ import statistics
 import time
 
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
@@ -326,7 +327,7 @@ async def fetch_nws_observed_temperature(city_key: str, target_date: Optional[da
         async with httpx.AsyncClient(timeout=15.0) as client:
             # NWS observations endpoint
             station = city["nws_station"]
-            url = f"https://api.weather.gov/stations/{station}/observations"
+            url = f"{settings.NWS_BASE_URL}/stations/{station}/observations"
             headers = {"User-Agent": "(trading-bot, contact@example.com)"}
 
             # Get observations for the target date

@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSignalHistory } from '../../api'
@@ -13,7 +14,7 @@ export function SignalsTab() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['signal-history-tab'],
     queryFn: () => fetchSignalHistory({ limit: 200 }),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   if (isLoading) return <div className="flex items-center justify-center h-64 text-neutral-500 text-sm">Loading...</div>

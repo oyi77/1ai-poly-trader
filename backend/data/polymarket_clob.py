@@ -32,6 +32,7 @@ from py_clob_client_v2.clob_types import (
 
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from backend.core.circuit_breaker_pybreaker import polymarket_breaker
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
@@ -55,9 +56,9 @@ def ensure_token_id(token_id: str) -> str:
 
 clob_breaker = CircuitBreaker("polymarket_clob")
 
-CLOB_HOST = "https://clob.polymarket.com"  # Polymarket has a single CLOB API; no testnet CLOB exists
-GAMMA_HOST = "https://gamma-api.polymarket.com"
-DATA_HOST = "https://data-api.polymarket.com"
+CLOB_HOST = settings.CLOB_API_URL
+GAMMA_HOST = settings.GAMMA_API_URL
+DATA_HOST = settings.DATA_API_URL
 CHAIN_ID = 137  # Polygon mainnet — Builder Program and all trading run on mainnet
 
 # Polymarket minimum order size

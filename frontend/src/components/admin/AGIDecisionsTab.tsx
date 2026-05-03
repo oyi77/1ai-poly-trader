@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { agiAPI, type DecisionEntry } from '../../api/agi'
@@ -17,7 +18,7 @@ export function AGIDecisionsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['agi', 'decisions', page],
     queryFn: () => agiAPI.getDecisions(page, PAGE_SIZE),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const log = data ?? { decisions: [], page: 1, total: 0, page_size: PAGE_SIZE }

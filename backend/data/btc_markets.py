@@ -12,10 +12,11 @@ from dataclasses import dataclass
 from backend.core.market_scanner import fetch_markets_by_keywords
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from backend.data.market_types import UnifiedMarketView
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-GAMMA_API = "https://gamma-api.polymarket.com"
+GAMMA_API = settings.GAMMA_API_URL
 
 gamma_breaker = CircuitBreaker("gamma_api")
 

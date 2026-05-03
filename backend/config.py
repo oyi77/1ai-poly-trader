@@ -341,6 +341,25 @@ class Settings(BaseSettings):
     WEATHER_KELLY_FRACTION: float = 0.15
     WEATHER_MAX_BANKROLL_FRACTION: float = 0.05
 
+    # External API base URLs
+    GAMMA_API_URL: str = "https://gamma-api.polymarket.com"
+    DATA_API_URL: str = "https://data-api.polymarket.com"
+    CLOB_API_URL: str = "https://clob.polymarket.com"
+    POLYMARKET_BASE_URL: str = "https://polymarket.com"
+    BINANCE_API_URL: str = "https://api.binance.com/api/v3"
+    COINBASE_API_URL: str = "https://api.exchange.coinbase.com"
+    KRAKEN_API_URL: str = "https://api.kraken.com/0/public"
+    BYBIT_API_URL: str = "https://api.bybit.com/v5/market"
+    COINGECKO_API_URL: str = "https://api.coingecko.com/api/v3"
+    OPEN_METEO_API_URL: str = "https://api.open-meteo.com/v1"
+    NWS_API_URL: str = "https://api.weather.gov/gridpoints"
+    NWS_BASE_URL: str = "https://api.weather.gov"
+    BINANCE_KLINES_URL: str = "https://api.binance.com/api/v3/klines"
+    OPEN_METEO_ARCHIVE_URL: str = "https://archive-api.open-meteo.com/v1/archive"
+    KALSHI_API_URL: str = "https://api.elections.kalshi.com/trade-api/v2"
+    GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
+    RESEARCH_RSS_FEEDS: str = "https://polymarket.com/feed.xml,https://metaculus.com/feed/"
+
     @model_validator(mode="after")
     def _validate_trading_credentials(self) -> "Settings":
         import logging

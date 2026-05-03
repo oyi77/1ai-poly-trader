@@ -17,10 +17,11 @@ from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult
 from backend.core.market_scanner import MarketInfo
 from backend.core.decisions import record_decision_standalone
 from backend.core.activity_logger import activity_logger
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-COINGECKO_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price"
+COINGECKO_PRICE_URL = f"{settings.COINGECKO_API_URL}/simple/price"
 
 
 def calculate_dynamic_size(

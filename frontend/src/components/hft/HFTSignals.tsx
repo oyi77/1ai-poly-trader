@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -92,7 +93,7 @@ export function HFTSignals({ maxRows = 10 }: Props) {
         return []
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: POLL.FAST,
   })
 
   const signals: HFTSignal[] = apiSignals

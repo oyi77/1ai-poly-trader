@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { agiAPI } from '../../api/agi'
@@ -10,19 +11,19 @@ export function AGIControlTab() {
   const { data: status } = useQuery({
     queryKey: ['agi', 'status'],
     queryFn: () => agiAPI.getStatus(),
-    refetchInterval: 15_000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const { data: regime } = useQuery({
     queryKey: ['agi', 'regime'],
     queryFn: () => agiAPI.getRegime(),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const { data: goal } = useQuery({
     queryKey: ['agi', 'goal'],
     queryFn: () => agiAPI.getGoal(),
-    refetchInterval: 30_000,
+    refetchInterval: POLL.SLOW,
   })
 
   const runCycle = useMutation({

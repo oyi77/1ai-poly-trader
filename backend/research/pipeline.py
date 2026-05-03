@@ -26,10 +26,23 @@ _MARKET_PREDICATES = {
     "related_to": 0.5,
 }
 
-DEFAULT_RSS_FEEDS = [
-    "https://polymarket.com/feed.xml",
-    "https://metaculus.com/feed/",
-]
+DEFAULT_RSS_FEEDS: list[str] | None = None
+
+
+def _resolve_rss_feeds() -> list[str]:
+    global DEFAULT_RSS_FEEDS
+    if DEFAULT_RSS_FEEDS is not None:
+        return DEFAULT_RSS_FEEDS
+    try:
+        from backend.config import settings
+        raw = getattr(settings, "RESEARCH_RSS_FEEDS", "")
+        if raw:
+            DEFAULT_RSS_FEEDS = [u.strip() for u in raw.split(",") if u.strip()]
+        else:
+            DEFAULT_RSS_FEEDS = []
+    except Exception:
+        DEFAULT_RSS_FEEDS = []
+    return DEFAULT_RSS_FEEDS
 
 
 class ResearchPipeline:

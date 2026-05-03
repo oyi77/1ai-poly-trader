@@ -15,10 +15,11 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from backend.ai.training.feature_engineering import FeatureEngineer
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot.training.data_collector")
 
-GAMMA_HOST = "https://gamma-api.polymarket.com"
+GAMMA_HOST = settings.GAMMA_API_URL
 
 
 @dataclass

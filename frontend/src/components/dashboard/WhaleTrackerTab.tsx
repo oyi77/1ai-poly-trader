@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable, ColumnDef, FilterDef } from '../DataTable'
@@ -180,7 +181,7 @@ export function WhaleTrackerTab() {
   const { data: status } = useQuery({
     queryKey: ['copyTraderStatus'],
     queryFn: fetchCopyTraderStatus,
-    refetchInterval: 15000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const lbQuery = useTableQuery({
@@ -192,13 +193,13 @@ export function WhaleTrackerTab() {
   const { data: leaderboard = [], isLoading: lbLoading } = useQuery({
     queryKey: ['copyLeaderboard'],
     queryFn: fetchCopyLeaderboard,
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const { data: positions = [], isLoading: posLoading } = useQuery({
     queryKey: ['copyTraderPositions'],
     queryFn: fetchCopyTraderPositions,
-    refetchInterval: 15000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const [addAddress, setAddAddress] = useState('')

@@ -21,10 +21,11 @@ from typing import Optional
 import httpx
 
 from backend.core.activity_logger import activity_logger
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
-GAMMA_HOST = "https://gamma-api.polymarket.com"
+GAMMA_HOST = settings.GAMMA_API_URL
 
 
 async def _fetch_token_id(

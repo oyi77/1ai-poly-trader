@@ -12,6 +12,7 @@ import httpx
 from cachetools import TTLCache
 
 from backend.models.database import Trade, Signal, SettlementEvent, TradeContext
+from backend.config import settings
 
 logger = logging.getLogger("trading_bot")
 
@@ -59,7 +60,7 @@ async def _resolve_pm_by_token_id(token_id: str) -> Tuple[bool, Optional[float]]
             for closed_flag in ("true", "false"):
                 try:
                     resp = await client.get(
-                        "https://gamma-api.polymarket.com/markets",
+                        f"{settings.GAMMA_API_URL}/markets",
                         params={
                             "clob_token_ids": token_id,
                             "closed": closed_flag,
@@ -166,7 +167,7 @@ async def fetch_polymarket_resolution(
             # Try event slug first (more reliable for BTC 5-min markets)
             if event_slug:
                 response = await client.get(
-                    "https://gamma-api.polymarket.com/events",
+                    f"{settings.GAMMA_API_URL}/events",
                     params={"slug": event_slug},
                 )
                 response.raise_for_status()
@@ -208,7 +209,7 @@ async def fetch_polymarket_resolution(
                     event_slug = parts[0]
                     try:
                         event_response = await client.get(
-                            "https://gamma-api.polymarket.com/events",
+                            f"{settings.GAMMA_API_URL}/events",
                             params={"slug": event_slug},
                             timeout=5.0,
                         )
@@ -227,7 +228,7 @@ async def fetch_polymarket_resolution(
                         )
 
             # Fallback: try market ID directly (works for numeric IDs)
-            url = f"https://gamma-api.polymarket.com/markets/{market_id}"
+            url = f"{settings.GAMMA_API_URL}/markets/{market_id}"
             response = await client.get(url)
 
             if response.status_code in (404, 422):
@@ -301,7 +302,7 @@ async def _search_market_in_events(market_id: str) -> Tuple[bool, Optional[float
             for closed in [True, False]:
                 params = {"closed": str(closed).lower(), "limit": 200}
                 response = await client.get(
-                    "https://gamma-api.polymarket.com/events", params=params
+                    f"{settings.GAMMA_API_URL}/events", params=params
                 )
                 response.raise_for_status()
                 events = response.json()
@@ -777,7 +778,7 @@ async def _get_actual_temp_from_openmeteo(
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
-                "https://archive-api.open-meteo.com/v1/archive",
+                settings.OPEN_METEO_ARCHIVE_URL,
                 params={
                     "latitude": lat,
                     "longitude": lon,

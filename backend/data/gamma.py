@@ -10,9 +10,11 @@ from typing import Any
 
 import httpx
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot")
 
-GAMMA_API_URL = "https://gamma-api.polymarket.com/markets"
+GAMMA_API_URL = f"{settings.GAMMA_API_URL}/markets"
 
 
 async def fetch_markets(

@@ -36,7 +36,7 @@ logger = logging.getLogger("trading_bot")
 def _cfg(name, default):
     return getattr(settings, name, default)
 
-GAMMA_EVENTS_URL = "https://gamma-api.polymarket.com/events"
+GAMMA_EVENTS_URL = f"{settings.GAMMA_API_URL}/events"
 
 
 @dataclass
@@ -325,7 +325,7 @@ class LineMovementDetectorStrategy(BaseStrategy):
                 confidence=confidence,
                 edge=abs(movement.price_change_pct) / 100,
                 reasoning=f"Sharp {direction} move: {movement.price_change_pct:+.1f}% in 1h. Vol: ${movement.volume_24h:,.0f}",
-                market_url=f"https://polymarket.com/event/{movement.ticker}"
+                market_url=f"{settings.POLYMARKET_BASE_URL}/event/{movement.ticker}"
                 if movement.ticker
                 else "",
             )

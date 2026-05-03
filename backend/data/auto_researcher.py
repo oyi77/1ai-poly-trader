@@ -3,6 +3,8 @@ import asyncio
 import logging
 import httpx
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.research")
 
 
@@ -11,7 +13,7 @@ async def gather_market_context(market_id: str, query: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await asyncio.wait_for(
-                client.get(f"https://gamma-api.polymarket.com/markets/{market_id}"),
+                client.get(f"{settings.GAMMA_API_URL}/markets/{market_id}"),
                 timeout=5.0
             )
             if resp.status_code == 200:

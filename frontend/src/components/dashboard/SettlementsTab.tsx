@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DataTable, type ColumnDef } from '../DataTable'
@@ -19,7 +20,7 @@ export function SettlementsTab() {
   const { data: settlements, isLoading, isError } = useQuery({
     queryKey: ['settlements'],
     queryFn: () => fetchSettlements(100, 0),
-    refetchInterval: 30000,
+    refetchInterval: POLL.SLOW,
   })
 
   const filtered = (settlements as SettlementRow[] ?? []).filter((item: any) =>

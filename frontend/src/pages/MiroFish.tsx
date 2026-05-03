@@ -1,3 +1,4 @@
+import { POLL } from '../polling'
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -46,20 +47,20 @@ export default function MiroFish() {
   const [iframeKey, setIframeKey] = useState(0)
   const [iframeError, setIframeError] = useState(false)
 
-  const MIROFISH_URL = 'https://polyedge-mirofish.aitradepulse.com'
-  const MIROFISH_BACKEND_PORT = 5001
-  const MIROFISH_FRONTEND_PORT = 3200
+  const MIROFISH_URL = import.meta.env.VITE_MIROFISH_URL || 'https://polyedge-mirofish.aitradepulse.com'
+  const MIROFISH_BACKEND_PORT = import.meta.env.VITE_MIROFISH_BACKEND_PORT || '5001'
+  const MIROFISH_FRONTEND_PORT = import.meta.env.VITE_MIROFISH_FRONTEND_PORT || '3200'
 
   const { data: status, isLoading, isError, refetch } = useQuery({
     queryKey: ['mirofish-service-status'],
     queryFn: fetchMiroFishStatus,
-    refetchInterval: 5000,
+    refetchInterval: POLL.FAST,
   })
 
   const { data: processes } = useQuery({
     queryKey: ['mirofish-processes'],
     queryFn: fetchMiroFishProcesses,
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const state = (status?.state ?? 'stopped') as ServiceState

@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchSystemStatus, startBot, stopBot, toggleTradingMode, resetBot } from '../../api'
@@ -21,7 +22,7 @@ export function SystemStatus() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-system'],
     queryFn: fetchSystemStatus,
-    refetchInterval: 10000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const startMutation = useMutation({

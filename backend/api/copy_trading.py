@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.database import get_db, Signal, SessionLocal, CopyTraderEntry
 from backend.api.auth import require_admin
+from backend.config import settings
 import logging
 
 logger = logging.getLogger("trading_bot")
@@ -45,7 +46,7 @@ async def get_copy_leaderboard(limit: int = 100, _: None = Depends(require_admin
     limit = min(limit, 500)
     import httpx
 
-    DATA_API = "https://data-api.polymarket.com"
+    DATA_API = settings.DATA_API_URL
     all_traders = []
 
     try:

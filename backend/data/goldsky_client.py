@@ -7,9 +7,11 @@ from typing import Optional
 
 import httpx
 
+from backend.config import settings
+
 logger = logging.getLogger("trading_bot.goldsky")
 
-GOLDSKY_URL = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
+GOLDSKY_URL = settings.GOLDSKY_API_URL
 _HERE = Path(__file__).resolve().parent
 CURSOR_FILE = _HERE / "goldsky_cursor.json"
 BATCH_SIZE = 1000

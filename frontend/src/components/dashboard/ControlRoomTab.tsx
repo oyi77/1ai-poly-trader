@@ -1,3 +1,4 @@
+import { POLL } from '../../polling'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchTradeAttempts, fetchTradeAttemptSummary, paperTopup } from '../../api'
@@ -88,12 +89,12 @@ export function ControlRoomTab({ isAdmin = false, onLoginRequired }: ControlRoom
   const attempts = useQuery({
     queryKey: ['trade-attempts', params],
     queryFn: () => fetchTradeAttempts(params),
-    refetchInterval: 10_000,
+    refetchInterval: POLL.NORMAL,
   })
   const summary = useQuery({
     queryKey: ['trade-attempt-summary', mode],
     queryFn: () => fetchTradeAttemptSummary(mode !== 'all' ? { mode } : undefined),
-    refetchInterval: 10_000,
+    refetchInterval: POLL.NORMAL,
   })
 
   const topupMutation = useMutation({
