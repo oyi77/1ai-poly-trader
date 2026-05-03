@@ -3,6 +3,7 @@ Strategy Health Monitor — kill-switch, PSI drift detection, warm-up guard.
 
 Called by online_learner after each trade settlement and by scheduler every cycle.
 """
+import json
 import math
 import logging
 from datetime import datetime, timezone
@@ -245,12 +246,90 @@ class StrategyHealthMonitor:
                 config.enabled = False
                 db.commit()
                 logger.info(f"[HealthMonitor] Disabled strategy '{strategy}' in config")
+                self._run_postmortem(strategy, db)
             else:
                 logger.warning(
                     f"[HealthMonitor] No config row for '{strategy}' — cannot disable"
                 )
         except Exception as e:
             logger.error(f"[HealthMonitor] Failed to disable strategy '{strategy}': {e}")
+            db.rollback()
+
+    def _run_postmortem(self, strategy: str, db: Session) -> None:
+        """Analyze killed strategy decision records for root cause anomalies."""
+        try:
+            from backend.models.database import DecisionLog, Trade, StrategyProposal
+            decisions = (
+                db.query(DecisionLog)
+                .filter(DecisionLog.strategy == strategy)
+                .order_by(DecisionLog.created_at.desc())
+                .limit(50)
+                .all()
+            )
+            if not decisions:
+                return
+
+            anomalies = []
+            probs = []
+            edges = []
+            for d in decisions:
+                try:
+                    data = json.loads(d.signal_data) if d.signal_data else {}
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                p = data.get("model_probability") or data.get("oracle_price")
+                e = data.get("edge")
+                if p is not None:
+                    probs.append(float(p))
+                if e is not None:
+                    edges.append(float(e))
+
+            if probs:
+                unique_probs = len(set(probs))
+                if unique_probs == 1:
+                    anomalies.append(f"Constant model_probability={probs[0]} across {len(probs)} decisions")
+                elif max(probs) >= 0.99:
+                    anomalies.append(f"Suspiciously high max model_probability={max(probs):.2f}")
+
+            if edges and all(e > 0 for e in edges):
+                anomalies.append(f"Edge always positive across {len(edges)} decisions (avg={sum(edges)/len(edges):.3f})")
+
+            if not anomalies:
+                return
+
+            existing = (
+                db.query(StrategyProposal)
+                .filter(
+                    StrategyProposal.strategy_name == strategy,
+                    StrategyProposal.status == "pending",
+                )
+                .first()
+            )
+            if existing:
+                return
+
+            proposal = StrategyProposal(
+                strategy_name=strategy,
+                change_details={
+                    "type": "postmortem",
+                    "trigger": "strategy_killed",
+                    "anomalies": anomalies,
+                    "win_rate": 0.0,
+                    "total_decisions": len(decisions),
+                },
+                expected_impact=f"Postmortem: {strategy} killed — {'; '.join(anomalies)}",
+                admin_decision="pending",
+                status="pending",
+                auto_promotable=False,
+            )
+            db.add(proposal)
+            db.commit()
+            logger.info(
+                "[HealthMonitor] Created postmortem proposal for '%s': %s",
+                strategy, anomalies,
+            )
+        except Exception as e:
+            logger.error(f"[HealthMonitor] Postmortem failed for '{strategy}': {e}")
             db.rollback()
 
     def _persist_health(self, health: Dict[str, Any], db: Session) -> None:

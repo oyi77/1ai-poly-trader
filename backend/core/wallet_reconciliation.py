@@ -148,6 +148,37 @@ class WalletReconciler:
         
         return result
 
+    def _resolve_strategy_for_position(self, market_ticker: str) -> Optional[str]:
+        """Try to attribute an orphaned position to a known strategy.
+
+        Checks DecisionLog and existing bot trades for the same market_ticker
+        to recover strategy attribution lost during blockchain reconciliation.
+        """
+        from backend.models.database import DecisionLog
+
+        decision = (
+            self.db.query(DecisionLog)
+            .filter(DecisionLog.market_ticker == market_ticker)
+            .order_by(DecisionLog.created_at.desc())
+            .first()
+        )
+        if decision and decision.strategy:
+            return decision.strategy
+
+        bot_trade = (
+            self.db.query(Trade)
+            .filter(
+                Trade.market_ticker == market_ticker,
+                Trade.source == "bot",
+                Trade.strategy.isnot(None),
+            )
+            .first()
+        )
+        if bot_trade and bot_trade.strategy:
+            return bot_trade.strategy
+
+        return None
+
     async def import_blockchain_history(self, max_pages: Optional[int] = None) -> int:
         """
         Download ALL historical trades from blockchain via Data API.
@@ -227,6 +258,7 @@ class WalletReconciler:
                     settled=False,
                     result=None,
                     source="external",
+                    strategy=self._resolve_strategy_for_position(market_slug),
                     blockchain_verified=True,
                     settlement_source=None,
                     external_import_at=datetime.now(timezone.utc),
