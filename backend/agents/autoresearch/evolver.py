@@ -37,12 +37,20 @@ class StrategyEvolver:
         db = db or SessionLocal()
         created = []
         try:
+            self._record_lineage_for_promoted(db)
+
             strategies = self._find_evolvable_strategies(db)
             for strategy_name, stats in strategies.items():
                 if self._has_active_experiment(strategy_name, db):
                     continue
                 is_broken = stats.get("win_rate", 1.0) <= FUNDAMENTALLY_BROKEN_WIN_RATE and stats.get("total", 0) >= FUNDAMENTALLY_BROKEN_MIN_TRADES
-                variants = self._generate_variants(strategy_name, db, aggressive=is_broken)
+
+                best_parent = self._find_best_retired_parent(strategy_name, db)
+                if best_parent:
+                    variants = self._crossover_variants(strategy_name, db, best_parent, is_broken)
+                else:
+                    variants = self._generate_variants(strategy_name, db, aggressive=is_broken)
+
                 for variant in variants:
                     clean = {k: v for k, v in variant.items() if not k.startswith("_")}
                     exp = ExperimentRecord(
@@ -56,6 +64,8 @@ class StrategyEvolver:
                     db.flush()
                     created.append(exp.id)
 
+                    parent_id = best_parent.id if best_parent else None
+                    self._record_lineage(db, strategy_name, parent_id, exp.id, "perturbation", clean, stats.get("win_rate", 0.0))
                     self._create_proposal_for_variant(db, strategy_name, clean, exp.id, is_broken)
 
             if created:
@@ -189,3 +199,115 @@ class StrategyEvolver:
                     variant[param_key] = round(new_val, 4) if isinstance(new_val, float) else new_val
             variants.append(variant)
         return variants
+
+    def _find_best_retired_parent(self, strategy_name: str, db: Session) -> Optional[object]:
+        return (
+            db.query(ExperimentRecord)
+            .filter(
+                ExperimentRecord.strategy_name == strategy_name,
+                ExperimentRecord.status == ExperimentStatus.RETIRED.value,
+                ExperimentRecord.shadow_win_rate > 0,
+            )
+            .order_by(ExperimentRecord.shadow_win_rate.desc())
+            .first()
+        )
+
+    def _crossover_variants(
+        self, strategy_name: str, db: Session, parent: ExperimentRecord, aggressive: bool
+    ) -> list[dict]:
+        parent_params = parent.strategy_composition or {}
+        if isinstance(parent_params, str):
+            try:
+                parent_params = json.loads(parent_params)
+            except (json.JSONDecodeError, TypeError):
+                parent_params = {}
+
+        config = (
+            db.query(StrategyConfig)
+            .filter(StrategyConfig.strategy_name == strategy_name)
+            .first()
+        )
+        current_params = {}
+        if config and config.params:
+            try:
+                current_params = json.loads(config.params) if isinstance(config.params, str) else config.params
+            except (json.JSONDecodeError, TypeError):
+                current_params = {}
+
+        from backend.ai.meta_learner import MetaLearner
+        biases = MetaLearner().get_biases(strategy_name, db=db)
+
+        variants = []
+        for i in range(VARIANTS_PER_STRATEGY):
+            variant = {}
+            all_keys = set(list(parent_params.keys()) + list(current_params.keys()))
+            for key in all_keys:
+                if key.startswith("_"):
+                    continue
+                parent_val = parent_params.get(key)
+                current_val = current_params.get(key)
+
+                if parent_val is not None and current_val is not None:
+                    if random.random() < 0.5:
+                        variant[key] = parent_val
+                    else:
+                        variant[key] = current_val
+                elif parent_val is not None:
+                    variant[key] = parent_val
+                elif current_val is not None:
+                    variant[key] = current_val
+
+            for param_key, (lo, hi) in TUNABLE_PARAM_RANGES.items():
+                if param_key in variant:
+                    current = float(variant[param_key])
+                    bias = biases.get(param_key)
+                    if bias and bias["confidence"] > 0.6:
+                        direction = 1.0 if bias["direction"] == "up" else -1.0
+                        magnitude = PARAM_PERTURBATION * bias["confidence"] * direction
+                    else:
+                        magnitude = PARAM_PERTURBATION * (3.0 if aggressive else 1.0) * random.choice([-1, 1])
+                    new_val = max(lo, min(hi, current + current * magnitude))
+                    if isinstance(variant[param_key], int):
+                        new_val = int(round(new_val))
+                    variant[param_key] = round(new_val, 4) if isinstance(new_val, float) else new_val
+
+            variant["_evolver_generation"] = i + 1
+            variant["_evolver_parent"] = parent.id
+            variants.append(variant)
+        return variants
+
+    def _record_lineage(
+        self, db: Session, strategy_name: str, parent_id: Optional[int],
+        child_id: int, mutation_type: str, params_diff: dict, fitness: float
+    ) -> None:
+        from backend.models.outcome_tables import EvolutionLineage
+
+        parent_gen = 0
+        if parent_id:
+            parent_lin = db.query(EvolutionLineage).filter(
+                EvolutionLineage.child_experiment_id == parent_id
+            ).first()
+            parent_gen = (parent_lin.generation or 0) if parent_lin else 0
+
+        db.add(EvolutionLineage(
+            parent_experiment_id=parent_id,
+            child_experiment_id=child_id,
+            strategy_name=strategy_name,
+            generation=parent_gen + 1,
+            mutation_type=mutation_type,
+            child_fitness=fitness,
+            params_diff=params_diff,
+        ))
+
+    def _record_lineage_for_promoted(self, db: Session) -> None:
+        from backend.models.outcome_tables import EvolutionLineage
+
+        promoted = db.query(ExperimentRecord).filter(
+            ExperimentRecord.status == ExperimentStatus.LIVE_PROMOTED.value,
+        ).all()
+        for exp in promoted:
+            existing = db.query(EvolutionLineage).filter(
+                EvolutionLineage.child_experiment_id == exp.id
+            ).first()
+            if existing and existing.child_fitness is None:
+                existing.child_fitness = exp.shadow_win_rate or 0.0

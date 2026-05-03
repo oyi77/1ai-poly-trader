@@ -1,5 +1,5 @@
-from datetime import datetime
-from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime, Text, ForeignKey
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime, Text, ForeignKey, JSON, Index
 from backend.models.database import Base
 
 
@@ -34,7 +34,7 @@ class ParamChange(Base):
     change_pct = Column(Float, nullable=True)
     confidence = Column(Float, nullable=True)
     reasoning = Column(Text, nullable=True)
-    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    applied_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     reverted_at = Column(DateTime, nullable=True)
     pre_change_sharpe = Column(Float, nullable=True)
     post_change_sharpe = Column(Float, nullable=True)
@@ -55,7 +55,7 @@ class StrategyHealthRecord(Base):
     brier_score = Column(Float, nullable=True)
     psi_score = Column(Float, nullable=True)
     status = Column(String, nullable=False, default='active')
-    last_updated = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_updated = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class TradingCalibrationRecord(Base):
@@ -67,4 +67,70 @@ class TradingCalibrationRecord(Base):
     actual_outcome = Column(Integer, nullable=False)
     brier_score = Column(Float, nullable=True)
     market_type = Column(String, nullable=False, default='unknown')
-    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class ProposalFeedback(Base):
+    """Tracks whether applied proposals actually improved performance."""
+    __tablename__ = 'proposal_feedback'
+    __table_args__ = (
+        Index("ix_feedback_strategy", "strategy"),
+        Index("ix_feedback_proposal", "proposal_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    proposal_id = Column(Integer, ForeignKey('strategy_proposal.id'), nullable=False)
+    strategy = Column(String, nullable=False)
+    change_type = Column(String, nullable=False, default="parameter_adjustment")
+    params_changed = Column(JSON, nullable=True)
+    pre_wr = Column(Float, nullable=True)
+    pre_sharpe = Column(Float, nullable=True)
+    pre_pnl = Column(Float, nullable=True)
+    post_wr = Column(Float, nullable=True)
+    post_sharpe = Column(Float, nullable=True)
+    post_pnl = Column(Float, nullable=True)
+    improved = Column(Boolean, nullable=True)
+    reverted = Column(Boolean, default=False)
+    applied_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    measured_at = Column(DateTime, nullable=True)
+    measurement_trades = Column(Integer, default=0)
+
+
+class EvolutionLineage(Base):
+    """Tracks parent→child relationships between strategy variants."""
+    __tablename__ = 'evolution_lineage'
+    __table_args__ = (
+        Index("ix_lineage_child", "child_experiment_id"),
+        Index("ix_lineage_parent", "parent_experiment_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    parent_experiment_id = Column(Integer, ForeignKey('experiment_records.id'), nullable=True)
+    child_experiment_id = Column(Integer, ForeignKey('experiment_records.id'), nullable=False)
+    strategy_name = Column(String, nullable=False)
+    generation = Column(Integer, default=1)
+    mutation_type = Column(String, nullable=False, default="perturbation")
+    parent_fitness = Column(Float, nullable=True)
+    child_fitness = Column(Float, nullable=True)
+    params_diff = Column(JSON, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class MetaLearningRecord(Base):
+    """Aggregated learnings about what types of changes improve which strategies."""
+    __tablename__ = 'meta_learning'
+    __table_args__ = (
+        Index("ix_meta_param", "param_name"),
+        Index("ix_meta_strategy", "strategy"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    strategy = Column(String, nullable=False)
+    param_name = Column(String, nullable=False)
+    change_direction = Column(String, nullable=False)
+    sample_size = Column(Integer, default=0)
+    success_count = Column(Integer, default=0)
+    avg_improvement = Column(Float, default=0.0)
+    avg_wr_delta = Column(Float, default=0.0)
+    avg_sharpe_delta = Column(Float, default=0.0)
+    last_updated = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

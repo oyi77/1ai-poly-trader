@@ -289,3 +289,101 @@ class AGIOrchestrator:
         )
         self._session.add(audit)
         self._session.commit()
+
+
+logger = __import__("logging").getLogger("trading_bot.agi_orchestrator")
+
+
+async def agi_improvement_cycle_job() -> None:
+    """Scheduled job: runs the full closed-loop AGI improvement cycle.
+
+    Loop order (each is a closed loop):
+    1. Feedback → measure if applied changes improved things
+    2. Meta-Learn → update biases from feedback
+    3. Evolve → generate param variants with crossover
+    4. Propose → forward simulation + auto-promote
+    5. Replace → disable killed strategies
+    6. Compose → AI generates new strategies for dead strategy slots
+    """
+    stats = {
+        "feedback_measured": 0,
+        "meta_learned": 0,
+        "evolution_variants": 0,
+        "proposals_promoted": 0,
+        "strategies_composed": 0,
+        "strategies_replaced": 0,
+        "errors": [],
+    }
+
+    try:
+        from backend.ai.feedback_tracker import measure_recent_changes
+        result = measure_recent_changes()
+        stats["feedback_measured"] = result.get("measured", 0)
+    except Exception as e:
+        stats["errors"].append(f"feedback: {e}")
+
+    try:
+        from backend.ai.meta_learner import MetaLearner
+        stats["meta_learned"] = MetaLearner().update_from_feedback()
+    except Exception as e:
+        stats["errors"].append(f"meta_learn: {e}")
+
+    try:
+        from backend.agents.autoresearch.evolver import StrategyEvolver
+        stats["evolution_variants"] = len(StrategyEvolver().run_evolution_cycle())
+    except Exception as e:
+        stats["errors"].append(f"evolution: {e}")
+
+    try:
+        from backend.ai.proposal_generator import auto_promote_eligible_proposals
+        auto_promote_eligible_proposals()
+        from backend.models.database import SessionLocal, StrategyProposal
+        db = SessionLocal()
+        try:
+            stats["proposals_promoted"] = db.query(StrategyProposal).filter(
+                StrategyProposal.admin_decision == "auto_approved"
+            ).count()
+        finally:
+            db.close()
+    except Exception as e:
+        stats["errors"].append(f"proposals: {e}")
+
+    try:
+        from backend.models.database import SessionLocal, StrategyConfig
+        from backend.models.outcome_tables import StrategyHealthRecord
+        db = SessionLocal()
+        try:
+            killed = db.query(StrategyHealthRecord).filter(
+                StrategyHealthRecord.status == "killed",
+            ).all()
+            for hr in killed:
+                config = db.query(StrategyConfig).filter(
+                    StrategyConfig.strategy_name == hr.strategy
+                ).first()
+                if config and config.enabled:
+                    config.enabled = False
+                    stats["strategies_replaced"] += 1
+            if killed:
+                db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        stats["errors"].append(f"replacement: {e}")
+
+    try:
+        from backend.ai.strategy_composer import StrategyComposer
+        composed = await StrategyComposer().compose_new_strategy()
+        stats["strategies_composed"] = 1 if composed else 0
+    except Exception as e:
+        stats["errors"].append(f"composition: {e}")
+
+    logger.info(
+        "[agi_improvement_cycle] feedback=%d meta=%d evolved=%d promoted=%d composed=%d replaced=%d errors=%d",
+        stats["feedback_measured"],
+        stats["meta_learned"],
+        stats["evolution_variants"],
+        stats["proposals_promoted"],
+        stats["strategies_composed"],
+        stats["strategies_replaced"],
+        len(stats["errors"]),
+    )
