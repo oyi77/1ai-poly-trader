@@ -14,7 +14,7 @@ This engine:
 
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -205,34 +205,44 @@ async def _resolve_from_signal_calibration(db: Session, market_ticker: str) -> O
 
 
 async def _resolve_from_gamma_api(market_ticker: str) -> Optional[tuple[str, float]]:
+    is_condition_id = market_ticker.startswith("0x") and len(market_ticker) >= 40
+    is_token_id = market_ticker.isdigit() and len(market_ticker) >= 20
+
+    search_params = []
+    if is_condition_id:
+        search_params.append({"condition_id": market_ticker, "closed": "true", "limit": 1})
+    elif is_token_id:
+        search_params.append({"clob_token_ids": market_ticker, "closed": "true", "limit": 1})
+        search_params.append({"clob_token_ids": market_ticker, "closed": "false", "limit": 1})
+    else:
+        search_params.append({"slug": market_ticker, "limit": 1})
+        search_params.append({"id": market_ticker, "limit": 1})
+
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{settings.GAMMA_API_URL}/markets",
-                params={"limit": 1},
-                timeout=10.0,
-            )
-            if resp.status_code != 200:
-                return None
-
-            for search_field in ["slug", "condition_id", "id"]:
+            for params in search_params:
                 try:
-                    resp2 = await client.get(
+                    resp = await client.get(
                         f"{settings.GAMMA_API_URL}/markets",
-                        params={search_field: market_ticker, "closed": "true", "limit": 1},
+                        params=params,
                         timeout=10.0,
                     )
-                    if resp2.status_code == 200:
-                        data = resp2.json()
-                        if data and isinstance(data, list) and len(data) > 0:
-                            market = data[0]
-                            if market.get("closed") or market.get("resolved"):
-                                outcome_prices = market.get("outcomePrices")
-                                if outcome_prices:
-                                    prices = [float(p) for p in outcome_prices]
-                                    yes_price = prices[0] if len(prices) > 0 else 0.5
-                                    actual_dir = "up" if yes_price >= 0.5 else "down"
-                                    return actual_dir, yes_price
+                    if resp.status_code != 200:
+                        continue
+                    data = resp.json()
+                    if not data or not isinstance(data, list) or len(data) == 0:
+                        continue
+
+                    market = data[0]
+                    if not (market.get("closed") or market.get("resolved")):
+                        continue
+
+                    outcome_prices = market.get("outcomePrices")
+                    if outcome_prices:
+                        prices = [float(p) for p in outcome_prices]
+                        yes_price = prices[0] if len(prices) > 0 else 0.5
+                        actual_dir = "up" if yes_price >= 0.5 else "down"
+                        return actual_dir, yes_price
                 except (httpx.TimeoutException, httpx.ConnectTimeout):
                     continue
     except Exception as e:
@@ -241,12 +251,10 @@ async def _resolve_from_gamma_api(market_ticker: str) -> Optional[tuple[str, flo
 
 
 async def score_unresolved(db: Session) -> dict:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=MIN_AGE_BEFORE_SCORING_HOURS)
-
     unscored = db.query(BlockedSignalCounterfactual).filter(
         BlockedSignalCounterfactual.scored.is_(False),
-        BlockedSignalCounterfactual.signal_blocked_at < cutoff,
-    ).order_by(BlockedSignalCounterfactual.signal_blocked_at.desc()).limit(200).all()
+        BlockedSignalCounterfactual.direction.isnot(None),
+    ).order_by(BlockedSignalCounterfactual.signal_blocked_at.desc()).limit(500).all()
 
     if not unscored:
         return {"scored": 0, "won": 0, "lost": 0, "no_resolution": 0}
@@ -256,18 +264,26 @@ async def score_unresolved(db: Session) -> dict:
     lost_count = 0
     no_resolution = 0
     gamma_calls = 0
+    resolution_cache: dict[str, tuple[str, float]] = {}
 
     for row in unscored:
-        result = await _resolve_from_market_outcome(db, row.market_ticker)
+        ticker = row.market_ticker
 
-        if result is None:
-            result = await _resolve_from_signal_calibration(db, row.market_ticker)
+        if ticker in resolution_cache:
+            result = resolution_cache[ticker]
+        else:
+            result = await _resolve_from_market_outcome(db, ticker)
 
-        if result is None and gamma_calls < MAX_GAMMA_API_CALLS_PER_RUN:
-            result = await _resolve_from_gamma_api(row.market_ticker)
+            if result is None:
+                result = await _resolve_from_signal_calibration(db, ticker)
+
+            if result is None and gamma_calls < MAX_GAMMA_API_CALLS_PER_RUN:
+                result = await _resolve_from_gamma_api(ticker)
+                if result:
+                    gamma_calls += 1
+
             if result:
-                gamma_calls += 1
-                row.resolution_source = "gamma_api"
+                resolution_cache[ticker] = result
 
         if result is None:
             no_resolution += 1
@@ -277,7 +293,8 @@ async def score_unresolved(db: Session) -> dict:
         row.actual_outcome = actual_dir
         row.settlement_value = settlement_value
         row.would_have_won = _direction_won(row.direction or "unknown", settlement_value)
-        row.resolution_source = row.resolution_source or "market_outcome"
+        if not row.resolution_source:
+            row.resolution_source = "market_outcome"
         row.resolved_at = datetime.now(timezone.utc)
 
         if row.entry_price and row.requested_size:

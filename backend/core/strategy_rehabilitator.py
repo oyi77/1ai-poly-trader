@@ -59,7 +59,13 @@ class StrategyRehabilitator:
             if _owned:
                 db.close()
 
+    CATASTROPHIC_WR_FLOOR = 0.05
+    CATASTROPHIC_MIN_TRADES = 30
+
     def _is_candidate(self, cfg: StrategyConfig, db: Session) -> bool:
+        if self._is_catastrophic(cfg.strategy_name, db):
+            return False
+
         recent_disabled = (
             db.query(Trade)
             .filter(
@@ -78,6 +84,21 @@ class StrategyRehabilitator:
 
         cooldown = datetime.now(timezone.utc) - timedelta(days=self.REHAB_COOLDOWN_DAYS)
         return last_ts < cooldown
+
+    def _is_catastrophic(self, strategy: str, db: Session) -> bool:
+        from backend.models.outcome_tables import StrategyHealthRecord
+        hr = db.query(StrategyHealthRecord).filter(
+            StrategyHealthRecord.strategy == strategy,
+            StrategyHealthRecord.status == "killed",
+        ).first()
+        if hr and hr.total_trades >= self.CATASTROPHIC_MIN_TRADES:
+            if hr.win_rate < self.CATASTROPHIC_WR_FLOOR:
+                logger.warning(
+                    "[Rehabilitation] Blocked re-enable of '%s': catastrophic WR %.1f%% over %d trades",
+                    strategy, hr.win_rate * 100, hr.total_trades,
+                )
+                return True
+        return False
 
     def _passes_validation(self, cfg: StrategyConfig, db: Session) -> bool:
         trades = (
