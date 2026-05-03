@@ -61,6 +61,7 @@ from backend.models.database import TransactionEvent
 from backend.models.outcome_tables import StrategyOutcome, StrategyHealthRecord, ParamChange, TradingCalibrationRecord  # noqa: F401
 from backend.models.kg_models import ExperimentRecord, DecisionAuditLog  # noqa: F401
 from backend.models.historical_data import HistoricalCandle, MarketOutcome, WeatherSnapshot  # noqa: F401
+from backend.core.risk_profiles import RiskProfileRow  # noqa: F401
 
 _db_mod.engine = test_engine
 _db_mod.SessionLocal = TestSessionLocal

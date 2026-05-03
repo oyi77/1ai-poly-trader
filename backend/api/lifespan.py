@@ -357,7 +357,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("  - Settings already exist or table not found")
     except Exception as e:
         logger.warning(f"Failed to seed settings: {e}", exc_info=True)
-    
+
+    try:
+        from backend.core.risk_profiles import seed_presets
+        seed_presets()
+    except Exception:
+        pass
+
     logger.info("Initializing settings cache...")
     try:
         db = SessionLocal()

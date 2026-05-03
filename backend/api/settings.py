@@ -658,6 +658,7 @@ class RiskProfileResponse(BaseModel):
     weekly_drawdown_limit_pct: float
     slippage_tolerance: float
     auto_approve_min_confidence: float
+    is_preset: bool = False
 
 
 class RiskProfileListResponse(BaseModel):
@@ -669,26 +670,58 @@ class SetRiskProfileRequest(BaseModel):
     profile: str
 
 
+class UpdateRiskProfileRequest(BaseModel):
+    display_name: Optional[str] = None
+    kelly_fraction: Optional[float] = None
+    min_edge_threshold: Optional[float] = None
+    max_trade_size: Optional[float] = None
+    max_position_fraction: Optional[float] = None
+    max_total_exposure_fraction: Optional[float] = None
+    daily_loss_limit: Optional[float] = None
+    daily_drawdown_limit_pct: Optional[float] = None
+    weekly_drawdown_limit_pct: Optional[float] = None
+    slippage_tolerance: Optional[float] = None
+    auto_approve_min_confidence: Optional[float] = None
+
+
+class CreateRiskProfileRequest(BaseModel):
+    name: str
+    display_name: str
+    kelly_fraction: float = 0.3
+    min_edge_threshold: float = 0.3
+    max_trade_size: float = 8.0
+    max_position_fraction: float = 0.08
+    max_total_exposure_fraction: float = 0.7
+    daily_loss_limit: float = 5.0
+    daily_drawdown_limit_pct: float = 0.1
+    weekly_drawdown_limit_pct: float = 0.2
+    slippage_tolerance: float = 0.02
+    auto_approve_min_confidence: float = 0.5
+
+
+def _profile_to_response(p) -> RiskProfileResponse:
+    return RiskProfileResponse(
+        name=p.name,
+        display_name=p.display_name,
+        kelly_fraction=p.kelly_fraction,
+        min_edge_threshold=p.min_edge_threshold,
+        max_trade_size=p.max_trade_size,
+        max_position_fraction=p.max_position_fraction,
+        max_total_exposure_fraction=p.max_total_exposure_fraction,
+        daily_loss_limit=p.daily_loss_limit,
+        daily_drawdown_limit_pct=p.daily_drawdown_limit_pct,
+        weekly_drawdown_limit_pct=p.weekly_drawdown_limit_pct,
+        slippage_tolerance=p.slippage_tolerance,
+        auto_approve_min_confidence=p.auto_approve_min_confidence,
+        is_preset=getattr(p, 'is_preset', False),
+    )
+
+
 @router.get("/risk/profile", response_model=RiskProfileListResponse)
 async def get_risk_profiles():
-    from backend.core.risk_profiles import PROFILES, get_active_profile_name
+    from backend.core.risk_profiles import list_profiles, get_active_profile_name
     active = get_active_profile_name()
-    profiles = {}
-    for k, p in PROFILES.items():
-        profiles[k] = RiskProfileResponse(
-            name=p.name,
-            display_name=p.display_name,
-            kelly_fraction=p.kelly_fraction,
-            min_edge_threshold=p.min_edge_threshold,
-            max_trade_size=p.max_trade_size,
-            max_position_fraction=p.max_position_fraction,
-            max_total_exposure_fraction=p.max_total_exposure_fraction,
-            daily_loss_limit=p.daily_loss_limit,
-            daily_drawdown_limit_pct=p.daily_drawdown_limit_pct,
-            weekly_drawdown_limit_pct=p.weekly_drawdown_limit_pct,
-            slippage_tolerance=p.slippage_tolerance,
-            auto_approve_min_confidence=p.auto_approve_min_confidence,
-        )
+    profiles = {k: _profile_to_response(p) for k, p in list_profiles().items()}
     return RiskProfileListResponse(active=active, profiles=profiles)
 
 
@@ -697,16 +730,69 @@ async def set_risk_profile(
     body: SetRiskProfileRequest,
     _: None = Depends(require_admin),
 ):
-    from backend.core.risk_profiles import PROFILES, apply_profile
-    if body.profile not in PROFILES:
-        raise HTTPException(status_code=400, detail=f"Unknown profile: {body.profile}. Available: {list(PROFILES.keys())}")
+    from backend.core.risk_profiles import list_profiles, apply_profile
+    all_profiles = list_profiles()
+    if body.profile not in all_profiles:
+        raise HTTPException(status_code=400, detail=f"Unknown profile: {body.profile}. Available: {list(all_profiles.keys())}")
     profile = apply_profile(body.profile)
-    logger.info(f"Risk profile changed to '{profile.display_name}'")
-    return {
-        "status": "ok",
-        "active_profile": profile.name,
-        "display_name": profile.display_name,
-    }
+    logger.info("Risk profile changed to '%s'", profile.display_name)
+    return {"status": "ok", "active_profile": profile.name, "display_name": profile.display_name}
+
+
+@router.put("/risk/profile/{name}")
+async def update_risk_profile(
+    name: str,
+    body: UpdateRiskProfileRequest,
+    _: None = Depends(require_admin),
+):
+    from backend.core.risk_profiles import update_profile
+    try:
+        updates = {k: v for k, v in body.model_dump().items() if v is not None}
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        profile = update_profile(name, updates)
+        return {"status": "ok", "profile": _profile_to_response(profile).model_dump()}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/risk/profile")
+async def create_risk_profile(
+    body: CreateRiskProfileRequest,
+    _: None = Depends(require_admin),
+):
+    from backend.core.risk_profiles import create_profile, RiskProfile
+    try:
+        profile = RiskProfile(
+            name=body.name,
+            display_name=body.display_name,
+            kelly_fraction=body.kelly_fraction,
+            min_edge_threshold=body.min_edge_threshold,
+            max_trade_size=body.max_trade_size,
+            max_position_fraction=body.max_position_fraction,
+            max_total_exposure_fraction=body.max_total_exposure_fraction,
+            daily_loss_limit=body.daily_loss_limit,
+            daily_drawdown_limit_pct=body.daily_drawdown_limit_pct,
+            weekly_drawdown_limit_pct=body.weekly_drawdown_limit_pct,
+            slippage_tolerance=body.slippage_tolerance,
+            auto_approve_min_confidence=body.auto_approve_min_confidence,
+        )
+        created = create_profile(profile)
+        return {"status": "ok", "profile": _profile_to_response(created).model_dump()}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.delete("/risk/profile/{name}")
+async def delete_risk_profile(
+    name: str,
+    _: None = Depends(require_admin),
+):
+    from backend.core.risk_profiles import delete_profile
+    deleted = delete_profile(name)
+    if not deleted:
+        raise HTTPException(status_code=400, detail=f"Cannot delete preset profile or profile not found: {name}")
+    return {"status": "ok", "deleted": name}
 
 
 @router.get("/mirofish/signals")

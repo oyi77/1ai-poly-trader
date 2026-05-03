@@ -1,18 +1,42 @@
-"""Static risk profiles per ADR-005.
+"""Dynamic risk profiles per ADR-005.
 
-Four operator-selectable presets (safe, normal, aggressive, extreme) that
-overlay runtime settings consumed by RiskManager.  Profile definitions are
-code-only — changing limits requires code review.
+Profiles are stored in DB (risk_profiles table). Four operator-selectable
+presets (safe, normal, aggressive, extreme) are seeded on first boot.
+Profiles are fully editable at runtime via REST API — no code changes needed.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-from dataclasses import dataclass
-from typing import Dict, Optional
+from dataclasses import dataclass, asdict
+from typing import Dict, Optional, List
+
+from sqlalchemy import Column, String, Float, Boolean, Text
+from sqlalchemy.orm import Session
+
+from backend.models.database import Base, SessionLocal
 
 logger = logging.getLogger("trading_bot.risk_profiles")
+
+
+class RiskProfileRow(Base):
+    __tablename__ = "risk_profiles"
+
+    name = Column(String, primary_key=True)
+    display_name = Column(String, nullable=False)
+    kelly_fraction = Column(Float, nullable=False, default=0.3)
+    min_edge_threshold = Column(Float, nullable=False, default=0.3)
+    max_trade_size = Column(Float, nullable=False, default=8.0)
+    max_position_fraction = Column(Float, nullable=False, default=0.08)
+    max_total_exposure_fraction = Column(Float, nullable=False, default=0.7)
+    daily_loss_limit = Column(Float, nullable=False, default=5.0)
+    daily_drawdown_limit_pct = Column(Float, nullable=False, default=0.1)
+    weekly_drawdown_limit_pct = Column(Float, nullable=False, default=0.2)
+    slippage_tolerance = Column(Float, nullable=False, default=0.02)
+    auto_approve_min_confidence = Column(Float, nullable=False, default=0.5)
+    is_preset = Column(Boolean, nullable=False, default=False)
 
 
 @dataclass(frozen=True)
@@ -29,63 +53,57 @@ class RiskProfile:
     weekly_drawdown_limit_pct: float
     slippage_tolerance: float
     auto_approve_min_confidence: float
+    is_preset: bool = False
+
+    def to_row(self) -> RiskProfileRow:
+        return RiskProfileRow(
+            name=self.name,
+            display_name=self.display_name,
+            kelly_fraction=self.kelly_fraction,
+            min_edge_threshold=self.min_edge_threshold,
+            max_trade_size=self.max_trade_size,
+            max_position_fraction=self.max_position_fraction,
+            max_total_exposure_fraction=self.max_total_exposure_fraction,
+            daily_loss_limit=self.daily_loss_limit,
+            daily_drawdown_limit_pct=self.daily_drawdown_limit_pct,
+            weekly_drawdown_limit_pct=self.weekly_drawdown_limit_pct,
+            slippage_tolerance=self.slippage_tolerance,
+            auto_approve_min_confidence=self.auto_approve_min_confidence,
+            is_preset=self.is_preset,
+        )
 
 
-PROFILES: Dict[str, RiskProfile] = {
+PRESETS: Dict[str, RiskProfile] = {
     "safe": RiskProfile(
-        name="safe",
-        display_name="Safe",
-        kelly_fraction=0.10,
-        min_edge_threshold=0.40,
-        max_trade_size=3.0,
-        max_position_fraction=0.03,
-        max_total_exposure_fraction=0.30,
-        daily_loss_limit=2.0,
-        daily_drawdown_limit_pct=0.05,
-        weekly_drawdown_limit_pct=0.10,
-        slippage_tolerance=0.01,
+        name="safe", display_name="Safe", is_preset=True,
+        kelly_fraction=0.10, min_edge_threshold=0.40, max_trade_size=3.0,
+        max_position_fraction=0.03, max_total_exposure_fraction=0.30,
+        daily_loss_limit=2.0, daily_drawdown_limit_pct=0.05,
+        weekly_drawdown_limit_pct=0.10, slippage_tolerance=0.01,
         auto_approve_min_confidence=0.70,
     ),
     "normal": RiskProfile(
-        name="normal",
-        display_name="Normal",
-        kelly_fraction=0.30,
-        min_edge_threshold=0.30,
-        max_trade_size=8.0,
-        max_position_fraction=0.08,
-        max_total_exposure_fraction=0.70,
-        daily_loss_limit=5.0,
-        daily_drawdown_limit_pct=0.10,
-        weekly_drawdown_limit_pct=0.20,
-        slippage_tolerance=0.02,
+        name="normal", display_name="Normal", is_preset=True,
+        kelly_fraction=0.30, min_edge_threshold=0.30, max_trade_size=8.0,
+        max_position_fraction=0.08, max_total_exposure_fraction=0.70,
+        daily_loss_limit=5.0, daily_drawdown_limit_pct=0.10,
+        weekly_drawdown_limit_pct=0.20, slippage_tolerance=0.02,
         auto_approve_min_confidence=0.50,
     ),
     "aggressive": RiskProfile(
-        name="aggressive",
-        display_name="Aggressive",
-        kelly_fraction=0.50,
-        min_edge_threshold=0.15,
-        max_trade_size=20.0,
-        max_position_fraction=0.15,
-        max_total_exposure_fraction=0.85,
-        daily_loss_limit=15.0,
-        daily_drawdown_limit_pct=0.20,
-        weekly_drawdown_limit_pct=0.35,
-        slippage_tolerance=0.03,
+        name="aggressive", display_name="Aggressive", is_preset=True,
+        kelly_fraction=0.50, min_edge_threshold=0.15, max_trade_size=20.0,
+        max_position_fraction=0.15, max_total_exposure_fraction=0.85,
+        daily_loss_limit=15.0, daily_drawdown_limit_pct=0.20,
+        weekly_drawdown_limit_pct=0.35, slippage_tolerance=0.03,
         auto_approve_min_confidence=0.35,
     ),
     "extreme": RiskProfile(
-        name="extreme",
-        display_name="Extreme",
-        kelly_fraction=0.80,
-        min_edge_threshold=0.05,
-        max_trade_size=50.0,
-        max_position_fraction=0.25,
-        max_total_exposure_fraction=0.95,
-        daily_loss_limit=40.0,
-        daily_drawdown_limit_pct=0.40,
-        weekly_drawdown_limit_pct=0.60,
-        slippage_tolerance=0.05,
+        name="extreme", display_name="Extreme", is_preset=True,
+        kelly_fraction=0.80, min_edge_threshold=0.05, max_trade_size=50.0,
+        max_position_fraction=0.25, max_total_exposure_fraction=0.95,
+        daily_loss_limit=40.0, daily_drawdown_limit_pct=0.40,
+        weekly_drawdown_limit_pct=0.60, slippage_tolerance=0.05,
         auto_approve_min_confidence=0.20,
     ),
 }
@@ -93,24 +111,143 @@ PROFILES: Dict[str, RiskProfile] = {
 DEFAULT_PROFILE = "normal"
 
 
+def seed_presets(db: Optional[Session] = None) -> None:
+    _owned = db is None
+    db = db or SessionLocal()
+    try:
+        for name, profile in PRESETS.items():
+            existing = db.query(RiskProfileRow).filter_by(name=name).first()
+            if not existing:
+                db.add(profile.to_row())
+        db.commit()
+    except Exception as e:
+        logger.warning("[risk_profiles] Seed failed: %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        if _owned:
+            db.close()
+
+
 def get_active_profile_name() -> str:
     return os.environ.get("RISK_PROFILE", DEFAULT_PROFILE)
 
 
-def get_profile(name: Optional[str] = None) -> RiskProfile:
+def get_profile(name: Optional[str] = None, db: Optional[Session] = None) -> RiskProfile:
     key = name or get_active_profile_name()
-    profile = PROFILES.get(key)
-    if profile is None:
-        logger.warning(f"[risk_profiles] Unknown profile '{key}', falling back to '{DEFAULT_PROFILE}'")
-        profile = PROFILES[DEFAULT_PROFILE]
-    return profile
+    _owned = db is None
+    db = db or SessionLocal()
+    try:
+        row = db.query(RiskProfileRow).filter_by(name=key).first()
+        if row:
+            return _row_to_profile(row)
+    except Exception:
+        pass
+    finally:
+        if _owned:
+            db.close()
+
+    preset = PRESETS.get(key)
+    if preset:
+        return preset
+    logger.warning("[risk_profiles] Unknown profile '%s', falling back to '%s'", key, DEFAULT_PROFILE)
+    return PRESETS[DEFAULT_PROFILE]
 
 
-def apply_profile(name: Optional[str] = None) -> RiskProfile:
-    """Apply risk profile to runtime settings and persist name to .env."""
+def list_profiles(db: Optional[Session] = None) -> Dict[str, RiskProfile]:
+    _owned = db is None
+    db = db or SessionLocal()
+    result: Dict[str, RiskProfile] = {}
+    try:
+        rows = db.query(RiskProfileRow).all()
+        for row in rows:
+            result[row.name] = _row_to_profile(row)
+    except Exception:
+        pass
+    finally:
+        if _owned:
+            db.close()
+
+    for name, preset in PRESETS.items():
+        if name not in result:
+            result[name] = preset
+
+    return result
+
+
+def create_profile(profile: RiskProfile, db: Optional[Session] = None) -> RiskProfile:
+    _owned = db is None
+    db = db or SessionLocal()
+    try:
+        existing = db.query(RiskProfileRow).filter_by(name=profile.name).first()
+        if existing:
+            raise ValueError(f"profile '{profile.name}' already exists")
+        db.add(profile.to_row())
+        db.commit()
+        return profile
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        if _owned:
+            db.close()
+
+
+def update_profile(name: str, updates: dict, db: Optional[Session] = None) -> RiskProfile:
+    _owned = db is None
+    db = db or SessionLocal()
+    try:
+        row = db.query(RiskProfileRow).filter_by(name=name).first()
+        if not row:
+            preset = PRESETS.get(name)
+            if preset:
+                row = preset.to_row()
+                db.add(row)
+            else:
+                raise ValueError(f"profile '{name}' not found")
+
+        for key, value in updates.items():
+            if key == "name":
+                continue
+            if hasattr(row, key) and value is not None:
+                setattr(row, key, value)
+
+        db.commit()
+        return _row_to_profile(row)
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        if _owned:
+            db.close()
+
+
+def delete_profile(name: str, db: Optional[Session] = None) -> bool:
+    if name in PRESETS:
+        return False
+    _owned = db is None
+    db = db or SessionLocal()
+    try:
+        row = db.query(RiskProfileRow).filter_by(name=name).first()
+        if not row:
+            return False
+        db.delete(row)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        if _owned:
+            db.close()
+
+
+def apply_profile(name: Optional[str] = None, db: Optional[Session] = None) -> RiskProfile:
     from backend.config import settings
 
-    profile = get_profile(name)
+    profile = get_profile(name, db=db)
     settings.KELLY_FRACTION = profile.kelly_fraction
     settings.MIN_EDGE_THRESHOLD = profile.min_edge_threshold
     settings.MAX_TRADE_SIZE = profile.max_trade_size
@@ -124,8 +261,26 @@ def apply_profile(name: Optional[str] = None) -> RiskProfile:
 
     _persist_profile_name(profile.name)
 
-    logger.info(f"[risk_profiles] Applied profile '{profile.display_name}' to runtime settings")
+    logger.info("[risk_profiles] Applied profile '%s' to runtime settings", profile.display_name)
     return profile
+
+
+def _row_to_profile(row: RiskProfileRow) -> RiskProfile:
+    return RiskProfile(
+        name=row.name,
+        display_name=row.display_name,
+        kelly_fraction=row.kelly_fraction,
+        min_edge_threshold=row.min_edge_threshold,
+        max_trade_size=row.max_trade_size,
+        max_position_fraction=row.max_position_fraction,
+        max_total_exposure_fraction=row.max_total_exposure_fraction,
+        daily_loss_limit=row.daily_loss_limit,
+        daily_drawdown_limit_pct=row.daily_drawdown_limit_pct,
+        weekly_drawdown_limit_pct=row.weekly_drawdown_limit_pct,
+        slippage_tolerance=row.slippage_tolerance,
+        auto_approve_min_confidence=row.auto_approve_min_confidence,
+        is_preset=row.is_preset,
+    )
 
 
 def _persist_profile_name(name: str) -> None:
@@ -151,4 +306,4 @@ def _persist_profile_name(name: str) -> None:
             f.writelines(lines)
         os.environ["RISK_PROFILE"] = name
     except Exception as e:
-        logger.warning(f"[risk_profiles] Failed to persist RISK_PROFILE to .env: {e}")
+        logger.warning("[risk_profiles] Failed to persist RISK_PROFILE to .env: %s", e)
