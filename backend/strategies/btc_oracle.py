@@ -206,7 +206,30 @@ class BtcOracleStrategy(BaseStrategy):
                 direction = "down" if market.up_price > market.down_price else "up"
 
             market_mid = market.up_price if direction == "up" else market.down_price
-            oracle_implied = 1.0
+
+            # Derive probability from microstructure (RSI + momentum + VWAP + SMA)
+            # instead of hardcoded 1.0, which fabricated edge and caused -$410 losses.
+            if micro:
+                rsi_norm = (micro.rsi - 50.0) / 50.0
+                mom_signal = max(-1.0, min(1.0, micro.momentum_5m * 10.0))
+                vwap_signal = max(-1.0, min(1.0, micro.vwap_deviation * 100.0))
+                sma_signal = max(-1.0, min(1.0, micro.sma_crossover * 100.0))
+
+                composite = (
+                    rsi_norm * 0.25
+                    + mom_signal * 0.30
+                    + vwap_signal * 0.25
+                    + sma_signal * 0.20
+                )
+                oracle_implied = 0.50 + composite * 0.10
+                oracle_implied = max(0.40, min(0.60, oracle_implied))
+
+                # Flip for DOWN direction: model prob must reflect chosen side.
+                if direction == "down":
+                    oracle_implied = 1.0 - oracle_implied
+            else:
+                oracle_implied = market_mid
+
             edge = abs(oracle_implied - market_mid) - min_edge
 
             decision = "BUY" if edge > 0 else "SKIP"
