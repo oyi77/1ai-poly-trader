@@ -33,7 +33,7 @@ POLYGON_RPC = settings.POLYGON_RPC_URL
 RELAYER_URL = _main_settings.POLYMARKET_RELAYER_URL
 CTF_ADDRESS = Web3.to_checksum_address("0x4D97DCd97eC945f40cF65F87097ACe5EA0476045")
 USDC_POLYGON = Web3.to_checksum_address("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")
-NEG_RISK_ADAPTER = Web3.to_checksum_address("0x3b7A7A13387bD2066E9123F6ae0525e3a10a26DB")
+NEG_RISK_ADAPTER = Web3.to_checksum_address("0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296")
 
 CTF_ABI = [
     {
@@ -42,6 +42,29 @@ CTF_ABI = [
             {"internalType": "bytes32", "name": "parentCollectionId", "type": "bytes32"},
             {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
             {"internalType": "uint256[]", "name": "indexSets", "type": "uint256[]"},
+        ],
+        "name": "redeemPositions",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "owner", "type": "address"},
+            {"internalType": "uint256", "name": "id", "type": "uint256"},
+        ],
+        "name": "balanceOf",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]
+
+NEG_RISK_ABI = [
+    {
+        "inputs": [
+            {"internalType": "bytes32", "name": "conditionId", "type": "bytes32"},
+            {"internalType": "uint256[]", "name": "amounts", "type": "uint256[]"},
         ],
         "name": "redeemPositions",
         "outputs": [],
@@ -85,26 +108,62 @@ def _is_proxy_wallet(address: str) -> bool:
 # Encode redeemPositions calldata
 # ---------------------------------------------------------------------------
 
-def _encode_redeem_call(condition_id_hex: str, neg_risk: bool = False) -> str:
+def _encode_redeem_call(
+    condition_id_hex: str,
+    neg_risk: bool = False,
+    wallet_address: Optional[str] = None,
+) -> tuple[str, str]:
     """
-    Encode CTF.redeemPositions() calldata.
+    Encode redeemPositions calldata.
 
-    For standard binary markets: parentCollectionId = bytes32(0), indexSets = [1, 2]
-    For neg-risk markets: routes through NEG_RISK_ADAPTER (not yet implemented).
+    For standard binary markets: CTF.redeemPositions(USDC, bytes32(0), conditionId, [1,2])
+    For neg-risk markets: NEG_RISK_ADAPTER.redeemPositions(conditionId, [balance_yes, balance_no])
+
+    Returns (target_contract_address, encoded_calldata).
     """
     if not condition_id_hex.startswith("0x"):
         condition_id_hex = "0x" + condition_id_hex
 
     w3 = Web3()
-    ctf = w3.eth.contract(address=CTF_ADDRESS, abi=CTF_ABI)
 
     if neg_risk:
-        raise NotImplementedError("neg-risk market redeem not yet implemented")
+        amounts = [0, 0]
+        if wallet_address:
+            try:
+                provider = Web3(Web3.HTTPProvider(POLYGON_RPC))
+                ctf = provider.eth.contract(address=CTF_ADDRESS, abi=CTF_ABI)
+                from backend.models.database import SessionLocal
+                from web3 import Web3 as _W3
 
-    return ctf.encode_abi(
+                condition_bytes = _W3.to_bytes(hexstr=condition_id_hex)
+                token_id_yes = int(condition_bytes.hex(), 16)
+                token_id_no = token_id_yes + 1
+
+                bal_yes = ctf.functions.balanceOf(
+                    Web3.to_checksum_address(wallet_address), token_id_yes
+                ).call()
+                bal_no = ctf.functions.balanceOf(
+                    Web3.to_checksum_address(wallet_address), token_id_no
+                ).call()
+                amounts = [bal_yes, bal_no]
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to fetch neg-risk balances, using [0,0]: {exc}"
+                )
+
+        adapter = w3.eth.contract(address=NEG_RISK_ADAPTER, abi=NEG_RISK_ABI)
+        calldata = adapter.encode_abi(
+            "redeemPositions",
+            [Web3.to_bytes(hexstr=condition_id_hex), amounts],
+        )
+        return NEG_RISK_ADAPTER, calldata
+
+    ctf = w3.eth.contract(address=CTF_ADDRESS, abi=CTF_ABI)
+    calldata = ctf.encode_abi(
         "redeemPositions",
         [USDC_POLYGON, bytes(32), Web3.to_bytes(hexstr=condition_id_hex), [1, 2]],
     )
+    return CTF_ADDRESS, calldata
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +177,7 @@ def _redeem_via_relayer(
     builder_secret: str,
     builder_passphrase: str,
     neg_risk: bool = False,
+    wallet_address: Optional[str] = None,
 ) -> RedeemResult:
     """
     Redeem a position via the Polymarket Relayer (for proxy wallets).
@@ -136,7 +196,9 @@ def _redeem_via_relayer(
             BuilderApiKeyCreds,
         )
 
-        calldata = _encode_redeem_call(condition_id_hex, neg_risk)
+        target_contract, calldata = _encode_redeem_call(
+            condition_id_hex, neg_risk, wallet_address=wallet_address
+        )
 
         creds = BuilderApiKeyCreds(
             key=builder_api_key,
@@ -154,9 +216,8 @@ def _redeem_via_relayer(
             rpc_url=POLYGON_RPC,
         )
 
-        # Build a single transaction targeting the CTF contract
         transactions = [
-            Transaction(to=CTF_ADDRESS, data=calldata, value="0"),
+            Transaction(to=target_contract, data=calldata, value="0"),
         ]
 
         response = client.execute(
@@ -192,8 +253,6 @@ def _redeem_via_relayer(
                 error="relayer returned no transaction ID",
             )
 
-    except NotImplementedError:
-        raise
     except Exception as e:
         logger.error(f"Relayer redeem failed for {condition_id_hex[:20]}...: {e}")
         return RedeemResult(
@@ -211,8 +270,8 @@ def _redeem_direct(
     condition_id_hex: str,
     private_key: str,
     wallet_address: Optional[str] = None,
+    neg_risk: bool = False,
 ) -> RedeemResult:
-    """Redeem a single resolved position directly on-chain (for EOA wallets)."""
     if not condition_id_hex.startswith("0x"):
         condition_id_hex = "0x" + condition_id_hex
 
@@ -230,31 +289,62 @@ def _redeem_direct(
                 error=f"Key mismatch: key={acct.address}, expected={wallet_address}",
             )
 
-        ctf = w3.eth.contract(address=CTF_ADDRESS, abi=CTF_ABI)
-        condition_bytes = Web3.to_bytes(hexstr=condition_id_hex)
+        if neg_risk:
+            adapter = w3.eth.contract(address=NEG_RISK_ADAPTER, abi=NEG_RISK_ABI)
+            condition_bytes = Web3.to_bytes(hexstr=condition_id_hex)
 
-        # Gas estimation
-        try:
-            gas_est = ctf.functions.redeemPositions(
+            ctf = w3.eth.contract(address=CTF_ADDRESS, abi=CTF_ABI)
+            token_id_yes = int(condition_bytes.hex(), 16)
+            token_id_no = token_id_yes + 1
+            bal_yes = ctf.functions.balanceOf(acct.address, token_id_yes).call()
+            bal_no = ctf.functions.balanceOf(acct.address, token_id_no).call()
+
+            try:
+                gas_est = adapter.functions.redeemPositions(
+                    condition_bytes, [bal_yes, bal_no],
+                ).estimate_gas({"from": acct.address})
+                gas_limit = int(min(gas_est * 1.3 + 50_000, 1_000_000))
+            except Exception as exc:
+                return RedeemResult(
+                    success=False,
+                    condition_id=condition_id_hex,
+                    error=f"gas estimation failed (position may not be redeemable): {exc}",
+                )
+
+            tx = adapter.functions.redeemPositions(
+                condition_bytes, [bal_yes, bal_no],
+            ).build_transaction({
+                "from": acct.address,
+                "nonce": w3.eth.get_transaction_count(acct.address),
+                "gas": gas_limit,
+                "gasPrice": w3.eth.gas_price,
+                "chainId": 137,
+            })
+        else:
+            ctf = w3.eth.contract(address=CTF_ADDRESS, abi=CTF_ABI)
+            condition_bytes = Web3.to_bytes(hexstr=condition_id_hex)
+
+            try:
+                gas_est = ctf.functions.redeemPositions(
+                    USDC_POLYGON, bytes(32), condition_bytes, [1, 2],
+                ).estimate_gas({"from": acct.address})
+                gas_limit = int(min(gas_est * 1.3 + 50_000, 1_000_000))
+            except Exception as exc:
+                return RedeemResult(
+                    success=False,
+                    condition_id=condition_id_hex,
+                    error=f"gas estimation failed (position may not be redeemable): {exc}",
+                )
+
+            tx = ctf.functions.redeemPositions(
                 USDC_POLYGON, bytes(32), condition_bytes, [1, 2],
-            ).estimate_gas({"from": acct.address})
-            gas_limit = int(min(gas_est * 1.3 + 50_000, 1_000_000))
-        except Exception as exc:
-            return RedeemResult(
-                success=False,
-                condition_id=condition_id_hex,
-                error=f"gas estimation failed (position may not be redeemable): {exc}",
-            )
-
-        tx = ctf.functions.redeemPositions(
-            USDC_POLYGON, bytes(32), condition_bytes, [1, 2],
-        ).build_transaction({
-            "from": acct.address,
-            "nonce": w3.eth.get_transaction_count(acct.address),
-            "gas": gas_limit,
-            "gasPrice": w3.eth.gas_price,
-            "chainId": 137,
-        })
+            ).build_transaction({
+                "from": acct.address,
+                "nonce": w3.eth.get_transaction_count(acct.address),
+                "gas": gas_limit,
+                "gasPrice": w3.eth.gas_price,
+                "chainId": 137,
+            })
 
         signed = acct.sign_transaction(tx)
         tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -317,6 +407,7 @@ def redeem_position(
             builder_secret=builder_secret,
             builder_passphrase=builder_passphrase,
             neg_risk=neg_risk,
+            wallet_address=wallet_address,
         )
     else:
         logger.info(f"Redeeming {condition_id_hex[:20]}... via direct on-chain (EOA)")
@@ -324,6 +415,7 @@ def redeem_position(
             condition_id_hex=condition_id_hex,
             private_key=private_key,
             wallet_address=wallet_address,
+            neg_risk=neg_risk,
         )
 
 
@@ -363,6 +455,7 @@ def redeem_all_redeemable(
         title = pos.get("title", "unknown")
         cur_price = pos.get("curPrice", 0)
         initial_value = pos.get("initialValue", 0)
+        neg_risk = bool(pos.get("negativeRisk", False))
 
         if not condition_id:
             result.errors.append(f"Skipping '{title}': no conditionId")
@@ -373,7 +466,7 @@ def redeem_all_redeemable(
         if dry_run:
             logger.info(
                 f"[DRY RUN] Would redeem: {title} "
-                f"(curPrice={cur_price}, initialValue={initial_value})"
+                f"(curPrice={cur_price}, initialValue={initial_value}, negRisk={neg_risk})"
             )
             result.total_redeemed += 1
             continue
@@ -385,6 +478,7 @@ def redeem_all_redeemable(
             builder_api_key=builder_api_key,
             builder_secret=builder_secret,
             builder_passphrase=builder_passphrase,
+            neg_risk=neg_risk,
         )
 
         redeem.condition_id = condition_id
