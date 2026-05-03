@@ -125,12 +125,14 @@ class TradeForensics:
         # Could compare against MarketRegimeSnapshot
 
         # 5. Multiple losses in a row → tilt / drawdown
+        ts = trade.timestamp or datetime.now(timezone.utc)
         recent_losses = (
             db.query(Trade)
             .filter(
                 Trade.strategy == trade.strategy,
                 Trade.result == "loss",
-                Trade.timestamp >= (trade.timestamp or datetime.now(timezone.utc))
+                Trade.timestamp <= ts,
+                Trade.timestamp >= ts - timedelta(hours=24),
             )
             .count()
         )

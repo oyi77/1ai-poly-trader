@@ -23,9 +23,15 @@ class StrategyHealthMonitor:
     KILL_SHARPE = -2.0
     KILL_DRAWDOWN = 0.50
 
-    def assess(self, strategy: str, db: Session) -> Dict[str, Any]:
+    def assess(self, strategy: str, db: Session, readonly: bool = False) -> Dict[str, Any]:
         """
-        Compute full health metrics for a strategy and persist a StrategyHealthRecord.
+        Compute full health metrics for a strategy.
+
+        Args:
+            strategy: Strategy name to assess.
+            db: Database session.
+            readonly: If True, compute metrics only — do NOT disable strategies or persist records.
+
         Returns dict: total_trades, wins, losses, win_rate, sharpe, max_drawdown,
                       brier_score, psi_score, status
         """
@@ -52,7 +58,8 @@ class StrategyHealthMonitor:
         # Determine status
         if self._should_kill_metrics(total, win_rate, sharpe, max_dd):
             status = "killed"
-            self._disable_strategy(strategy, db)
+            if not readonly:
+                self._disable_strategy(strategy, db)
             logger.warning(
                 f"[HealthMonitor] Strategy '{strategy}' KILLED — "
                 f"win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}"
@@ -79,7 +86,8 @@ class StrategyHealthMonitor:
             "status": status,
         }
 
-        self._persist_health(health, db)
+        if not readonly:
+            self._persist_health(health, db)
         return health
 
     def should_kill(self, strategy: str, db: Session) -> bool:

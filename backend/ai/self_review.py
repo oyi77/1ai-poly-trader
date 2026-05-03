@@ -478,6 +478,12 @@ class SelfReview:
                         StrategyConfig.strategy_name == strategy_name
                     ).first()
                     current_params = (cfg.params if cfg and cfg.params else None) or {"kelly_fraction": 0.2, "min_edge": 0.05, "confidence_threshold": 0.5}
+                    if isinstance(current_params, str):
+                        try:
+                            import json
+                            current_params = json.loads(current_params)
+                        except Exception:
+                            current_params = {"kelly_fraction": 0.2, "min_edge": 0.05, "confidence_threshold": 0.5}
                     proposed = {}
                     for k, v in current_params.items():
                         if isinstance(v, (int, float)) and not isinstance(v, bool):

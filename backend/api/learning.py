@@ -66,7 +66,7 @@ _health = StrategyHealthMonitor()
 
 @router.get("/health/{strategy}", response_model=StrategyHealthResponse)
 async def get_strategy_health(strategy: str, db: Session = Depends(get_db)):
-    result = _health.assess(strategy, db)
+    result = _health.assess(strategy, db, readonly=True)
     return StrategyHealthResponse(**result)
 
 
@@ -75,7 +75,7 @@ async def get_all_strategy_health(db: Session = Depends(get_db)):
     from backend.models.database import StrategyConfig
     configs = db.query(StrategyConfig).all()
     strategies = [c.strategy_name for c in configs] if configs else ["unknown"]
-    return [StrategyHealthResponse(**_health.assess(s, db)) for s in strategies]
+    return [StrategyHealthResponse(**_health.assess(s, db, readonly=True)) for s in strategies]
 
 
 @router.get("/calibration/{strategy}", response_model=CalibrationCurveResponse)
