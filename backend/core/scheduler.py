@@ -45,6 +45,7 @@ from backend.core.db_backup import backup_job
 from backend.core.cache_cleanup import cache_cleanup_job
 from backend.core.autonomous_promoter import autonomous_promotion_job
 from backend.core.bankroll_allocator import bankroll_allocation_job
+from backend.core.agi_orchestrator import agi_improvement_cycle_job
 from backend.ai.training.train import run_training_pipeline
 from backend.mesh.auditor import audit_source_performance
 from backend.mesh.learning import update_source_weights_from_outcomes
@@ -397,6 +398,18 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info(f"Scheduled autonomous promotion job every {promotion_interval} hour(s)")
+
+    # AGI improvement cycle — runs all 7 closed loops (feedback, meta-learn, evolve, propose, compose, replace, counterfactual)
+    agi_cycle_interval = getattr(settings, "AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS", 4)
+    if getattr(settings, "AGI_IMPROVEMENT_CYCLE_ENABLED", True):
+        scheduler.add_job(
+            agi_improvement_cycle_job,
+            IntervalTrigger(hours=agi_cycle_interval),
+            id="agi_improvement_cycle",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled AGI improvement cycle every %d hour(s)", agi_cycle_interval)
 
     if getattr(settings, "AGI_HEALTH_CHECK_ENABLED", True):
         health_interval = getattr(settings, "AGI_HEALTH_CHECK_INTERVAL_MINUTES", 15)

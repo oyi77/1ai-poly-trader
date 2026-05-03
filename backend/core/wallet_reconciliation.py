@@ -258,7 +258,7 @@ class WalletReconciler:
                     settled=False,
                     result=None,
                     source="external",
-                    strategy=self._resolve_strategy_for_position(market_slug),
+                    strategy=self._resolve_strategy_for_position(market_slug) or "wallet_import",
                     blockchain_verified=True,
                     settlement_source=None,
                     external_import_at=datetime.now(timezone.utc),
@@ -610,6 +610,7 @@ class WalletReconciler:
                 
                 # Reconciliation fields (Task 1)
                 source="orphaned",                    # Position found on-chain, reconstructed
+                strategy="wallet_import",
                 clob_order_id=orphan.clob_order_id,
                 blockchain_verified=True,
                 settlement_source="clob_api",
