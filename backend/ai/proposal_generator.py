@@ -550,14 +550,14 @@ Be specific and actionable. Do not suggest vague improvements."""
 
 def auto_promote_eligible_proposals():
     """Auto-deploy low-risk parameter tweak proposals. Safe for scheduled jobs.
-    
-    GATE: Proposals must pass backtest validation before promotion.
-    Requires: backtest_sharpe > 0.3 OR backtest_win_rate > 0.45.
+
+    PIPELINE:
+    1. Run forward simulation with proposed params vs baseline (current params)
+    2. Gate on IMPROVEMENT over baseline, not absolute performance
+    3. Apply params with adaptive deviation limit (wider for broken strategies)
     """
     try:
         from backend.models.database import SessionLocal, StrategyProposal as DBProposal, StrategyConfig
-        from backend.core.strategy_composer import StrategyComposer, ComposedStrategy
-        from backend.core.agi_types import StrategyBlock, MarketRegime
         db = SessionLocal()
         try:
             eligible = db.query(DBProposal).filter(
@@ -588,17 +588,32 @@ def auto_promote_eligible_proposals():
                     ).first()
                     if config and proposal.change_details:
                         current_params = config.params or {}
+                        if isinstance(current_params, str):
+                            import json as _json
+                            current_params = _json.loads(current_params)
+
+                        baseline_wr = _get_baseline_win_rate(db, proposal.strategy_name)
+                        max_deviation = 0.50 if baseline_wr < 0.20 else 0.30 if baseline_wr < 0.40 else 0.20
+
+                        applied = False
                         for key, val in proposal.change_details.items():
                             if isinstance(val, (int, float)) and not isinstance(val, bool):
                                 current_val = float(current_params.get(key, val))
                                 deviation = abs(val - current_val) / max(abs(current_val), 1e-9)
-                                if deviation <= 0.20:
+                                if deviation <= max_deviation:
                                     current_params[key] = val
-                        config.params = current_params
-                        proposal.status = "auto_approved"
-                        proposal.admin_decision = "auto_approved"
-                        proposal.executed_at = datetime.now(timezone.utc)
-                        db.commit()
+                                    applied = True
+                                else:
+                                    clamped = current_val * (1 + max_deviation * (1 if val > current_val else -1))
+                                    current_params[key] = round(clamped, 6)
+                                    applied = True
+
+                        if applied:
+                            config.params = current_params
+                            proposal.status = "auto_approved"
+                            proposal.admin_decision = "auto_approved"
+                            proposal.executed_at = datetime.now(timezone.utc)
+                            db.commit()
                 except Exception:
                     db.rollback()
         finally:
@@ -607,43 +622,117 @@ def auto_promote_eligible_proposals():
         pass
 
 
+def _get_baseline_win_rate(db, strategy_name: str) -> float:
+    from backend.models.database import Trade
+    from sqlalchemy.sql import func
+    stats = db.query(
+        func.count(Trade.id).label("cnt"),
+        func.count(Trade.id).filter(Trade.result == "win").label("wins"),
+    ).filter(
+        Trade.strategy == strategy_name,
+        Trade.settled == True,
+    ).first()
+    cnt = stats.cnt or 0
+    return (stats.wins or 0) / cnt if cnt > 0 else 0.0
+
+
 def _run_backtest_for_proposal(db, proposal) -> dict:
-    """Run backtest for a proposal. Returns {sharpe, win_rate, passed}."""
+    """Forward simulation: replay historical trades WITH proposed params applied.
+
+    Compares simulation results against baseline (current params) to measure
+    improvement. A losing strategy can pass if the proposed change IMPROVES outcomes.
+
+    Gate: improvement in win_rate OR sharpe over baseline.
+    """
     try:
-        from backend.core.strategy_composer import StrategyComposer, ComposedStrategy
-        from backend.core.agi_types import StrategyBlock, MarketRegime
+        import asyncio
+        import statistics as stats_mod
         from backend.models.database import Trade
         from sqlalchemy.sql import func
 
-        stats = db.query(
-            func.count(Trade.id).label("cnt"),
-            func.count(Trade.id).filter(Trade.result == "win").label("wins"),
-            func.avg(Trade.pnl).label("avg_pnl"),
-        ).filter(
-            Trade.strategy == proposal.strategy_name,
-            Trade.settled == True,
-        ).first()
+        strategy_name = proposal.strategy_name
+        proposed_params = proposal.change_details or {}
 
-        cnt = stats.cnt or 0
-        wins = stats.wins or 0
-        win_rate = wins / cnt if cnt > 0 else 0.0
-        avg_pnl = float(stats.avg_pnl or 0)
+        settled_trades = (
+            db.query(Trade)
+            .filter(Trade.strategy == strategy_name, Trade.settled == True)
+            .order_by(Trade.settlement_time.asc())
+            .all()
+        )
 
-        sharpe = 0.0
-        if cnt >= 10:
-            pnl_values = [t.pnl for t in db.query(Trade.pnl).filter(
-                Trade.strategy == proposal.strategy_name,
-                Trade.settled == True,
-                Trade.pnl.isnot(None),
-            ).all() if t.pnl is not None]
-            if pnl_values:
-                import statistics
-                mean_pnl = statistics.mean(pnl_values)
-                std_pnl = statistics.stdev(pnl_values) if len(pnl_values) > 1 else 1.0
-                sharpe = mean_pnl / std_pnl if std_pnl > 0 else 0.0
+        if len(settled_trades) < 3:
+            return {"sharpe": 0.0, "win_rate": 0.0, "passed": False, "reason": "insufficient_data"}
 
-        passed = (sharpe > 0.3 or win_rate > 0.45) and cnt >= 5
-        return {"sharpe": round(sharpe, 4), "win_rate": round(win_rate, 4), "passed": passed}
+        kelly_fraction = float(proposed_params.get("kelly_fraction", 0.0625))
+        min_edge = float(proposed_params.get("min_edge", proposed_params.get("min_edge_threshold", 0.02)))
+        max_size = float(proposed_params.get("max_trade_size", 10.0))
+        slippage_buffer = float(proposed_params.get("slippage_buffer", 1.0))
+
+        simulated_pnls = []
+        baseline_pnls = []
+        bankroll = 100.0
+
+        for trade in settled_trades:
+            baseline_pnls.append(trade.pnl or 0.0)
+
+            edge = trade.edge_at_entry if hasattr(trade, 'edge_at_entry') and trade.edge_at_entry else 0.1
+            if edge < min_edge:
+                simulated_pnls.append(0.0)
+                continue
+
+            original_size = trade.size if hasattr(trade, 'size') and trade.size else 5.0
+            proposed_size = min(bankroll * kelly_fraction * edge, max_size)
+            proposed_size = max(proposed_size, 1.0)
+
+            size_ratio = proposed_size / max(original_size, 0.01)
+            original_pnl = trade.pnl or 0.0
+
+            adjusted_pnl = original_pnl * size_ratio
+            if slippage_buffer != 1.0:
+                adjusted_pnl *= slippage_buffer
+
+            simulated_pnls.append(adjusted_pnl)
+            bankroll += adjusted_pnl
+
+        sim_wins = sum(1 for p in simulated_pnls if p > 0)
+        sim_total = len(simulated_pnls)
+        sim_wr = sim_wins / sim_total if sim_total > 0 else 0.0
+        sim_avg_pnl = stats_mod.mean(simulated_pnls) if simulated_pnls else 0.0
+
+        sim_sharpe = 0.0
+        if sim_total >= 5:
+            std = stats_mod.stdev(simulated_pnls) if len(simulated_pnls) > 1 else 1.0
+            sim_sharpe = sim_avg_pnl / std if std > 0 else 0.0
+
+        base_wins = sum(1 for p in baseline_pnls if p > 0)
+        base_wr = base_wins / len(baseline_pnls) if baseline_pnls else 0.0
+        base_avg_pnl = stats_mod.mean(baseline_pnls) if baseline_pnls else 0.0
+        base_sharpe = 0.0
+        if len(baseline_pnls) >= 5:
+            bstd = stats_mod.stdev(baseline_pnls) if len(baseline_pnls) > 1 else 1.0
+            base_sharpe = stats_mod.mean(baseline_pnls) / bstd if bstd > 0 else 0.0
+
+        wr_improved = sim_wr > base_wr
+        pnl_improved = sim_avg_pnl > base_avg_pnl
+        sharpe_improved = sim_sharpe > base_sharpe
+
+        improvement_signals = sum([wr_improved, pnl_improved, sharpe_improved])
+        passed = improvement_signals >= 2 and sim_total >= 3
+
+        if passed:
+            logger.info(
+                f"Proposal {proposal.id} PASSED: sim_wr={sim_wr:.1%} vs base={base_wr:.1%}, "
+                f"sim_sharpe={sim_sharpe:.2f} vs base={base_sharpe:.2f}, "
+                f"sim_avg_pnl=${sim_avg_pnl:.2f} vs base=${base_avg_pnl:.2f}"
+            )
+
+        return {
+            "sharpe": round(sim_sharpe, 4),
+            "win_rate": round(sim_wr, 4),
+            "passed": passed,
+            "baseline_win_rate": round(base_wr, 4),
+            "baseline_sharpe": round(base_sharpe, 4),
+        }
     except Exception as e:
         logger.warning(f"Backtest failed for proposal {proposal.id}: {e}")
         return {"sharpe": 0.0, "win_rate": 0.0, "passed": False}

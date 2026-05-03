@@ -25,32 +25,144 @@ REJECTION_ADJUSTMENTS = {
     "REJECTED_DRAWDOWN_BREAKER": {
         "description": "Strategy hitting drawdown limit too often — reduce position sizing",
         "param_adjustments": {"kelly_fraction": 0.7},
+        "root_cause_checks": ["constant_model_probability", "always_positive_edge"],
     },
     "REJECTED_LOW_CONFIDENCE": {
         "description": "Confidence below threshold — lower confidence requirement or improve signal quality",
         "param_adjustments": {"confidence_threshold": 0.85},
+        "root_cause_checks": ["flat_confidence", "zero_edge"],
     },
     "REJECTED_MAX_EXPOSURE": {
         "description": "Portfolio over-concentrated — reduce max exposure per trade",
         "param_adjustments": {"max_position_fraction": 0.7, "max_total_exposure": 0.85},
+        "root_cause_checks": [],
     },
     "REJECTED_ORDER_TOO_SMALL": {
         "description": "Trade size below exchange minimum — increase kelly fraction or minimum edge",
         "param_adjustments": {"kelly_fraction": 1.8, "min_edge": 0.04},
+        "root_cause_checks": [],
     },
     "BLOCKED_DUPLICATE_OPEN_POSITION": {
         "description": "Repeated duplicate positions — increase cooldown or reduce per-market frequency",
         "param_adjustments": {"cooldown_minutes": 1.5},
+        "root_cause_checks": [],
     },
     "REJECTED_BROKER_ORDER": {
         "description": "Exchange rejecting orders — check token/liquidity/size issues",
         "param_adjustments": {"slippage_buffer": 1.5},
+        "root_cause_checks": [],
     },
     "BLOCKED_NO_EXECUTION_CONTEXT": {
         "description": "Bot not in proper state to execute — check orchestrator lifecycle",
         "param_adjustments": {},
+        "root_cause_checks": [],
     },
 }
+
+
+ROOT_CAUSE_SIGNATURES = {
+    "constant_model_probability": {
+        "pattern": "All decisions have identical model_probability",
+        "description": "Model probability is hardcoded or not varying — strategy fabricates fake edge",
+    },
+    "always_positive_edge": {
+        "pattern": "Edge is always positive regardless of market conditions",
+        "description": "Edge calculation is biased — always signals BUY with inflated edge",
+    },
+    "flat_confidence": {
+        "pattern": "Confidence never varies across decisions",
+        "description": "Confidence is constant — signal quality metric is broken",
+    },
+    "zero_edge": {
+        "pattern": "Edge at entry is zero or near-zero",
+        "description": "No real edge detected — strategy cannot identify mispriced markets",
+    },
+}
+
+
+def detect_root_causes(strategy_name: str) -> list[dict]:
+    """Analyze DecisionLog for root-cause anomalies that rejection patterns can't see.
+
+    Checks for: constant probability, always-positive edge, flat confidence.
+    Returns list of {root_cause, description, severity}.
+    """
+    db = SessionLocal()
+    causes = []
+    try:
+        from backend.models.database import DecisionLog
+        from sqlalchemy.sql import func
+
+        decisions = (
+            db.query(DecisionLog)
+            .filter(DecisionLog.strategy == strategy_name)
+            .order_by(DecisionLog.created_at.desc())
+            .limit(50)
+            .all()
+        )
+
+        if len(decisions) < 5:
+            return causes
+
+        probs = []
+        edges = []
+        confs = []
+
+        for d in decisions:
+            data = d.signal_data if d.signal_data else {}
+            if isinstance(data, str):
+                import json as _json
+                try:
+                    data = _json.loads(data)
+                except Exception:
+                    data = {}
+
+            if "model_probability" in data:
+                probs.append(float(data["model_probability"]))
+            if "edge" in data:
+                edges.append(float(data["edge"]))
+            if "confidence" in data:
+                confs.append(float(data["confidence"]))
+
+        if len(probs) >= 5:
+            unique_probs = set(round(p, 4) for p in probs)
+            if len(unique_probs) == 1:
+                causes.append({
+                    "root_cause": "constant_model_probability",
+                    "value": list(unique_probs)[0],
+                    "description": ROOT_CAUSE_SIGNATURES["constant_model_probability"]["description"],
+                    "severity": "critical",
+                    "sample_size": len(probs),
+                })
+
+        if len(edges) >= 5:
+            all_positive = all(e > 0 for e in edges)
+            avg_edge = sum(edges) / len(edges)
+            if all_positive and avg_edge > 0.3:
+                causes.append({
+                    "root_cause": "always_positive_edge",
+                    "value": round(avg_edge, 4),
+                    "description": ROOT_CAUSE_SIGNATURES["always_positive_edge"]["description"],
+                    "severity": "critical",
+                    "sample_size": len(edges),
+                })
+
+        if len(confs) >= 5:
+            unique_confs = set(round(c, 2) for c in confs)
+            if len(unique_confs) == 1:
+                causes.append({
+                    "root_cause": "flat_confidence",
+                    "value": list(unique_confs)[0],
+                    "description": ROOT_CAUSE_SIGNATURES["flat_confidence"]["description"],
+                    "severity": "high",
+                    "sample_size": len(confs),
+                })
+
+        return causes
+    except Exception as e:
+        logger.warning(f"Root cause detection failed for {strategy_name}: {e}")
+        return causes
+    finally:
+        db.close()
 
 
 def analyze_rejections(lookback_days: int = LOOKBACK_DAYS) -> Dict[str, Dict]:
@@ -114,13 +226,7 @@ def analyze_rejections(lookback_days: int = LOOKBACK_DAYS) -> Dict[str, Dict]:
 
 
 def generate_rejection_proposals(min_rejections: int = MIN_REJECTIONS) -> List[str]:
-    """Generate StrategyProposals from systematic rejection patterns.
-
-    For each strategy with > min_rejections of a single reason code that maps to
-    a known adjustment, create a proposal to adjust the relevant parameters.
-
-    Returns list of proposal descriptions created.
-    """
+    """Generate StrategyProposals from systematic rejection patterns + root cause analysis."""
     db = SessionLocal()
     created: List[str] = []
     try:
@@ -129,6 +235,25 @@ def generate_rejection_proposals(min_rejections: int = MIN_REJECTIONS) -> List[s
         for strategy_name, data in analysis.items():
             if data["total_rejections"] < min_rejections:
                 continue
+
+            root_causes = detect_root_causes(strategy_name)
+            for rc in root_causes:
+                if rc["severity"] == "critical":
+                    proposal = StrategyProposal(
+                        strategy_name=strategy_name,
+                        change_details={"_root_cause": rc["root_cause"]},
+                        expected_impact=(
+                            f"ROOT CAUSE DETECTED: {rc['description']} "
+                            f"(value={rc['value']}, samples={rc['sample_size']}). "
+                            f"Requires code-level fix, not parameter adjustment."
+                        ),
+                        admin_decision="pending",
+                        status="pending",
+                        auto_promotable=False,
+                        proposed_params={},
+                    )
+                    db.add(proposal)
+                    created.append(f"{strategy_name}: ROOT_CAUSE:{rc['root_cause']}")
 
             for rej in data["rejections"]:
                 reason_code = rej["reason_code"]
@@ -143,12 +268,6 @@ def generate_rejection_proposals(min_rejections: int = MIN_REJECTIONS) -> List[s
                 param_changes = adjustment["param_adjustments"]
                 if not param_changes:
                     continue
-
-                existing = db.query(StrategyProposal).filter(
-                    StrategyProposal.strategy_name == strategy_name,
-                    StrategyProposal.status == "pending",
-                    StrategyProposal.reason_code if hasattr(StrategyProposal, 'reason_code') else True,
-                ).first()
 
                 cfg = db.query(StrategyConfig).filter(
                     StrategyConfig.strategy_name == strategy_name
