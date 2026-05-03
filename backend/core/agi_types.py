@@ -29,10 +29,12 @@ class AGIGoal(Enum):
 
 class ExperimentStatus(Enum):
     DRAFT = "draft"
+    BACKTEST = "backtest"
     SHADOW = "shadow"
     PAPER = "paper"
     LIVE_PROMOTED = "live_promoted"
     LIVE_FAILED = "live_failed"
+    REVIEW = "review"
     RETIRED = "retired"
 
 
