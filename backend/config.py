@@ -249,7 +249,6 @@ class Settings(BaseSettings):
     SLACK_WEBHOOK_URL: Optional[str] = None
     DISCORD_WEBHOOK_URL: Optional[str] = None
 
-    DATABASE_URL: str = "sqlite:///./tradingbot.db"
     DB_BACKUP_INTERVAL_HOURS: int = 6  # Run every 6 hours (0 to disable)
     DB_BACKUP_DIR: str = "backups"
     DB_BACKUP_RETENTION_DAYS: int = 30
@@ -284,7 +283,7 @@ class Settings(BaseSettings):
 
     # MiroFish Integration
     MIROFISH_ENABLED: bool = True
-    MIROFISH_API_URL: Optional[str] = None
+    # MIROFISH_API_URL defined below with production default
     MIROFISH_API_KEY: Optional[str] = None
     MIROFISH_API_TIMEOUT: float = 10.0
 

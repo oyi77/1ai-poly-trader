@@ -22,7 +22,10 @@ risk_manager = RiskManager()
 
 
 def _cfg(key: str, default=None):
-    return getattr(settings, key, default) if hasattr(settings, key) else default
+    val = getattr(settings, key, default) if hasattr(settings, key) else default
+    if default is not None and not isinstance(val, (int, float, str, bool)):
+        return default
+    return val
 
 # Serialize trade execution so bankroll reads and deductions are atomic.
 # Two concurrent decisions would otherwise both pass risk validation with the
