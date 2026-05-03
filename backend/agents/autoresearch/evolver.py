@@ -20,8 +20,8 @@ TUNABLE_PARAM_RANGES = {
     "max_minutes_to_resolution": (10, 120),
 }
 
-EVOLVABLE_WIN_RATE_FLOOR = 0.05
-EVOLVABLE_WIN_RATE_CEIL = 0.35
+EVOLVABLE_WIN_RATE_FLOOR = 0.0
+EVOLVABLE_WIN_RATE_CEIL = 0.45
 MIN_OUTCOMES_TO_EVOLVE = 10
 FUNDAMENTALLY_BROKEN_WIN_RATE = 0.0
 FUNDAMENTALLY_BROKEN_MIN_TRADES = 30
@@ -95,9 +95,10 @@ class StrategyEvolver:
             wr = wins / total if total > 0 else 0.0
             if total >= FUNDAMENTALLY_BROKEN_MIN_TRADES and wr <= FUNDAMENTALLY_BROKEN_WIN_RATE:
                 logger.info(
-                    "[StrategyEvolver] Skipping '%s' — fundamentally broken (%d trades, %.1f%% WR)",
-                    name, total, wr * 100,
+                    "[StrategyEvolver] Priority evolve for '%s' — fundamentally broken (%d trades, 0%% WR)",
+                    name, total,
                 )
+                result[name] = {"total": total, "wins": wins, "win_rate": wr}
                 continue
             if EVOLVABLE_WIN_RATE_FLOOR <= wr < EVOLVABLE_WIN_RATE_CEIL:
                 result[name] = {"total": total, "wins": wins, "win_rate": wr}
