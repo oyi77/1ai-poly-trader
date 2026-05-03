@@ -92,7 +92,11 @@ class ResearchPipeline:
     async def _fetch_rss_feeds(self) -> list[ResearchItem]:
         from backend.config import settings
 
-        feeds = getattr(settings, "RESEARCH_RSS_FEEDS", None) or DEFAULT_RSS_FEEDS
+        raw = getattr(settings, "RESEARCH_RSS_FEEDS", None) or DEFAULT_RSS_FEEDS
+        if isinstance(raw, str):
+            feeds = [u.strip() for u in raw.split(",") if u.strip()]
+        else:
+            feeds = raw or []
         items: list[ResearchItem] = []
 
         for url in feeds:

@@ -689,6 +689,14 @@ def start_scheduler():
     except Exception as e:
         logger.exception(f"Could not load strategy jobs from DB: {e}")
 
+    # Register event-driven research triggers
+    try:
+        from backend.research.event_triggers import register_research_triggers
+
+        register_research_triggers()
+    except Exception as e:
+        logger.warning("Could not register research event triggers: %s", e)
+
 
 def stop_scheduler():
     """Stop the background scheduler."""

@@ -366,7 +366,13 @@ class Settings(BaseSettings):
     OPEN_METEO_ARCHIVE_URL: str = "https://archive-api.open-meteo.com/v1/archive"
     KALSHI_API_URL: str = "https://api.elections.kalshi.com/trade-api/v2"
     GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
-    RESEARCH_RSS_FEEDS: str = "https://polymarket.com/feed.xml,https://metaculus.com/feed/"
+    RESEARCH_RSS_FEEDS: str = (
+        "https://feeds.bbci.co.uk/news/rss.xml,"
+        "https://feeds.reuters.com/reuters/businessNews,"
+        "https://www.federalreserve.gov/feeds/press_all.xml,"
+        "https://cointelegraph.com/rss,"
+        "https://coindesk.com/arc/outboundfeeds/rss/"
+    )
     POLYMARKET_RELAYER_URL: str = "https://relayer-v2.polymarket.com"
     POLYMARKET_WS_CLOB_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     POLYMARKET_WS_USER_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"

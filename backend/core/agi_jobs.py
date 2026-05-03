@@ -2,7 +2,27 @@
 
 import logging
 
+from sqlalchemy import distinct
+
 logger = logging.getLogger("trading_bot")
+
+
+def _get_active_market_queries() -> list[str]:
+    """Extract market topic queries from recent trades and signals."""
+    try:
+        from backend.models.database import SessionLocal, Trade, Signal
+
+        with SessionLocal() as db:
+            tickers = (
+                db.query(distinct(Trade.market_ticker))
+                .filter(Trade.market_ticker.isnot(None))
+                .order_by(Trade.created_at.desc())
+                .limit(20)
+                .all()
+            )
+            return [t[0].replace("-", " ").replace("_", " ") for t in tickers if t[0]]
+    except Exception:
+        return []
 
 
 async def self_review_job() -> None:
@@ -36,12 +56,25 @@ async def research_pipeline_job() -> None:
         from backend.research.pipeline import ResearchPipeline
 
         pipeline = ResearchPipeline()
-        items = await pipeline.run_research_cycle()
 
-        log_event(
-            "success",
-            f"Research pipeline complete: {len(items)} relevant items found",
-        )
+        active_markets = _get_active_market_queries()
+
+        items = await pipeline.run_research_cycle(markets=active_markets)
+
+        if items:
+            from backend.research.storage import ResearchStorage
+
+            storage = ResearchStorage()
+            stored = await storage.store_items(items)
+            log_event(
+                "success",
+                f"Research pipeline complete: {len(items)} found, {stored} stored",
+            )
+        else:
+            log_event(
+                "success",
+                "Research pipeline complete: 0 relevant items found",
+            )
     except Exception as exc:
         logger.exception("research_pipeline_job failed: %s", exc)
         log_event("error", f"Research pipeline failed: {exc}")

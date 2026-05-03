@@ -1,27 +1,34 @@
 """
-Event bus for SSE (Server-Sent Events) broadcasting.
+Event bus for SSE broadcasting and internal event-driven dispatch.
 
 This module provides a centralized event system for broadcasting
-events to all connected SSE subscribers. It replaces the module-level
-globals _event_subscribers and _event_history that were in main.py.
+events to all connected SSE subscribers AND dispatching typed events
+to backend handler callbacks. It replaces the module-level globals
+_event_subscribers and _event_history that were in main.py.
 """
 import asyncio
 import json
 import logging
-from collections import deque
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Callable, Awaitable
 
 
 logger = logging.getLogger(__name__)
 
+# Type alias for event handler callbacks
+EventHandler = Callable[[str, Dict[str, Any]], Awaitable[None]]
+
 
 class EventBus:
     """
-    Centralized event system for SSE broadcasting.
+    Centralized event system for SSE broadcasting and internal dispatch.
+
+    Manages two channels:
+    1. SSE subscriber queues (frontend dashboard)
+    2. Typed handler callbacks (backend modules)
 
     This is a module-level instance (not a singleton pattern) for simplicity.
-    It manages subscriber queues and event history for all SSE endpoints.
     """
 
     def __init__(self, history_maxlen: int = 50):
@@ -33,6 +40,7 @@ class EventBus:
         """
         self._subscribers: List[asyncio.Queue] = []
         self._history: deque = deque(maxlen=history_maxlen)
+        self._handlers: Dict[str, List[EventHandler]] = defaultdict(list)
 
     def subscribe(self, queue: asyncio.Queue) -> None:
         """
@@ -62,14 +70,19 @@ class EventBus:
             logger.warning("Attempted to remove non-existent subscriber")
             return False
 
-    def publish(self, event_type: str, data: Dict[str, Any]) -> None:
-        """
-        Publish an event to all subscribers.
+    def subscribe_handler(self, event_type: str, handler: EventHandler) -> None:
+        self._handlers[event_type].append(handler)
+        logger.debug(
+            "Handler registered for '%s' (%d total)", event_type, len(self._handlers[event_type])
+        )
 
-        Args:
-            event_type: Type of event (e.g., 'signal', 'trade', 'settlement')
-            data: Event data payload
-        """
+    def unsubscribe_handler(self, event_type: str, handler: EventHandler) -> None:
+        try:
+            self._handlers[event_type].remove(handler)
+        except ValueError:
+            pass
+
+    def publish(self, event_type: str, data: Dict[str, Any]) -> None:
         payload = {
             "type": event_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -77,12 +90,18 @@ class EventBus:
         }
         self._history.append(payload)
 
-        # Broadcast to all subscribers
         for queue in self._subscribers[:]:
             try:
                 queue.put_nowait(payload)
             except asyncio.QueueFull:
                 logger.warning(f"Dropping event for slow subscriber: {event_type}")
+
+        handlers = self._handlers.get(event_type, [])
+        for handler in handlers:
+            try:
+                asyncio.ensure_future(handler(event_type, data))
+            except Exception as exc:
+                logger.warning("Event handler failed for '%s': %s", event_type, exc)
 
     def get_history(self) -> List[Dict[str, Any]]:
         """
@@ -107,6 +126,11 @@ event_bus = EventBus()
 def publish_event(event_type: str, data: Dict[str, Any]) -> None:
     """Publish an event to all subscribers (convenience function)."""
     event_bus.publish(event_type, data)
+
+
+def subscribe_handler(event_type: str, handler: EventHandler) -> None:
+    """Register an async handler for a specific event type."""
+    event_bus.subscribe_handler(event_type, handler)
 
 
 def get_event_history() -> List[Dict[str, Any]]:
