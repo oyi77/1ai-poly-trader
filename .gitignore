@@ -101,3 +101,7 @@ TERMINAL_UI.md
 # Dev design specs
 docs/superpowers/
 archive/
+
+# Knowledge graph tool artifacts
+.understand-anything/
+docs/master_prompt.md
