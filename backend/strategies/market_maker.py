@@ -53,6 +53,9 @@ class MarketMakerStrategy(BaseStrategy):
             "inventory_skew_factor", self.default_params["inventory_skew_factor"]
         )
 
+        inventory_pct = max(-1.0, min(1.0, inventory_pct))
+        volatility = max(0.0, min(2.0, volatility))
+
         volatility_adjustment = volatility * 0.5
         inventory_skew = abs(inventory_pct) * inventory_skew_factor * base_spread
 
@@ -67,9 +70,9 @@ class MarketMakerStrategy(BaseStrategy):
             "inventory_skew_factor", self.default_params["inventory_skew_factor"]
         )
         quote_size = p.get("quote_size", self.default_params["quote_size"])
+        if quote_size <= 0:
+            raise ValueError(f"quote_size must be > 0, got {quote_size}")
 
-        # Skew pushes prices away from the overweight side
-        # Positive inventory -> skew bid/ask down so we sell more
         skew = -inventory_pct * inventory_skew_factor * spread * 0.5
 
         half_spread = spread / 2.0

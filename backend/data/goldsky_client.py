@@ -8,8 +8,11 @@ from typing import Optional
 import httpx
 
 from backend.config import settings
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger("trading_bot.goldsky")
+
+goldsky_breaker = CircuitBreaker("goldsky_api", failure_threshold=3, recovery_timeout=120.0)
 
 GOLDSKY_URL = settings.GOLDSKY_API_URL
 _HERE = Path(__file__).resolve().parent
@@ -57,25 +60,35 @@ async def fetch_order_filled_events(
     Supports sticky-cursor pagination: when many events share the same timestamp,
     pass after_id to paginate forward within that timestamp bucket.
     """
-    variables = {
-        "afterTimestamp": str(after_timestamp),
-        "afterId": after_id,
-        "batchSize": batch_size,
-    }
-    payload = {"query": _GRAPHQL_QUERY, "variables": variables}
+    async def _fetch_goldsky() -> list[dict]:
+        variables = {
+            "afterTimestamp": str(after_timestamp),
+            "afterId": after_id,
+            "batchSize": batch_size,
+        }
+        payload = {"query": _GRAPHQL_QUERY, "variables": variables}
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(GOLDSKY_URL, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(GOLDSKY_URL, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
 
-    if "errors" in data:
-        logger.error("Goldsky GraphQL errors: %s", data["errors"])
+        if "errors" in data:
+            logger.error("Goldsky GraphQL errors: %s", data["errors"])
+            return []
+
+        events = data.get("data", {}).get("orderFilledEvents", [])
+        logger.debug("Fetched %d orderFilledEvents (after_ts=%d, after_id=%s)", len(events), after_timestamp, after_id)
+        return events
+
+    try:
+        return await goldsky_breaker.call(_fetch_goldsky)
+    except CircuitOpenError:
+        logger.warning("[goldsky] Goldsky API circuit open, skipping")
         return []
-
-    events = data.get("data", {}).get("orderFilledEvents", [])
-    logger.debug("Fetched %d orderFilledEvents (after_ts=%d, after_id=%s)", len(events), after_timestamp, after_id)
-    return events
+    except Exception as e:
+        logger.error("[goldsky] Fetch failed: %s", e)
+        return []
 
 
 def save_cursor(timestamp: int, event_id: str) -> None:

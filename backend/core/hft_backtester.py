@@ -76,11 +76,24 @@ class HFTBacktester:
         max_dd = (peak - bankroll) / peak if peak > 0 else 0.0
         avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
 
+        pnls = [((sig.get("exit_price", 0.5) - sig.get("price", 0.5)) * sig.get("size", 0))
+                - (sig.get("size", 0) * self._poly_fee)
+                - (sig.get("size", 0) * self._kalshi_fee)
+                - (sig.get("size", 0) * (self._slippage_bps / 10000.0))
+                for sig in signals]
+        
+        if len(pnls) > 1:
+            import statistics
+            pnl_stdev = statistics.stdev(pnls)
+            sharpe = (statistics.mean(pnls) / pnl_stdev) if pnl_stdev > 0 else 0.0
+        else:
+            sharpe = 0.0
+
         return BacktestResult(
             total_trades=trades,
             winning_trades=wins,
             pnl=total_pnl,
-            sharpe=max(0.0, total_pnl / bankroll if bankroll > 0 else 0.0),
+            sharpe=sharpe,
             max_drawdown=max_dd,
             avg_latency_ms=avg_latency,
             transaction_costs=tx_costs,

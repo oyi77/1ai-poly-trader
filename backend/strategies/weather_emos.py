@@ -79,14 +79,45 @@ class CalibrationState:
 
     obs_pairs: list[tuple[float, float, float]] = field(
         default_factory=list
-    )  # (forecast, std, actual)
-    a: float = 0.0  # bias correction intercept
-    b: float = 1.0  # bias correction slope
+    )
+    a: float = 0.0
+    b: float = 1.0
     last_updated: str | None = None
+    _persistence_path: str | None = None
 
     @property
     def n(self) -> int:
         return len(self.obs_pairs)
+
+    def set_persistence_path(self, path: str):
+        self._persistence_path = path
+
+    def save(self):
+        if self._persistence_path is None:
+            return
+        import json
+        data = {
+            "obs_pairs": self.obs_pairs,
+            "a": self.a,
+            "b": self.b,
+            "last_updated": self.last_updated,
+        }
+        with open(self._persistence_path, "w") as f:
+            json.dump(data, f)
+
+    def load(self):
+        if self._persistence_path is None:
+            return
+        import json
+        import os
+        if not os.path.exists(self._persistence_path):
+            return
+        with open(self._persistence_path, "r") as f:
+            data = json.load(f)
+        self.obs_pairs = [tuple(p) for p in data.get("obs_pairs", [])]
+        self.a = data.get("a", 0.0)
+        self.b = data.get("b", 1.0)
+        self.last_updated = data.get("last_updated")
 
     def add_observation(
         self, forecast_mean: float, forecast_std: float, actual: float, window: int = 40

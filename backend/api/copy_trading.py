@@ -217,18 +217,26 @@ async def get_copy_trader_status(
             .all()
         )
 
+        # Batch fetch all copy signals (single query)
+        all_copy_signals = (
+            db.query(Signal)
+            .filter(Signal.market_type == "copy")
+            .order_by(Signal.timestamp.desc())
+            .all()
+        )
+
+        # Build lookup: addr -> first matching signal
+        signal_by_addr = {}
+        for s in all_copy_signals:
+            if s.sources:
+                for src in s.sources:
+                    if isinstance(src, str) and src not in signal_by_addr:
+                        signal_by_addr[src] = s
+
         wallet_details = []
         for addr, trades, pnl in wallet_entries:
             pseudonym = addr[:8] + "..."
-            # SQLite doesn't support JSON .contains() — use LIKE on JSON string representation
-            signal = (
-                db.query(Signal)
-                .filter(
-                    Signal.market_type == "copy",
-                    cast(Signal.sources, String).like(f'%"{addr}"%'),
-                )
-                .first()
-            )
+            signal = signal_by_addr.get(addr)
             if signal and signal.sources and len(signal.sources) > 1:
                 pseudonym = signal.sources[1] if len(signal.sources) > 1 else pseudonym
 

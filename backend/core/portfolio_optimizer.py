@@ -89,13 +89,12 @@ class PortfolioOptimizer:
                 break
 
             # Redistribute surplus from capped strategies to uncapped ones
-            surplus = self.max_total_exposure - sum(
-                min(w, self.max_per_strategy) for n, w in raw.items()
-                if n not in uncapped
-            ) - sum(uncapped.values())
-
+            capped_total = sum(min(w, self.max_per_strategy) for n, w in raw.items() if n not in uncapped)
             uncapped_sum = sum(uncapped.values())
-            if uncapped_sum <= 0:
+            surplus = self.max_total_exposure - capped_total - uncapped_sum
+
+            if uncapped_sum <= 0 or surplus <= 0:
+                # No room to redistribute — cap everything and stop
                 raw = capped
                 break
 

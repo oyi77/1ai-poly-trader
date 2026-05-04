@@ -109,12 +109,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def production_exception_handler(request: Request, exc: Exception):
+    import logging as _logging
+    _logging.getLogger("trading_bot").error(
+        f"Unhandled exception on {request.method} {request.url.path}: {exc}",
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

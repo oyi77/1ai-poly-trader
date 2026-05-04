@@ -24,6 +24,7 @@ Track Configuration:
 import asyncio
 import logging
 import time
+import threading
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, Optional
@@ -47,45 +48,40 @@ class PriceHistory:
     ticker: str
     prices: deque = field(
         default_factory=lambda: deque(maxlen=100)
-    )  # (timestamp, mid_price)
+    )
     last_signal_time: float = 0.0
     last_signal_direction: Optional[str] = None
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def add_price(self, mid_price: float, timestamp: float) -> None:
-        self.prices.append((timestamp, mid_price))
+        with self._lock:
+            self.prices.append((timestamp, mid_price))
 
     def get_velocity(self, window_seconds: float) -> Optional[float]:
-        """
-        Calculate price velocity over the given window.
-        Returns: (current_price - price_n_seconds_ago) / window_seconds
-        """
-        if len(self.prices) < 2:
-            return None
+        with self._lock:
+            if len(self.prices) < 2:
+                return None
 
-        now = self.prices[-1][0]
-        target_time = now - window_seconds
+            now = self.prices[-1][0]
+            target_time = now - window_seconds
 
-        # Find the price closest to target_time
-        oldest_valid = None
-        for ts, price in self.prices:
-            if ts >= target_time:
-                oldest_valid = (ts, price)
-                break
+            oldest_valid = None
+            for ts, price in self.prices:
+                if ts >= target_time:
+                    oldest_valid = (ts, price)
+                    break
 
-        if not oldest_valid:
-            # Not enough history yet
-            return None
+            if not oldest_valid:
+                return None
 
-        current_price = self.prices[-1][1]
-        old_price = oldest_valid[1]
-        time_delta = now - oldest_valid[0]
+            current_price = self.prices[-1][1]
+            old_price = oldest_valid[1]
+            time_delta = now - oldest_valid[0]
 
-        if time_delta <= 0:
-            return None
+            if time_delta <= 0:
+                return None
 
-        # Velocity: price change per second
-        velocity = (current_price - old_price) / time_delta
-        return velocity
+            return (current_price - old_price) / time_delta
 
 
 class RealtimeScannerStrategy(BaseStrategy):

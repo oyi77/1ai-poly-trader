@@ -82,15 +82,18 @@ class EnsembleSignalGenerator:
 
         combined = max(0.01, min(0.99, combined))
 
-        active_confidences = [
-            technical_prob,
-            orderbook_prob,
-        ]
+        active_probs = [technical_prob, orderbook_prob]
         if ai_prob is not None:
-            active_confidences.append(ai_prob)
+            active_probs.append(ai_prob)
 
-        avg_confidence = sum(active_confidences) / len(active_confidences)
-        confidence = avg_confidence * quality_factor
+        if len(active_probs) > 1:
+            prob_mean = sum(active_probs) / len(active_probs)
+            prob_var = sum((p - prob_mean) ** 2 for p in active_probs) / len(active_probs)
+            agreement = 1.0 - min(1.0, prob_var * 4.0)
+        else:
+            agreement = 0.5
+
+        confidence = agreement * quality_factor
         confidence = max(0.0, min(1.0, confidence))
 
         edge = abs(combined - market_price)

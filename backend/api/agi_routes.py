@@ -145,7 +145,10 @@ async def query_kg(
 
 
 @router.post("/emergency-stop")
-async def emergency_stop(db: Session = Depends(get_db)):
+async def emergency_stop(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     orchestrator = AGIOrchestrator(session=db)
     orchestrator.emergency_stop()
     return {"status": "stopped", "message": "AGI emergency stop activated"}
@@ -170,6 +173,7 @@ async def override_goal(
     goal: str = Body(...),
     reason: str = Body(...),
     db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
 ):
     from backend.core.agi_types import AGIGoal
     try:

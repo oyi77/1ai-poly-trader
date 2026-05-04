@@ -344,20 +344,42 @@ class WalletReconciler:
 
                 existing = None
                 if slug:
+                    slug_prefix = slug[:min(len(slug), 40)]
                     matching_trades = self.db.query(Trade).filter(
-                        (Trade.market_ticker.contains(slug[:40])) &
+                        (Trade.market_ticker.contains(slug_prefix)) &
                         (Trade.trading_mode == self.mode)
                     ).all()
                     if len(matching_trades) == 1:
                         existing = matching_trades[0]
+                    elif len(matching_trades) > 1 and condition_id:
+                        for mt in matching_trades:
+                            market_ticker = mt.market_ticker or ""
+                            if slug in market_ticker or market_ticker in slug:
+                                existing = mt
+                                break
 
                 if existing is None and title:
+                    title_prefix = title[:min(len(title), 30)]
                     matching_trades = self.db.query(Trade).filter(
-                        (Trade.market_ticker.contains(title[:30])) &
+                        (Trade.market_ticker.contains(title_prefix)) &
                         (Trade.trading_mode == self.mode)
                     ).all()
                     if len(matching_trades) == 1:
                         existing = matching_trades[0]
+                    elif len(matching_trades) > 1 and condition_id:
+                        for mt in matching_trades:
+                            market_ticker = mt.market_ticker or ""
+                            if title in market_ticker or market_ticker in title:
+                                existing = mt
+                                break
+
+                if existing is None and condition_id:
+                    token_id_trades = self.db.query(Trade).filter(
+                        (Trade.market_ticker.contains(condition_id[:32])) &
+                        (Trade.trading_mode == self.mode)
+                    ).all()
+                    if len(token_id_trades) == 1:
+                        existing = token_id_trades[0]
 
                 if existing:
                     if not existing.settled:

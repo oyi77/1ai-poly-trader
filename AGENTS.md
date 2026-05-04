@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-10 | Updated: 2026-04-10 -->
+<!-- Generated: 2026-04-10 | Updated: 2026-05-04 -->
 
 # polyedge
 
@@ -37,11 +37,14 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 | `frontend/` | React/TypeScript dashboard — monitoring UI, admin controls (see `frontend/AGENTS.md`) |
 | `docs/` | Architecture docs, API reference, how-it-works guides (see `docs/AGENTS.md`) |
 | `tests/` | Integration tests at project root level (see `tests/AGENTS.md`) |
+| `scripts/` | Operational scripts: seed, verify, backup, health-check, migration (see `scripts/AGENTS.md`) |
 | `.github/` | GitHub Actions CI workflow |
+| `alembic/` | Database migration framework (standard Alembic setup) |
 
 ## For AI Agents
 
 ### Working In This Directory
+- **MANDATORY: Documentation Sync** — Every code change MUST be accompanied by updating all affected documentation. This includes: AGENTS.md files (root + relevant subdirectory), API docs (`docs/api.md`), ADRs (`docs/architecture/`) for architectural decisions, `IMPLEMENTATION_GAPS.md` for newly discovered gaps, `.env.example` for new environment variables. Do NOT skip docs updates. If you add/rename/remove a file, update the Key Files table in the nearest AGENTS.md. If you add a new endpoint, update `docs/api.md`. If you change behavior, update the relevant doc.
 - Never commit `.env` — it contains live API keys and wallet credentials
 - Environment variables are documented in `.env.example`; always keep that in sync
 - Production deploys to Railway (backend) + Vercel (frontend) — check `railway.json` and `vercel.json`
@@ -70,8 +73,10 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 - `FastAPI` + `uvicorn` — Python web framework
 - `React 18` + `TypeScript` + `Vite` — Frontend
 - `SQLite` / `Redis` — Storage and job queue
+- `SQLAlchemy 2.0` + `Alembic` — ORM and migrations
 - Polymarket CLOB API, Kalshi API — Market data and order execution
 - Anthropic Claude API — AI signal analysis
 - Groq API — Fast LLM inference
+- `MiroFish` — External dual debate system for trade decisions
 
 <!-- MANUAL: -->

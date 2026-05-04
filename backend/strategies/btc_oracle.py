@@ -304,8 +304,13 @@ class BtcOracleStrategy(BaseStrategy):
                 continue
 
             market_mid = market.yes_price if direction == "yes" else market.no_price
-            # Oracle implies this should resolve YES — if market_mid < (1 - min_edge), there's edge
-            oracle_implied = 1.0 if direction == "yes" else 0.0
+            # Oracle implied probability based on price distance from strike.
+            # Avoid hard-coded 1.0/0.0 which guarantees 0% win rate — use
+            # market_mid adjusted by edge margin to produce a realistic probability.
+            if direction == "yes":
+                oracle_implied = min(0.95, market_mid + min_edge)
+            else:
+                oracle_implied = max(0.05, market_mid - min_edge)
             edge = abs(oracle_implied - market_mid) - min_edge
 
             decision = "BUY" if edge > 0 else "SKIP"

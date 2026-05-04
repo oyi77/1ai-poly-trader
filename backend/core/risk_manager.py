@@ -8,6 +8,7 @@ from typing import Optional
 
 from backend.config import settings
 from backend.models.database import SessionLocal, Trade, BotState
+from backend.monitoring.hft_metrics import record_signal
 from sqlalchemy import func, or_
 
 logger = logging.getLogger("trading_bot.risk")
@@ -59,16 +60,19 @@ class RiskManager:
         effective_mode = mode or self.s.TRADING_MODE
 
         # Lower confidence threshold for paper mode to allow more trades and learn
-        # Weather markets often have low confidence but strong edges from ensemble forecasting
-        min_confidence = 0.05 if effective_mode == "paper" else 0.3
+        # Weather markets often have low confidence but strong edge
+        min_confidence = 0.45 if effective_mode == "paper" else self.s.MIN_CONFIDENCE
         if confidence < min_confidence:
+            record_signal(strategy=strategy_name or "unknown", signal_type="rejected_confidence")
             return RiskDecision(False, f"confidence {confidence:.2f} below {min_confidence}", 0.0)
 
         if self._daily_loss_exceeded(db=db, mode=effective_mode):
+            record_signal(strategy=strategy_name or "unknown", signal_type="rejected_daily_loss")
             return RiskDecision(False, "daily loss limit hit", 0.0)
 
         drawdown = self.check_drawdown(bankroll, db=db, mode=effective_mode)
         if drawdown.is_breached:
+            record_signal(strategy=strategy_name or "unknown", signal_type="rejected_drawdown")
             return RiskDecision(
                 False, f"drawdown breaker: {drawdown.breach_reason}", 0.0
             )
@@ -76,6 +80,7 @@ class RiskManager:
         if market_ticker and self._has_unsettled_trade(
             market_ticker, db=db, mode=effective_mode
         ):
+            record_signal(strategy=strategy_name or "unknown", signal_type="rejected_unsettled")
             return RiskDecision(
                 False, f"unsettled trade exists for {market_ticker}", 0.0
             )
@@ -99,9 +104,11 @@ class RiskManager:
         if current_exposure + adjusted > max_exposure:
             adjusted = max(0.0, max_exposure - current_exposure)
             if adjusted <= 0:
+                record_signal(strategy=strategy_name or "unknown", signal_type="rejected_exposure")
                 return RiskDecision(False, "max exposure reached", 0.0)
 
         if slippage is not None and slippage > self.s.SLIPPAGE_TOLERANCE:
+            record_signal(strategy=strategy_name or "unknown", signal_type="rejected_slippage")
             return RiskDecision(False, f"slippage {slippage:.4f} > tolerance", 0.0)
 
         # Per-strategy allocation cap: if BankrollAllocator has assigned a
@@ -112,6 +119,7 @@ class RiskManager:
             )
             if allocation_cap is not None and adjusted > allocation_cap:
                 if allocation_cap <= 0:
+                    record_signal(strategy=strategy_name or "unknown", signal_type="rejected_allocation")
                     return RiskDecision(
                         False,
                         f"strategy {strategy_name} allocation exhausted",

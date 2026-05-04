@@ -11,6 +11,7 @@ import re as _re
 from backend.config import settings
 from backend.models.database import Trade, BotState
 from backend.core.alert_manager import AlertManager
+from backend.monitoring.hft_metrics import record_execution
 
 from backend.core.settlement_helpers import (
     fetch_resolution_for_trade,
@@ -72,10 +73,12 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
                 trade.result = "win"
                 trade.pnl = (size / entry_price) - size if entry_price > 0 else 0.0
                 trade.settlement_value = size / entry_price if entry_price > 0 else 0.0
+                record_execution(strategy=trade.strategy or "btc_5min", side=trade.direction or "up", status="settled_win", latency_s=0.0)
             else:
                 trade.result = "loss"
                 trade.pnl = -size
                 trade.settlement_value = 0.0
+                record_execution(strategy=trade.strategy or "btc_5min", side=trade.direction or "down", status="settled_loss", latency_s=0.0)
 
             trade.settled = True
             trade.settlement_time = now
@@ -171,6 +174,7 @@ async def _settle_btc_5min_trade(trade: Trade, now: datetime) -> Trade | None:
     trade.settlement_time = now
     trade.settlement_source = "btc_5min_unresolved"
     trade.settlement_value = 0.0
+    record_execution(strategy=trade.strategy or "btc_5min", side=trade.direction or "n/a", status="settled_expired", latency_s=0.0)
     logger.warning(
         f"BTC 5min {ticker}: could not resolve via Polymarket or CEX after {max_settle_age_hours}h, "
         f"marking as expired_unresolved (assumed loss)"
@@ -252,8 +256,8 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                                 )
                             finally:
                                 kg_db.close()
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.error(f"KG write failed for trade {trade.id}: {e}")
 
                 if closed_count > 0:
                     db.commit()
@@ -346,6 +350,12 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
             if await process_settled_trade(
                 trade, is_settled, settlement_value, pnl, db
             ):
+                record_execution(
+                    strategy=getattr(trade, "strategy", "unknown") or "unknown",
+                    side=getattr(trade, "direction", "n/a") or "n/a",
+                    status=f"settled_{trade.result}" if trade.result else "settled",
+                    latency_s=0.0,
+                )
                 from backend.models.audit_logger import log_settlement_completed
                 log_settlement_completed(
                     db=db,
@@ -391,6 +401,12 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                     trade.settlement_value = 0.0
                     trade.settlement_source = "expired_unresolved"
                     settled_trades.append(trade)
+                    record_execution(
+                        strategy=getattr(trade, "strategy", "unknown") or "unknown",
+                        side=getattr(trade, "direction", "n/a") or "n/a",
+                        status="settled_expired",
+                        latency_s=0.0,
+                    )
                     logger.warning(
                         f"Trade {trade.id}: market expired {expired_ago/3600:.1f}h ago, "
                         f"resolution unavailable after grace period (assumed loss)"
@@ -434,6 +450,12 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 trade.settlement_value = 0.0
                 trade.settlement_source = "stale_expired"
                 settled_trades.append(trade)
+                record_execution(
+                    strategy=getattr(trade, "strategy", "unknown") or "unknown",
+                    side=getattr(trade, "direction", "n/a") or "n/a",
+                    status="settled_expired",
+                    latency_s=0.0,
+                )
 
         unresolved_count = sum(
             1 for t in settled_trades
@@ -465,9 +487,9 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
 
         # Auto-topup paper bankroll if depleted
         try:
-            paper_min = float(os.getenv("PAPER_MIN_BANKROLL", "50"))
-            paper_topup_amt = float(os.getenv("PAPER_TOPUP_AMOUNT", "500"))
-            max_topups = int(os.getenv("MAX_TOPUPS", "10"))
+            paper_min = settings.PAPER_MIN_BANKROLL
+            paper_topup_amt = settings.PAPER_TOPUP_AMOUNT
+            max_topups = settings.MAX_TOPUPS
             paper_state = db.query(BotState).filter_by(mode="paper").first()
             if paper_state:
                 current = float(paper_state.paper_bankroll or 0)
@@ -476,8 +498,8 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                     paper_state.paper_bankroll = current + paper_topup_amt
                     paper_state._topup_count = topup_count + 1
                     db.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Paper bankroll top-up failed: {e}")
 
         return settled_trades
 

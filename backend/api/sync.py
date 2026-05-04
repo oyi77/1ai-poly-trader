@@ -85,25 +85,25 @@ async def _sync_wallet_background(mode: str, db: Session):
     """Background task to perform wallet sync."""
     try:
         from backend.data.polymarket_clob import clob_from_settings
-        
+
         logger.info(f"Starting background sync for mode={mode}")
-        
+
         clob = clob_from_settings(mode=mode)
         reconciler = WalletReconciler(clob, db, mode)
         result = await reconciler.full_reconciliation()
-        
+
         # Update BotState with sync result
         state = db.query(BotState).first()
         if state:
             state.last_sync_at = result.last_sync_at
             db.commit()
-        
+
         logger.info(
             f"Background sync complete [{mode}]: imported={result.imported_count}, "
             f"updated={result.updated_count}, closed={result.closed_count}, "
             f"errors={len(result.errors)}"
         )
-        
+
         # Publish event for dashboard
         publish_event("sync_completed", {
             "mode": mode,
@@ -113,10 +113,7 @@ async def _sync_wallet_background(mode: str, db: Session):
             "errors": len(result.errors),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
-        
-        # We need to manually close the session here since it's running in background
-        db.close()
-        
+
     except Exception as e:
         logger.error(
             f"[api.sync._sync_wallet_background] {type(e).__name__}: Background sync failed for mode={mode}: {e}",
@@ -127,6 +124,7 @@ async def _sync_wallet_background(mode: str, db: Session):
             "error": str(e),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+    finally:
         db.close()
 
 

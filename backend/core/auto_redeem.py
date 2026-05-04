@@ -372,10 +372,11 @@ def _redeem_direct(
 
 def get_redeemable_positions(wallet: str) -> list[dict]:
     """Fetch redeemable positions from Polymarket Data API."""
-    resp = httpx.get(
-        f"{_main_settings.DATA_API_URL}/positions?user={wallet}&limit=200"
-    )
-    positions = resp.json()
+    with httpx.Client() as client:
+        resp = client.get(
+            f"{_main_settings.DATA_API_URL}/positions?user={wallet}&limit=200"
+        )
+        positions = resp.json()
     return [p for p in positions if p.get("redeemable") and p.get("conditionId")]
 
 

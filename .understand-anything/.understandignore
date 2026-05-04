@@ -1,0 +1,79 @@
+# .understandignore — patterns for files/dirs to exclude from analysis
+# Syntax: same as .gitignore (globs, # comments, ! negation, trailing / for dirs)
+# Lines below are suggestions — uncomment to activate.
+# Use ! prefix to force-include something excluded by defaults.
+#
+# Built-in defaults (always excluded unless negated):
+#   node_modules/, .git/, dist/, build/, obj/, *.lock, *.min.js, etc.
+#
+# --- From .gitignore (uncomment to exclude) ---
+
+# *.py[cod]
+# *$py.class
+# *.so
+# .Python
+# ENV/
+# env/
+# *.egg-info/
+# *.egg
+# *.db
+# *.sqlite3
+# .env
+# .env.local
+# .env.*.local
+# secrets/
+# *.swp
+# *.swo
+# *~
+# .DS_Store
+# Thumbs.db
+# npm-debug.log*
+# yarn-debug.log*
+# yarn-error.log*
+# frontend/dist/
+# frontend/build/
+# logs/
+# *.cache
+# .coverage
+# htmlcov/
+# .pytest_cache/
+# *.pem
+# *.backup
+# *.bak
+# *.backup.*
+# *.corrupt.*
+# backups/
+# .omc/
+# .playwright-mcp/
+# .sisyphus/
+# .claude/
+# screenshots/
+# dashboard-overview.png
+# *.db-shm
+# *.db-wal
+# frontend/playwright-report/
+# frontend/test-results/
+# frontend/e2e/
+# AGENTS.md
+# **/AGENTS.md
+# BACKTEST_TESTING_FINAL_REPORT.md
+# E2E_TEST_RESULTS.md
+# END_TO_END_TEST_RESULTS.md
+# FEATURE_COMPARISON.md
+# PLAYWRIGHT_TEST_RESULTS.md
+# TERMINAL_UI.md
+# docs/superpowers/
+# archive/
+
+# --- Detected directories (uncomment to exclude) ---
+
+# tests/
+# docs/
+# scripts/
+# migrations/
+
+# --- Test file patterns (uncomment to exclude) ---
+
+# *.test.*
+# *.spec.*
+# *.snap

@@ -32,7 +32,8 @@ class ExperimentStatus(Enum):
     BACKTEST = "backtest"
     SHADOW = "shadow"
     PAPER = "paper"
-    LIVE_PROMOTED = "live_promoted"
+    LIVE_TRIAL = "live_trial"       # temporary live trial with capped bankroll
+    LIVE_PROMOTED = "live_promoted" # permanent live with full allocation
     LIVE_FAILED = "live_failed"
     REVIEW = "review"
     RETIRED = "retired"

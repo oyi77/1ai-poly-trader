@@ -295,16 +295,7 @@ logger = __import__("logging").getLogger("trading_bot.agi_orchestrator")
 
 
 async def agi_improvement_cycle_job() -> None:
-    """Scheduled job: runs the full closed-loop AGI improvement cycle.
-
-    Loop order (each is a closed loop):
-    1. Feedback → measure if applied changes improved things
-    2. Meta-Learn → update biases from feedback
-    3. Evolve → generate param variants with crossover
-    4. Propose → forward simulation + auto-promote
-    5. Replace → disable killed strategies
-    6. Compose → AI generates new strategies for dead strategy slots
-    """
+    """Scheduled job: runs the full closed-loop AGI improvement cycle."""
     stats = {
         "feedback_measured": 0,
         "meta_learned": 0,
@@ -320,18 +311,21 @@ async def agi_improvement_cycle_job() -> None:
         result = measure_recent_changes()
         stats["feedback_measured"] = result.get("measured", 0)
     except Exception as e:
+        logger.error("[agi_improvement_cycle] feedback stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"feedback: {e}")
 
     try:
         from backend.ai.meta_learner import MetaLearner
         stats["meta_learned"] = MetaLearner().update_from_feedback()
     except Exception as e:
+        logger.error("[agi_improvement_cycle] meta_learn stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"meta_learn: {e}")
 
     try:
         from backend.agents.autoresearch.evolver import StrategyEvolver
         stats["evolution_variants"] = len(StrategyEvolver().run_evolution_cycle())
     except Exception as e:
+        logger.error("[agi_improvement_cycle] evolution stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"evolution: {e}")
 
     try:
@@ -346,6 +340,7 @@ async def agi_improvement_cycle_job() -> None:
         finally:
             db.close()
     except Exception as e:
+        logger.error("[agi_improvement_cycle] proposals stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"proposals: {e}")
 
     try:
@@ -368,6 +363,7 @@ async def agi_improvement_cycle_job() -> None:
         finally:
             db.close()
     except Exception as e:
+        logger.error("[agi_improvement_cycle] replacement stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"replacement: {e}")
 
     try:
@@ -375,6 +371,7 @@ async def agi_improvement_cycle_job() -> None:
         composed = await StrategyComposer().compose_new_strategy()
         stats["strategies_composed"] = 1 if composed else 0
     except Exception as e:
+        logger.error("[agi_improvement_cycle] composition stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"composition: {e}")
 
     try:
@@ -383,7 +380,14 @@ async def agi_improvement_cycle_job() -> None:
         stats["counterfactual_scored"] = cf_result.get("scoring", {}).get("scored", 0)
         stats["counterfactual_insights"] = cf_result.get("insights", {}).get("insights", 0)
     except Exception as e:
+        logger.error("[agi_improvement_cycle] counterfactual stage failed: %s", e, exc_info=True)
         stats["errors"].append(f"counterfactual: {e}")
+
+    if len(stats["errors"]) >= 4:
+        logger.critical(
+            "[agi_improvement_cycle] %d/7 stages failed — AGI cycle may be non-functional",
+            len(stats["errors"]),
+        )
 
     logger.info(
         "[agi_improvement_cycle] feedback=%d meta=%d evolved=%d promoted=%d composed=%d replaced=%d cf_scored=%d errors=%d",

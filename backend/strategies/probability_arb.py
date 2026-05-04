@@ -94,11 +94,12 @@ async def execute_arb(
 
     async with _execution_breaker_active:
         try:
+            arb_size = _cfg("ARB_DEFAULT_SIZE", 10.0)
             order_yes = await _place_order_with_retry(
                 token_id=market_id,
                 side="BUY",
                 price=opportunity.yes_price,
-                size=10.0,
+                size=arb_size,
                 clob=clob,
                 idempotency_key=f"{idempotency_key}-yes",
             )
@@ -107,7 +108,7 @@ async def execute_arb(
                 token_id=market_id,
                 side="BUY",
                 price=opportunity.no_price,
-                size=10.0,
+                size=arb_size,
                 clob=clob,
                 idempotency_key=f"{idempotency_key}-no",
             )

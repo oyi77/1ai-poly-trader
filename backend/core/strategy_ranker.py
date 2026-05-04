@@ -146,6 +146,15 @@ class StrategyRanker:
         ranked.sort(key=lambda r: r.rank_score, reverse=True)
         return ranked
 
+    RISK_TIER_MAX_PCT = {
+        "safe": 0.50,
+        "conservative": 0.30,
+        "moderate": 0.20,
+        "aggressive": 0.10,
+        "extreme": 0.05,
+        "crazy": 0.01,
+    }
+
     def auto_allocate(
         self,
         db: Session,
@@ -155,25 +164,32 @@ class StrategyRanker:
         """Allocate bankroll across strategies proportional to risk-adjusted return.
 
         Returns dict of {strategy_name: allocation_dollars}.
-        Max 50% to any single strategy. Excess from caps is redistributed.
+        Max 50% to any single strategy. Caps reduced by risk_tier.
+        Excess from caps is redistributed.
         """
+        from backend.models.database import StrategyConfig
+
         ranked = self.rank_all(db, lookback_days)
 
-        # Only allocate to strategies with positive rank score
+        tier_map = {}
+        for cfg in db.query(StrategyConfig).all():
+            tier_map[cfg.strategy_name] = getattr(cfg, "risk_tier", None) or "moderate"
+
         positive = [r for r in ranked if r.rank_score > 0]
         if not positive:
-            # Equal allocation across all ranked strategies
             if ranked:
                 per_strategy = bankroll / len(ranked)
                 return {r.name: round(per_strategy, 2) for r in ranked}
             return {}
 
         total_score = sum(r.rank_score for r in positive)
-        cap = bankroll * 0.50
         allocations = {}
         allocated = 0.0
 
         for r in positive:
+            tier = tier_map.get(r.name, "moderate")
+            cap_pct = self.RISK_TIER_MAX_PCT.get(tier, 0.20)
+            cap = bankroll * cap_pct
             raw_alloc = (r.rank_score / total_score) * bankroll
             capped = min(raw_alloc, cap)
             allocations[r.name] = round(capped, 2)
@@ -181,12 +197,14 @@ class StrategyRanker:
 
         # Redistribute excess from capped strategies to uncapped ones
         if allocated < bankroll:
-            uncapped = [r for r in positive if allocations[r.name] < cap]
+            uncapped = [r for r in positive if allocations[r.name] < bankroll * self.RISK_TIER_MAX_PCT.get(tier_map.get(r.name, "moderate"), 0.20)]
             if uncapped:
                 remaining = bankroll - allocated
                 uncapped_score = sum(r.rank_score for r in uncapped)
                 if uncapped_score > 0:
                     for r in uncapped:
+                        tier = tier_map.get(r.name, "moderate")
+                        cap = bankroll * self.RISK_TIER_MAX_PCT.get(tier, 0.20)
                         extra = (r.rank_score / uncapped_score) * remaining
                         allocations[r.name] = round(
                             min(allocations[r.name] + extra, cap), 2

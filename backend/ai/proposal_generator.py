@@ -402,6 +402,8 @@ Be specific and actionable. Do not suggest vague improvements."""
                 change_details=proposal.change_details,
                 expected_impact=proposal.expected_impact,
                 admin_decision="pending",
+                status="pending",
+                auto_promotable=proposal.change_type in ("parameter_adjustment", "threshold_change"),
                 created_at=datetime.now(timezone.utc)
             )
             
@@ -619,8 +621,8 @@ def auto_promote_eligible_proposals():
                     db.rollback()
         finally:
             db.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"auto_promote_eligible_proposals failed: {e}", exc_info=True)
 
 
 def _get_baseline_win_rate(db, strategy_name: str) -> float:

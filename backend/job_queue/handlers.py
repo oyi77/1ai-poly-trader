@@ -1,13 +1,26 @@
 """Job handlers for queue execution.
 
-These functions wrap existing scheduler logic for use with RQ workers.
-Each handler is async-friendly and returns structured results.
+Each handler returns structured results with error classification:
+- transient: network/timeout errors that should retry
+- permanent: invalid data that should fail immediately
 """
 
 import logging
 from typing import Dict, Any
 
 logger = logging.getLogger("trading_bot")
+
+_TRANSIENT_ERRORS = (ConnectionError, TimeoutError, OSError)
+
+
+def _classify_error(e: Exception) -> str:
+    if isinstance(e, _TRANSIENT_ERRORS):
+        return "transient"
+    if "timeout" in str(e).lower() or "connection" in str(e).lower():
+        return "transient"
+    if "rate limit" in str(e).lower() or "429" in str(e):
+        return "transient"
+    return "permanent"
 
 
 async def market_scan(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -40,10 +53,12 @@ async def market_scan(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"market_scan handler error: {str(e)}")
+        error_class = _classify_error(e)
+        logger.error(f"market_scan handler error ({error_class}): {str(e)}")
         return {
             "success": False,
             "error": str(e),
+            "error_class": error_class,
             "message": f"Market scan failed: {str(e)}",
             "data": {"job_type": "market_scan", "params": payload},
         }
@@ -79,10 +94,12 @@ async def settlement_check(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"settlement_check handler error: {str(e)}")
+        error_class = _classify_error(e)
+        logger.error(f"settlement_check handler error ({error_class}): {str(e)}")
         return {
             "success": False,
             "error": str(e),
+            "error_class": error_class,
             "message": f"Settlement check failed: {str(e)}",
             "data": {"job_type": "settlement_check", "params": payload},
         }
@@ -126,10 +143,12 @@ async def signal_generation(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"signal_generation handler error: {str(e)}")
+        error_class = _classify_error(e)
+        logger.error(f"signal_generation handler error ({error_class}): {str(e)}")
         return {
             "success": False,
             "error": str(e),
+            "error_class": error_class,
             "message": f"Signal generation failed: {str(e)}",
             "data": {"job_type": "signal_generation", "params": payload},
         }
@@ -165,10 +184,12 @@ async def weather_scan(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"weather_scan handler error: {str(e)}")
+        error_class = _classify_error(e)
+        logger.error(f"weather_scan handler error ({error_class}): {str(e)}")
         return {
             "success": False,
             "error": str(e),
+            "error_class": error_class,
             "message": f"Weather scan failed: {str(e)}",
             "data": {"job_type": "weather_scan", "params": payload},
         }

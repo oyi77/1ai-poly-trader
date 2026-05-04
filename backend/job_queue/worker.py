@@ -121,14 +121,9 @@ class Worker:
                     f"priority={job.priority}, payload={job.payload}"
                 )
 
-                if self._task_manager:
-                    task = await self._task_manager.create_task(
-                        self._process_job(job), name=f"worker_job_{job_id}"
-                    )
-                else:
-                    task = asyncio.create_task(self._process_job(job))
+                task = asyncio.create_task(self._process_job(job))
                 self._active_tasks.add(task)
-                task.add_done_callback(self._active_tasks.discard)
+                task.add_done_callback(lambda t: self._active_tasks.discard(t))
 
         except Exception as e:
             logger.error(f"Worker loop error: {e}", exc_info=True)
@@ -147,7 +142,9 @@ class Worker:
 
         with JobTimer(job.job_type) as timer:
             try:
-                # Execute job with timeout
+                if not job.payload or not isinstance(job.payload, dict):
+                    raise ValueError(f"Invalid payload: {job.payload}")
+
                 result = await asyncio.wait_for(
                     self.dispatch_job(job), timeout=settings.JOB_TIMEOUT_SECONDS
                 )
@@ -164,6 +161,25 @@ class Worker:
                     error_msg = result.get("error", "Unknown error")
                     await self._queue.fail(job_id, error_msg)
                     logger.error(f"Job {job_id} failed: {error_msg}")
+
+            except ValueError as e:
+                timer.status = "error"
+                error_msg = f"Permanent error: {str(e)}"
+                try:
+                    from backend.models.database import SessionLocal as _SL, JobQueue as _JQ
+                    _session = _SL()
+                    try:
+                        _job = _session.query(_JQ).filter(_JQ.id == job_id).first()
+                        if _job:
+                            _job.retry_count = _job.max_retries
+                            _job.status = "failed"
+                            _job.error_message = error_msg
+                            _session.commit()
+                    finally:
+                        _session.close()
+                except Exception:
+                    pass
+                logger.error(f"Job {job_id} permanent error: {error_msg}")
 
             except asyncio.TimeoutError:
                 timer.status = "timeout"

@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1775496582625,
+  "lastScanned": 1777835675517,
   "projectRoot": "/home/openclaw/projects/polyedge",
   "techStack": {
     "languages": [
@@ -35,6 +35,7 @@
     "workspaces": [],
     "mainDirectories": [
       "docs",
+      "scripts",
       "tests"
     ],
     "gitBranches": {
@@ -44,392 +45,276 @@
   },
   "customNotes": [],
   "directoryMap": {
+    "alembic": {
+      "path": "alembic",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1777835675499,
+      "keyFiles": [
+        "README",
+        "env.py",
+        "script.py.mako"
+      ]
+    },
+    "archive": {
+      "path": "archive",
+      "purpose": null,
+      "fileCount": 14,
+      "lastAccessed": 1777835675503,
+      "keyFiles": [
+        "CLEANUP_SUMMARY.md",
+        "DASHBOARD_BROKEN_PAGES_SUMMARY.txt",
+        "FINAL_SUMMARY.txt",
+        "SUCCESS_SUMMARY.txt",
+        "TESTING_COMPLETE.txt"
+      ]
+    },
     "backend": {
       "path": "backend",
       "purpose": null,
-      "fileCount": 2,
-      "lastAccessed": 1775496582616,
+      "fileCount": 11,
+      "lastAccessed": 1777835675504,
       "keyFiles": [
+        "AGENTS.md",
         "__init__.py",
+        "__main__.py",
+        "alembic.ini",
         "config.py"
+      ]
+    },
+    "backups": {
+      "path": "backups",
+      "purpose": null,
+      "fileCount": 19,
+      "lastAccessed": 1777835675505,
+      "keyFiles": [
+        "tradingbot_20260501_032753.db",
+        "tradingbot_20260501_113331.db",
+        "tradingbot_20260501_113331.db-wal",
+        "tradingbot_20260502_033939.db",
+        "tradingbot_20260502_033939.db-wal"
+      ]
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 1,
+      "lastAccessed": 1777835675506,
+      "keyFiles": [
+        "polyedge.db"
       ]
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
-      "fileCount": 1,
-      "lastAccessed": 1775496582619,
+      "fileCount": 14,
+      "lastAccessed": 1777835675506,
       "keyFiles": [
-        "dashboard.png"
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "KNOWLEDGE_BASE.md",
+        "api-versioning.md",
+        "api.md"
       ]
     },
     "frontend": {
       "path": "frontend",
       "purpose": null,
-      "fileCount": 10,
-      "lastAccessed": 1775496582620,
+      "fileCount": 18,
+      "lastAccessed": 1777835675506,
       "keyFiles": [
+        "AGENTS.md",
+        "Dockerfile",
         "index.html",
+        "nginx.conf",
+        "package-lock.json"
+      ]
+    },
+    "logs": {
+      "path": "logs",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1777835675507,
+      "keyFiles": []
+    },
+    "migrations": {
+      "path": "migrations",
+      "purpose": "Database migrations",
+      "fileCount": 3,
+      "lastAccessed": 1777835675507,
+      "keyFiles": [
+        "README",
+        "env.py",
+        "script.py.mako"
+      ]
+    },
+    "polyedge-docs": {
+      "path": "polyedge-docs",
+      "purpose": null,
+      "fileCount": 7,
+      "lastAccessed": 1777835675508,
+      "keyFiles": [
+        "README.md",
+        "docusaurus.config.ts",
         "package-lock.json",
         "package.json",
-        "postcss.config.js",
-        "tailwind.config.js"
+        "sidebars.ts"
+      ]
+    },
+    "redundant_dbs_backup": {
+      "path": "redundant_dbs_backup",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1777835675508,
+      "keyFiles": [
+        "jobs.db",
+        "polyedge.db",
+        "trading.db",
+        "trading_bot.db",
+        "tradingbot.db"
+      ]
+    },
+    "scratch": {
+      "path": "scratch",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1777835675508,
+      "keyFiles": [
+        "check_address.py",
+        "check_balances.py",
+        "check_breakers.py",
+        "clob_onboard.py",
+        "test_agi.py"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 33,
+      "lastAccessed": 1777835675509,
+      "keyFiles": [
+        "AGENTS.md",
+        "FIXES_APPLIED.py",
+        "backfill_blockchain_txns.py",
+        "backup-cron.sh",
+        "backup_with_validation.sh"
+      ]
+    },
+    "secrets": {
+      "path": "secrets",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1777835675509,
+      "keyFiles": [
+        "kalshi_private_key.pem"
       ]
     },
     "tests": {
       "path": "tests",
       "purpose": "Test files",
+      "fileCount": 25,
+      "lastAccessed": 1777835675510,
+      "keyFiles": [
+        "AGENTS.md",
+        "SHUTDOWN_TEST_RESULTS.md",
+        "TASK_32_COMPLETION.md",
+        "__init__.py",
+        "conftest.py"
+      ]
+    },
+    "venv": {
+      "path": "venv",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1777835675510,
+      "keyFiles": [
+        "pyvenv.cfg"
+      ]
+    },
+    "docs/assets": {
+      "path": "docs/assets",
+      "purpose": "Static assets",
       "fileCount": 4,
-      "lastAccessed": 1775496582620,
+      "lastAccessed": 1777835675511,
       "keyFiles": [
-        "__init__.py",
-        "conftest.py",
-        "test_copy_trader.py",
-        "test_signal_engine.py"
+        "dashboard-live.png",
+        "dashboard-overview.png",
+        "dashboard-test.png"
       ]
     },
-    "backend/api": {
-      "path": "backend/api",
-      "purpose": "API routes",
-      "fileCount": 2,
-      "lastAccessed": 1775496582622,
+    "frontend/dist": {
+      "path": "frontend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 8,
+      "lastAccessed": 1777835675512,
       "keyFiles": [
-        "__init__.py",
-        "main.py"
+        "favicon.svg",
+        "icon-192.png",
+        "icon-512.png"
       ]
     },
-    "backend/data": {
-      "path": "backend/data",
-      "purpose": "Data files",
-      "fileCount": 9,
-      "lastAccessed": 1775496582623,
+    "polyedge-docs/build": {
+      "path": "polyedge-docs/build",
+      "purpose": "Build output",
+      "fileCount": 4,
+      "lastAccessed": 1777835675512,
       "keyFiles": [
-        "__init__.py",
-        "btc_markets.py",
-        "crypto.py"
+        "404.html",
+        "index.html",
+        "sitemap.xml"
       ]
     },
-    "backend/models": {
-      "path": "backend/models",
-      "purpose": "Data models",
-      "fileCount": 2,
-      "lastAccessed": 1775496582623,
+    "polyedge-docs/docs": {
+      "path": "polyedge-docs/docs",
+      "purpose": "Documentation",
+      "fileCount": 1,
+      "lastAccessed": 1777835675512,
       "keyFiles": [
-        "__init__.py",
-        "database.py"
+        "intro.md"
       ]
     },
-    "frontend/src": {
-      "path": "frontend/src",
-      "purpose": "Source code",
-      "fileCount": 7,
-      "lastAccessed": 1775496582624,
+    "polyedge-docs/node_modules": {
+      "path": "polyedge-docs/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1777835675516,
+      "keyFiles": []
+    },
+    "tests/fixtures": {
+      "path": "tests/fixtures",
+      "purpose": "Test fixtures",
+      "fileCount": 4,
+      "lastAccessed": 1777835675516,
       "keyFiles": [
-        "App.tsx",
-        "api.ts",
-        "index.css"
+        "sample_activity.json",
+        "sample_audit.json",
+        "sample_proposal.json"
       ]
+    },
+    "venv/bin": {
+      "path": "venv/bin",
+      "purpose": "Executable scripts",
+      "fileCount": 38,
+      "lastAccessed": 1777835675517,
+      "keyFiles": [
+        "Activate.ps1",
+        "activate",
+        "activate.csh"
+      ]
+    },
+    "venv/lib": {
+      "path": "venv/lib",
+      "purpose": "Library code",
+      "fileCount": 0,
+      "lastAccessed": 1777835675517,
+      "keyFiles": []
     }
   },
   "hotPaths": [
     {
-      "path": "backend/api/main.py",
-      "accessCount": 184,
-      "lastAccessed": 1775572500926,
-      "type": "file"
-    },
-    {
-      "path": "backend/models/database.py",
-      "accessCount": 65,
-      "lastAccessed": 1775572397730,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/pages/Admin.tsx",
-      "accessCount": 61,
-      "lastAccessed": 1775555572907,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/scheduler.py",
-      "accessCount": 59,
-      "lastAccessed": 1775572520221,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/settlement.py",
-      "accessCount": 42,
-      "lastAccessed": 1775555560507,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/orchestrator.py",
-      "accessCount": 38,
-      "lastAccessed": 1775571398423,
-      "type": "file"
-    },
-    {
-      "path": "backend/data/polymarket_clob.py",
-      "accessCount": 37,
-      "lastAccessed": 1775533394359,
-      "type": "file"
-    },
-    {
-      "path": "backend/config.py",
-      "accessCount": 37,
-      "lastAccessed": 1775571364718,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/api.ts",
-      "accessCount": 26,
-      "lastAccessed": 1775572570444,
-      "type": "file"
-    },
-    {
-      "path": "backend/strategies/copy_trader.py",
-      "accessCount": 25,
-      "lastAccessed": 1775555432698,
-      "type": "file"
-    },
-    {
-      "path": "backend",
-      "accessCount": 20,
-      "lastAccessed": 1775559338825,
-      "type": "directory"
-    },
-    {
-      "path": "",
-      "accessCount": 20,
-      "lastAccessed": 1775570832177,
-      "type": "directory"
-    },
-    {
-      "path": "frontend/src/pages/Dashboard.tsx",
-      "accessCount": 19,
-      "lastAccessed": 1775551819821,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/weather_signals.py",
-      "accessCount": 18,
-      "lastAccessed": 1775549308400,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/App.tsx",
-      "accessCount": 17,
-      "lastAccessed": 1775572594246,
-      "type": "file"
-    },
-    {
-      "path": "backend/bot/telegram_bot.py",
-      "accessCount": 15,
-      "lastAccessed": 1775552403966,
-      "type": "file"
-    },
-    {
-      "path": "ecosystem.config.js",
-      "accessCount": 13,
-      "lastAccessed": 1775555569078,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/signals.py",
-      "accessCount": 12,
-      "lastAccessed": 1775549323039,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/components/admin/SystemStatus.tsx",
-      "accessCount": 11,
-      "lastAccessed": 1775549646529,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/components/NavBar.tsx",
-      "accessCount": 11,
-      "lastAccessed": 1775572612619,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src",
-      "accessCount": 7,
-      "lastAccessed": 1775549655205,
-      "type": "directory"
-    },
-    {
-      "path": "frontend/src/types.ts",
-      "accessCount": 7,
-      "lastAccessed": 1775551813482,
-      "type": "file"
-    },
-    {
-      "path": "backend/data/ws_client.py",
-      "accessCount": 6,
-      "lastAccessed": 1775502672487,
-      "type": "file"
-    },
-    {
-      "path": "requirements.txt",
-      "accessCount": 6,
-      "lastAccessed": 1775570737591,
-      "type": "file"
-    },
-    {
-      "path": "backend/data/weather.py",
-      "accessCount": 5,
-      "lastAccessed": 1775531384836,
-      "type": "file"
-    },
-    {
-      "path": "tests/test_clob.py",
-      "accessCount": 5,
-      "lastAccessed": 1775533400256,
-      "type": "file"
-    },
-    {
-      "path": "tests/test_admin_api.py",
-      "accessCount": 4,
-      "lastAccessed": 1775503721696,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/pages/Landing.tsx",
-      "accessCount": 4,
-      "lastAccessed": 1775545336057,
-      "type": "file"
-    },
-    {
-      "path": "frontend/vite.config.ts",
-      "accessCount": 4,
-      "lastAccessed": 1775573282255,
-      "type": "file"
-    },
-    {
-      "path": "backend/__main__.py",
+      "path": "IMPLEMENTATION_GAPS.md",
       "accessCount": 3,
-      "lastAccessed": 1775499477144,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/components/admin/SettingsEditor.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1775504766693,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/components/Terminal.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1775529092575,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/calibration.py",
-      "accessCount": 3,
-      "lastAccessed": 1775531383325,
-      "type": "file"
-    },
-    {
-      "path": ".env.example",
-      "accessCount": 3,
-      "lastAccessed": 1775533369135,
-      "type": "file"
-    },
-    {
-      "path": "frontend/package.json",
-      "accessCount": 3,
-      "lastAccessed": 1775538078990,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/main.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1775571112419,
-      "type": "file"
-    },
-    {
-      "path": "tests/test_copy_trader_http.py",
-      "accessCount": 2,
-      "lastAccessed": 1775496938291,
-      "type": "file"
-    },
-    {
-      "path": "backend/api/__init__.py",
-      "accessCount": 2,
-      "lastAccessed": 1775497096478,
-      "type": "file"
-    },
-    {
-      "path": "tests/test_signal_engine.py",
-      "accessCount": 2,
-      "lastAccessed": 1775497235346,
-      "type": "file"
-    },
-    {
-      "path": "backend/models/__init__.py",
-      "accessCount": 2,
-      "lastAccessed": 1775497236062,
-      "type": "file"
-    },
-    {
-      "path": "docker-compose.yml",
-      "accessCount": 2,
-      "lastAccessed": 1775501923109,
-      "type": "file"
-    },
-    {
-      "path": "Dockerfile",
-      "accessCount": 2,
-      "lastAccessed": 1775501923658,
-      "type": "file"
-    },
-    {
-      "path": "tests/conftest.py",
-      "accessCount": 2,
-      "lastAccessed": 1775503569081,
-      "type": "file"
-    },
-    {
-      "path": ".env",
-      "accessCount": 2,
-      "lastAccessed": 1775533369031,
-      "type": "file"
-    },
-    {
-      "path": "frontend/tsconfig.json",
-      "accessCount": 2,
-      "lastAccessed": 1775538048502,
-      "type": "file"
-    },
-    {
-      "path": "frontend",
-      "accessCount": 2,
-      "lastAccessed": 1775540298826,
-      "type": "directory"
-    },
-    {
-      "path": "tests/test_ws_client.py",
-      "accessCount": 1,
-      "lastAccessed": 1775496785812,
-      "type": "file"
-    },
-    {
-      "path": "frontend/src/components/admin/CopyTraderMonitor.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1775501632738,
-      "type": "file"
-    },
-    {
-      "path": "tests",
-      "accessCount": 1,
-      "lastAccessed": 1775501950247,
-      "type": "directory"
-    },
-    {
-      "path": "tests/test_settlement.py",
-      "accessCount": 1,
-      "lastAccessed": 1775503618041,
+      "lastAccessed": 1777836871997,
       "type": "file"
     }
   ],

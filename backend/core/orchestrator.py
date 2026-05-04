@@ -79,6 +79,7 @@ class Orchestrator:
         except Exception as e:
             logger.error(f"Failed to seed strategies: {e}", exc_info=True)
         
+        # Single session for backfill + mode context setup (fixes USE-AFTER-CLOSE CORE-1)
         db = SessionLocal()
         try:
             from backend.core.outcome_repository import backfill_missing_outcomes
@@ -86,41 +87,41 @@ class Orchestrator:
             if backfilled > 0:
                 logger.info(f"Backfilled {backfilled} missing strategy outcomes on startup")
             db.commit()
+
+            self._copy_trader = None
+            self._copy_task = None
+
+            # Create 3 ModeExecutionContext instances for per-mode execution isolation
+            from backend.core.mode_context import ModeExecutionContext, register_context
+            from backend.core.risk_manager import RiskManager
+            from backend.models.database import StrategyConfig
+            
+            for mode in ["paper", "testnet", "live"]:
+                # Create RiskManager instance for this mode
+                risk_manager = RiskManager()
+                
+                # Load StrategyConfig rows filtered by mode
+                strategy_configs = {}
+                configs = db.query(StrategyConfig).filter(
+                    (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
+                ).all()
+                for config in configs:
+                    strategy_configs[config.strategy_name] = config
+                
+                # Create ModeExecutionContext
+                context = ModeExecutionContext(
+                    mode=mode,
+                    clob_client=self._clob_clients[mode],
+                    risk_manager=risk_manager,
+                    strategy_configs=strategy_configs
+                )
+                
+                # Register context
+                register_context(mode, context)
+                logger.info(f"Registered ModeExecutionContext for mode: {mode} (client={'SET' if clob_client else 'NONE'})")
+                logger.info(f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies")
         finally:
             db.close()
-
-        self._copy_trader = None
-        self._copy_task = None
-
-        # Create 3 ModeExecutionContext instances for per-mode execution isolation
-        from backend.core.mode_context import ModeExecutionContext, register_context
-        from backend.core.risk_manager import RiskManager
-        from backend.models.database import StrategyConfig
-        
-        for mode in ["paper", "testnet", "live"]:
-            # Create RiskManager instance for this mode
-            risk_manager = RiskManager()
-            
-            # Load StrategyConfig rows filtered by mode
-            strategy_configs = {}
-            configs = db.query(StrategyConfig).filter(
-                (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
-            ).all()
-            for config in configs:
-                strategy_configs[config.strategy_name] = config
-            
-            # Create ModeExecutionContext
-            context = ModeExecutionContext(
-                mode=mode,
-                clob_client=self._clob_clients[mode],
-                risk_manager=risk_manager,
-                strategy_configs=strategy_configs
-            )
-            
-            # Register context
-            register_context(mode, context)
-            logger.info(f"Registered ModeExecutionContext for mode: {mode} (client={'SET' if clob_client else 'NONE'})")
-            logger.info(f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies")
 
         self._patch_weather_job()
 
@@ -502,8 +503,9 @@ def init_phase2_modules() -> dict:
             import asyncio as _asyncio
 
             _research = AutonomousResearchPipeline()
-            _asyncio.ensure_future(_research.run_continuous())
+            _task = _asyncio.ensure_future(_research.run_continuous())
             active["agi_research"] = _research
+            active["agi_research_task"] = _task
         except Exception as e:
             logger.warning(
                 f"[orchestrator.init_phase2_modules] {type(e).__name__}: AGI research pipeline init failed: {e}",

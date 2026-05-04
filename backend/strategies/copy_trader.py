@@ -88,6 +88,7 @@ class CopyTrader:
         self.max_wallets = max_wallets
         self.min_score = min_score
         self._tracked: list[ScoredTrader] = []
+        self._tracked_lock = asyncio.Lock()
         self._http: Optional[httpx.AsyncClient] = None
         self._watcher: Optional[WalletWatcher] = None
         self._scorer: Optional[LeaderboardScorer] = None

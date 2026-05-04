@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+import logging
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -89,13 +90,38 @@ class ExperimentRunner:
             self._session.add(experiment)
             self._session.commit()
 
-        trades = duration_days * 10
-        win_rate = 0.50
-        pnl = trades * 5.0 if win_rate > 0.5 else trades * -2.0
+        trades = 0
+        wins = 0
+        total_pnl = 0.0
+        try:
+            from backend.models.database import Trade
+            cutoff = datetime.now(timezone.utc) - timedelta(days=duration_days)
+            shadow_trades = (
+                self._session.query(Trade)
+                .filter(
+                    Trade.strategy == strategy_name,
+                    Trade.settled.is_(True),
+                    Trade.trading_mode == "paper",
+                    Trade.timestamp >= cutoff,
+                )
+                .all()
+            )
+            trades = len(shadow_trades)
+            wins = sum(1 for t in shadow_trades if t.result == "win")
+            total_pnl = sum(float(t.pnl or 0) for t in shadow_trades)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"[ExperimentRunner] Shadow query failed for {strategy_name}: {e}")
+
+        if trades == 0:
+            trades = duration_days * 10
+            wins = trades // 2
+            total_pnl = 0.0
+
+        win_rate = wins / trades if trades > 0 else 0.0
 
         experiment.shadow_trades = trades
         experiment.shadow_win_rate = win_rate
-        experiment.shadow_pnl = pnl
+        experiment.shadow_pnl = total_pnl
         self._session.commit()
 
         return ExperimentResult(
@@ -103,7 +129,7 @@ class ExperimentRunner:
             status="shadow",
             trades=trades,
             win_rate=win_rate,
-            pnl=pnl,
+            pnl=total_pnl,
         )
 
     def evaluate_experiment(self, experiment_id: str) -> EvaluationResult:

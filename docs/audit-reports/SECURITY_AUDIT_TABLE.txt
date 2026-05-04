@@ -1,0 +1,233 @@
+================================================================================
+SECURITY AUDIT — DETAILED FINDINGS TABLE
+================================================================================
+
+FILE: .env
+SEVERITY: 🔴 CRITICAL
+STATUS: EXPOSED IN GIT HISTORY
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECRET NAME                    │ LINE │ TYPE              │ SEVERITY │ ACTION │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ POLYMARKET_PRIVATE_KEY         │  19  │ Ethereum Priv Key │ CRITICAL │ Rotate│
+│ POLYMARKET_BUILDER_API_KEY     │  27  │ API Key (UUID)    │ CRITICAL │ Rotate│
+│ POLYMARKET_BUILDER_SECRET      │  28  │ Base64 Secret     │ CRITICAL │ Rotate│
+│ POLYMARKET_BUILDER_PASSPHRASE  │  29  │ Passphrase (hex)  │ CRITICAL │ Rotate│
+│ POLYMARKET_RELAYER_API_KEY     │  31  │ API Key (UUID)    │ CRITICAL │ Rotate│
+│ KALSHI_API_KEY_ID              │  44  │ API Key ID (UUID) │ CRITICAL │ Rotate│
+│ GROQ_API_KEY                   │  57  │ LLM API Key       │ CRITICAL │ Rotate│
+│ ADMIN_API_KEY                  │  87  │ Auth Token        │ CRITICAL │ Rotate│
+└─────────────────────────────────────────────────────────────────────────────┘
+
+FILE: secrets/kalshi_private_key.pem
+SEVERITY: 🔴 CRITICAL
+STATUS: EXPOSED IN GIT HISTORY
+SIZE: 1,678 bytes (RSA Private Key)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECRET NAME                    │ TYPE              │ SEVERITY │ ACTION      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ kalshi_private_key.pem         │ RSA Private Key   │ CRITICAL │ Regenerate  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+FILE: .env (Wallet Addresses)
+SEVERITY: 🟡 HIGH
+STATUS: EXPOSED IN GIT HISTORY
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ADDRESS                                    │ PURPOSE        │ SEVERITY │ ACTION │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 0xAd85C2F3942561AFA448cbbD5811a5f7E2e3C6Bd │ Main Wallet    │ HIGH     │ Monitor│
+│ 0xad85c2f3942561afa448cbbd5811a5f7e2e3c6bd │ Builder Wallet │ HIGH     │ Monitor│
+│ 0xaae484a962a1a20f4542678f920a07589fb665fb │ Relayer Wallet │ HIGH     │ Monitor│
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+EXPOSURE ANALYSIS
+================================================================================
+
+Git History Exposure:
+  ✗ .env is in git history (accessible via git log)
+  ✗ secrets/kalshi_private_key.pem is in git history
+  ✗ All commits since initial commit contain these files
+  ✗ Accessible to anyone with repository access
+  ✗ Accessible to anyone with cloned repository
+  ✗ Accessible in CI/CD logs (if exposed)
+
+Repository Access:
+  ✗ Public repository: UNKNOWN (check GitHub settings)
+  ✗ Private repository: Still accessible to all collaborators
+  ✗ Forks: Secrets copied to all forks
+  ✗ CI/CD: Secrets may be logged in build artifacts
+
+Potential Attack Vectors:
+  1. Repository clone → git log → extract secrets
+  2. GitHub API → raw file access → retrieve .env
+  3. CI/CD logs → environment variable exposure
+  4. Backup systems → historical file recovery
+  5. Collaborator compromise → local repository access
+
+================================================================================
+IMPACT ASSESSMENT
+================================================================================
+
+POLYMARKET IMPACT:
+  Risk Level: 🔴 CRITICAL
+  • Attacker can trade with live funds
+  • Can drain account via market manipulation
+  • Can access builder program (gasless trading)
+  • Can use relayer for proxy trades
+  • Estimated exposure: $100+ (INITIAL_BANKROLL)
+
+KALSHI IMPACT:
+  Risk Level: 🔴 CRITICAL
+  • Attacker can authenticate with API key
+  • Can execute trades on Kalshi platform
+  • Can drain account via market manipulation
+  • Estimated exposure: Unknown (check Kalshi balance)
+
+AI SERVICES IMPACT:
+  Risk Level: 🟡 HIGH
+  • Attacker can make LLM API calls
+  • Cost exposure: $5/day (AI_DAILY_BUDGET_USD)
+  • Can generate malicious signals
+  • Estimated exposure: $150/month
+
+ADMIN ACCESS IMPACT:
+  Risk Level: 🟡 HIGH
+  • Attacker can access admin endpoints
+  • Can modify settings, disable safety checks
+  • Can view sensitive trading data
+  • Can trigger trades or cancel orders
+
+WALLET MONITORING IMPACT:
+  Risk Level: 🟡 MEDIUM
+  • Attacker can monitor all transactions
+  • Can front-run trades (sandwich attacks)
+  • Can correlate trading activity to identity
+  • Can predict future trades
+
+================================================================================
+REMEDIATION CHECKLIST
+================================================================================
+
+IMMEDIATE (30 minutes):
+  [ ] Notify team members of security breach
+  [ ] Assess if any unauthorized trades occurred
+  [ ] Check Polymarket account balance
+  [ ] Check Kalshi account balance
+  [ ] Check Groq API usage
+  [ ] Check admin API access logs
+
+URGENT (1 hour):
+  [ ] Rotate POLYMARKET_PRIVATE_KEY
+      - Create new Ethereum wallet
+      - Transfer funds from old wallet
+      - Update .env with new key
+  [ ] Rotate POLYMARKET_BUILDER credentials
+      - Regenerate API key on Polymarket
+      - Regenerate secret
+      - Regenerate passphrase
+  [ ] Rotate KALSHI credentials
+      - Regenerate API key on Kalshi
+      - Regenerate private key
+      - Update secrets/kalshi_private_key.pem
+  [ ] Rotate GROQ_API_KEY
+      - Regenerate on Groq dashboard
+      - Update .env
+  [ ] Rotate ADMIN_API_KEY
+      - Generate new random token
+      - Update .env
+
+SHORT-TERM (4 hours):
+  [ ] Remove .env from git history
+      git filter-branch --tree-filter 'rm -f .env' HEAD
+  [ ] Remove secrets/ from git history
+      git filter-branch --tree-filter 'rm -rf secrets/' HEAD
+  [ ] Force-push cleaned history
+      git push origin --force-with-lease
+  [ ] Add to .gitignore
+      echo ".env" >> .gitignore
+      echo "secrets/" >> .gitignore
+      git add .gitignore
+      git commit -m "Add .env and secrets/ to .gitignore"
+      git push origin main
+  [ ] Create new .env locally with rotated secrets
+  [ ] Verify .env.example has no real values
+
+MEDIUM-TERM (1 week):
+  [ ] Set up GitHub Secrets for CI/CD
+  [ ] Configure Railway environment variables
+  [ ] Configure Vercel environment variables
+  [ ] Implement pre-commit hooks (detect-secrets)
+  [ ] Add secret scanning to CI/CD pipeline
+  [ ] Update POLYMARKET_SETUP.md with secure setup
+  [ ] Enable branch protection rules
+  [ ] Document secret rotation procedure
+
+LONG-TERM (ongoing):
+  [ ] Monitor for secret leaks (GitHub alerts)
+  [ ] Regular security audits (monthly)
+  [ ] Team training on secret management
+  [ ] Implement vault system (HashiCorp Vault, AWS Secrets Manager)
+  [ ] Automated secret rotation (quarterly)
+
+================================================================================
+VERIFICATION COMMANDS
+================================================================================
+
+Check if .env is in git history:
+  git log --all --full-history -- .env
+
+Check if secrets/ is in git history:
+  git log --all --full-history -- secrets/
+
+Search for API keys in current code:
+  grep -r "api_key\|private_key\|secret" --include="*.py" --include="*.js" \
+    --exclude-dir=venv --exclude-dir=node_modules
+
+Search for secrets in git history:
+  git log -p | grep -i "api_key\|private_key\|secret" | head -50
+
+Verify .env is in .gitignore:
+  grep "^\.env$" .gitignore
+
+Verify secrets/ is in .gitignore:
+  grep "^secrets/$" .gitignore
+
+================================================================================
+REFERENCES
+================================================================================
+
+GitHub Secret Scanning:
+  https://docs.github.com/en/code-security/secret-scanning
+
+OWASP Secrets Management:
+  https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html
+
+detect-secrets (Python):
+  https://github.com/Yelp/detect-secrets
+
+git-secrets (Bash):
+  https://github.com/awslabs/git-secrets
+
+truffleHog (Go):
+  https://github.com/trufflesecurity/trufflehog
+
+================================================================================
+AUDIT METADATA
+================================================================================
+
+Audit Date: 2026-05-04
+Audit Time: 2026-05-03T19:58:01.493Z
+Auditor: Security Scan
+Status: ✅ COMPLETE
+Severity: 🔴 CRITICAL
+Total Secrets Found: 10
+Total Files Affected: 2
+Remediation Priority: P0 (IMMEDIATE)
+
+Next Review: After remediation (within 24 hours)
+Follow-up Audit: 2026-05-11 (1 week)
+
+================================================================================

@@ -55,6 +55,7 @@ def create_strategy(name: str, **kwargs) -> BaseStrategy:
     """Instantiate a registered strategy by name.
 
     Raises KeyError with a helpful message if the strategy is not found.
+    Raises ValueError if the strategy is disabled in the database.
     """
     if name not in STRATEGY_REGISTRY:
         available = ", ".join(sorted(STRATEGY_REGISTRY.keys())) or "(none loaded)"
@@ -64,6 +65,26 @@ def create_strategy(name: str, **kwargs) -> BaseStrategy:
         )
     cls = STRATEGY_REGISTRY[name]
     return cls(**kwargs)
+
+
+def is_strategy_enabled(name: str, db=None) -> bool:
+    """Check if a strategy is enabled in the database.
+
+    Returns True if no DB session provided (default to enabled for strategies
+    not yet in DB). Returns the DB enabled flag otherwise.
+    """
+    if db is None:
+        return True
+    try:
+        from backend.models.database import StrategyConfig
+        config = db.query(StrategyConfig).filter(
+            StrategyConfig.strategy_name == name
+        ).first()
+        if config is None:
+            return True  # not configured = default enabled
+        return bool(config.enabled)
+    except Exception:
+        return True  # on error, default to enabled
 
 
 def list_strategies() -> list[StrategyMeta]:

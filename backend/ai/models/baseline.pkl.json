@@ -1,6 +1,6 @@
 {
   "model_path": "/home/openclaw/projects/polyedge/backend/ai/models/baseline.pkl",
-  "n_examples": 800,
+  "n_examples": 240,
   "feature_order": [
     "edge",
     "model_probability",
@@ -11,13 +11,13 @@
   ],
   "coefficients": [
     0.0,
-    0.10328004409617711,
-    0.10328004409617711,
+    7.143958180896425e-07,
+    7.143958180896425e-07,
     0.0,
     0.0,
-    -0.0574651262140074
+    0.02766919161032286
   ],
-  "intercept": 0.2071371973672242,
-  "train_accuracy": 0.56375,
+  "intercept": -0.8109922634548054,
+  "train_accuracy": 0.625,
   "version": "logreg-1.0"
 }

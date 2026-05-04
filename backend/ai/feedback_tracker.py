@@ -96,8 +96,10 @@ def _measure_proposal(proposal: StrategyProposal, db: Session) -> Optional[dict]
     pre_pnls = [t.pnl or 0.0 for t in pre_trades]
     post_pnls = [t.pnl or 0.0 for t in post_trades]
     import statistics
-    pre_sharpe = statistics.mean(pre_pnls) / statistics.stdev(pre_pnls) if len(pre_pnls) > 1 and statistics.stdev(pre_pnls) > 0 else 0.0
-    post_sharpe = statistics.mean(post_pnls) / statistics.stdev(post_pnls) if len(post_pnls) > 1 and statistics.stdev(post_pnls) > 0 else 0.0
+    pre_stdev = statistics.stdev(pre_pnls) if len(pre_pnls) > 1 else 0.0
+    post_stdev = statistics.stdev(post_pnls) if len(post_pnls) > 1 else 0.0
+    pre_sharpe = statistics.mean(pre_pnls) / pre_stdev if pre_stdev > 0 else 0.0
+    post_sharpe = statistics.mean(post_pnls) / post_stdev if post_stdev > 0 else 0.0
 
     wr_improved = post_wr > pre_wr
     pnl_improved = post_pnl > pre_pnl

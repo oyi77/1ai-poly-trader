@@ -47,9 +47,10 @@ const COLUMNS: ColumnDef<DecisionLogRow>[] = [
     sortable: true,
     className: 'tabular-nums text-right w-16',
     render: (row) => {
-      // Extract actual debate confidence from signal_data if available
-      const signalData = (row as any).signal_data
-      const debateConf = signalData?.debate_transcript?.debate_transcript?.judge?.confidence
+      const signalData = row.signal_data as Record<string, unknown> | null | undefined
+      const nested = (signalData?.debate_transcript ?? signalData) as Record<string, unknown> | undefined
+      const judge = (nested?.judge ?? nested) as Record<string, unknown> | undefined
+      const debateConf = judge?.confidence as number | undefined
       const displayConf = debateConf ?? row.confidence
       return displayConf != null ? `${(Number(displayConf) * 100).toFixed(1)}%` : '-'
     },

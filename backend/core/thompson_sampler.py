@@ -5,9 +5,14 @@ Prior: Beta(1, 1) = uniform.
 Updates: alpha += 1 on win, beta += 1 on loss.
 No new dependencies — uses stdlib random.betavariate().
 """
+import json
+import logging
 import random
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
+
+logger = logging.getLogger("trading_bot.thompson_sampler")
 
 
 class ThompsonSampler:
@@ -101,3 +106,22 @@ class ThompsonSampler:
             }
             for s, (a, b) in self._posteriors.items()
         }
+
+    def save(self, path: str = "thompson_state.json") -> None:
+        try:
+            data = {s: [a, b] for s, (a, b) in self._posteriors.items()}
+            Path(path).write_text(json.dumps(data, indent=2))
+        except Exception as e:
+            logger.error(f"Failed to save Thompson state: {e}")
+
+    def load(self, path: str = "thompson_state.json") -> None:
+        try:
+            p = Path(path)
+            if not p.exists():
+                return
+            data = json.loads(p.read_text())
+            for strategy, (alpha, beta) in data.items():
+                self._posteriors[strategy] = (float(alpha), float(beta))
+            logger.info(f"Loaded Thompson state: {len(data)} strategies from {path}")
+        except Exception as e:
+            logger.error(f"Failed to load Thompson state: {e}")

@@ -54,6 +54,44 @@ class AsyncSQLiteQueue(AbstractQueue):
         """
         self._db_executor = ThreadPoolExecutor(max_workers=max_workers)
 
+    async def recover_stale_jobs(self, stale_threshold_seconds: int = 600) -> int:
+        """Reset jobs stuck in 'processing' state back to 'pending'.
+
+        Call on startup or periodically to recover from worker crashes.
+
+        Args:
+            stale_threshold_seconds: Seconds since started_at to consider stale.
+
+        Returns:
+            Number of recovered jobs.
+        """
+        def _recover():
+            session = SessionLocal()
+            try:
+                from sqlalchemy import text
+                cutoff = _now()
+                from datetime import timedelta
+                cutoff = cutoff - timedelta(seconds=stale_threshold_seconds)
+                updated = session.query(JobQueue).filter(
+                    JobQueue.status == "processing",
+                    JobQueue.started_at < cutoff,
+                ).all()
+                count = 0
+                for job in updated:
+                    job.status = "pending"
+                    job.started_at = None
+                    job.retry_count += 1
+                    count += 1
+                session.commit()
+                return count
+            except SQLAlchemyError as e:
+                session.rollback()
+                raise ValueError(f"Failed to recover stale jobs: {e}")
+            finally:
+                session.close()
+
+        return await self._run_in_thread(_recover)
+
     def _run_in_thread(self, sync_func):
         """
         Execute a synchronous function in the thread pool.
@@ -102,6 +140,15 @@ class AsyncSQLiteQueue(AbstractQueue):
         def _insert_job():
             session = SessionLocal()
             try:
+                # Check idempotency BEFORE insert to avoid NULL-key bypass
+                if idempotency_key is not None:
+                    existing = session.query(JobQueue).filter(
+                        JobQueue.job_type == job_type,
+                        JobQueue.idempotency_key == idempotency_key
+                    ).first()
+                    if existing:
+                        return str(existing.id)
+
                 job = JobQueue(
                     job_type=job_type,
                     payload=payload,
@@ -116,15 +163,6 @@ class AsyncSQLiteQueue(AbstractQueue):
                 return str(job.id)
             except SQLAlchemyError as e:
                 session.rollback()
-                # Check for unique constraint violation (idempotency key)
-                if "unique constraint" in str(e).lower() or "uq_job_idempotency" in str(e):
-                    # Fetch existing job with same idempotency key
-                    existing = session.query(JobQueue).filter(
-                        JobQueue.job_type == job_type,
-                        JobQueue.idempotency_key == idempotency_key
-                    ).first()
-                    if existing:
-                        return str(existing.id)
                 raise ValueError(f"Failed to enqueue job: {e}")
             finally:
                 session.close()
@@ -155,13 +193,13 @@ class AsyncSQLiteQueue(AbstractQueue):
                     else_=99
                 )
 
-                # Fetch next pending job with row-level locking
+                # Fetch next pending job with row-level locking (SELECT FOR UPDATE)
                 job = session.query(JobQueue).filter(
                     JobQueue.status == "pending"
                 ).order_by(
                     priority_order,
                     JobQueue.scheduled_at.asc()
-                ).first()
+                ).with_for_update().first()
 
                 if not job:
                     return None

@@ -11,8 +11,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.config import settings
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.utils.redaction import redact_sensitive
 
 logger = logging.getLogger("trading_bot")
+
+webhook_breaker = CircuitBreaker("webhook", failure_threshold=3, recovery_timeout=300.0)
 
 
 class ProductionMonitor:
@@ -177,7 +181,7 @@ class ProductionMonitor:
             else:
                 loop.run_until_complete(self._send_webhooks(alert))
         except Exception as e:
-            logger.debug(f"Webhook dispatch error: {e}")
+            logger.debug(f"Webhook dispatch error: {redact_sensitive(str(e))}")
 
         return alert
 
@@ -185,60 +189,71 @@ class ProductionMonitor:
         """Send alert payload to configured Slack and/or Discord webhooks."""
         import httpx
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            if settings.SLACK_WEBHOOK_URL:
-                try:
-                    slack_payload = {
-                        "text": f"[{alert['severity']}] {alert['message']}",
-                        "blocks": [
-                            {
-                                "type": "section",
-                                "text": {
-                                    "type": "mrkdwn",
-                                    "text": f"*{alert['severity'].upper()}*\n{alert['message']}"
-                                }
-                            }
-                        ]
-                    }
-                    if alert.get("details"):
-                        details_text = "\n".join(
-                            f"- {k}: {v}" for k, v in alert["details"].items()
-                            if not isinstance(v, (dict, list))
-                        )
-                        if details_text:
-                            slack_payload["blocks"].append({
-                                "type": "section",
-                                "text": {"type": "mrkdwn", "text": details_text}
-                            })
-                    await client.post(settings.SLACK_WEBHOOK_URL, json=slack_payload)
-                except Exception as e:
-                    logger.debug(f"Slack webhook failed: {e}")
+        async def _send_slack(payload: dict) -> None:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(settings.SLACK_WEBHOOK_URL, json=payload)
 
-            if settings.DISCORD_WEBHOOK_URL:
-                try:
-                    color_map = {
-                        "info": 3447003, "warning": 16776960,
-                        "critical": 15158332, "emergency": 15158332
-                    }
-                    discord_payload = {
-                        "embeds": [{
-                            "title": f"[{alert['severity'].upper()}]",
-                            "description": alert["message"],
-                            "color": color_map.get(alert["severity"], 16777215),
-                            "timestamp": alert["timestamp"],
-                        }]
-                    }
-                    if alert.get("details"):
-                        fields = [
-                            {"name": str(k), "value": str(v), "inline": True}
-                            for k, v in alert["details"].items()
-                            if not isinstance(v, (dict, list))
-                        ][:5]
-                        if fields:
-                            discord_payload["embeds"][0]["fields"] = fields
-                    await client.post(settings.DISCORD_WEBHOOK_URL, json=discord_payload)
-                except Exception as e:
-                    logger.debug(f"Discord webhook failed: {e}")
+        async def _send_discord(payload: dict) -> None:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(settings.DISCORD_WEBHOOK_URL, json=payload)
+
+        if settings.SLACK_WEBHOOK_URL:
+            try:
+                slack_payload = {
+                    "text": f"[{alert['severity']}] {alert['message']}",
+                    "blocks": [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": f"*{alert['severity'].upper()}*\n{alert['message']}"
+                            }
+                        }
+                    ]
+                }
+                if alert.get("details"):
+                    details_text = "\n".join(
+                        f"- {k}: {v}" for k, v in alert["details"].items()
+                        if not isinstance(v, (dict, list))
+                    )
+                    if details_text:
+                        slack_payload["blocks"].append({
+                            "type": "section",
+                            "text": {"type": "mrkdwn", "text": details_text}
+                        })
+                await webhook_breaker.call(_send_slack, slack_payload)
+            except CircuitOpenError:
+                logger.debug("Slack webhook circuit open, skipping")
+            except Exception as e:
+                logger.debug(f"Slack webhook failed: {e}")
+
+        if settings.DISCORD_WEBHOOK_URL:
+            try:
+                color_map = {
+                    "info": 3447003, "warning": 16776960,
+                    "critical": 15158332, "emergency": 15158332
+                }
+                discord_payload = {
+                    "embeds": [{
+                        "title": f"[{alert['severity'].upper()}]",
+                        "description": alert["message"],
+                        "color": color_map.get(alert["severity"], 16777215),
+                        "timestamp": alert["timestamp"],
+                    }]
+                }
+                if alert.get("details"):
+                    fields = [
+                        {"name": str(k), "value": str(v), "inline": True}
+                        for k, v in alert["details"].items()
+                        if not isinstance(v, (dict, list))
+                    ][:5]
+                    if fields:
+                        discord_payload["embeds"][0]["fields"] = fields
+                await webhook_breaker.call(_send_discord, discord_payload)
+            except CircuitOpenError:
+                logger.debug("Discord webhook circuit open, skipping")
+            except Exception as e:
+                logger.debug(f"Discord webhook failed: {e}")
 
 
 async def run_monitoring_check(db: Session) -> Dict[str, Any]:

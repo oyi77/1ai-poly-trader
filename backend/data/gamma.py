@@ -13,8 +13,11 @@ from typing import Any, Optional
 import httpx
 
 from backend.config import settings
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger("trading_bot")
+
+gamma_breaker = CircuitBreaker("gamma_api", failure_threshold=5, recovery_timeout=60.0)
 
 GAMMA_API_URL = f"{settings.GAMMA_API_URL}/markets"
 _RATE_LIMIT_RETRY_DELAY = 2.0
@@ -27,7 +30,7 @@ async def fetch_markets(
     order: str = "volume",
     ascending: bool = False,
 ) -> list[dict[str, Any]]:
-    """Fetch markets from the Polymarket Gamma API.
+    """Fetch markets from the Polymarket Gamma API with pagination.
 
     Args:
         limit: Maximum number of markets to return.
@@ -38,7 +41,7 @@ async def fetch_markets(
     Returns:
         List of market dicts from the Gamma API, or empty list on failure.
     """
-    try:
+    async def _fetch_single_page() -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
                 GAMMA_API_URL,
@@ -54,17 +57,66 @@ async def fetch_markets(
             data = resp.json()
             if isinstance(data, list):
                 return data
-            logger.warning(f"[gamma] Unexpected response format: {type(data)}")
             return []
-    except httpx.TimeoutException:
-        logger.warning("[gamma] Gamma API request timed out")
-        return []
-    except httpx.HTTPStatusError as e:
-        logger.warning(f"[gamma] Gamma API HTTP error: {e.response.status_code}")
-        return []
+
+    if limit <= 100:
+        try:
+            return await gamma_breaker.call(_fetch_single_page)
+        except CircuitOpenError:
+            logger.warning("[gamma] Gamma API circuit open, skipping")
+            return []
+        except httpx.TimeoutException:
+            logger.warning("[gamma] Gamma API request timed out")
+            return []
+        except httpx.HTTPStatusError as e:
+            logger.warning("[gamma] Gamma API HTTP error: %s", e.response.status_code)
+            return []
+        except Exception as e:
+            logger.warning("[gamma] Gamma API fetch failed: %s", e)
+            return []
+
+    async def _fetch_page(client: httpx.AsyncClient, offset: int) -> Optional[list]:
+        for attempt in range(_RATE_LIMIT_MAX_RETRIES):
+            resp = await client.get(
+                GAMMA_API_URL,
+                params={
+                    "active": str(active).lower(),
+                    "closed": str(not active).lower(),
+                    "limit": page_size,
+                    "offset": offset,
+                    "order": order,
+                    "ascending": str(ascending).lower(),
+                },
+            )
+            if resp.status_code == 429:
+                delay = _RATE_LIMIT_RETRY_DELAY * (attempt + 1)
+                await asyncio.sleep(delay)
+                continue
+            resp.raise_for_status()
+            return resp.json()
+        return None
+
+    all_markets: list[dict[str, Any]] = []
+    offset = 0
+    page_size = 100
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            while len(all_markets) < limit:
+                try:
+                    page = await gamma_breaker.call(_fetch_page, client, offset)
+                except CircuitOpenError:
+                    logger.warning("[gamma] Gamma API circuit open during pagination at offset %d", offset)
+                    break
+                if page is None or not isinstance(page, list) or not page:
+                    break
+                all_markets.extend(page)
+                if len(page) < page_size:
+                    break
+                offset += page_size
+        return all_markets[:limit]
     except Exception as e:
-        logger.warning(f"[gamma] Gamma API fetch failed: {e}")
-        return []
+        logger.warning("[gamma] Paginated fetch failed: %s", e)
+        return all_markets
 
 
 async def fetch_resolved_markets(
@@ -76,6 +128,18 @@ async def fetch_resolved_markets(
     Returns markets with their final outcome prices, suitable for
     historical backtesting. Paginates through all available results.
     """
+    async def _fetch_resolved_page(client: httpx.AsyncClient, params: dict) -> Optional[list]:
+        for attempt in range(_RATE_LIMIT_MAX_RETRIES):
+            resp = await client.get(GAMMA_API_URL, params=params)
+            if resp.status_code == 429:
+                delay = _RATE_LIMIT_RETRY_DELAY * (attempt + 1)
+                logger.debug("[gamma] Rate limited, retrying in %.1fs (attempt %d)", delay, attempt + 1)
+                await asyncio.sleep(delay)
+                continue
+            resp.raise_for_status()
+            return resp.json()
+        return None
+
     all_markets = []
     offset = 0
     page_size = min(limit, 100)
@@ -94,16 +158,10 @@ async def fetch_resolved_markets(
                 if tag:
                     params["tag"] = tag
 
-                page = None
-                for attempt in range(_RATE_LIMIT_MAX_RETRIES):
-                    resp = await client.get(GAMMA_API_URL, params=params)
-                    if resp.status_code == 429:
-                        delay = _RATE_LIMIT_RETRY_DELAY * (attempt + 1)
-                        logger.debug("[gamma] Rate limited, retrying in %.1fs (attempt %d)", delay, attempt + 1)
-                        await asyncio.sleep(delay)
-                        continue
-                    resp.raise_for_status()
-                    page = resp.json()
+                try:
+                    page = await gamma_breaker.call(_fetch_resolved_page, client, params)
+                except CircuitOpenError:
+                    logger.warning("[gamma] Gamma API circuit open during resolved markets fetch at offset %d", offset)
                     break
 
                 if page is None:

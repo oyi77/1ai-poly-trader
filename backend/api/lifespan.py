@@ -428,11 +428,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 clob_client = None
             risk_manager = RiskManager()
             db = SessionLocal()
-            configs = db.query(StrategyConfig).filter(
-                (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
-            ).all()
-            strategy_configs = {c.strategy_name: c for c in configs}
-            db.close()
+            try:
+                configs = db.query(StrategyConfig).filter(
+                    (StrategyConfig.mode == mode) | (StrategyConfig.mode == None)
+                ).all()
+                strategy_configs = {c.strategy_name: c for c in configs}
+            finally:
+                db.close()
             context = ModeExecutionContext(
                 mode=mode,
                 clob_client=clob_client,
@@ -623,21 +625,21 @@ async def _startup_wallet_sync():
             if settings.TRADING_MODE in ("live", "paper"):
                 try:
                     clob = clob_from_settings(mode=mode)
-                    reconciler = WalletReconciler(clob, SessionLocal(), mode)
-                    result = await reconciler.full_reconciliation()
-                    db = SessionLocal()
+                    reconciler_db = SessionLocal()
                     try:
-                        state = db.query(BotState).first()
+                        reconciler = WalletReconciler(clob, reconciler_db, mode)
+                        result = await reconciler.full_reconciliation()
+                        state = reconciler_db.query(BotState).first()
                         if state:
                             state.last_sync_at = result.last_sync_at
-                            db.commit()
+                            reconciler_db.commit()
+                        logger.info(
+                            f"Startup recovery [{mode}]: imported={result.imported_count}, "
+                            f"updated={result.updated_count}, closed={result.closed_count}, "
+                            f"errors={len(result.errors)}"
+                        )
                     finally:
-                        db.close()
-                    logger.info(
-                        f"Startup recovery [{mode}]: imported={result.imported_count}, "
-                        f"updated={result.updated_count}, closed={result.closed_count}, "
-                        f"errors={len(result.errors)}"
-                    )
+                        reconciler_db.close()
                 except Exception as e:
                     logger.warning(
                         f"[api.main.lifespan] {type(e).__name__}: Startup recovery [{mode}] failed: {e}",

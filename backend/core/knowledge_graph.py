@@ -453,8 +453,11 @@ class KnowledgeGraph:
                 "correct": bool(outcome_correct),
             })
             self.add_relation(trade_entity_id, f"strategy:{strategy}", "executed_by", weight=1.0, confidence=1.0)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger("trading_bot.knowledge_graph").error(
+                f"store_trade_memory failed for trade {trade_id}: {e}"
+            )
 
     def retrieve_similar_trades(self, strategy: str, market_context: str = "", limit: int = 5) -> list:
         try:
@@ -470,5 +473,9 @@ class KnowledgeGraph:
                     if len(results) >= limit:
                         break
             return results
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger("trading_bot.knowledge_graph").error(
+                f"retrieve_similar_trades failed for strategy {strategy}: {e}"
+            )
             return []

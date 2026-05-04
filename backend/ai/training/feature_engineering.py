@@ -35,8 +35,12 @@ class FeatureEngineer:
         whale_pressure = float(row.get("whale_pressure", 0.0) or 0.0)
         sentiment = float(row.get("sentiment", 0.0) or 0.0)
 
-        # Use yes_price as both market_probability and a soft model prior.
-        model_probability = float(row.get("model_probability", yes_price) or yes_price)
+        if "model_probability" in row and row["model_probability"] is not None:
+            model_probability = float(row["model_probability"])
+        else:
+            sentiment_signal = max(-0.15, min(0.15, sentiment * 0.1))
+            whale_signal = max(-0.15, min(0.15, whale_pressure * 0.1))
+            model_probability = max(0.01, min(0.99, yes_price + sentiment_signal + whale_signal))
         edge = model_probability - yes_price
 
         return {

@@ -74,36 +74,35 @@ class WalletWatcher:
             return 0.0
 
     def _upsert_entry_size(self, wallet: str, pos_key: str, delta: float) -> float:
+        db = SessionLocal()
         try:
-            db = SessionLocal()
-            try:
-                condition_id, side = pos_key.split(":", 1)
-                entry = (
-                    db.query(CopyTraderEntry)
-                    .filter_by(wallet=wallet, condition_id=condition_id, side=side)
-                    .first()
+            condition_id, side = pos_key.split(":", 1)
+            entry = (
+                db.query(CopyTraderEntry)
+                .filter_by(wallet=wallet, condition_id=condition_id, side=side)
+                .first()
+            )
+            if entry:
+                entry.size += delta
+            else:
+                entry = CopyTraderEntry(
+                    wallet=wallet,
+                    condition_id=condition_id,
+                    side=side,
+                    size=delta,
                 )
-                if entry:
-                    entry.size += delta
-                else:
-                    entry = CopyTraderEntry(
-                        wallet=wallet,
-                        condition_id=condition_id,
-                        side=side,
-                        size=delta,
-                    )
-                    db.add(entry)
-                db.commit()
-                db.refresh(entry)
-                return entry.size
-            except Exception:
-                db.rollback()
-                raise
+                db.add(entry)
+            db.commit()
+            db.refresh(entry)
+            return entry.size
         except Exception as e:
+            db.rollback()
             logger.warning(
                 f"DB upsert error for entry size ({wallet[:10]}, {pos_key}): {e}"
             )
             return 0.0
+        finally:
+            db.close()
 
     async def _fetch_all_trades(
         self, wallet: str, page_size: int = 100, max_pages: int = 5

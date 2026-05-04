@@ -41,9 +41,10 @@ class TrainResult:
 class ModelTrainer:
     """Trains a logistic-regression baseline on labelled TrainingExamples."""
 
-    def __init__(self, model_path: Optional[str] = None):
+    def __init__(self, model_path: Optional[str] = None, metadata_extra: Optional[dict] = None):
         self.model_path = model_path or DEFAULT_MODEL_PATH
         self.fe = FeatureEngineer()
+        self._metadata_extra = metadata_extra or {}
 
     def train(self, examples: List[TrainingExample]) -> TrainResult:
         if len(examples) < 8:
@@ -65,6 +66,7 @@ class ModelTrainer:
                     "model": model,
                     "feature_order": FEATURE_ORDER,
                     "version": "logreg-1.0",
+                    **self._metadata_extra,
                 },
                 fh,
             )
@@ -97,6 +99,7 @@ class ModelTrainer:
                     "intercept": result.intercept,
                     "train_accuracy": result.train_accuracy,
                     "version": "logreg-1.0",
+                    **self._metadata_extra,
                 },
                 fh,
                 indent=2,

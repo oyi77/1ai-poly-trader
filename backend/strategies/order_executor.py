@@ -13,8 +13,12 @@ import httpx
 
 from backend.strategies.wallet_sync import WalletTrade
 from backend.config import settings
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.monitoring.hft_metrics import record_execution
 
 logger = logging.getLogger("trading_bot")
+
+data_api_breaker = CircuitBreaker("data_api", failure_threshold=5, recovery_timeout=60.0)
 
 DATA_HOST = settings.DATA_API_URL
 GAMMA_HOST = settings.GAMMA_API_URL
@@ -78,7 +82,7 @@ class LeaderboardScorer:
         self._http = http
 
     async def _fetch_actual_bankroll(self, wallet: str) -> Optional[float]:
-        try:
+        async def _fetch_positions() -> Optional[float]:
             resp = await self._http.get(
                 f"{DATA_HOST}/positions",
                 params={"user": wallet},
@@ -113,12 +117,15 @@ class LeaderboardScorer:
                         except (ValueError, TypeError):
                             pass
 
-            return total_value + realized_pnl if total_value > 0 else None
-        except (httpx.HTTPError, Exception) as e:
-            logger.debug(
-                f"[order_executor._fetch_actual_bankroll] {type(e).__name__}: Failed to fetch positions for {wallet[:10]}...: {e}",
-                exc_info=True
-            )
+            return total_value + realized_pnl
+
+        try:
+            return await data_api_breaker.call(_fetch_positions)
+        except CircuitOpenError:
+            logger.warning("[order_executor] Data API circuit open, cannot fetch bankroll")
+            return None
+        except Exception as e:
+            logger.debug(f"Bankroll fetch failed for {redact_sensitive(wallet)}: {e}")
             return None
 
     async def fetch_and_score(self, top_n: int = 50) -> list[ScoredTrader]:
@@ -360,6 +367,7 @@ class OrderExecutor:
             f"= {their_pct:.1%} -> our size: ${our_size:.2f}"
         )
 
+        record_execution(strategy="copy_trader", side="BUY", status="placed", latency_s=0.0)
         return CopySignal(
             source_wallet=trader.user,
             source_trade=trade,
@@ -384,6 +392,7 @@ class OrderExecutor:
             f"Closing our mirrored position"
         )
 
+        record_execution(strategy="copy_trader", side="SELL", status="placed", latency_s=0.0)
         return CopySignal(
             source_wallet=trader.user,
             source_trade=trade,

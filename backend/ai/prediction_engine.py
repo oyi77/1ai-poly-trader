@@ -62,8 +62,23 @@ class PredictionEngine:
         if not os.path.exists(self._model_path):
             return
         try:
+            import pickle
+            import io
+            
+            class _RestrictedUnpickler(pickle.Unpickler):
+                ALLOWED_PREFIXES = (
+                    "sklearn.", "numpy.", "scipy.", "__builtin__", "builtins",
+                    "collections", "pickle", "copyreg",
+                )
+                
+                def find_class(self, module, name):
+                    for prefix in _RestrictedUnpickler.ALLOWED_PREFIXES:
+                        if module.startswith(prefix):
+                            return super().find_class(module, name)
+                    raise pickle.UnpicklingError(f"Blocked: {module}.{name}")
+            
             with open(self._model_path, "rb") as fh:
-                bundle = pickle.load(fh)
+                bundle = _RestrictedUnpickler(fh).load()
             self._sk_model = bundle.get("model")
             self._feature_order = list(
                 bundle.get("feature_order", list(self.weights.keys()))
@@ -119,6 +134,7 @@ class PredictionEngine:
                 logger.debug(f"Empirical blend skipped for {strategy}: {e}")
 
         confidence = min(1.0, abs(prob - 0.5) * 2.0)
+        prob = max(0.01, min(0.99, prob))
         return Prediction(
             probability_yes=round(prob, 6),
             confidence=round(confidence, 6),

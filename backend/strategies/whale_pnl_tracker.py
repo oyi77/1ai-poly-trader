@@ -99,8 +99,10 @@ async def _fetch_market_prob(
                 prices_str = markets[0].get("outcomePrices")
                 if prices_str:
                     return float(str(prices_str).split(",")[0])
+        logger.warning(f"_fetch_market_prob: no price data for {condition_id[:20]}...")
         return 0.50
-    except Exception:
+    except Exception as e:
+        logger.warning(f"_fetch_market_prob failed for {condition_id[:20]}...: {e}")
         return 0.50
     finally:
         if close_client:

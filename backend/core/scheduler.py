@@ -5,6 +5,7 @@ The actual job functions are in scheduling_strategies.py.
 """
 
 import asyncio
+import threading
 from datetime import datetime, timezone
 from typing import List, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -64,6 +65,7 @@ task_manager: Optional[TaskManager] = None
 # Event log for terminal display (in-memory, last 200 events)
 event_log: List[dict] = []
 MAX_LOG_SIZE = 200
+_event_log_lock = threading.Lock()
 
 
 def log_event(event_type: str, message: str, data: dict = None):
@@ -74,10 +76,11 @@ def log_event(event_type: str, message: str, data: dict = None):
         "message": message,
         "data": data or {},
     }
-    event_log.append(event)
+    with _event_log_lock:
+        event_log.append(event)
 
-    while len(event_log) > MAX_LOG_SIZE:
-        event_log.pop(0)
+        while len(event_log) > MAX_LOG_SIZE:
+            event_log.pop(0)
 
     log_func = {
         "error": logger.error,
@@ -93,7 +96,8 @@ def log_event(event_type: str, message: str, data: dict = None):
 
 def get_recent_events(limit: int = 50) -> List[dict]:
     """Get recent events for terminal display."""
-    return event_log[-limit:]
+    with _event_log_lock:
+        return list(event_log[-limit:])
 
 
 def schedule_strategy(strategy_name: str, interval_seconds: int, mode: str = "paper") -> None:
@@ -644,6 +648,19 @@ def start_scheduler():
 
         global queue, worker, worker_task, task_manager
         queue = AsyncSQLiteQueue(max_workers=settings.DB_EXECUTOR_MAX_WORKERS)
+
+        loop = asyncio.new_event_loop()
+
+        def _run_recovery():
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(queue.recover_stale_jobs(stale_threshold_seconds=600))
+
+        try:
+            recovered = _run_recovery()
+            if recovered > 0:
+                logger.info(f"Recovered {recovered} stale jobs from previous crash")
+        except Exception as e:
+            logger.warning(f"Stale job recovery failed: {e}")
         
         from backend.api.main import app
         if hasattr(app.state, 'task_manager'):

@@ -1,15 +1,19 @@
 """Authentication and admin routes."""
 
-from fastapi import Depends, HTTPException, Header, APIRouter, Request
+import secrets
+import hashlib
+import time
+from fastapi import Depends, HTTPException, Header, APIRouter, Request, Response, Cookie
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 import os
 
 from backend.config import settings
 from backend.models.database import get_db, BotState, Trade, Signal
 from backend.api.validation import CredentialsUpdateRequest as ValidatedCredentialsUpdate
+from backend.utils.redaction import redact_sensitive
 
 logger = logging.getLogger("trading_bot")
 
@@ -51,6 +55,110 @@ def _mask_value(field_name: str, value) -> str:
     if _is_secret(field_name):
         return "****"
     return value
+
+
+# ---------------------------------------------------------------------------
+# Session-based cookie auth (Task 15)
+# ---------------------------------------------------------------------------
+# In-memory session store: token -> {"created_at": float, "csrf": str}
+_SESSION_STORE: dict[str, dict] = {}
+_SESSION_TTL_SECONDS = 86400  # 24 hours
+_COOKIE_NAME = "admin_session"
+
+
+def _cleanup_expired_sessions() -> None:
+    """Remove sessions older than TTL."""
+    now = time.time()
+    expired = [tok for tok, data in _SESSION_STORE.items() if now - data["created_at"] > _SESSION_TTL_SECONDS]
+    for tok in expired:
+        del _SESSION_STORE[tok]
+
+
+class CookieLoginBody(BaseModel):
+    admin_key: str
+
+
+@router.post("/auth/login")
+def cookie_login(body: CookieLoginBody, response: Response):
+    """Login with admin_key, receive httpOnly cookie + CSRF token."""
+    _cleanup_expired_sessions()
+    key = settings.ADMIN_API_KEY
+    if not key:
+        raise HTTPException(status_code=400, detail="No ADMIN_API_KEY configured — cookie auth unavailable")
+    if body.admin_key != key:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    session_token = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_urlsafe(32)
+    _SESSION_STORE[session_token] = {"created_at": time.time(), "csrf": csrf_token}
+
+    response.set_cookie(
+        key=_COOKIE_NAME,
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=_SESSION_TTL_SECONDS,
+        path="/api",
+    )
+    return {"csrf_token": csrf_token, "message": "Login successful"}
+
+
+@router.post("/auth/logout")
+def cookie_logout(response: Response, admin_session: str | None = Cookie(None)):
+    """Clear the session cookie."""
+    if admin_session and admin_session in _SESSION_STORE:
+        del _SESSION_STORE[admin_session]
+    response.delete_cookie(key=_COOKIE_NAME, path="/api")
+    return {"message": "Logged out"}
+
+
+def require_admin_from_cookie(
+    admin_session: str | None = Cookie(None),
+    x_csrf_token: str | None = Header(None),
+    authorization: str | None = Header(None),
+):
+    """Authenticate via cookie + CSRF OR via Bearer header (backward compat)."""
+    key = settings.ADMIN_API_KEY
+    if not key:
+        return  # No key configured = open (dev mode)
+
+    # Backward compat: Bearer header auth
+    if authorization and authorization == f"Bearer {key}":
+        return
+
+    # Cookie-based auth
+    if not admin_session or admin_session not in _SESSION_STORE:
+        raise HTTPException(status_code=401, detail="Unauthorized — invalid or expired session")
+
+    session = _SESSION_STORE[admin_session]
+
+    # Check session expiry
+    if time.time() - session["created_at"] > _SESSION_TTL_SECONDS:
+        del _SESSION_STORE[admin_session]
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    # CSRF validation for mutating requests (caller must validate via require_csrf)
+    # This dep just ensures the session is valid
+    return session
+
+
+def require_csrf(
+    x_csrf_token: str | None = Header(None),
+    admin_session: str | None = Cookie(None),
+    authorization: str | None = Header(None),
+):
+    """Validate CSRF token for cookie-authenticated mutating requests."""
+    key = settings.ADMIN_API_KEY
+    if not key:
+        return
+    if authorization and authorization == f"Bearer {key}":
+        return
+    if not admin_session or admin_session not in _SESSION_STORE:
+        return
+    session = _SESSION_STORE[admin_session]
+    if not x_csrf_token or x_csrf_token != session.get("csrf"):
+        raise HTTPException(status_code=403, detail="CSRF token missing or invalid")
 
 
 def _persist_env_updates(updates: dict[str, str]) -> None:

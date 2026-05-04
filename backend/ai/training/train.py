@@ -45,19 +45,36 @@ async def main() -> None:
     if len(examples) < 16:
         logger.warning(
             f"only {len(examples)} examples; baseline requires >=16. "
-            "Falling back to synthetic seed for the pipeline smoke."
+            "Falling back to SYNTHETIC seed — model will carry 'synthetic-data' flag."
         )
         examples = _synthetic_examples(64)
+        synthetic_used = True
+    else:
+        synthetic_used = False
 
     train_set, eval_set = _split(examples, holdout_frac=0.2)
-    trainer = ModelTrainer()
+    trainer = ModelTrainer(metadata_extra={"synthetic_data": synthetic_used})
     result = trainer.train(train_set)
     trainer.write_metadata(result)
 
     fe = FeatureEngineer()
     import pickle
+    import io
+
+    class _RestrictedUnpickler(pickle.Unpickler):
+        ALLOWED_PREFIXES = (
+            "sklearn.", "numpy.", "scipy.", "__builtin__", "builtins",
+            "collections", "pickle", "copyreg",
+        )
+
+        def find_class(self, module, name):
+            for prefix in _RestrictedUnpickler.ALLOWED_PREFIXES:
+                if module.startswith(prefix):
+                    return super().find_class(module, name)
+            raise pickle.UnpicklingError(f"Blocked: {module}.{name}")
+
     with open(result.model_path, "rb") as fh:
-        bundle = pickle.load(fh)
+        bundle = _RestrictedUnpickler(fh).load()
     model = bundle["model"]
     X_eval = np.array([fe.to_vector(ex.features) for ex in eval_set], dtype=float)
     if len(X_eval) > 0:
@@ -109,13 +126,27 @@ async def run_training_pipeline(min_examples: int = 200) -> dict:
         if len(examples) < min_examples:
             return {"status": "skipped", "reason": f"only {len(examples)} examples, need {min_examples}", "n_examples": len(examples), "accuracy": 0.0}
         train_set, eval_set = _split(examples, holdout_frac=0.2)
-        trainer = ModelTrainer()
+        trainer = ModelTrainer(metadata_extra={"synthetic_data": False})
         result = trainer.train(train_set)
         trainer.write_metadata(result)
         fe = FeatureEngineer()
         import pickle
+        import io
+
+        class _RestrictedUnpickler(pickle.Unpickler):
+            ALLOWED_PREFIXES = (
+                "sklearn.", "numpy.", "scipy.", "__builtin__", "builtins",
+                "collections", "pickle", "copyreg",
+            )
+
+            def find_class(self, module, name):
+                for prefix in _RestrictedUnpickler.ALLOWED_PREFIXES:
+                    if module.startswith(prefix):
+                        return super().find_class(module, name)
+                raise pickle.UnpicklingError(f"Blocked: {module}.{name}")
+
         with open(result.model_path, "rb") as fh:
-            bundle = pickle.load(fh)
+            bundle = _RestrictedUnpickler(fh).load()
         model = bundle["model"]
         X_eval = np.array([fe.to_vector(ex.features) for ex in eval_set], dtype=float)
         accuracy = float(model.score(X_eval, [ex.label for ex in eval_set])) if len(X_eval) > 0 else result.train_accuracy

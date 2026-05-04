@@ -79,6 +79,7 @@ class WhaleFrontrun(BaseStrategy):
         self._reconnect_count = 0
         self._running = False
         self._ws_initialized = False
+        self._state_lock = asyncio.Lock()  # protects _ws, _running, _reconnect_count, _activity_buffer
 
     async def start(self, ctx: StrategyContext) -> None:
         """Start the whale front-runner - connect WebSocket on first cycle."""
@@ -131,7 +132,7 @@ class WhaleFrontrun(BaseStrategy):
         if not self._ws_initialized:
             await self.start(ctx)
 
-        try:
+        async with self._state_lock:
             buffered = list(self._activity_buffer)
             self._activity_buffer.clear()
 
@@ -192,7 +193,8 @@ class WhaleFrontrun(BaseStrategy):
                 async for message in self._ws.stream():
                     activity = self._parse_whale_message(message)
                     if activity:
-                        self._activity_buffer.append(activity)
+                        async with self._state_lock:
+                            self._activity_buffer.append(activity)
 
             except Exception as exc:
                 logger.warning(f"[whale_frontrun] WS loop error: {exc}")

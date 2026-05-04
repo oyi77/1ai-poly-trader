@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     DATA_AGGREGATOR_MAX_STALE_AGE: float = 300.0
 
     # Admin API security
-    ADMIN_API_KEY: Optional[str] = "BerkahKarya2026"
+    ADMIN_API_KEY: Optional[str] = None
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://polyedge.aitradepulse.com,http://polyedge.aitradepulse.com"
 
     # Telegram bot
@@ -224,6 +224,9 @@ class Settings(BaseSettings):
     AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS: int = 4
 
     HISTORICAL_DATA_COLLECTOR_ENABLED: bool = True
+    PAPER_MIN_BANKROLL: float = 50.0
+    PAPER_TOPUP_AMOUNT: float = 500.0
+    MAX_TOPUPS: int = 10
     HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS: int = 6
 
     AGI_HEALTH_STALE_STRATEGY_HOURS: float = 2.0
@@ -234,6 +237,10 @@ class Settings(BaseSettings):
     AGI_NIGHTLY_REVIEW_LOOKBACK_DAYS: int = 7
     AGI_REHAB_COOLDOWN_DAYS: int = 7
     AGI_REHAB_MIN_TRADES: int = 10
+    AGI_LIVE_TRIAL_BANKROLL_PCT: float = 0.01  # 1% bankroll during live trial
+    AGI_LIVE_TRIAL_DAYS: int = 7  # minimum trial period before full promotion
+    AGI_LIVE_TRIAL_MIN_TRADES: int = 10
+    AGI_DEMOTION_RETRY_LIMIT: int = 3  # max improvement cycles before permanent retirement
     AGI_REHAB_WIN_RATE_THRESHOLD: float = 0.50
     AGI_FRONTTEST_MIN_WIN_RATE: float = 0.40
     AGI_PROMOTER_SHADOW_MIN_TRADES: int = 100
@@ -434,6 +441,18 @@ class Settings(BaseSettings):
 
     def is_mode_active(self, mode: str) -> bool:
         return mode in self.active_modes_set
+
+    @model_validator(mode="after")
+    def _validate_trading_params(self) -> "Settings":
+        if not (0.0 <= self.AI_SIGNAL_WEIGHT <= 0.50):
+            raise ValueError(f"AI_SIGNAL_WEIGHT must be in [0.0, 0.50], got {self.AI_SIGNAL_WEIGHT}")
+        if not (0.0 < self.KELLY_FRACTION <= 1.0):
+            raise ValueError(f"KELLY_FRACTION must be in (0.0, 1.0], got {self.KELLY_FRACTION}")
+        if not (0.0 < self.DAILY_DRAWDOWN_LIMIT_PCT <= 1.0):
+            raise ValueError(f"DAILY_DRAWDOWN_LIMIT_PCT must be in (0.0, 1.0], got {self.DAILY_DRAWDOWN_LIMIT_PCT}")
+        if not (0.0 < self.WEEKLY_DRAWDOWN_LIMIT_PCT <= 1.0):
+            raise ValueError(f"WEEKLY_DRAWDOWN_LIMIT_PCT must be in (0.0, 1.0], got {self.WEEKLY_DRAWDOWN_LIMIT_PCT}")
+        return self
 
     model_config = ConfigDict(env_file=".env", extra="ignore")
 

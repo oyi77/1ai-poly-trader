@@ -35,12 +35,22 @@ class RegimeDetector:
         drawdown = market_data.get("drawdown", 0.0)
         volume_trend = market_data.get("volume_trend", 0.0)
 
-        if len(prices) < 200:
+        if len(prices) < 30:
             return RegimeResult(
                 regime=MarketRegime.UNKNOWN,
                 confidence=0.0,
                 indicators={"reason": "insufficient_data", "data_points": len(prices)},
             )
+
+        # Degraded mode: with <200 points, use available data with lower confidence
+        degraded = len(prices) < 200
+        if degraded and sma_50 is None:
+            # Compute SMA-50 from available prices if not provided
+            if len(prices) >= 50:
+                sma_50 = sum(prices[-50:]) / 50.0
+            else:
+                sma_50 = sum(prices) / len(prices)
+            sma_200 = sma_50  # Can't compute SMA-200, treat as equal
 
         indicators = {
             "sma_50": sma_50,

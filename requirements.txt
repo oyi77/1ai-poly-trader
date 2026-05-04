@@ -1,16 +1,17 @@
+# Updated 2026-05-04: patch-level security updates
 # Backend
-fastapi==0.109.0
+fastapi==0.115.6  # was 0.109.0, updated for security fixes
 starlette>=0.35.0,<1.0.0
-uvicorn[standard]==0.27.0
-sqlalchemy==2.0.25
+uvicorn[standard]==0.34.0  # was 0.27.0, updated for security fixes
+sqlalchemy==2.0.36  # was 2.0.25, updated for bug fixes
 psycopg2-binary==2.9.9
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic==2.10.4  # was 2.5.3, updated for security fixes
+pydantic-settings==2.7.1  # was 2.1.0, updated for compatibility
 
 # Data fetching
 httpx>=0.26.0,<0.28.0
 feedparser>=6.0.0
-aiohttp==3.9.1
+aiohttp==3.11.11  # was 3.9.1, updated for security fixes
 
 # Polymarket integration
 py-clob-client>=0.34.0
@@ -22,9 +23,9 @@ py-builder-relayer-client>=0.0.1
 cryptography>=42.0.0
 
 # Weather data (using Open-Meteo API)
-numpy==1.26.3
-pandas==2.1.4
-scipy==1.12.0
+numpy==1.26.4  # was 1.26.3, updated patch
+pandas==2.2.3  # was 2.1.4, updated minor for security
+scipy==1.14.1  # was 1.12.0, updated minor for security
 
 # Scheduling
 apscheduler==3.10.4
@@ -37,8 +38,8 @@ groq>=0.4.0
 structlog>=24.1.0
 
 # Utils
-python-dotenv==1.0.0
-orjson==3.9.10
+python-dotenv==1.0.1  # was 1.0.0, updated patch
+orjson==3.10.14  # was 3.9.10, updated minor for security
 psutil>=5.9.0
 
 # Polymarket auth & execution
@@ -63,6 +64,9 @@ slowapi>=0.1.9
 
 # Circuit breakers
 pybreaker>=1.0.0
+
+# Prometheus metrics
+prometheus-client>=0.20.0
 
 # Dev
 ruff>=0.3

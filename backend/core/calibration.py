@@ -9,6 +9,7 @@ Gaussian probability model's accuracy over time.
 import json
 import logging
 import math
+import threading
 from pathlib import Path
 from typing import Dict
 
@@ -23,17 +24,19 @@ MIN_CALIBRATION_SAMPLES = 20
 
 _CALIBRATION_FILE = Path("data/calibration.json")
 _cal_cache: Dict[str, dict] = {}
+_cal_lock = threading.Lock()
 
 
 def _load() -> Dict[str, dict]:
     global _cal_cache
-    if not _cal_cache and _CALIBRATION_FILE.exists():
-        try:
-            _cal_cache = json.loads(_CALIBRATION_FILE.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.debug(f"Failed to load calibration file: {e}")
-            _cal_cache = {}
-    return _cal_cache
+    with _cal_lock:
+        if not _cal_cache and _CALIBRATION_FILE.exists():
+            try:
+                _cal_cache = json.loads(_CALIBRATION_FILE.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.debug(f"Failed to load calibration file: {e}")
+                _cal_cache = {}
+        return _cal_cache
 
 
 def get_sigma(city_key: str, source: str = "gefs") -> float:
@@ -77,7 +80,8 @@ def update_calibration(
     sigma = math.sqrt(M2 / (n - 1)) if n > 1 else DEFAULT_SIGMA_F
 
     cal[key] = {"n": n, "mean_error": mean_error, "M2": M2, "sigma": sigma}
-    _cal_cache.update(cal)
+    with _cal_lock:
+        _cal_cache.update(cal)
 
     _CALIBRATION_FILE.parent.mkdir(exist_ok=True)
     _CALIBRATION_FILE.write_text(json.dumps(cal, indent=2), encoding="utf-8")

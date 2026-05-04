@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Play, Pause, RefreshCw } from 'lucide-react'
-import { getWsUrl, API_BASE } from '../api'
+import { getWsUrl, API_BASE, getAdminApiKey } from '../api'
 import { retryFetch } from '../utils/retryFetch'
 
 interface LogEntry {
@@ -35,7 +35,7 @@ export function Terminal({ isRunning, lastRun, onStart, onStop, onScan }: Props)
 
   const fetchEvents = useCallback(async () => {
     try {
-      const adminKey = localStorage.getItem('adminApiKey') || ''
+      const adminKey = getAdminApiKey()
       const res = await retryFetch(`${API_URL}/api/events?limit=30`, {
         headers: {
           'Authorization': `Bearer ${adminKey}`

@@ -179,18 +179,19 @@ def _send_telegram_alert_sync(message: str) -> None:
     if not token:
         return
     admin_ids = getattr(settings, "TELEGRAM_ADMIN_CHAT_IDS", "")
-    for chat_id in str(admin_ids).split(","):
-        chat_id = chat_id.strip()
-        if not chat_id:
-            continue
-        try:
-            httpx.post(
-                f"{settings.TELEGRAM_API_BASE}/bot{token}/sendMessage",
-                json={"chat_id": chat_id, "text": message},
-                timeout=5.0,
-            )
-        except Exception:
-            logger.warning("Failed to send Telegram heartbeat alert")
+    with httpx.Client() as client:
+        for chat_id in str(admin_ids).split(","):
+            chat_id = chat_id.strip()
+            if not chat_id:
+                continue
+            try:
+                client.post(
+                    f"{settings.TELEGRAM_API_BASE}/bot{token}/sendMessage",
+                    json={"chat_id": chat_id, "text": message},
+                    timeout=5.0,
+                )
+            except Exception:
+                logger.warning("Failed to send Telegram heartbeat alert")
 
 
 async def wallet_sync_job() -> None:

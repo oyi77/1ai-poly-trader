@@ -18,6 +18,7 @@ References:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -355,7 +356,8 @@ def _parse_agent_response(response: str) -> tuple[float, float, str]:
             conf = 0.5
         return (prob, conf, reasoning or response[:500])
 
-    # Strategy 3: Fallback — parse failure
+    # Strategy 3: Fallback — parse failure, signal unusable
+    logger.warning("[debate_engine._parse_agent_response] All parse strategies failed, returning zero-confidence")
     return (0.5, 0.0, response[:500])
 
 
@@ -461,11 +463,9 @@ async def run_debate(
         question, market_price, volume, category, context, BEAR
     )
 
-    bull_response = await _call_agent(
-        bull_prompt, _build_bull_system(), role="debate_agent"
-    )
-    bear_response = await _call_agent(
-        bear_prompt, _build_bear_system(), role="debate_agent"
+    bull_response, bear_response = await asyncio.gather(
+        _call_agent(bull_prompt, _build_bull_system(), role="debate_agent"),
+        _call_agent(bear_prompt, _build_bear_system(), role="debate_agent"),
     )
 
     if bull_response is None and bear_response is None:

@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 from backend.config import settings
 from backend.models.database import SessionLocal, PendingApproval
+from backend.monitoring.hft_metrics import record_signal
 
 logger = logging.getLogger("trading_bot.auto_trader")
 
@@ -40,17 +41,23 @@ class AutoTrader:
             market_ticker=signal.get("market_ticker"),
         )
         if not decision.allowed:
+            strategy = signal.get("strategy", "unknown")
+            record_signal(strategy=strategy, signal_type="rejected")
             return ExecutionResult(False, False, decision.reason)
 
         if confidence < settings.AUTO_APPROVE_MIN_CONFIDENCE:
             if settings.SIGNAL_APPROVAL_MODE != "manual":
                 # In auto_approve or auto_deny mode, skip low-confidence signals instead of queuing
+                strategy = signal.get("strategy", "unknown")
+                record_signal(strategy=strategy, signal_type="rejected_low_confidence")
                 return ExecutionResult(
                     False,
                     False,
                     f"skipped low-confidence signal (conf {confidence:.2f})",
                 )
             pending_id = self._create_pending(signal, decision.adjusted_size)
+            strategy = signal.get("strategy", "unknown")
+            record_signal(strategy=strategy, signal_type="pending_approval")
             return ExecutionResult(
                 False,
                 True,
@@ -59,7 +66,9 @@ class AutoTrader:
             )
 
         # High-confidence path
+        strategy = signal.get("strategy", "unknown")
         if settings.TRADING_MODE == "paper" or self.clob_factory is None:
+            record_signal(strategy=strategy, signal_type="auto_approved")
             return ExecutionResult(
                 True,
                 False,
@@ -76,12 +85,15 @@ class AutoTrader:
                     size=decision.adjusted_size,
                 )
             if result.success:
+                record_signal(strategy=strategy, signal_type="auto_approved")
                 return ExecutionResult(
                     True, False, "live auto-execute", order_id=result.order_id
                 )
+            record_signal(strategy=strategy, signal_type="rejected_clob")
             return ExecutionResult(False, False, f"clob rejected: {result.error}")
         except Exception as e:
             logger.exception("auto_trader live execute error")
+            record_signal(strategy=strategy, signal_type="rejected_error")
             return ExecutionResult(False, False, f"clob error: {e}")
 
     def _create_pending(self, signal: Dict[str, Any], size: float) -> Optional[int]:

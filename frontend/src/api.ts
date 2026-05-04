@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting, TradeAttemptSummary, TradeAttemptsResponse, KanbanBoard, KanbanCard } from './types'
+import { getCsrfToken, getLegacyApiKey } from './utils/auth'
 
 const getApiBase = () => {
   const env = import.meta.env.VITE_API_URL
@@ -24,13 +25,11 @@ const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT_MS) || 15000
  * In dev (no VITE_API_URL), uses current page host with protocol detection.
  */
 export function getWsUrl(path: string): string {
-  const adminKey = localStorage.getItem('adminApiKey') || ''
+  const adminKey = getCsrfToken() || getLegacyApiKey() || ''
   const queryParam = adminKey ? `?token=${adminKey}` : ''
   if (API_BASE) {
-    // Production: derive wss:// from https:// backend URL
     return API_BASE.replace(/^http/, 'ws') + path + queryParam
   }
-  // Dev: use current page host (Vite proxy handles /ws/*)
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
   return `${protocol}://${window.location.host}${path}${queryParam}`
 }
@@ -46,16 +45,22 @@ export const adminApi = axios.create({
 })
 
 adminApi.interceptors.request.use(config => {
-  const key = localStorage.getItem('adminApiKey')
-  if (key) {
+  const csrf = getCsrfToken()
+  if (csrf) {
     config.headers = config.headers ?? {}
-    config.headers['Authorization'] = `Bearer ${key}`
+    config.headers['X-CSRF-Token'] = csrf
   }
+  const legacy = getLegacyApiKey()
+  if (legacy && !csrf) {
+    config.headers = config.headers ?? {}
+    config.headers['Authorization'] = `Bearer ${legacy}`
+  }
+  config.withCredentials = true
   return config
 })
 
 export function getAdminApiKey(): string {
-  return localStorage.getItem('adminApiKey') ?? ''
+  return getCsrfToken() || getLegacyApiKey()
 }
 
 export function setAdminApiKey(key: string) {
@@ -555,6 +560,7 @@ export interface DecisionLogRow {
   reason: string | null
   outcome: string | null
   created_at: string | null
+  signal_data?: Record<string, unknown> | null
 }
 
 export interface DecisionLogDetail extends DecisionLogRow {

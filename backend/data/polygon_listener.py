@@ -26,13 +26,10 @@ class PolygonListener:
         import websockets
         self._running = True
         backoff = 1.0
-        retries = 0
-        max_retries = 5
-        while self._running and retries < max_retries:
+        while self._running:
             try:
                 async with websockets.connect(self.ws_url) as ws:
                     self._ws = ws
-                    retries = 0
                     backoff = 1.0
                     sub = {
                         "jsonrpc": "2.0", "id": 1, "method": "eth_subscribe",
@@ -42,12 +39,11 @@ class PolygonListener:
                     async for msg in ws:
                         await self._handle_message(msg)
             except Exception as e:
-                retries += 1
-                logger.warning(f"polygon ws error (retry {retries}/{max_retries}): {e}")
-                await asyncio.sleep(min(backoff, 30))
-                backoff *= 2
-        if retries >= max_retries:
-            logger.error("polygon listener exhausted retries")
+                if not self._running:
+                    break
+                logger.warning("polygon ws error, reconnecting in %.0fs: %s", backoff, e)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60.0)
 
     async def _handle_message(self, raw: str) -> None:
         try:

@@ -499,6 +499,8 @@ class StrategyConfig(Base):
         String, nullable=True
     )  # "paper", "testnet", "live" - overrides global TRADING_MODE
     mode = Column(String, nullable=True, default=None)  # "paper", "testnet", "live" - NULL = applies to all modes
+    time_horizon = Column(String, nullable=True, default="mid")  # "short", "mid", "long"
+    risk_tier = Column(String, nullable=True, default="moderate")  # "safe", "conservative", "moderate", "aggressive", "extreme", "crazy"
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),

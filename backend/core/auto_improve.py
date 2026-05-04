@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
@@ -40,6 +41,7 @@ TUNABLE_PARAMS = (
 # the same process.  Keys: previous_values, applied_values, applied_at,
 #                          pre_change_win_rate, pre_change_pnl, trade_count_at_apply
 _last_param_change: Optional[dict] = None
+_param_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -108,12 +110,14 @@ def _get_current_params(target_settings=None) -> dict:
 
 def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> bool:
     global _last_param_change
-    if _last_param_change is None:
-        return False
+    with _param_lock:
+        if _last_param_change is None:
+            return False
 
-    applied_at = _last_param_change.get("applied_at")
-    if applied_at is None:
-        return False
+        applied_at = _last_param_change.get("applied_at")
+        if applied_at is None:
+            return False
+        snapshot = dict(_last_param_change)
 
     # Gather settled trades since the change was applied
     post_trades = (
@@ -134,7 +138,7 @@ def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> b
 
     wins = sum(1 for t in post_trades if t.result == "win")
     post_win_rate = wins / len(post_trades) if post_trades else 0.0
-    pre_win_rate = _last_param_change.get("pre_change_win_rate", 0.0)
+    pre_win_rate = snapshot.get("pre_change_win_rate", 0.0)
 
     # Absolute degradation check: post_win_rate < pre_win_rate * (1 - threshold)
     if pre_win_rate > 0 and post_win_rate < pre_win_rate * (
@@ -145,13 +149,13 @@ def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> b
             f"{post_win_rate:.1%} vs pre-change {pre_win_rate:.1%} "
             f"(>{ROLLBACK_PERF_DEGRADATION_THRESHOLD:.0%} degradation)"
         )
-        rollback_params(_last_param_change["previous_values"], target_settings)
+        rollback_params(snapshot["previous_values"], target_settings)
 
         if bigbrain:
             rollback_msg = (
                 f"⚠️ AUTO-IMPROVE ROLLBACK: Performance degraded from "
                 f"{pre_win_rate:.1%} to {post_win_rate:.1%}. "
-                f"Restored: {json.dumps(_last_param_change['previous_values'])}"
+                f"Restored: {json.dumps(snapshot['previous_values'])}"
             )
             try:
                 task = asyncio.create_task(
@@ -175,14 +179,15 @@ def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> b
                 details={
                     "pre_win_rate": pre_win_rate,
                     "post_win_rate": post_win_rate,
-                    "restored_values": _last_param_change["previous_values"],
-                    "rolled_back_values": _last_param_change["applied_values"],
+                    "restored_values": snapshot["previous_values"],
+                    "rolled_back_values": snapshot["applied_values"],
                 },
             )
         except Exception as e:
             logger.debug("Audit log for rollback failed: %s", e)
 
-        _last_param_change = None
+        with _param_lock:
+            _last_param_change = None
         return True
 
     # Performance acceptable — clear the pending rollback check
@@ -190,7 +195,8 @@ def check_rollback_needed(db: Session, target_settings=None, bigbrain=None) -> b
         f"[auto_improve] Post-change performance OK "
         f"({post_win_rate:.1%} vs {pre_win_rate:.1%}), keeping new params"
     )
-    _last_param_change = None
+    with _param_lock:
+        _last_param_change = None
     return False
 
 
@@ -279,7 +285,9 @@ async def auto_improve_job():
 
                 conf_float = _confidence_to_float(confidence)
                 if conf_float >= MIN_CONFIDENCE_FOR_AUTO_APPLY:
-                    if _last_param_change is not None:
+                    with _param_lock:
+                        pending = _last_param_change is not None
+                    if pending:
                         logger.info(
                             "Auto-improve: skipping apply — pending change awaiting rollback review"
                         )
@@ -288,14 +296,15 @@ async def auto_improve_job():
                         clamped = validate_and_clamp_params(current, params)
                         if clamped:
                             previous = apply_params_to_settings(clamped)
-                            _last_param_change = {
-                                "previous_values": previous,
-                                "applied_values": clamped,
-                                "applied_at": datetime.now(timezone.utc),
-                                "pre_change_win_rate": analysis.get("win_rate", 0.0),
-                                "pre_change_pnl": analysis.get("pnl", 0.0),
-                                "trade_count_at_apply": analysis.get("total_trades", 0),
-                            }
+                            with _param_lock:
+                                _last_param_change = {
+                                    "previous_values": previous,
+                                    "applied_values": clamped,
+                                    "applied_at": datetime.now(timezone.utc),
+                                    "pre_change_win_rate": analysis.get("win_rate", 0.0),
+                                    "pre_change_pnl": analysis.get("pnl", 0.0),
+                                    "trade_count_at_apply": analysis.get("total_trades", 0),
+                                }
                             logger.info(
                                 "Auto-improve applied %d param(s) (confidence=%.2f): %s",
                                 len(clamped),

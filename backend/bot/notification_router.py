@@ -12,8 +12,12 @@ from typing import Optional
 import httpx
 
 from backend.config import settings
+from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.utils.redaction import redact_sensitive
 
 logger = logging.getLogger("trading_bot.notifications")
+
+webhook_breaker = CircuitBreaker("webhook", failure_threshold=3, recovery_timeout=300.0)
 
 
 class NotificationChannel(str, Enum):
@@ -110,10 +114,18 @@ class NotificationRouter:
 
     async def _send_discord(self, webhook_url: str, message: str) -> None:
         """POST message to a Discord webhook URL."""
-        payload = {"content": message}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(webhook_url, json=payload)
-            resp.raise_for_status()
+        async def _post_discord() -> None:
+            payload = {"content": message}
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(webhook_url, json=payload)
+                resp.raise_for_status()
+
+        try:
+            await webhook_breaker.call(_post_discord)
+        except CircuitOpenError:
+            logger.warning("Discord webhook circuit open, skipping notification")
+        except Exception as exc:
+                logger.error("Discord webhook failed: %s", redact_sensitive(str(exc)))
 
     async def _send_email(self, config: dict, message: str) -> None:
         """Email notifications are intentionally de-scoped.

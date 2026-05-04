@@ -4,10 +4,13 @@ import asyncio
 import logging
 import time
 import uuid
+from collections import deque
 from typing import Optional
 
+from backend.config import settings
 from backend.strategies.types_hft import HFTSignal, HFTExecution
 from backend.core.risk_manager_hft import HRiskManager
+from backend.monitoring.hft_metrics import record_execution, record_circuit_open
 
 logger = logging.getLogger("trading_bot.hft_executor")
 
@@ -23,10 +26,12 @@ class HFTExecutor:
     - Circuit breaker: halt if too many failures
     """
 
+    _MAX_EXECUTION_HISTORY = 500
+
     def __init__(self, clob: Optional[object] = None):
         self._clob = clob
         self._risk = HRiskManager()
-        self._executions: list[HFTExecution] = []
+        self._executions: deque[HFTExecution] = deque(maxlen=self._MAX_EXECUTION_HISTORY)
         self._failure_count = 0
         self._failure_threshold = 10
         self._circuit_open = False
@@ -37,6 +42,7 @@ class HFTExecutor:
         exec_id = str(uuid.uuid4())
 
         if self._circuit_open:
+            record_execution(strategy="hft", side="BUY", status="cancelled", latency_s=0.0)
             return HFTExecution(
                 execution_id=exec_id,
                 signal_id=signal.signal_id,
@@ -46,6 +52,7 @@ class HFTExecutor:
 
         risk = self._risk.validate_hft_trade(signal, bankroll)
         if not risk["allowed"]:
+            record_execution(strategy="hft", side="BUY", status="rejected", latency_s=(time.monotonic() - start))
             return HFTExecution(
                 execution_id=exec_id,
                 signal_id=signal.signal_id,
@@ -78,13 +85,16 @@ class HFTExecutor:
             self._risk.record_position(signal.market_id, size)
             self._executions.append(execution)
             self._failure_count = 0
+            record_execution(strategy="hft", side=side, status="filled", latency_s=(time.monotonic() - start))
             return execution
 
         except Exception as exc:
             self._failure_count += 1
             if self._failure_count >= self._failure_threshold:
                 self._circuit_open = True
+                record_circuit_open(name="hft_executor", reason="failure_threshold")
                 logger.error("[hft_executor] Circuit breaker OPEN")
+            record_execution(strategy="hft", side=side, status="failed", latency_s=(time.monotonic() - start))
 
             return HFTExecution(
                 execution_id=exec_id,
@@ -123,8 +133,10 @@ class HFTExecutor:
 
     async def execute_batch(self, signals: list[HFTSignal], bankroll: float) -> list[HFTExecution]:
         """Execute multiple signals concurrently."""
+        per_signal_pct = getattr(settings, "HFT_POSITION_SIZE_PCT", 0.25)
+        per_signal_size = bankroll * per_signal_pct
         results = await asyncio.gather(
-            *[self.execute(sig, bankroll * 0.25, bankroll) for sig in signals],
+            *[self.execute(sig, per_signal_size, bankroll) for sig in signals],
             return_exceptions=True,
         )
         return [r for r in results if isinstance(r, HFTExecution)]
@@ -136,4 +148,4 @@ class HFTExecutor:
 
     def get_recent(self, limit: int = 100) -> list[HFTExecution]:
         """Get recent executions."""
-        return self._executions[-limit:]
+        return list(self._executions)[-limit:]

@@ -225,39 +225,47 @@ class AutonomousPromoter:
 
                 health = health_mon.assess(strategy_name, db) if health_mon else {"status": "active", "total_trades": 0, "win_rate": 0.0, "sharpe": 0.0, "max_drawdown": 0.0, "brier_score": 1.0, "psi_score": 0.0}
                 if health.get("status") == "killed":
-                    exp.status = ExperimentStatus.RETIRED.value
-                    exp.retired_at = datetime.now(timezone.utc)
+                    exp.status = ExperimentStatus.PAPER.value
+                    exp.promoted_at = None
+                    retry_count = int(getattr(exp, "misc_data", None) or "0") if hasattr(exp, "misc_data") else 0
+                    retry_count += 1
+                    max_retries = getattr(settings, "AGI_DEMOTION_RETRY_LIMIT", 3)
+                    if retry_count >= max_retries:
+                        exp.status = ExperimentStatus.RETIRED.value
+                        exp.retired_at = datetime.now(timezone.utc)
+                        logger.warning(
+                            f"[AutonomousPromoter] RETIRED (kill, {retry_count} retries) '{exp.name}': "
+                            f"wr={health.get('win_rate', 0):.1%}, sharpe={health.get('sharpe', 0):.2f}"
+                        )
+                        stats["retired"] += 1
+                    else:
+                        db.add(exp)
+                        logger.warning(
+                            f"[AutonomousPromoter] DEMOTED LIVE→PAPER '{exp.name}' (retry {retry_count}/{max_retries}): "
+                            f"wr={health.get('win_rate', 0):.1%}, sharpe={health.get('sharpe', 0):.2f}"
+                        )
+                        stats["demoted"] = stats.get("demoted", 0) + 1
                     db.add(exp)
-                    logger.warning(
-                        f"[AutonomousPromoter] RETIRED (kill) '{exp.name}': "
-                        f"wr={health.get('win_rate', 0):.1%}, "
-                        f"sharpe={health.get('sharpe', 0):.2f}, "
-                        f"dd={health.get('max_drawdown', 0):.1%}"
-                    )
-                    stats["retired"] += 1
                     continue
 
                 meets, reasons = self._check_paper_criteria_from_health(exp, health)
                 if meets:
                     if not settings.AGI_AUTO_PROMOTE:
                         logger.info(
-                            f"[AutonomousPromoter] PAPER→LIVE SKIPPED '{exp.name}': "
+                            f"[AutonomousPromoter] PAPER→LIVE_TRIAL SKIPPED '{exp.name}': "
                             f"AGI_AUTO_PROMOTE=false (manual intervention required)"
                         )
                         continue
 
-                    exp.status = ExperimentStatus.LIVE_PROMOTED.value
+                    exp.status = ExperimentStatus.LIVE_TRIAL.value
                     exp.promoted_at = datetime.now(timezone.utc)
                     db.add(exp)
 
-                    if settings.AGI_AUTO_ENABLE:
-                        await self._enable_strategy(strategy_name, db, experiment=exp)
-
                     logger.info(
-                        f"[AutonomousPromoter] PAPER→LIVE '{exp.name}' promoted automatically "
+                        f"[AutonomousPromoter] PAPER→LIVE_TRIAL '{exp.name}' promoted to trial "
                         f"(trades={health.get('total_trades', 0)}, wr={health.get('win_rate', 0):.1%})"
                     )
-                    stats["paper_to_live"] += 1
+                    stats["paper_to_live_trial"] = stats.get("paper_to_live_trial", 0) + 1
                 else:
                     ref_time = exp.promoted_at or exp.created_at
                     if ref_time.tzinfo is None:
@@ -275,7 +283,51 @@ class AutonomousPromoter:
             if papers:
                 db.commit()
 
-            # 4. Evaluate LIVE_PROMOTED experiments for degradation → REVIEW fallback
+            # 4. Evaluate LIVE_TRIAL experiments — promote to LIVE_PROMOTED or demote to PAPER
+            trials = (
+                db.query(ExperimentRecord)
+                .filter_by(status=ExperimentStatus.LIVE_TRIAL.value)
+                .all()
+            )
+            for exp in trials:
+                strategy_name = exp.strategy_name or exp.name
+                promoted = exp.promoted_at or exp.created_at
+                if promoted.tzinfo is None:
+                    promoted = promoted.replace(tzinfo=timezone.utc)
+                trial_days = (datetime.now(timezone.utc) - promoted).days
+                min_trial_days = getattr(settings, "AGI_LIVE_TRIAL_DAYS", 7)
+                min_trial_trades = getattr(settings, "AGI_LIVE_TRIAL_MIN_TRADES", 10)
+
+                health = health_mon.assess(strategy_name, db, readonly=True) if health_mon else {"status": "active", "total_trades": 0, "win_rate": 0.0, "sharpe": 0.0}
+                if health.get("status") == "killed":
+                    exp.status = ExperimentStatus.PAPER.value
+                    exp.promoted_at = None
+                    db.add(exp)
+                    logger.warning(f"[AutonomousPromoter] LIVE_TRIAL→PAPER (kill) '{exp.name}': wr={health.get('win_rate', 0):.1%}")
+                    stats["demoted"] = stats.get("demoted", 0) + 1
+                    continue
+
+                if trial_days >= min_trial_days and health.get("total_trades", 0) >= min_trial_trades:
+                    wr = health.get("win_rate", 0.0)
+                    sharpe = health.get("sharpe", 0.0)
+                    if wr >= 0.45 and sharpe >= -0.5:
+                        exp.status = ExperimentStatus.LIVE_PROMOTED.value
+                        exp.promoted_at = datetime.now(timezone.utc)
+                        if settings.AGI_AUTO_ENABLE:
+                            await self._enable_strategy(strategy_name, db, experiment=exp)
+                        db.add(exp)
+                        logger.info(f"[AutonomousPromoter] LIVE_TRIAL→LIVE_PROMOTED '{exp.name}': wr={wr:.1%} sharpe={sharpe:.2f}")
+                        stats["trial_to_live"] = stats.get("trial_to_live", 0) + 1
+                    else:
+                        exp.status = ExperimentStatus.PAPER.value
+                        exp.promoted_at = None
+                        db.add(exp)
+                        logger.warning(f"[AutonomousPromoter] LIVE_TRIAL→PAPER (degraded) '{exp.name}': wr={wr:.1%} sharpe={sharpe:.2f}")
+                        stats["demoted"] = stats.get("demoted", 0) + 1
+            if trials:
+                db.commit()
+
+            # 5. Evaluate LIVE_PROMOTED experiments for degradation → demote to PAPER
             lives = (
                 db.query(ExperimentRecord)
                 .filter_by(status=ExperimentStatus.LIVE_PROMOTED.value)
@@ -285,16 +337,14 @@ class AutonomousPromoter:
                 strategy_name = exp.strategy_name or exp.name
                 health = health_mon.assess(strategy_name, db) if health_mon else {"status": "active", "total_trades": 0, "win_rate": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}
                 if health.get("status") == "killed":
-                    exp.status = ExperimentStatus.RETIRED.value
-                    exp.retired_at = datetime.now(timezone.utc)
+                    exp.status = ExperimentStatus.PAPER.value
+                    exp.promoted_at = None
                     db.add(exp)
                     logger.warning(
-                        f"[AutonomousPromoter] RETIRED (kill) '{exp.name}' (live): "
-                        f"wr={health.get('win_rate', 0):.1%}, "
-                        f"sharpe={health.get('sharpe', 0):.2f}, "
-                        f"dd={health.get('max_drawdown', 0):.1%}"
+                        f"[AutonomousPromoter] LIVE_PROMOTED→PAPER (kill) '{exp.name}': "
+                        f"wr={health.get('win_rate', 0):.1%}, sharpe={health.get('sharpe', 0):.2f}"
                     )
-                    stats["retired"] += 1
+                    stats["demoted"] = stats.get("demoted", 0) + 1
                     continue
 
                 wr = health.get("win_rate", 0.0)
