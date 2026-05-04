@@ -180,6 +180,17 @@ class Settings(BaseSettings):
         0.20  # Pause trading if 7d loss > 20% of bankroll
     )
 
+    DRAWDOWN_BREAKER_ENABLED_PER_MODE: dict = {
+        "paper": False,
+        "testnet": True,
+        "live": True,
+    }
+    DAILY_LOSS_LIMIT_ENABLED_PER_MODE: dict = {
+        "paper": False,
+        "testnet": True,
+        "live": True,
+    }
+
     AUTO_APPROVE_MIN_CONFIDENCE: float = 0.50  # Auto-approve 50%+ (winners had 40-90% distribution)
     AUTO_TRADER_ENABLED: bool = True
 

@@ -45,6 +45,24 @@ class RiskManager:
         self.s = settings_obj or settings
         self._mode_failure_counts: dict[str, int] = {}
 
+    def _breaker_enabled_for_mode(self, breaker: str, mode: str) -> bool:
+        """Check whether a circuit breaker is enabled for the given trading mode.
+
+        breaker: "drawdown" or "daily_loss"
+        mode: "paper", "testnet", or "live"
+
+        Paper mode defaults to breaker-disabled so it can run infinitely for
+        backtest, frontest, and improvement loops. Testnet and live default
+        to breaker-enabled for capital safety.
+        """
+        if breaker == "drawdown":
+            config = self.s.DRAWDOWN_BREAKER_ENABLED_PER_MODE
+        elif breaker == "daily_loss":
+            config = self.s.DAILY_LOSS_LIMIT_ENABLED_PER_MODE
+        else:
+            return True
+        return config.get(mode, True)
+
     def validate_trade(
         self,
         size: float,
@@ -59,23 +77,32 @@ class RiskManager:
     ) -> RiskDecision:
         effective_mode = mode or self.s.TRADING_MODE
 
-        # Lower confidence threshold for paper mode to allow more trades and learn
-        # Weather markets often have low confidence but strong edge
-        min_confidence = 0.45 if effective_mode == "paper" else self.s.MIN_CONFIDENCE
+        min_confidence = 0.45 if effective_mode == "paper" else getattr(
+            self.s, "MIN_CONFIDENCE", self.s.AUTO_APPROVE_MIN_CONFIDENCE
+        )
         if confidence < min_confidence:
             record_signal(strategy=strategy_name or "unknown", signal_type="rejected_confidence")
             return RiskDecision(False, f"confidence {confidence:.2f} below {min_confidence}", 0.0)
 
-        if self._daily_loss_exceeded(db=db, mode=effective_mode):
+        if not self._breaker_enabled_for_mode("daily_loss", effective_mode):
+            logger.debug(
+                "[risk_manager] Daily loss breaker disabled for mode=%s — skipping", effective_mode
+            )
+        elif self._daily_loss_exceeded(db=db, mode=effective_mode):
             record_signal(strategy=strategy_name or "unknown", signal_type="rejected_daily_loss")
             return RiskDecision(False, "daily loss limit hit", 0.0)
 
-        drawdown = self.check_drawdown(bankroll, db=db, mode=effective_mode)
-        if drawdown.is_breached:
-            record_signal(strategy=strategy_name or "unknown", signal_type="rejected_drawdown")
-            return RiskDecision(
-                False, f"drawdown breaker: {drawdown.breach_reason}", 0.0
+        if not self._breaker_enabled_for_mode("drawdown", effective_mode):
+            logger.debug(
+                "[risk_manager] Drawdown breaker disabled for mode=%s — skipping", effective_mode
             )
+        else:
+            drawdown = self.check_drawdown(bankroll, db=db, mode=effective_mode)
+            if drawdown.is_breached:
+                record_signal(strategy=strategy_name or "unknown", signal_type="rejected_drawdown")
+                return RiskDecision(
+                    False, f"drawdown breaker: {drawdown.breach_reason}", 0.0
+                )
 
         if market_ticker and self._has_unsettled_trade(
             market_ticker, db=db, mode=effective_mode

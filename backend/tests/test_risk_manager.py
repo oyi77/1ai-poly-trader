@@ -22,6 +22,25 @@ class MockSettings:
     DAILY_DRAWDOWN_LIMIT_PCT: float = 0.10
     WEEKLY_DRAWDOWN_LIMIT_PCT: float = 0.20
     TRADING_MODE: str = "paper"
+    AUTO_APPROVE_MIN_CONFIDENCE: float = 0.50
+    MIN_ORDER_USDC: float = 5.0
+    PAPER_MIN_ORDER_USDC: float = 1.0
+    DRAWDOWN_BREAKER_ENABLED_PER_MODE: dict = None
+    DAILY_LOSS_LIMIT_ENABLED_PER_MODE: dict = None
+
+    def __post_init__(self):
+        if self.DRAWDOWN_BREAKER_ENABLED_PER_MODE is None:
+            self.DRAWDOWN_BREAKER_ENABLED_PER_MODE = {
+                "paper": True,
+                "testnet": True,
+                "live": True,
+            }
+        if self.DAILY_LOSS_LIMIT_ENABLED_PER_MODE is None:
+            self.DAILY_LOSS_LIMIT_ENABLED_PER_MODE = {
+                "paper": True,
+                "testnet": True,
+                "live": True,
+            }
 
 
 def make_rm():
@@ -258,3 +277,85 @@ class TestCheckDrawdown:
         assert status.daily_pnl == pytest.approx(-40.0)
         assert status.weekly_pnl == pytest.approx(-40.0)
         assert status.is_breached is False
+
+
+class TestBreakerEnabledPerMode:
+    """Test that drawdown and daily-loss breakers can be disabled per trading mode."""
+
+    def _make_rm_with_breakers(self, drawdown_enabled, daily_loss_enabled, mode="paper"):
+        s = MockSettings()
+        s.DRAWDOWN_BREAKER_ENABLED_PER_MODE = {
+            "paper": drawdown_enabled,
+            "testnet": True,
+            "live": True,
+        }
+        s.DAILY_LOSS_LIMIT_ENABLED_PER_MODE = {
+            "paper": daily_loss_enabled,
+            "testnet": True,
+            "live": True,
+        }
+        s.TRADING_MODE = mode
+        return RiskManager(settings_obj=s)
+
+    @patch("backend.core.risk_manager.SessionLocal")
+    def test_paper_mode_skips_drawdown_breaker_when_disabled(self, mock_session_cls):
+        rm = self._make_rm_with_breakers(drawdown_enabled=False, daily_loss_enabled=False)
+        result = rm.validate_trade(
+            size=5.0, current_exposure=0.0, bankroll=1000.0, confidence=0.7, mode="paper",
+        )
+        assert result.allowed is True
+
+    @patch("backend.core.risk_manager.SessionLocal")
+    def test_paper_mode_skips_daily_loss_when_disabled(self, mock_session_cls):
+        rm = self._make_rm_with_breakers(drawdown_enabled=False, daily_loss_enabled=False)
+        result = rm.validate_trade(
+            size=5.0, current_exposure=0.0, bankroll=1000.0, confidence=0.7, mode="paper",
+        )
+        assert result.allowed is True
+
+    @patch("backend.core.risk_manager.SessionLocal")
+    def test_paper_mode_skips_both_breakers(self, mock_session_cls):
+        rm = self._make_rm_with_breakers(drawdown_enabled=False, daily_loss_enabled=False)
+        result = rm.validate_trade(
+            size=5.0, current_exposure=0.0, bankroll=1000.0, confidence=0.7, mode="paper",
+        )
+        assert result.allowed is True
+
+    @patch("backend.core.risk_manager.SessionLocal")
+    def test_live_mode_still_enforces_drawdown(self, mock_session_cls):
+        mock_db = MagicMock()
+        mock_session_cls.return_value = mock_db
+        mock_db.query.return_value.filter.return_value.scalar.return_value = 0.0
+        rm = self._make_rm_with_breakers(drawdown_enabled=True, daily_loss_enabled=True, mode="live")
+        result = rm.validate_trade(
+            size=5.0, current_exposure=0.0, bankroll=1000.0, confidence=0.7, mode="live",
+        )
+        assert result.allowed is True
+
+    def test_breaker_enabled_per_mode_defaults_to_true(self):
+        rm = make_rm()
+        assert rm._breaker_enabled_for_mode("drawdown", "live") is True
+        assert rm._breaker_enabled_for_mode("drawdown", "testnet") is True
+        assert rm._breaker_enabled_for_mode("daily_loss", "live") is True
+        assert rm._breaker_enabled_for_mode("daily_loss", "testnet") is True
+
+    def test_breaker_disabled_for_paper_with_config(self):
+        s = MockSettings()
+        s.DRAWDOWN_BREAKER_ENABLED_PER_MODE = {
+            "paper": False, "testnet": True, "live": True,
+        }
+        rm = RiskManager(settings_obj=s)
+        assert rm._breaker_enabled_for_mode("drawdown", "paper") is False
+        assert rm._breaker_enabled_for_mode("drawdown", "live") is True
+        assert rm._breaker_enabled_for_mode("drawdown", "testnet") is True
+        assert rm._breaker_enabled_for_mode("daily_loss", "live") is True
+        assert rm._breaker_enabled_for_mode("daily_loss", "testnet") is True
+
+    def test_breaker_disabled_for_paper_with_config(self):
+        s = MockSettings()
+        s.DRAWDOWN_BREAKER_ENABLED_PER_MODE = {
+            "paper": False, "testnet": True, "live": True,
+        }
+        rm = RiskManager(settings_obj=s)
+        assert rm._breaker_enabled_for_mode("drawdown", "paper") is False
+        assert rm._breaker_enabled_for_mode("drawdown", "live") is True

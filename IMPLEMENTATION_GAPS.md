@@ -1,6 +1,6 @@
 # Implementation Gaps — PolyEdge Trading Bot
 
-**Last Updated:** 2026-05-04 (Round 8 — completed Prometheus instrumentation, N+1 fix, deps audit, log redaction, TypeScript fix; confirmed console.log and drawdown breaker are not bugs; ~76 Fixed/Verified, 0 Known Gaps, 11 De-Scoped)
+**Last Updated:** 2026-05-04 (Round 9 — configurable per-mode drawdown breaker toggles, fixed MIN_CONFIDENCE bug; ~77 Fixed/Verified, 0 Known Gaps, 10 De-Scoped)
 
 This file is the single source of truth for what's built vs planned. Every future agent must
 read this before proposing work — avoid re-litigating already-completed items.
@@ -297,7 +297,7 @@ These gaps directly block the vision of unlimited paper experimentation → cont
 
 **btc_oracle strategy 0% win rate — model_probability always hard-coded to absolute certainty** — btc_oracle strategy has 33 trades with 0% win rate; root cause is line 308 in `backend/strategies/btc_oracle.py`: `oracle_implied = 1.0 if direction == "yes" else 0.0` assigns probability 1.0 or 0.0 regardless of actual edge. Confidence at line 312 `min(1.0, edge + min_edge)` remains 1.0 whenever edge > 0, so every trade receives maximum confidence and fails. Strategy is disabled in DB (`enabled=0`) but continues generating 69 signals in last 7d because scheduler still invokes it. Needs: (a) fix prediction to output probability < 1.0, (b) respect enabled flag in scheduler/deregister disabled strategies. Severity: High — broken strategy, wasted compute, misleading metrics. Affects: `backend/strategies/btc_oracle.py`, `backend/core/scheduler.py`, `backend/core/orchestrator.py`.
 
-~~**Drawdown breaker blocking all strategies**~~ — **Not a bug** (verified 2026-05-04): Weekly drawdown breaker correctly triggered (7d paper loss > 30% limit). All trade attempts rejected by `REJECTED_DRAWDOWN_BREAKER` — correct safety behavior. Self-clears as losses age past the 7d window. No code change needed.
+~~**Drawdown breaker blocking all strategies**~~ → **Fixed** (2026-05-04): Added configurable per-mode circuit breaker toggles (`DRAWDOWN_BREAKER_ENABLED_PER_MODE`, `DAILY_LOSS_LIMIT_ENABLED_PER_MODE` in `config.py`). Paper mode defaults to breaker-disabled so it runs infinitely for backtest, frontest, and improvement loops. Live and testnet keep breakers enabled for safety. Also fixed `MIN_CONFIDENCE` bug in `risk_manager.py:64` — now falls back to `AUTO_APPROVE_MIN_CONFIDENCE` via `getattr()`. Tests added in `test_risk_manager.py::TestBreakerEnabledPerMode`.
 
 **Duplicate code blocks in backfill_data_quality.py** — Lines 16M-bM-^@M-^S52 and 53M-bM-^@M-^S89 are nearly identical copies; second block runs after the trade loop and re-processes only the last `trade` object, duplicating all backfill logic. This causes incorrect `data_quality_flags` to be written (overwrites with same values) and wastes DB cycles. Root cause: copy-paste error where loop body was duplicated outside the loop. Fix: remove lines 53M-bM-^@M-^S89 entirely. Severity: Critical — data integrity risk if flags misrepresent actual backfill work. Affects: `backend/scripts/backfill_data_quality.py`.
 
@@ -344,7 +344,7 @@ These gaps directly block the vision of unlimited paper experimentation → cont
 - **Massive backend/core module (100 files, high coupling)**: Consider splitting into bounded contexts. Maintenance burden, not runtime risk — deferred to architecture milestone.
 - **FE-2 localStorage API key → httpOnly cookie**: Requires new backend cookie endpoint + frontend refactor across 6 locations. Architectural change — deferred to security milestone.
 - **TypeScript type safety gap in DebateMonitorTab.tsx**: `(row as any).signal_data` bypasses type checker. Minor — deferred to frontend cleanup.
-- **Drawdown breaker blocking all strategies**: Correct safety behavior, not a bug. Will self-clear as losses age past 7d window.
+- ~~**Drawdown breaker blocking all strategies**: Correct safety behavior, not a bug.~~ → Moved to Fixed (2026-05-04): Now configurable per-mode via `DRAWDOWN_BREAKER_ENABLED_PER_MODE` and `DAILY_LOSS_LIMIT_ENABLED_PER_MODE` in config.py.
 
 ---
 
