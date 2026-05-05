@@ -87,7 +87,7 @@ export function HFTSignals({ maxRows = 10 }: Props) {
     queryKey: ['hft-signals'],
     queryFn: async () => {
       try {
-        const { data } = await api.get('/v1/signals', { params: { limit: 50 } })
+        const { data } = await api.get('/signals', { params: { limit: 50 } })
         return (data?.items || data?.signals || data || []).map(mapApiSignal)
       } catch {
         return []

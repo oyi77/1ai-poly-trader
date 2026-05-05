@@ -101,7 +101,9 @@ class TestAGIAPIKnowledgeGraph:
 
 
 class TestAGIAPIEmergencyStop:
-    def test_emergency_stop(self):
+    def test_emergency_stop(self, monkeypatch):
+        from backend.config import settings
+        monkeypatch.setattr(settings, "ADMIN_API_KEY", None)
         client = get_test_client()
         resp = client.post("/api/v1/agi/emergency-stop")
         assert resp.status_code in [200, 500]
@@ -118,7 +120,9 @@ class TestAGIAPIStatus:
 
 
 class TestAGIAPIGoalOverride:
-    def test_override_goal(self):
+    def test_override_goal(self, monkeypatch):
+        from backend.config import settings
+        monkeypatch.setattr(settings, "ADMIN_API_KEY", None)
         client = get_test_client()
         resp = client.post(
             "/api/v1/agi/goal/override",

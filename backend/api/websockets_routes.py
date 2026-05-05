@@ -22,7 +22,12 @@ origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 @router.get("/api/events/stream")
 @router.get("/api/v1/events/stream")
 async def events_stream(request: Request, token: str = ""):
-    """Server-Sent Events stream for real-time trade notifications."""
+    """Server-Sent Events stream for real-time trade notifications.
+    
+    Note: Channel-filtered version is available via backend.api.events.sse_router
+    which is registered first and takes precedence. This endpoint is kept for
+    backward compatibility and serves as a fallback.
+    """
     if settings.ADMIN_API_KEY and token and token != settings.ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 

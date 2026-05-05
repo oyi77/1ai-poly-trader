@@ -169,6 +169,10 @@ app.include_router(shared_data_router)
 app.include_router(learning_router, prefix="/api/v1")
 app.include_router(agi_router, prefix="/api/v1/agi")
 
+# Knowledge Graph router for Wave 10
+from backend.api.agi.kg_router import kg_router
+app.include_router(kg_router)
+
 from backend.api.dashboard import router as dashboard_router
 app.include_router(dashboard_router, prefix="/api/v1")
 
@@ -176,6 +180,9 @@ from backend.api.sync import router as sync_router
 app.include_router(sync_router, prefix="/api/v1")
 
 from backend.api.websockets_routes import router as websockets_router
+from backend.api.events.sse_router import router as sse_events_router
+
+app.include_router(sse_events_router)
 app.include_router(websockets_router)
 
 # Add metrics middleware for automatic tracking
@@ -393,10 +400,18 @@ async def health_check(db: Session = Depends(get_db)):
         logger.warning(f"Failed to get pool stats: {e}")
 
     bot_state = db.query(BotState).first()
+    agi_health = {}
+    try:
+        from backend.core.agi_event_handlers import check_agi_health
+        agi_health = check_agi_health()
+    except Exception as e:
+        agi_health = {"status": "error", "error": str(e)}
+
     return {
         "status": overall_status,
         "dependencies": checks,
         "strategies": healths,
+        "agi_events": agi_health,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "bot_running": bot_state.is_running if bot_state else False,
         "trading_mode": settings.TRADING_MODE,

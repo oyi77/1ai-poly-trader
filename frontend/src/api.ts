@@ -89,7 +89,7 @@ export async function fetchBtcWindows(): Promise<BtcWindow[]> {
 }
 
 export async function fetchTrades(): Promise<Trade[]> {
-  const { data } = await api.get<Trade[]>('/trades', { params: { limit: 10000 } })
+  const { data } = await adminApi.get<Trade[]>('/trades', { params: { limit: 10000 } })
   return data
 }
 

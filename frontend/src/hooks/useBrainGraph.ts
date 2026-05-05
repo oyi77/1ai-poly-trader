@@ -54,7 +54,7 @@ export function useBrainGraph(): UseBrainGraphResult {
     queryKey: ['brain-status'],
     queryFn: async () => {
       try {
-        const res = await api.get('/api/v1/brain/status')
+        const res = await api.get('/brain/status')
         return res.data
       } catch {
         return null
@@ -66,7 +66,7 @@ export function useBrainGraph(): UseBrainGraphResult {
 
   const fetchDebateTranscript = useCallback(async (debateId: string) => {
     try {
-      const res = await api.get(`/api/v1/brain/debate/${debateId}`)
+      const res = await api.get(`/brain/debate/${debateId}`)
       if (res.status === 200) {
         const data = res.data
         setTranscript(data.transcript || [])
