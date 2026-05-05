@@ -1,6 +1,8 @@
 # PolyEdge — Prediction Market Trading Bot
 
-A full-stack automated prediction market trading bot targeting **Polymarket** and **Kalshi**. Combines AI-powered signal generation, 9 trading strategies, real-time market data aggregation, and a React dashboard for monitoring and control.
+A full-stack automated prediction market trading bot targeting **Polymarket** and **Kalshi**. Combines AI-powered signal generation, 14 trading strategies with bounded AGI autonomy, evolutionary strategy composition, real-time market data aggregation, and a React dashboard for monitoring and control.
+
+[![Research DOI](https://zenodo-badge.example.com/10.5281/zenodo.16966978.svg)](https://doi.org/10.5281/zenodo.16966978)
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue) ![React](https://img.shields.io/badge/react-18+-61DAFB) ![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -8,12 +10,12 @@ A full-stack automated prediction market trading bot targeting **Polymarket** an
 
 ## Overview
 
-### Trading Strategies
+### Trading Strategies (14 registered + AGI Orchestrator)
 
 | Strategy | Description |
 |----------|-------------|
 | **BTC Momentum** | RSI + momentum + VWAP on 1m/5m/15m candles from Coinbase/Kraken/Binance |
-| **BTC Oracle** | AI-assisted BTC price predictions via ensemble LLM analysis |
+| **BTC Oracle** | CoinGecko latency arbitrage on BTC price markets |
 | **Weather EMOS** | 31-member GFS ensemble temperature forecasting (Open-Meteo + NWS) |
 | **Copy Trader** | Mirrors top whale trader positions from Polymarket leaderboard |
 | **Market Maker** | Spread quoting with real-time inventory tracking |
@@ -21,12 +23,20 @@ A full-stack automated prediction market trading bot targeting **Polymarket** an
 | **Bond Scanner** | Fixed-income prediction market opportunities |
 | **Whale PNL Tracker** | Tracks top trader realized PNL for signal generation |
 | **Realtime Scanner** | Price velocity and momentum signal detection |
+| **Probability Arb** | Cross-market probability arbitrage detection |
+| **Cross Market Arb** | Cross-market arbitrage execution |
+| **CEX-PM Lead-Lag** | CEX price lead-lag signal for Polymarket markets |
+| **Line Movement** | Betting line movement detection |
+| **General Scanner** | General market scanning and opportunity detection |
+| **AGI Orchestrator** | Meta-strategy composing and evolving other strategies autonomously |
 
 ### Key Features
 
-- **Multi-Strategy Engine** — 9 strategies running in parallel with per-strategy risk isolation
+- **Multi-Strategy Engine** — 14 strategies running in parallel with per-strategy risk isolation
+- **Bounded AGI Autonomy** — Autonomous promotion pipeline (DRAFT→SHADOW→PAPER→LIVE) with deterministic safety gates
+- **Evolutionary Composition** — AGI meta-strategy composes, mutates, and evolves trading strategies from a genome grammar
+- **MiroFish Dual-Debate** — External debate system validates trade decisions with automatic fallback to local engine
 - **AI Ensemble** — Claude + Groq LLM providers for sentiment analysis and signal synthesis
-- **MiroFish Integration** — External dual debate system with automatic fallback to local debate engine
 - **Multi-Platform Trading** — Polymarket (CLOB SDK) and Kalshi (REST API) simultaneously
 - **Edge Detection** — Identifies mispriced markets with configurable edge thresholds
 - **Kelly Criterion Sizing** — Fractional Kelly position sizing with per-trade and portfolio caps
@@ -34,9 +44,22 @@ A full-stack automated prediction market trading bot targeting **Polymarket** an
 - **Risk Management** — Circuit breakers, position limits, portfolio concentration guards
 - **Shadow Mode** — Paper trading with virtual bankroll and equity curve tracking
 - **Unified State Sync** — Automatic blockchain reconciliation imports external trades and verifies settlements
+- **Trade Forensics** — Per-loss diagnosis and pattern analysis for continuous improvement
 - **Professional Dashboard** — React + TypeScript + TanStack Query with real-time updates
 - **Job Queue** — Redis-backed (falls back to SQLite) for background strategy execution
 - **Monitoring** — Prometheus metrics endpoint with request/response middleware
+
+### AGI Autonomy
+
+PolyEdge implements a bounded AGI autonomy framework with deterministic safety gates:
+
+- **Autonomous Promotion Pipeline** (`backend/core/autonomous_promoter.py`) — Auto-promotes experiments through DRAFT→SHADOW→PAPER→LIVE lifecycle stages with health checks and automatic retirement of killed strategies
+- **Evolutionary Strategy Composition** (`backend/strategies/agi_meta_strategy.py`) — AGI meta-strategy composes and evolves trading strategies from a formal genome grammar with crossover and mutation
+- **Bankroll Allocation** (`backend/core/bankroll_allocator.py`) — Daily capital allocation via StrategyRanker with health-weighted distribution
+- **Trade Forensics** (`backend/core/trade_forensics.py`) — Per-loss root cause diagnosis and pattern aggregation for continuous improvement
+- **MiroFish Dual-Debate** — External debate system validates every trade decision; automatic fallback to local debate engine when unavailable
+
+Controlled via feature flags: `AGI_AUTO_PROMOTE`, `AGI_AUTO_ENABLE`, `AGI_STRATEGY_HEALTH_ENABLED`, `AGI_BANKROLL_ALLOCATION_ENABLED`
 
 ## Quick Start
 
@@ -97,10 +120,24 @@ Starts the backend API + Redis. See `docker-compose.yml` for configuration.
                                │ REST API
                                ▼
 ┌──────────────────────────────────────────────────────────────────────┐
+│                 AGI AUTONOMY LAYER                                    │
+│  ┌───────────────┐ ┌──────────────┐ ┌────────────────┐ ┌───────────┐ │
+│  │ Autonomous     │ │  Bankroll    │ │  Trade        │ │ Evolution  │ │
+│  │ Promoter       │ │  Allocator   │ │  Forensics    │ │ Engine     │ │
+│  │ DRAFT→SHADOW   │ │  StrategyRkr │ │  Root Cause   │ │ Crossover  │ │
+│  │ →PAPER→LIVE    │ │  Daily Alloc  │ │  Diagnosis    │ │ + Mutation │ │
+│  └───────────────┘ └──────────────┘ └────────────────┘ └───────────┘ │
+│  ┌───────────────────────────────────────────────────────────────────┐│
+│  │ MiroFish Dual-Debate │ Deterministic Safety Gates │ Health Checks ││
+│  └───────────────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
 │                    BACKEND (FastAPI + Python)                         │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────────────┐ │
-│  │Orchestrator│ │  9 Trading│ │   Risk    │ │ AI Ensemble           │ │
-│  │           │ │ Strategies│ │  Manager  │ │ (Claude + Groq)       │ │
+│  │Orchestrator│ │ 14 Trading│ │   Risk    │ │ AI Ensemble           │ │
+│  │           │ │ Strategies │ │  Manager  │ │ (Claude + Groq)       │ │
 │  └───────────┘ └───────────┘ └───────────┘ └───────────────────────┘ │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────────────┐ │
 │  │  Order    │ │Settlement │ │  Signal   │ │ Job Queue             │ │
@@ -126,6 +163,17 @@ Starts the backend API + Redis. See `docker-compose.yml` for configuration.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## Research
+
+A 33-page peer-reviewed research paper documenting the bounded AGI autonomy framework, evolutionary strategy composition, and dual-debate validation system is available:
+
+- **Paper**: [`docs/paper/paper.pdf`](docs/paper/paper.pdf) — 33 pages, 15 references, 7,361 words
+- **Supplementary Materials**: [`docs/paper/supplementary/supplementary.pdf`](docs/paper/supplementary/supplementary.pdf) — 8 pages of proofs, genome grammar, extended data, and code listings
+- **Abstract Video**: [`docs/paper/supplementary_video.mp4`](docs/paper/supplementary_video.mp4) — 50-second 1080p H.264 overview
+- **Pitch Deck**: [`docs/pitchdeck/`](docs/pitchdeck/) — 10-slide interactive HTML + PDF presentation
+- **Documentation Site**: [polyedge.aitradepulse.com/docs/](https://polyedge.aitradepulse.com/docs/)
+- **DOI**: [10.5281/zenodo.16966978](https://doi.org/10.5281/zenodo.16966978)
+
 ## Documentation
 
 - **[User Guide](docs/user-guide.md)** - Beginner-friendly dashboard walkthrough
@@ -136,6 +184,7 @@ Starts the backend API + Redis. See `docker-compose.yml` for configuration.
 - **[Data Sources](docs/data-sources.md)** - Description of all data providers
 - **[Project Structure](docs/project-structure.md)** - Codebase organization
 - **[Job Queue Architecture](docs/architecture/adr-001-job-queue.md)** - Phase 1/2 queue design
+- **[AGI Autonomy Framework](docs/architecture/adr-006-agi-autonomy-framework.md)** - Promotion gates, safety boundaries, human-in-the-loop override
 
 ## License
 

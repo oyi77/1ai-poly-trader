@@ -35,12 +35,44 @@ const strategies = [
     description: 'BTC price oracle latency arbitrage using CoinGecko free API. Trades ahead of slow market updates on Polymarket BTC price markets.',
   },
   {
-    id: 'btc_5m',
-    title: 'BTC 5-Minute',
-    badge: 'B5',
+    id: 'btc_momentum',
+    title: 'BTC Momentum',
+    badge: 'BM',
     badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     status: 'experimental',
     description: 'RSI, momentum, and VWAP signals on 5-minute BTC windows. Composite edge scoring with Kelly criterion sizing.',
+  },
+  {
+    id: 'market_maker',
+    title: 'Market Maker',
+    badge: 'MM',
+    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    status: 'configurable',
+    description: 'Spread quoting with real-time inventory tracking. Provides liquidity while managing directional risk.',
+  },
+  {
+    id: 'probability_arb',
+    title: 'Probability Arb',
+    badge: 'PA',
+    badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    status: 'live',
+    description: 'Cross-market probability arbitrage detection. Identifies mispriced outcomes across correlated markets.',
+  },
+  {
+    id: 'whale_frontrun',
+    title: 'Whale Frontrun',
+    badge: 'WF',
+    badgeColor: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+    status: 'experimental',
+    description: 'Front-runs whale wallet detected positions. Monitors large Polymarket traders and acts on their signals.',
+  },
+  {
+    id: 'agi_orchestrator',
+    title: 'AGI Orchestrator',
+    badge: 'AGI',
+    badgeColor: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20',
+    status: 'evolving',
+    description: 'Meta-strategy that composes, mutates, and evolves other trading strategies autonomously via genome grammar crossover.',
   },
 ]
 
@@ -87,14 +119,14 @@ const capabilities = [
     description: 'Per-strategy health monitoring, live enable/disable toggles, and market watch configuration.',
   },
   {
-    icon: '◇',
+    icon: '◐',
     title: 'Kelly Sizing',
-    description: 'Fractional Kelly criterion with daily loss limits, max position caps, and configurable risk per trade.',
+    description: 'Fractional Kelly criterion with daily loss limits, max position caps, configurable risk per trade, and health-weighted bankroll allocation.',
   },
   {
-    icon: '◐',
-    title: 'Admin Panel',
-    description: '8-tab control center: Settings, System status, Copy Trader config, Telegram alerts, Credentials, Strategies, Market Watch, Wallet Config.',
+    icon: '⬡',
+    title: 'AGI Autonomy',
+    description: 'Autonomous strategy lifecycle — promotion, retirement, evolution, and bankroll allocation — all gated by deterministic safety checks.',
   },
 ]
 
@@ -107,7 +139,7 @@ const steps = [
   {
     step: '02',
     title: 'Signal',
-    description: 'Composite signal generation: RSI, momentum, VWAP, ensemble weather forecasts, oracle latency, copy wallet tracking. Edge and confidence scored.',
+    description: 'Composite signal generation: AGI composition, RSI, momentum, VWAP, ensemble weather forecasts, oracle latency, copy wallet tracking. Edge and confidence scored.',
   },
   {
     step: '03',
@@ -133,6 +165,7 @@ const navLinks = [
   { to: '/decisions', label: 'Decisions' },
   { to: '/settlements', label: 'Settlements' },
   { to: '/admin', label: 'Admin' },
+  { to: 'https://polyedge.aitradepulse.com/docs/research/pitch-deck', label: 'Research', external: true },
   { to: '/docs/', label: 'Docs', external: true },
 ]
 
@@ -174,10 +207,10 @@ export default function Landing() {
       >
         <div className="flex items-center justify-center gap-2 mb-6">
           <span className="px-2 py-1 text-[9px] font-bold uppercase bg-green-500/10 text-green-500 border border-green-500/20 tracking-wider">
-            v3.0
+            v4.0
           </span>
           <span className="px-2 py-1 text-[9px] font-bold uppercase bg-purple-500/10 text-purple-400 border border-purple-500/20 tracking-wider">
-            5 Strategies
+            9 Strategies
           </span>
           <span className="px-2 py-1 text-[9px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 tracking-wider">
             Paper · Testnet · Live
@@ -191,9 +224,12 @@ export default function Landing() {
           Autonomous Prediction Market Trading
         </p>
         <p className="text-sm text-neutral-500 max-w-2xl mx-auto leading-relaxed mb-10">
-          Five independent alpha strategies running 24/7 on Polymarket and Kalshi.
+          Nine alpha strategies with bounded AGI autonomy, running 24/7 on Polymarket and Kalshi.
           Every trade decision logged, every edge quantified, full Kelly sizing with
           real-time SSE push notifications.
+        </p>
+        <p className="text-[10px] text-neutral-600 mt-2">
+          Read the research paper → <a href="https://doi.org/10.5281/zenodo.16966978" className="text-neutral-500 hover:text-green-500 transition-colors" target="_blank" rel="noopener noreferrer">DOI: 10.5281/zenodo.16966978</a>
         </p>
 
         <div className="flex items-center justify-center gap-3 flex-wrap">
@@ -247,7 +283,7 @@ export default function Landing() {
       {/* Strategies */}
       <section className="px-6 py-12 max-w-5xl mx-auto border-t border-neutral-800">
         <div className="text-center mb-8">
-          <span className="text-[10px] text-neutral-600 uppercase tracking-[0.3em]">5 Alpha Strategies</span>
+          <span className="text-[10px] text-neutral-600 uppercase tracking-[0.3em]">9 Alpha Strategies</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {strategies.map((s, i) => (
@@ -265,6 +301,7 @@ export default function Landing() {
                 <h3 className="text-xs font-bold text-neutral-200 uppercase tracking-wider flex-1">{s.title}</h3>
                 <span className={`text-[8px] uppercase tracking-wider ${
                   s.status === 'live' ? 'text-green-500' :
+                  s.status === 'evolving' ? 'text-fuchsia-400' :
                   s.status === 'experimental' ? 'text-red-400' : 'text-neutral-600'
                 }`}>
                   {s.status}
@@ -273,6 +310,45 @@ export default function Landing() {
               <p className="text-[11px] text-neutral-500 leading-relaxed">{s.description}</p>
             </motion.div>
           ))}
+        </div>
+      </section>
+
+      {/* AGI Autonomy */}
+      <section className="px-6 py-12 max-w-5xl mx-auto border-t border-neutral-800">
+        <div className="text-center mb-8">
+          <span className="text-[10px] text-neutral-600 uppercase tracking-[0.3em]">Bounded AGI Autonomy</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="border border-neutral-800 bg-neutral-900/20 p-4"
+          >
+            <span className="text-green-500 text-sm">⬡</span>
+            <h4 className="text-[11px] font-bold text-neutral-300 uppercase tracking-wider mb-1 mt-2">Autonomous Promotion</h4>
+            <p className="text-[10px] text-neutral-600 leading-relaxed">DRAFT→SHADOW→PAPER→LIVE lifecycle with health checks and auto-retirement of killed strategies.</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.16 }}
+            className="border border-neutral-800 bg-neutral-900/20 p-4"
+          >
+            <span className="text-green-500 text-sm">⬢</span>
+            <h4 className="text-[11px] font-bold text-neutral-300 uppercase tracking-wider mb-1 mt-2">Evolutionary Composition</h4>
+            <p className="text-[10px] text-neutral-600 leading-relaxed">AGI meta-strategy composes, mutates, and evolves trading strategies from a genome grammar with crossover.</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.22 }}
+            className="border border-neutral-800 bg-neutral-900/20 p-4"
+          >
+            <span className="text-green-500 text-sm">⬣</span>
+            <h4 className="text-[11px] font-bold text-neutral-300 uppercase tracking-wider mb-1 mt-2">Dual-Debate Validation</h4>
+            <p className="text-[10px] text-neutral-600 leading-relaxed">MiroFish external debate validates every trade decision. Automatic fallback to local debate engine when unavailable.</p>
+          </motion.div>
         </div>
       </section>
 
@@ -376,7 +452,7 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            <span className="text-[10px] text-neutral-600 whitespace-nowrap">v3.0.0</span>
+            <span className="text-[10px] text-neutral-600 whitespace-nowrap">v4.0.0</span>
           </div>
         </div>
       </footer>
