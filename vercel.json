@@ -14,35 +14,35 @@
   "routes": [
     {
       "src": "/docs/(.*\\.[a-zA-Z0-9]+)$",
-      "dest": "/frontend/docs/$1"
+      "dest": "/docs/$1"
     },
     {
       "src": "/docs/?$",
-      "dest": "/frontend/docs/index.html"
+      "dest": "/docs/index.html"
     },
     {
       "src": "/docs/(.*[^/])$",
-      "dest": "/frontend/docs/$1.html"
+      "dest": "/docs/$1.html"
     },
     {
       "src": "/docs/(.*)/$",
-      "dest": "/frontend/docs/$1.html"
+      "dest": "/docs/$1.html"
     },
     {
       "src": "/assets/(.*)$",
-      "dest": "/frontend/assets/$1"
+      "dest": "/assets/$1"
     },
     {
       "src": "/(.*\\.[a-zA-Z0-9]+)$",
-      "dest": "/frontend/$1"
+      "dest": "/$1"
     },
     {
       "src": "/$",
-      "dest": "/frontend/index.html"
+      "dest": "/index.html"
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/index.html"
+      "dest": "/index.html"
     }
   ]
 }
