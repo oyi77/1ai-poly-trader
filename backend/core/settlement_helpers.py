@@ -19,6 +19,19 @@ logger = logging.getLogger("trading_bot")
 # Module-level: track consecutive 404s per market_id (bounded TTLCache: 1000 entries, 1 hour TTL)
 _market_404_counts: TTLCache = TTLCache(maxsize=1000, ttl=3600)
 
+# Module-level: cache already-resolved markets to skip redundant gamma REST calls
+# TTL=3600s (1h) — resolved markets don't change; prevents 429 on repeated settlement cycles
+_resolved_market_cache: TTLCache = TTLCache(maxsize=2000, ttl=3600)
+
+# Semaphore: cap concurrent gamma API calls to avoid 429 rate limiting
+# Initialized lazily in _resolve_markets (asyncio event loop must be running)
+_gamma_semaphore: Optional[asyncio.Semaphore] = None
+
+# In-flight deduplication: maps ticker -> asyncio.Event
+# Prevents thundering-herd cache stampede when multiple coroutines resolve
+# the same conditionId concurrently before any result is cached.
+_gamma_inflight: dict = {}
+
 
 def _looks_like_token_id(value: str) -> bool:
     """Detect Polymarket CLOB token IDs.
@@ -623,10 +636,11 @@ def calculate_pnl(trade: Trade, settlement_value: float) -> float:
     - UP position wins when settlement = 1.0
     - DOWN position wins when settlement = 0.0
 
-    IMPORTANT: `size` is the dollar amount spent (not number of shares).
-    Number of shares = size / entry_price.
-    On a win, each share pays $1.00, so PNL = shares - cost = (size / entry_price) - size.
-    On a loss, the entire investment is lost, so PNL = -size.
+    IMPORTANT: `size` is the number of shares purchased (not dollars spent).
+    `entry_price` is the cost per share (0.0–1.0).
+    On a win, each share pays $1: net profit = (1.0 - entry_price) * size.
+    On a loss, shares are worth $0: net loss = -(entry_price * size).
+    Verified against real CLOB fills: entry=0.505, size=24.75 → win pnl=12.25, loss pnl=-12.50.
     """
     # Map up/down to yes/no logic
     direction = trade.direction
@@ -638,7 +652,8 @@ def calculate_pnl(trade: Trade, settlement_value: float) -> float:
     _filled = getattr(trade, "filled_size", None)
     size = float(_filled) if isinstance(_filled, (int, float)) else trade.size
 
-    entry_price = trade.entry_price
+    _fill_price = getattr(trade, "fill_price", None)
+    entry_price = float(_fill_price) if isinstance(_fill_price, (int, float)) else trade.entry_price
 
     if not entry_price or entry_price <= 0 or entry_price >= 1.0:
         if entry_price and entry_price >= 1.0:
@@ -648,19 +663,16 @@ def calculate_pnl(trade: Trade, settlement_value: float) -> float:
         else:
             return round(size if settlement_value == 0.0 else -size, 2)
 
-    # PNL formula: shares = dollars_spent / price_per_share
-    # Win: pnl = shares * $1 - cost = (size / entry_price) - size
-    # Loss: pnl = -size (entire investment lost)
     if direction == "yes":
         if settlement_value == 1.0:
-            pnl = (size / entry_price) - size
+            pnl = (1.0 - entry_price) * size
         else:
-            pnl = -size
+            pnl = -(entry_price * size)
     else:
         if settlement_value == 0.0:
-            pnl = (size / entry_price) - size
+            pnl = (1.0 - entry_price) * size
         else:
-            pnl = -size
+            pnl = -(entry_price * size)
 
     return round(pnl, 2)
 
@@ -736,15 +748,36 @@ async def _resolve_markets(
     trade_platforms: dict mapping ticker -> platform string.
     """
 
+    global _gamma_semaphore
+    if _gamma_semaphore is None:
+        _gamma_semaphore = asyncio.Semaphore(5)
+
     async def _resolve_one(ticker: str, is_weather: bool):
-        platform = trade_platforms.get(ticker, "polymarket") or "polymarket"
-        if is_weather and platform == "kalshi":
-            result = await _fetch_kalshi_resolution(ticker)
-        else:
-            result = await fetch_polymarket_resolution(
-                ticker, event_slug=trade_slugs.get(ticker)
-            )
-        return ticker, result
+        if ticker in _resolved_market_cache:
+            return ticker, _resolved_market_cache[ticker]
+
+        if ticker in _gamma_inflight:
+            await _gamma_inflight[ticker].wait()
+            return ticker, _resolved_market_cache.get(ticker)
+
+        event = asyncio.Event()
+        _gamma_inflight[ticker] = event
+        try:
+            platform = trade_platforms.get(ticker, "polymarket") or "polymarket"
+            async with _gamma_semaphore:
+                if is_weather and platform == "kalshi":
+                    result = await _fetch_kalshi_resolution(ticker)
+                else:
+                    result = await fetch_polymarket_resolution(
+                        ticker, event_slug=trade_slugs.get(ticker)
+                    )
+                await asyncio.sleep(0.1)
+            if result and result[0]:
+                _resolved_market_cache[ticker] = result
+            return ticker, result
+        finally:
+            event.set()
+            _gamma_inflight.pop(ticker, None)
 
     tasks = [_resolve_one(t, False) for t in normal_tickers] + [
         _resolve_one(t, True) for t in weather_tickers

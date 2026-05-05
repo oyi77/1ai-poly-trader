@@ -25,66 +25,76 @@ def make_trade(**kwargs) -> Trade:
 
 
 def pnl_win(size: float, entry: float) -> float:
-    """Expected P&L on a win: shares paid at $1 minus cost = (size/entry) - size."""
-    return round(size / entry - size, 2)
+    """Expected P&L on a win: (1 - entry_price) * size.
+
+    Polymarket CLOB semantics: `size` = number of shares (not dollars spent).
+    Each share pays $1 on win; cost per share = entry_price.
+    Net profit per share = (1 - entry_price). Total = (1 - entry_price) * size.
+    Verified against real DB trades: entry=0.505, size=24.75 → pnl=12.25.
+    """
+    return round((1.0 - entry) * size, 2)
 
 
-def pnl_loss(size: float) -> float:
-    """Expected P&L on a loss: entire investment lost."""
-    return round(-size, 2)
+def pnl_loss(size: float, entry: float) -> float:
+    """Expected P&L on a loss: -(entry_price * size).
+
+    Cost of shares = entry_price * size. On loss shares are worth $0.
+    """
+    return round(-entry * size, 2)
 
 
 class TestCalculatePnl:
     """Test P&L calculation for all direction/outcome combinations.
 
-    Polymarket CLOB economics:
-      - You spend `size` dollars to buy `size / entry_price` shares.
-      - On a win, each share pays $1.00 → pnl = (size / entry_price) - size.
-      - On a loss, shares are worth $0 → pnl = -size.
+    Polymarket CLOB economics (size = shares, not dollars):
+      - `size` = number of shares purchased.
+      - `entry_price` = cost per share (0.0–1.0).
+      - On a win, each share pays $1.00 → pnl = (1 - entry_price) * size.
+      - On a loss, shares are worth $0 → pnl = -(entry_price * size).
     """
 
     def test_up_wins(self):
         trade = make_trade(direction="up", entry_price=0.65, size=100.0)
         pnl = calculate_pnl(trade, settlement_value=1.0)
-        assert pnl == pnl_win(100.0, 0.65)  # +53.85
+        assert pnl == pnl_win(100.0, 0.65)  # +35.00
 
     def test_up_loses(self):
         trade = make_trade(direction="up", entry_price=0.65, size=100.0)
         pnl = calculate_pnl(trade, settlement_value=0.0)
-        assert pnl == pnl_loss(100.0)  # -100.00
+        assert pnl == pnl_loss(100.0, 0.65)  # -65.00
 
     def test_down_wins(self):
         trade = make_trade(direction="down", entry_price=0.40, size=100.0)
         pnl = calculate_pnl(trade, settlement_value=0.0)
-        assert pnl == pnl_win(100.0, 0.40)  # +150.00
+        assert pnl == pnl_win(100.0, 0.40)  # +60.00
 
     def test_down_loses(self):
         trade = make_trade(direction="down", entry_price=0.40, size=100.0)
         pnl = calculate_pnl(trade, settlement_value=1.0)
-        assert pnl == pnl_loss(100.0)  # -100.00
+        assert pnl == pnl_loss(100.0, 0.40)  # -40.00
 
     def test_yes_wins(self):
         trade = make_trade(direction="yes", entry_price=0.70, size=50.0)
         pnl = calculate_pnl(trade, settlement_value=1.0)
-        assert pnl == pnl_win(50.0, 0.70)  # +21.43
+        assert pnl == pnl_win(50.0, 0.70)  # +15.00
 
     def test_no_wins(self):
         trade = make_trade(direction="no", entry_price=0.30, size=50.0)
         pnl = calculate_pnl(trade, settlement_value=0.0)
-        assert pnl == pnl_win(50.0, 0.30)  # +116.67
+        assert pnl == pnl_win(50.0, 0.30)  # +35.00
 
     def test_pnl_rounded_to_two_decimal_places(self):
         trade = make_trade(direction="up", entry_price=1/3, size=100.0)
         pnl = calculate_pnl(trade, settlement_value=1.0)
-        assert pnl == pnl_win(100.0, 1/3)  # +200.00
+        assert pnl == pnl_win(100.0, 1/3)  # +66.67
 
     def test_pnl_at_entry_price_50_percent(self):
         """Edge case: 50c entry price — symmetric win/loss."""
         trade = make_trade(direction="up", entry_price=0.50, size=100.0)
         win_pnl = calculate_pnl(trade, settlement_value=1.0)
         loss_pnl = calculate_pnl(trade, settlement_value=0.0)
-        assert win_pnl == pnl_win(100.0, 0.50)   # +100.00
-        assert loss_pnl == pnl_loss(100.0)         # -100.00
+        assert win_pnl == pnl_win(100.0, 0.50)    # +50.00
+        assert loss_pnl == pnl_loss(100.0, 0.50)   # -50.00
 
 
 class TestParseMarketResolution:

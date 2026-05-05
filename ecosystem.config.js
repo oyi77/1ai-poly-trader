@@ -35,17 +35,17 @@ module.exports = {
       error_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-frontend-error.log',
       out_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-frontend-out.log',
     },
-      {
-        name: 'polyedge-bot',
-        script: 'python3',
-        args: '-m backend.core.orchestrator',
-        cwd: '/home/openclaw/projects/polyedge',
-        interpreter: 'none',
-        env: {
-          PYTHONPATH: '/home/openclaw/projects/polyedge',
-        },
-        env_file: '.env',
-        watch: false,
+    {
+      name: 'polyedge-bot',
+      script: 'python3',
+      args: '-m backend.core.orchestrator',
+      cwd: '/home/openclaw/projects/polyedge',
+      interpreter: 'none',
+      env: {
+        PYTHONPATH: '/home/openclaw/projects/polyedge',
+      },
+      env_file: '.env',
+      watch: false,
       restart_delay: 5000,
       max_restarts: 50,
       exp_backoff_restart_delay: 100,
@@ -55,7 +55,7 @@ module.exports = {
       out_file: '/home/openclaw/projects/polyedge/.omc/logs/polyedge-bot-out.log',
     },
     {
-      name: 'polyedge-bot',
+      name: 'polyedge-mirofish-mock',
       script: 'python3',
       args: '-m backend.services.mirofish_mock_server',
       cwd: '/home/openclaw/projects/polyedge',

@@ -42,6 +42,18 @@ class AutoTrader:
         )
         if not decision.allowed:
             strategy = signal.get("strategy", "unknown")
+            from backend.core.event_bus import publish_event
+            publish_event(
+                "trade_rejected",
+                {
+                    "strategy_name": strategy,
+                    "market_ticker": signal.get("market_ticker"),
+                    "reason": decision.reason,
+                    "confidence": confidence,
+                    "size": size,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
             record_signal(strategy=strategy, signal_type="rejected")
             return ExecutionResult(False, False, decision.reason)
 

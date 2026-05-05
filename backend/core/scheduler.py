@@ -47,6 +47,16 @@ from backend.core.cache_cleanup import cache_cleanup_job
 from backend.core.autonomous_promoter import autonomous_promotion_job
 from backend.core.bankroll_allocator import bankroll_allocation_job
 from backend.core.agi_orchestrator import agi_improvement_cycle_job
+from backend.core.shadow_validation import shadow_validation_job
+from backend.application.agi.evolution_jobs import (
+    fitness_evaluation_job,
+    mutation_cycle_job,
+    crossover_cycle_job,
+    necromancy_analysis_job,
+    regime_rebalancing_job,
+    full_population_review_job,
+    legend_evaluation_job,
+)
 from backend.ai.training.train import run_training_pipeline
 from backend.mesh.auditor import audit_source_performance
 from backend.mesh.learning import update_source_weights_from_outcomes
@@ -277,6 +287,30 @@ def start_scheduler():
         max_instances=1,
     )
 
+    # Start OrderbookRouter as APScheduler fallback heartbeat
+    if settings.POLYMARKET_WS_ENABLED:
+        from backend.infrastructure.market_stream.orderbook_router import OrderbookRouter
+        from backend.data.polymarket_websocket import PolymarketWebSocket, WebSocketConfig, ChannelType
+        
+        orderbook_router = OrderbookRouter()
+        
+        # Start the router dispatch loop
+        asyncio.create_task(orderbook_router.start())
+        
+        # Connect to WebSocket and register router as handler
+        if settings.POLYMARKET_WS_CLOB_URL:
+            ws_config = WebSocketConfig(
+                channel=ChannelType.MARKET,
+                asset_ids=[]  # Will be populated dynamically by strategies
+            )
+            ws_client = PolymarketWebSocket(ws_config)
+            orderbook_router.register_with_websocket(ws_client)
+            asyncio.create_task(ws_client.connect())
+            
+            logger.info("OrderbookRouter initialized with WebSocket connection")
+        else:
+            logger.warning("POLYMARKET_WS_CLOB_URL not configured, OrderbookRouter running in fallback mode")
+    
     # Start the scheduler
     scheduler.start()
     for job in scheduler.get_jobs():
@@ -402,6 +436,17 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info(f"Scheduled autonomous promotion job every {promotion_interval} hour(s)")
+
+    # Shadow validation - evaluates SHADOW genomes every 5 minutes
+    if getattr(settings, "SHADOW_VALIDATE_ENABLED", True):
+        scheduler.add_job(
+            shadow_validation_job,
+            IntervalTrigger(seconds=300),  # Every 5 minutes
+            id="shadow_validate",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled shadow validation job every 5 minutes")
 
     # AGI improvement cycle — runs all 7 closed loops (feedback, meta-learn, evolve, propose, compose, replace, counterfactual)
     agi_cycle_interval = getattr(settings, "AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS", 4)
@@ -641,6 +686,80 @@ def start_scheduler():
         max_instances=1,
     )
     logger.info("Scheduled rejection learner job at 04:00 UTC")
+
+    # Evolution engine jobs (guarded by EVOLUTION_ENGINE_ENABLED flag)
+    if settings.EVOLUTION_ENGINE_ENABLED:
+        logger.info("EVOLUTION_ENGINE_ENABLED=True - scheduling evolution jobs")
+        
+        # Fitness evaluation — every 60 seconds
+        scheduler.add_job(
+            fitness_evaluation_job,
+            IntervalTrigger(seconds=60),
+            id="fitness_evaluation",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled fitness evaluation job every 60 seconds")
+
+        # Mutation cycle — every 6 hours
+        scheduler.add_job(
+            mutation_cycle_job,
+            IntervalTrigger(hours=6),
+            id="mutation_cycle",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled mutation cycle job every 6 hours")
+
+        # Crossover cycle — weekly
+        scheduler.add_job(
+            crossover_cycle_job,
+            IntervalTrigger(weeks=1),
+            id="crossover_cycle",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled crossover cycle job weekly")
+
+        # Necromancy analysis — weekly
+        scheduler.add_job(
+            necromancy_analysis_job,
+            IntervalTrigger(weeks=1),
+            id="necromancy_analysis",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled necromancy analysis job weekly")
+
+        # Regime rebalancing — every 4 hours
+        scheduler.add_job(
+            regime_rebalancing_job,
+            IntervalTrigger(hours=4),
+            id="regime_rebalancing",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled regime rebalancing job every 4 hours")
+
+        # Full population review — weekly
+        scheduler.add_job(
+            full_population_review_job,
+            IntervalTrigger(weeks=1),
+            id="population_review",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled full population review job weekly")
+
+        # Legend evaluation — monthly
+        scheduler.add_job(
+            legend_evaluation_job,
+            IntervalTrigger(weeks=4),
+            id="legend_evaluation",
+            replace_existing=True,
+            max_instances=1,
+        )
+        logger.info("Scheduled legend evaluation job monthly")
 
     # Initialize queue worker if enabled
     if settings.JOB_WORKER_ENABLED:

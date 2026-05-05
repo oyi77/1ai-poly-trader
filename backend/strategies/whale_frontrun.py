@@ -132,33 +132,33 @@ class WhaleFrontrun(BaseStrategy):
         if not self._ws_initialized:
             await self.start(ctx)
 
-        async with self._state_lock:
-            buffered = list(self._activity_buffer)
-            self._activity_buffer.clear()
+        try:
+            async with self._state_lock:
+                buffered = list(self._activity_buffer)
+                self._activity_buffer.clear()
 
-            for activity in buffered:
-                try:
-                    result = self.detect_and_frontrun(activity)
-                    if result.frontrun_placed:
-                        frontruns += 1
+                for activity in buffered:
+                    try:
+                        result = self.detect_and_frontrun(activity)
+                        if result.frontrun_placed:
+                            frontruns += 1
 
-                        if result.sell_scheduled:
-                            asyncio.create_task(
-                                self._delayed_sell(activity, result.profit)
-                            )
+                            if result.sell_scheduled:
+                                asyncio.create_task(
+                                    self._delayed_sell(activity, result.profit)
+                                )
 
-                except Exception as exc:
-                    errors.append(str(exc))
+                    except Exception as exc:
+                        errors.append(str(exc))
 
-            elapsed_ms = (time.monotonic() - start) * 1000
-            return CycleResult(
-                decisions_recorded=frontruns,
-                trades_attempted=frontruns,
-                trades_placed=frontruns,
-                errors=errors,
-                cycle_duration_ms=elapsed_ms,
-            )
-
+                elapsed_ms = (time.monotonic() - start) * 1000
+                return CycleResult(
+                    decisions_recorded=frontruns,
+                    trades_attempted=frontruns,
+                    trades_placed=frontruns,
+                    errors=errors,
+                    cycle_duration_ms=elapsed_ms,
+                )
         except Exception as exc:
             logger.exception(f"[whale_frontrun] Cycle failed: {exc}")
             return CycleResult(0, 0, 0, errors=[str(exc)])

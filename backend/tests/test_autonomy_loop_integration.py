@@ -48,7 +48,19 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
 
     promoter = AutonomousPromoter()
 
-    # Run 1: DRAFT → SHADOW
+    # Run 1: DRAFT → BACKTEST
+    await promoter.run_once()
+    with _db_mod.SessionLocal() as verify_db:
+        exp_v = verify_db.get(ExperimentRecord, exp_id)
+        assert exp_v.status == ExperimentStatus.BACKTEST.value
+
+    # Mark backtest as passed so BACKTEST → SHADOW gate opens
+    with _db_mod.SessionLocal() as update_db:
+        exp_u = update_db.get(ExperimentRecord, exp_id)
+        exp_u.backtest_passed = True
+        update_db.commit()
+
+    # Run 2: BACKTEST → SHADOW
     await promoter.run_once()
     # Verify using a fresh session to see committed changes
     with _db_mod.SessionLocal() as verify_db:
@@ -64,7 +76,7 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
         exp_u.created_at = datetime.now(timezone.utc) - timedelta(days=8)
         update_db.commit()
 
-    # Run 2: SHADOW → PAPER
+    # Run 3: SHADOW → PAPER
     await promoter.run_once()
     with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
@@ -79,6 +91,25 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
         mock_assess.return_value = {
             "status": "active",
             "total_trades": 60,
+            "win_rate": 0.58,
+            "sharpe": 1.1,
+            "max_drawdown": 0.12,
+        }
+        # Run 4: PAPER → LIVE_TRIAL
+        await promoter.run_once()
+
+    with _db_mod.SessionLocal() as verify_db:
+        exp_v = verify_db.get(ExperimentRecord, exp_id)
+        assert exp_v.status == ExperimentStatus.LIVE_TRIAL.value
+        # Set promoted_at back 8 days to pass AGI_LIVE_TRIAL_DAYS gate
+        exp_v.promoted_at = datetime.now(timezone.utc) - timedelta(days=8)
+        verify_db.commit()
+
+    # Run 5: LIVE_TRIAL → LIVE_PROMOTED
+    with patch("backend.core.strategy_health.StrategyHealthMonitor.assess") as mock_assess:
+        mock_assess.return_value = {
+            "status": "active",
+            "total_trades": 30,
             "win_rate": 0.58,
             "sharpe": 1.1,
             "max_drawdown": 0.12,
@@ -112,8 +143,8 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
 
     with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
-        assert exp_v.status == ExperimentStatus.RETIRED.value
-        assert exp_v.retired_at is not None
+        assert exp_v.status == ExperimentStatus.PAPER.value
+        assert exp_v.promoted_at is None
 
 
 @pytest.mark.asyncio

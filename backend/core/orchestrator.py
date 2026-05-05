@@ -128,6 +128,9 @@ class Orchestrator:
         from backend.core.scheduler import start_scheduler
 
         start_scheduler()
+        
+        from backend.core.agi_event_handlers import register_agi_event_handlers
+        register_agi_event_handlers()
 
         # Start real-time settlement WebSocket handler
         if settings.is_mode_active("paper") or settings.is_mode_active("live"):

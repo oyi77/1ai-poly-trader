@@ -111,7 +111,7 @@ async def test_worker_handles_timeout(queue, monkeypatch):
         await asyncio.sleep(5)
         return {"success": True, "message": "should not reach here"}
 
-    job_id = await q.enqueue("market_scan", {})
+    job_id = await q.enqueue("market_scan", {"market": "test"})
 
     worker = Worker(q, max_concurrent=1)
     monkeypatch.setattr(worker, "dispatch_job", _slow_handler)

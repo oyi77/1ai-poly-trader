@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 from backend.config import settings
 from backend.models.database import SessionLocal, Trade, BotState
@@ -37,13 +37,93 @@ class DrawdownStatus:
     daily_limit_pct: float
     weekly_limit_pct: float
     is_breached: bool
-    breach_reason: str = ""
+    breach_reason: str
+
+
+# Immutable Safety Rules - cannot be overridden by strategies or AI
+IMMUTABLE_SAFETY_RULES = {
+    "max_total_exposure": {
+        "default": 0.95,
+        "override_env_var": "MAX_TOTAL_EXPOSURE_FRACTION",
+        "description": "Never exceed 95% of bankroll in total exposure"
+    },
+    "max_single_strategy_pct": {
+        "default": 0.25,
+        "override_env_var": "MAX_SINGLE_STRATEGY_PCT",
+        "description": "No strategy can exceed 25% of total capital allocation"
+    },
+    "daily_loss_floor": {
+        "default": -0.10,
+        "override_env_var": "DAILY_LOSS_FLOOR_PCT",
+        "description": "All strategies pause for 24h if daily PnL < -10% of bankroll"
+    },
+    "weekly_loss_floor": {
+        "default": -0.20,
+        "override_env_var": "WEEKLY_LOSS_FLOOR_PCT",
+        "description": "Revert to PAPER mode for 7 days if weekly PnL < -20% of bankroll"
+    },
+    "new_strategy_ramp_pct": {
+        "default": 0.01,
+        "override_env_var": "NEW_STRATEGY_RAMP_PCT",
+        "description": "New strategies start at 1% allocation"
+    },
+    "new_strategy_min_trades": {
+        "default": 20,
+        "override_env_var": "NEW_STRATEGY_MIN_TRADES",
+        "description": "Scale only after 20 profitable trades"
+    },
+    "min_archetype_diversity": {
+        "default": 5,
+        "override_env_var": "MIN_ARCHETYPE_DIVERSITY",
+        "description": "At least 5 different archetypes must be active"
+    },
+    "emergency_kill_switch": {
+        "default": True,
+        "override_env_var": None,  # Always enabled
+        "description": "Single API call stops all trading immediately"
+    },
+    "audit_trail": {
+        "default": True,
+        "override_env_var": None,  # Always enabled
+        "description": "Every mutation/kill/promotion logged immutably"
+    }
+}
 
 
 class RiskManager:
     def __init__(self, settings_obj=None):
         self.s = settings_obj or settings
         self._mode_failure_counts: dict[str, int] = {}
+        self._safety_rules = self._load_safety_rules()
+    
+    def _load_safety_rules(self) -> dict:
+        """Load immutable safety rules with environment variable overrides."""
+        import os
+        
+        rules = {}
+        for rule_name, rule_config in IMMUTABLE_SAFETY_RULES.items():
+            # Start with default value
+            value = rule_config["default"]
+            
+            # Check for environment variable override
+            env_var = rule_config.get("override_env_var")
+            if env_var:
+                env_value = os.environ.get(env_var)
+                if env_value is not None:
+                    try:
+                        # Convert to appropriate type
+                        if isinstance(value, float):
+                            value = float(env_value)
+                        elif isinstance(value, int):
+                            value = int(env_value)
+                        elif isinstance(value, bool):
+                            value = env_value.lower() in ("true", "1", "yes")
+                    except ValueError:
+                        logger.warning(f"Invalid value for {env_var}={env_value}, using default {value}")
+            
+            rules[rule_name] = value
+            
+        return rules
 
     def _breaker_enabled_for_mode(self, breaker: str, mode: str) -> bool:
         """Check whether a circuit breaker is enabled for the given trading mode.
@@ -77,9 +157,7 @@ class RiskManager:
     ) -> RiskDecision:
         effective_mode = mode or self.s.TRADING_MODE
 
-        min_confidence = 0.45 if effective_mode == "paper" else getattr(
-            self.s, "MIN_CONFIDENCE", self.s.AUTO_APPROVE_MIN_CONFIDENCE
-        )
+        min_confidence = self._get_confidence_threshold(effective_mode, strategy_name)
         if confidence < min_confidence:
             record_signal(strategy=strategy_name or "unknown", signal_type="rejected_confidence")
             return RiskDecision(False, f"confidence {confidence:.2f} below {min_confidence}", 0.0)
@@ -127,7 +205,8 @@ class RiskManager:
         # denominator and can permanently block new trades. Live bankroll is
         # PM portfolio value, which already includes locked positions.
         exposure_base = bankroll if effective_mode == "live" else bankroll + current_exposure
-        max_exposure = exposure_base * self.s.MAX_TOTAL_EXPOSURE_FRACTION
+        # Use immutable safety rule for max total exposure
+        max_exposure = exposure_base * self._safety_rules["max_total_exposure"]
         if current_exposure + adjusted > max_exposure:
             adjusted = max(0.0, max_exposure - current_exposure)
             if adjusted <= 0:
@@ -143,10 +222,17 @@ class RiskManager:
             strategy_allocation = self._get_strategy_allocation(
                 strategy_name, bankroll, db
             )
-            # Use the strategy allocation as the base size, but don't exceed the adjusted size
-            adjusted = min(adjusted, strategy_allocation)
+            # Check remaining budget (total allocation minus open exposure)
+            remaining_cap = self._strategy_allocation_cap(strategy_name, db, effective_mode)
+            if remaining_cap is not None and remaining_cap <= 0:
+                record_signal(strategy=strategy_name, signal_type="rejected_allocation_exhausted")
+                return RiskDecision(False, f"allocation exhausted for {strategy_name}", 0.0)
+            effective_cap = remaining_cap if remaining_cap is not None else strategy_allocation
+            # Use the tighter of strategy allocation and remaining budget
+            adjusted = min(adjusted, effective_cap)
             logger.info(
-                f"[risk_manager] Strategy {strategy_name} allocation: ${strategy_allocation:.2f}, adjusted size: ${adjusted:.2f}"
+                f"[risk_manager] Strategy {strategy_name} allocation: ${strategy_allocation:.2f}, "
+                f"remaining: ${effective_cap:.2f}, adjusted size: ${adjusted:.2f}"
             )
 
         return RiskDecision(True, "ok", adjusted)
@@ -361,3 +447,170 @@ class RiskManager:
         except Exception as e:
             logger.error(f"[risk_manager._strategy_allocation_cap] {type(e).__name__}: {e}", exc_info=True)
             return None
+
+    def _get_confidence_threshold(self, trading_mode: str, strategy_name: Optional[str] = None) -> float:
+        """Get confidence threshold for trade approval, respecting regime routing."""
+        # Start with base confidence from settings
+        base_confidence = getattr(
+            self.s, "MIN_CONFIDENCE", self.s.AUTO_APPROVE_MIN_CONFIDENCE
+        )
+        
+        # Apply regime multiplier if enabled
+        if getattr(self.s, 'REGIME_ROUTING_ENABLED', False):
+            regime_multiplier = self._get_regime_multiplier(strategy_name)
+            threshold = base_confidence * regime_multiplier
+        else:
+            threshold = base_confidence
+        
+        # Cap at 0.95 maximum
+        return min(threshold, 0.95)
+        
+    def check_drawdown_floors(
+        self, bankroll: float, db=None, mode: Optional[str] = None
+    ) -> Tuple[bool, Optional[str]]:
+        """Check if daily/weekly loss floors have been breached.
+        
+        Args:
+            bankroll: Current bankroll amount
+            db: Database session (optional)
+            mode: Trading mode (optional)
+            
+        Returns:
+            Tuple of (floor_breached, action_taken) where action_taken describes what happened
+        """
+        owns_db = db is None
+        if owns_db:
+            db = SessionLocal()
+        
+        try:
+            effective_mode = mode or self.s.TRADING_MODE
+            now = datetime.now(timezone.utc)
+            day_start = now - timedelta(hours=24)
+            week_start = now - timedelta(days=7)
+
+            # Calculate daily and weekly PnL
+            daily_pnl = (
+                db.query(func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0))
+                .filter(
+                    Trade.settled.is_(True),
+                    Trade.settlement_time >= day_start,
+                    Trade.trading_mode == effective_mode,
+                    _not_backfill_settlement_source(),
+                )
+                .scalar()
+                or 0.0
+            )
+
+            weekly_pnl = (
+                db.query(func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0))
+                .filter(
+                    Trade.settled.is_(True),
+                    Trade.settlement_time >= week_start,
+                    Trade.trading_mode == effective_mode,
+                    _not_backfill_settlement_source(),
+                )
+                .scalar()
+                or 0.0
+            )
+
+            # Use the higher of current bankroll or effective initial bankroll
+            effective_initial = self.s.INITIAL_BANKROLL
+            if db is not None:
+                state = db.query(BotState).filter_by(mode=effective_mode).first()
+                if state is not None:
+                    if effective_mode == "paper" and state.paper_initial_bankroll is not None:
+                        effective_initial = float(state.paper_initial_bankroll)
+                    elif effective_mode == "testnet" and state.testnet_initial_bankroll is not None:
+                        effective_initial = float(state.testnet_initial_bankroll)
+            base_bankroll = max(bankroll, effective_initial)
+
+            # Check daily loss floor
+            daily_floor = base_bankroll * self.s.DAILY_LOSS_FLOOR_PCT
+            if daily_pnl < daily_floor:
+                # Pause all strategies for 24 hours
+                pause_until = now + timedelta(hours=24)
+                
+                # Store pause timestamp in BotState.misc_data
+                if db is not None:
+                    state = db.query(BotState).filter_by(mode=effective_mode).first()
+                    if state is None:
+                        state = BotState(mode=effective_mode, misc_data={})
+                        db.add(state)
+                    
+                    state.misc_data = state.misc_data or {}
+                    state.misc_data["pause_until"] = pause_until.isoformat()
+                    db.commit()
+                
+                # Emit SSE event
+                self._publish_event("daily_loss_floor_triggered", {
+                    "bankroll": bankroll,
+                    "daily_pnl": daily_pnl,
+                    "daily_floor_pct": self.s.DAILY_LOSS_FLOOR_PCT,
+                    "daily_floor_amount": daily_floor,
+                    "pause_until": pause_until.isoformat(),
+                    "action": "all_strategies_paused"
+                })
+                
+                return True, "all_strategies_paused_24h"
+
+            # Check weekly loss floor
+            weekly_floor = base_bankroll * self.s.WEEKLY_LOSS_FLOOR_PCT
+            if weekly_pnl < weekly_floor:
+                # Revert to PAPER mode for 7 days
+                paper_until = now + timedelta(days=7)
+                
+                # Store paper mode timestamp in BotState.misc_data
+                if db is not None:
+                    state = db.query(BotState).filter_by(mode=effective_mode).first()
+                    if state is None:
+                        state = BotState(mode=effective_mode, misc_data={})
+                        db.add(state)
+                    
+                    state.misc_data = state.misc_data or {}
+                    state.misc_data["paper_until"] = paper_until.isoformat()
+                    db.commit()
+                
+                # Emit SSE event
+                self._publish_event("weekly_loss_floor_triggered", {
+                    "bankroll": bankroll,
+                    "weekly_pnl": weekly_pnl,
+                    "weekly_floor_pct": self.s.WEEKLY_LOSS_FLOOR_PCT,
+                    "weekly_floor_amount": weekly_floor,
+                    "paper_until": paper_until.isoformat(),
+                    "action": "reverted_to_paper_mode"
+                })
+                
+                return True, "reverted_to_paper_mode_7d"
+            
+            return False, None
+            
+        except Exception as e:
+            logger.error(f"[risk_manager.check_drawdown_floors] {type(e).__name__}: {e}", exc_info=True)
+            return False, f"error_during_floor_check: {type(e).__name__}"
+        finally:
+            if owns_db:
+                db.close()
+
+    def _publish_event(self, event_type: str, payload: dict):
+        """Publish SSE event via event bus."""
+        try:
+            from backend.core.event_bus import publish_event
+            publish_event(event_type, payload)
+        except ImportError:
+            logger.warning(f"[risk_manager] Event bus not available, skipping SSE event: {event_type}")
+        except Exception as e:
+            logger.error(f"[risk_manager._publish_event] {type(e).__name__}: {e}", exc_info=True)
+
+    def _get_regime_multiplier(self, strategy_name: Optional[str] = None) -> float:
+        """Get current regime confidence multiplier from RegimeConfidenceRouter."""
+        try:
+            from backend.application.meta.regime_router import RegimeConfidenceRouter
+            # TODO: Wire in the new RegimeConfidenceRouter from application.meta
+            # For now, fall back to the placeholder implementation
+            # regime_router = RegimeConfidenceRouter()
+            # return regime_router.get_multiplier(strategy_name or "")
+            from backend.core.regime_router import regime_router
+            return regime_router.get_multiplier(strategy_name or "")
+        except ImportError:
+            # Fallback to default multiplier if regime router not available
+            return 1.0

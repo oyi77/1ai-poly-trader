@@ -59,12 +59,16 @@ class TestAGIGoal:
 # ── ExperimentStatus enum ─────────────────────────────────────────────────
 
 class TestExperimentStatus:
-    """ExperimentStatus enum must have exactly 6 members."""
+    """ExperimentStatus enum must have all lifecycle members."""
 
-    def test_has_all_six_members(self):
-        expected = {"DRAFT", "SHADOW", "PAPER", "LIVE_PROMOTED", "LIVE_FAILED", "RETIRED"}
+    def test_has_all_members(self):
+        expected = {
+            "DRAFT", "BACKTEST", "SHADOW", "PAPER",
+            "LIVE_TRIAL", "LIVE_PROMOTED", "LIVE_FAILED",
+            "REVIEW", "RETIRED",
+        }
         actual = {m.name for m in ExperimentStatus}
-        assert actual == expected, f"Missing statuses: {expected - actual}"
+        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
 
     def test_string_values_are_lowercase(self):
         for member in ExperimentStatus:

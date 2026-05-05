@@ -26,6 +26,7 @@ from backend.models.kg_models import ExperimentRecord
 from backend.core.experiment_runner import ExperimentRunner, EvaluationResult
 from backend.core.agi_types import ExperimentStatus
 from backend.core.strategy_health import StrategyHealthMonitor
+from backend.core.event_bus import publish_event
 
 logger = logging.getLogger("trading_bot.autonomous_promoter")
 
@@ -161,9 +162,11 @@ class AutonomousPromoter:
                     exp.backtest_passed = True
                     exp.created_at = datetime.now(timezone.utc)
                     db.add(exp)
+                    bt_sharpe = f"{exp.backtest_sharpe:.2f}" if exp.backtest_sharpe is not None else "N/A"
+                    bt_wr = f"{exp.backtest_win_rate:.1%}" if exp.backtest_win_rate is not None else "N/A"
                     logger.info(
                         f"[AutonomousPromoter] BACKTEST→SHADOW '{exp.name}': "
-                        f"sharpe={exp.backtest_sharpe:.2f} wr={exp.backtest_win_rate:.1%}"
+                        f"sharpe={bt_sharpe} wr={bt_wr}"
                     )
                 else:
                     ref_time = exp.created_at
@@ -191,6 +194,18 @@ class AutonomousPromoter:
                     exp.status = ExperimentStatus.PAPER.value
                     exp.promoted_at = datetime.now(timezone.utc)
                     db.add(exp)
+                    try:
+                        publish_event("experiment_promoted", {
+                            "genome_id": exp.id,
+                            "strategy_name": exp.strategy_name or exp.name,
+                            "from_stage": "SHADOW",
+                            "to_stage": "PAPER",
+                            "shadow_trades": exp.shadow_trades,
+                            "shadow_win_rate": exp.shadow_win_rate,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        })
+                    except Exception as e:
+                        logger.warning(f"[AutonomousPromoter] publish_event failed (non-fatal): {e}")
                     logger.info(
                         f"[AutonomousPromoter] SHADOW→PAPER '{exp.name}': "
                         f"trades={exp.shadow_trades}, wr={exp.shadow_win_rate:.1%}"
@@ -316,6 +331,18 @@ class AutonomousPromoter:
                         if settings.AGI_AUTO_ENABLE:
                             await self._enable_strategy(strategy_name, db, experiment=exp)
                         db.add(exp)
+                        try:
+                            publish_event("experiment_promoted", {
+                                "genome_id": exp.id,
+                                "strategy_name": exp.strategy_name or exp.name,
+                                "from_stage": "LIVE_TRIAL",
+                                "to_stage": "LIVE_PROMOTED",
+                                "win_rate": wr,
+                                "sharpe": sharpe,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            })
+                        except Exception as e:
+                            logger.warning(f"[AutonomousPromoter] publish_event failed (non-fatal): {e}")
                         logger.info(f"[AutonomousPromoter] LIVE_TRIAL→LIVE_PROMOTED '{exp.name}': wr={wr:.1%} sharpe={sharpe:.2f}")
                         stats["trial_to_live"] = stats.get("trial_to_live", 0) + 1
                     else:

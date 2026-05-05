@@ -21,6 +21,12 @@ class _MockSettings:
     DAILY_DRAWDOWN_LIMIT_PCT: float = 0.10
     WEEKLY_DRAWDOWN_LIMIT_PCT: float = 0.20
     TRADING_MODE: str = "paper"
+    AUTO_APPROVE_MIN_CONFIDENCE: float = 0.6
+    REGIME_ROUTING_ENABLED: bool = False
+    DRAWDOWN_BREAKER_ENABLED_PER_MODE: dict = {"paper": True, "testnet": True, "live": True}
+    DAILY_LOSS_LIMIT_ENABLED_PER_MODE: dict = {"paper": True, "testnet": True, "live": True}
+    AGI_BANKROLL_ALLOCATION_ENABLED: bool = True
+    MAX_TOTAL_PENDING_TRADES: int = 10
 
 
 @pytest.fixture()
@@ -44,7 +50,8 @@ def _make_rm():
 
 class TestAllocationEnforcement:
     @patch("backend.core.risk_manager.SessionLocal")
-    def test_no_allocation_allows_trade(self, mock_session_cls):
+    @patch("backend.core.risk_manager.RiskManager._count_enabled_strategies", return_value=1)
+    def test_no_allocation_allows_trade(self, mock_count, mock_session_cls):
         mock_db = MagicMock()
         mock_session_cls.return_value = mock_db
         mock_db.query.return_value.filter.return_value.scalar.return_value = 0.0

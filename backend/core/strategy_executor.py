@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from backend.config import settings
@@ -568,6 +568,29 @@ async def execute_decision(
                 logger.warning(
                     f"[strategy_executor.execute_decision] {type(e).__name__}: event broadcast failed (non-fatal): {e}",
                     exc_info=True,
+                )
+
+            try:
+                from backend.core.event_bus import publish_event
+                publish_event(
+                    "trade_executed",
+                    {
+                        "trade_id": trade.id,
+                        "market_ticker": market_ticker,
+                        "direction": direction,
+                        "fill_price": fill_price,
+                        "size": adjusted_size,
+                        "confidence": confidence,
+                        "edge": edge,
+                        "strategy_name": strategy_name,
+                        "genome_id": decision.get("genome_id"),
+                        "trading_mode": mode,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[strategy_executor.execute_decision] publish_event trade_executed failed (non-fatal): {e}"
                 )
 
             logger.info(

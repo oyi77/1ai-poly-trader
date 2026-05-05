@@ -15,6 +15,10 @@ from backend.models.outcome_tables import StrategyOutcome, StrategyHealthRecord
 logger = logging.getLogger(__name__)
 
 
+def _now_utc():
+    return datetime.now(timezone.utc)
+
+
 class StrategyHealthMonitor:
     MIN_WARMUP_TRADES = 30
     KILL_WIN_RATE = 0.05
@@ -64,6 +68,22 @@ class StrategyHealthMonitor:
             status = "killed"
             if not readonly:
                 self._disable_strategy(strategy, db)
+                try:
+                    from backend.core.event_bus import publish_event
+                    publish_event("strategy_killed", {
+                        "strategy_name": strategy,
+                        "genome_id": getattr(self, "genome_id", None),
+                        "reason": f"health_monitor: win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}",
+                        "metrics": {
+                            "win_rate": win_rate,
+                            "sharpe": sharpe,
+                            "max_drawdown": max_dd,
+                            "total_trades": total,
+                        },
+                        "timestamp": _now_utc().isoformat(),
+                    })
+                except Exception as e:
+                    logger.warning(f"[HealthMonitor] publish_event strategy_killed failed (non-fatal): {e}")
             logger.warning(
                 f"[HealthMonitor] Strategy '{strategy}' KILLED — "
                 f"win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}"

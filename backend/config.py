@@ -162,6 +162,8 @@ class Settings(BaseSettings):
     # Polymarket WebSocket (real-time market data)
     POLYMARKET_WS_ENABLED: bool = True
     POLYMARKET_USER_WS_ENABLED: bool = False
+    POLYMARKET_WS_SUBSCRIPTION_LIMIT: int = 200
+    WS_HANDLER_TIMEOUT_MS: int = 100
 
     # Job Queue Settings
     JOB_WORKER_ENABLED: bool = False  # Phase 1: disabled by default
@@ -178,6 +180,12 @@ class Settings(BaseSettings):
     )
     WEEKLY_DRAWDOWN_LIMIT_PCT: float = (
         0.20  # Pause trading if 7d loss > 20% of bankroll
+    )
+    DAILY_LOSS_FLOOR_PCT: float = (
+        -0.10  # Pause all strategies for 24h if daily PnL < -10% of bankroll
+    )
+    WEEKLY_LOSS_FLOOR_PCT: float = (
+        -0.20  # Revert to PAPER mode for 7 days if weekly PnL < -20% of bankroll
     )
 
     DRAWDOWN_BREAKER_ENABLED_PER_MODE: dict = {
@@ -217,12 +225,18 @@ class Settings(BaseSettings):
     RESEARCH_PIPELINE_INTERVAL_HOURS: int = 4  # Run every 4 hours
 
     # AGI Autonomy Controls (full automatic operation)
+    USE_EVENT_BUS_HANDLERS: bool = True  # Enable reactive event-driven AGI handlers (scheduler jobs become heartbeat fallback)
     AGI_AUTO_PROMOTE: bool = False  # Allow paper→live without human approval (default: off for safety)
     AGI_AUTO_ENABLE: bool = False  # Auto-enable strategies upon promotion to live
     AGI_PROMOTION_INTERVAL_HOURS: int = 6  # How often to evaluate experiments for promotion
     AGI_STRATEGY_HEALTH_ENABLED: bool = True  # Auto-disable underperforming strategies
     AGI_BANKROLL_ALLOCATION_ENABLED: bool = False  # Auto-reallocate capital by strategy rank
     AGI_BANKROLL_ALLOCATION_INTERVAL_DAYS: int = 1  # Rebalance frequency
+    REGIME_ROUTING_ENABLED: bool = True  # Enable regime-adjusted confidence thresholds
+    ENABLE_PAIR_COST_ARB: bool = True  # Enable pair cost arbitrage monitoring
+    MIN_ARB_SPREAD: float = 0.005  # Minimum arbitrage spread (0.5%) to trigger
+    TAKER_FEE_RATE: float = 0.02  # Polymarket taker fee rate (2%)
+    SHADOW_VALIDATE_ENABLED: bool = True  # Validate shadow genomes every 5 minutes
 
     AGI_HEALTH_CHECK_ENABLED: bool = True
     AGI_HEALTH_CHECK_INTERVAL_MINUTES: int = 15
@@ -244,6 +258,17 @@ class Settings(BaseSettings):
     AGI_HEALTH_DATA_FRESHNESS_HOURS: float = 24.0
     AGI_HEALTH_BUDGET_NEAR_LIMIT_PCT: float = 0.8
     AGI_HEALTH_ORPHAN_MAX_AGE_DAYS: int = 7
+
+    # Wave 9: Meta-Learning Layer
+    FORENSICS_AUTO_MUTATE: bool = False  # Auto-apply forensics-driven mutations
+    EVOLUTION_ENGINE_ENABLED: bool = False  # Enable evolution engine jobs
+    GENOME_POPULATION_TARGET: int = 25
+    MUTATION_CYCLE_INTERVAL_HOURS: int = 6
+    CROSSOVER_CYCLE_INTERVAL_HOURS: int = 168  # weekly
+    NECROMANCY_INTERVAL_DAYS: int = 7
+    GENOME_RAMP_MIN_TRADES: int = 10
+    GENOME_INITIAL_ALLOCATION_PCT: float = 0.02
+    FORENSICS_MAX_MUTATIONS_PER_DAY: int = 3
     AGI_NIGHTLY_REVIEW_OUTPUT_DIR: str = "docs/agi-log"
     AGI_NIGHTLY_REVIEW_LOOKBACK_DAYS: int = 7
     AGI_REHAB_COOLDOWN_DAYS: int = 7
@@ -276,6 +301,7 @@ class Settings(BaseSettings):
     # Phase 2 feature flags
     NEWS_FEED_ENABLED: bool = False
     ARBITRAGE_DETECTOR_ENABLED: bool = False
+    SSE_EVENT_TYPE_FILTER_ENABLED: bool = True
     NEWS_FEED_INTERVAL_SECONDS: int = 600
     ARBITRAGE_SCAN_INTERVAL_SECONDS: int = 120
 

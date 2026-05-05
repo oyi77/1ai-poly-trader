@@ -52,7 +52,7 @@ from backend.models.database import (
     PerformanceMetric, AuditLog, WhaleTransaction, BtcPriceSnapshot,
     ScanLog, CopyTraderEntry, SettlementEvent, EquitySnapshot,
     CalibrationRecord, ResearchItemDB, Alert, AlertConfig,
-    Setting, SystemSettings, ErrorLog, Experiment,
+    Setting, SystemSettings, ErrorLog, Experiment, ShadowTrade,
 )  # noqa: F401
 from backend.models.backtest import BacktestRun, BacktestTrade  # noqa: F401
 from backend.models.kg_models import LLMCostRecord  # noqa: F401
@@ -138,7 +138,43 @@ _MODULES_WITH_SESSIONLOCAL = [
     "backend.core.llm_cost_tracker",
     "backend.core.risk_profiles",
     "backend.core.settlement_helpers",
+    "backend.core.shadow_validation",
+    "backend.core.orchestrator",
+    "backend.core.scheduler",
+    "backend.core.scheduling_strategies",
+    "backend.core.settlement",
+    "backend.core.strategy_ranker",
+    "backend.core.agi_orchestrator",
+    "backend.core.agi_jobs",
+    "backend.core.fronttest_validator",
+    "backend.core.cache_cleanup",
+    "backend.core.auto_redeem",
     "backend.strategies.wallet_sync",
+    "backend.strategies.base",
+    "backend.strategies.copy_trader",
+    "backend.strategies.whale_pnl_tracker",
+    "backend.application.strategy.shadow_runner",
+    "backend.application.agi.evolution_jobs",
+    "backend.application.agi.knowledge_graph",
+    "backend.application.strategy.arbitrage.pair_cost_monitor",
+    "backend.api.lifespan",
+    "backend.api.activities",
+    "backend.api.analytics",
+    "backend.api.auto_trader",
+    "backend.api.backtest",
+    "backend.api.copy_trading",
+    "backend.api.system",
+    "backend.api.wallets",
+    "backend.api.sync",
+    "backend.ai.prediction_engine",
+    "backend.ai.feedback_tracker",
+    "backend.ai.impact_measurer",
+    "backend.ai.meta_learner",
+    "backend.ai.proposal_generator",
+    "backend.ai.rejection_learner",
+    "backend.ai.self_review",
+    "backend.ai.strategy_composer",
+    "backend.ai.counterfactual_scorer",
 ]
 
 
@@ -194,7 +230,7 @@ def db():
 @pytest.fixture(autouse=True)
 def cleanup_proposals_between_tests(db):
     from backend.models.database import (
-        BotState, Trade, Signal, StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, TradeAttempt, MiroFishSignal
+        BotState, Trade, Signal, StrategyProposal, StrategyConfig, ActivityLog, DecisionLog, TradeAttempt, MiroFishSignal, ShadowTrade
     )
     from backend.models.kg_models import ExperimentRecord
     db.query(Trade).delete()
@@ -206,6 +242,7 @@ def cleanup_proposals_between_tests(db):
     db.query(MiroFishSignal).delete()
     db.query(StrategyConfig).delete()
     db.query(ExperimentRecord).delete()
+    db.query(ShadowTrade).delete()
     
     db.info["allow_live_financial_update"] = True
     for mode in ["paper", "testnet", "live"]:

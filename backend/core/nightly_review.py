@@ -48,6 +48,15 @@ class NightlyReviewWriter:
                 f.write(content)
 
             logger.info("[NightlyReview] Written to %s", path)
+            
+            # TODO: Wire NightlyReview output into KnowledgeGraph (Wave 10)
+            # Publish event for KnowledgeGraph integration
+            from backend.core.event_bus import publish_event
+            publish_event("nightly_review_complete", {
+                "date": date_str,
+                "file_path": path
+            })
+            
             return path
         except Exception as e:
             logger.error("[NightlyReview] Failed: %s", e)
