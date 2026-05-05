@@ -97,13 +97,13 @@ class SignalParser:
                 logger.warning(
                     f"MiroFish signal {market_id}: prediction {prediction} out of range [0.0, 1.0]"
                 )
-                prediction = max(0.001, min(0.999, prediction))
+                return None
 
             if not (0.0 <= confidence <= 1.0):
                 logger.warning(
                     f"MiroFish signal {market_id}: confidence {confidence} out of range [0.0, 1.0]"
                 )
-                confidence = max(0.0, min(1.0, confidence))
+                return None
 
             # Create and return Signal object
             signal = Signal(

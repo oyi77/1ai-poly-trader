@@ -67,7 +67,8 @@ class PredictionEngine:
             
             class _RestrictedUnpickler(pickle.Unpickler):
                 ALLOWED_PREFIXES = (
-                    "sklearn.", "numpy.", "scipy.", "__builtin__", "builtins",
+                    "sklearn.", "numpy.", "numpy",
+                    "scipy.", "__builtin__", "builtins",
                     "collections", "pickle", "copyreg",
                 )
                 
