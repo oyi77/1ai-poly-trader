@@ -76,6 +76,10 @@ backups/
 # Screenshots (dev only)
 screenshots/
 dashboard-overview.png
+/dashboard-*.png
+/polyedge-dashboard-verification.png
+/screenshot-dashboard.png
+/trades-tab.png
 
 # SQLite WAL/SHM files
 *.db-shm
@@ -97,6 +101,8 @@ END_TO_END_TEST_RESULTS.md
 FEATURE_COMPARISON.md
 PLAYWRIGHT_TEST_RESULTS.md
 TERMINAL_UI.md
+/playwright-console.txt
+/playwright-network.txt
 
 # Dev design specs
 docs/superpowers/
@@ -110,3 +116,12 @@ archive/
 # Knowledge graph tool artifacts
 .understand-anything/
 docs/master_prompt.md
+
+# Generated paper build artifacts
+docs/paper/**/*.aux
+docs/paper/**/*.bbl
+docs/paper/**/*.blg
+docs/paper/**/*.out
+docs/paper/**/*.toc
+/paper.aux
+/paper.out
