@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-10 | Updated: 2026-05-05 -->
+<!-- Generated: 2026-04-10 | Updated: 2026-05-07 -->
 
 # polyedge
 
@@ -14,7 +14,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 | `requirements.txt` | Python package dependencies |
 | `docker-compose.yml` | Multi-service container setup (app + Redis) |
 | `Dockerfile` | Backend container build |
-| `ecosystem.config.js` | PM2 process manager configuration for production |
+| `ecosystem.config.js` | PM2 process manager configuration for production (removed mirofish-mock process) |
 | `railway.json` | Railway.app deployment configuration |
 | `vercel.json` | Vercel edge configuration for frontend |
 | `pytest.ini` | Test runner configuration |
@@ -27,6 +27,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 | `backend/core/autonomous_promoter.py` | Experiment lifecycle daemon — auto-promotes DRAFT→SHADOW→PAPER→LIVE, auto-retires killed experiments, health-based kill checks |
 | `backend/core/bankroll_allocator.py` | Daily capital allocator — computes allocations via `StrategyRanker`, persists to `BotState.misc_data` |
 | `backend/core/trade_forensics.py` | Per-loss trade analysis — diagnoses root causes, aggregates pattern insights |
+| `backend/data/market_universe.py` | MarketUniverseScanner — universal market discovery across platforms using DataProvider ABC with configurable TTL cache |
 | `docs/architecture/adr-006-agi-autonomy-framework.md` | AGI autonomy governance — promotion gates, safety boundaries, human-in-the-loop override |
 
 ## Subdirectories
@@ -40,6 +41,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 | `scripts/` | Operational scripts: seed, verify, backup, health-check, migration (see `scripts/AGENTS.md`) |
 | `.github/` | GitHub Actions CI workflow |
 | `alembic/` | Database migration framework (standard Alembic setup) |
+| `backend/modules/` | Infra modules (NOT alpha strategies): data feeds, execution helpers, arbitrage, scanners (see `backend/modules/AGENTS.md`) |
 
 ## For AI Agents
 
@@ -67,6 +69,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 - Frontend polling intervals are configurable via `VITE_POLL_FAST_MS`, `VITE_POLL_NORMAL_MS`, `VITE_POLL_SLOW_MS`, `VITE_POLL_VERY_SLOW_MS` (see `frontend/src/polling.ts`)
 - All sensitive operations guarded by circuit breakers and risk limits
 - Redis optional — falls back to SQLite queue when unavailable
+- `backend/modules/` is for infrastructure modules (data feeds, execution helpers, arbitrage, scanners) — NOT alpha strategies. Alpha strategies go in `backend/strategies/`.
 
 ## Dependencies
 
