@@ -263,11 +263,11 @@ class ImpactMeasurer:
                 proposal = db.query(StrategyProposal).filter(
                     StrategyProposal.id == impact.proposal_id
                 ).first()
-                
+
                 if not proposal:
                     self.logger.error(f"Proposal {impact.proposal_id} not found in database")
                     return
-                
+
                 # Store impact as JSON
                 impact_data = {
                     'sharpe_ratio_delta': impact.sharpe_ratio_delta,
@@ -281,9 +281,9 @@ class ImpactMeasurer:
                     'metrics_before': metrics_before,
                     'metrics_after': metrics_after
                 }
-                
+
                 proposal.impact_measured = impact_data
-                
+
                 self.logger.info(f"Stored impact measurement for proposal {impact.proposal_id}")
         except Exception as e:
             self.logger.error(f"Failed to store impact: {e}")
@@ -304,10 +304,10 @@ class ImpactMeasurer:
                 proposal = db.query(StrategyProposal).filter(
                     StrategyProposal.id == proposal_id
                 ).first()
-                
+
                 if not proposal or not proposal.impact_measured:
                     return None
-                
+
                 return proposal.impact_measured
         except Exception:
             return None
