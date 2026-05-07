@@ -340,8 +340,8 @@ class GeneralMarketScanner(BaseStrategy):
                         if state.bankroll is not None
                         else ctx.settings.INITIAL_BANKROLL
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            ctx.logger.error(f"[general_scanner] Bankroll fetch failed: {e}")
 
         ai_calls_this_cycle = 0
         existing_tickers: set = set()
@@ -356,8 +356,8 @@ class GeneralMarketScanner(BaseStrategy):
             )
             existing_tickers = {t.market_ticker for t in open_trades if t.market_ticker}
             open_trade_count = len(open_trades)
-        except Exception:
-            pass
+        except Exception as e:
+            ctx.logger.error(f"[general_scanner] Open trades fetch failed: {e}")
 
         if max_concurrent > 0 and open_trade_count >= max_concurrent:
             ctx.logger.info(
@@ -537,7 +537,8 @@ class GeneralMarketScanner(BaseStrategy):
                                 f"imbalance={imbalance:+.2f}, "
                                 f"large_bids={large_bids}, large_asks={large_asks}"
                             )
-                except Exception:
+                except Exception as e:
+                    ctx.logger.error(f"[general_scanner] CLOB fetch failed: {e}")
                     pass  # Non-fatal: if CLOB fetch fails, continue without OB data
 
             # --- 3. Whale pressure from WalletConfig (top whales per market, if available) ---
