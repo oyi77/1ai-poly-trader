@@ -263,7 +263,7 @@ class GeneralMarketScanner(BaseStrategy):
         }
 
         # AI is required for this strategy to have any edge
-        if not getattr(ctx.settings, 'AI_GENERATION_ENABLED', False):
+        if not getattr(ctx.settings, 'AI_ENABLED', False):
             ctx.logger.info(
                 "[general_scanner] AI disabled — skipping cycle (AI required for edge)"
             )
@@ -318,9 +318,9 @@ class GeneralMarketScanner(BaseStrategy):
         # Fetch current bankroll
         bankroll = 100.0
         try:
-            from backend.models.database import BotState
+            from backend.models.database import BotState, for_update
 
-            state = ctx.db.query(BotState).first()
+            state = for_update(ctx.db, ctx.db.query(BotState)).first()
             if state:
                 if ctx.mode == "paper":
                     bankroll = float(

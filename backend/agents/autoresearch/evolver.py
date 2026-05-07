@@ -115,11 +115,12 @@ class StrategyEvolver:
         ))
 
     def _find_evolvable_strategies(self, db: Session) -> dict:
-        from sqlalchemy import func
+        from sqlalchemy import func, case
         rows = (
             db.query(
                 StrategyOutcome.strategy,
                 func.count(StrategyOutcome.id).label("total"),
+                func.sum(case((StrategyOutcome.result == "win", 1), else_=0)).label("wins"),
             )
             .group_by(StrategyOutcome.strategy)
             .all()
@@ -130,12 +131,8 @@ class StrategyEvolver:
             total = row.total
             if total < MIN_OUTCOMES_TO_EVOLVE:
                 continue
-            outcomes = (
-                db.query(StrategyOutcome)
-                .filter(StrategyOutcome.strategy == name)
-                .all()
-            )
-            wins = sum(1 for o in outcomes if o.result == "win")
+
+            wins = row.wins or 0
             wr = wins / total if total > 0 else 0.0
             if total >= FUNDAMENTALLY_BROKEN_MIN_TRADES and wr <= FUNDAMENTALLY_BROKEN_WIN_RATE:
                 logger.info(
