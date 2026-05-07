@@ -12,7 +12,7 @@ from backend.api.auth import require_admin
 from backend.config import settings
 from backend.core.event_bus import publish_event
 from backend.core.wallet_reconciliation import WalletReconciler
-from backend.models.database import BotState, get_db
+from backend.models.database import BotState, get_db, for_update
 
 logger = logging.getLogger("trading_bot")
 
@@ -47,7 +47,7 @@ async def get_sync_status(
     - last_result: Result of last sync ("success" or error message)
     - status: "healthy" if last sync < 2 min ago, else "stale"
     """
-    state = db.query(BotState).first()
+    state = for_update(db, db.query(BotState)).first()
     now = datetime.now(timezone.utc)
     
     # Helper to compute status
@@ -93,7 +93,7 @@ async def _sync_wallet_background(mode: str, db: Session):
         result = await reconciler.full_reconciliation()
 
         # Update BotState with sync result
-        state = db.query(BotState).first()
+        state = for_update(db, db.query(BotState)).first()
         if state:
             state.last_sync_at = result.last_sync_at
             db.commit()

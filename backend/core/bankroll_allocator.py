@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from backend.config import settings
-from backend.models.database import SessionLocal, BotState
+from backend.models.database import SessionLocal, BotState, for_update
 from backend.core.strategy_ranker import StrategyRanker
 
 logger = logging.getLogger("trading_bot.bankroll_allocator")
@@ -35,7 +35,7 @@ class BankrollAllocator:
         try:
             all_allocations = {}
             for mode in settings.active_modes_set:
-                state = db.query(BotState).filter_by(mode=mode).first()
+                state = for_update(db, db.query(BotState).filter_by(mode=mode)).first()
                 if not state:
                     continue
                 bankroll = state.bankroll or 0.0

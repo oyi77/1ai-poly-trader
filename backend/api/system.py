@@ -146,9 +146,9 @@ async def get_stats(
     mode: Optional[str] = Query(None)
 ):
     # Query all 3 mode states
-    paper_state = db.query(BotState).filter_by(mode="paper").first()
-    testnet_state = db.query(BotState).filter_by(mode="testnet").first()
-    live_state = db.query(BotState).filter_by(mode="live").first()
+    paper_state = for_update(db, db.query(BotState).filter_by(mode="paper")).first()
+    testnet_state = for_update(db, db.query(BotState).filter_by(mode="testnet")).first()
+    live_state = for_update(db, db.query(BotState).filter_by(mode="live")).first()
     
     # Use provided mode or current mode as primary
     effective_mode = mode or settings.TRADING_MODE
@@ -698,7 +698,7 @@ async def start_bot(
     from backend.core.scheduler import start_scheduler, log_event, is_scheduler_running
 
     mode = (body or {}).get("mode", settings.TRADING_MODE)
-    state = db.query(BotState).filter_by(mode=mode).first()
+    state = for_update(db, db.query(BotState).filter_by(mode=mode)).first()
     if state and state.is_running:
         raise HTTPException(
             status_code=409, detail={"error": "already_running", "is_running": True}
@@ -724,7 +724,7 @@ async def stop_bot(
     from backend.core.scheduler import log_event
 
     mode = (body or {}).get("mode", settings.TRADING_MODE)
-    state = db.query(BotState).filter_by(mode=mode).first()
+    state = for_update(db, db.query(BotState).filter_by(mode=mode)).first()
     if state and not state.is_running:
         raise HTTPException(
             status_code=409, detail={"error": "already_stopped", "is_running": False}
@@ -757,7 +757,7 @@ async def reset_bot(
         trades_deleted = db.query(Trade).delete()
         
         for mode in ["paper", "testnet", "live"]:
-            state = db.query(BotState).filter_by(mode=mode).first()
+            state = for_update(db, db.query(BotState).filter_by(mode=mode)).first()
             if state:
                 state.bankroll = settings.INITIAL_BANKROLL
                 state.total_trades = 0
@@ -808,7 +808,7 @@ async def paper_topup(
     from backend.core.scheduler import log_event
     from backend.models.audit_logger import log_audit_event
 
-    state = db.query(BotState).filter_by(mode="paper").first()
+    state = for_update(db, db.query(BotState).filter_by(mode="paper")).first()
     if state is None:
         raise HTTPException(status_code=404, detail="Paper bot state not found")
 
@@ -987,7 +987,7 @@ async def run_scan(db: Session = Depends(get_db), _: None = Depends(require_admi
 
     # Iterate over all active modes to update last_run
     for mode in settings.active_modes_set:
-        state = db.query(BotState).filter_by(mode=mode).first()
+        state = for_update(db, db.query(BotState).filter_by(mode=mode)).first()
         if state:
             state.last_run = datetime.now(timezone.utc)
     db.commit()
@@ -1568,7 +1568,7 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
     # Build a proper StrategyContext and run the strategy
     try:
         from backend.strategies.base import StrategyContext
-        from backend.models.database import SessionLocal, BotState, StrategyConfig
+        from backend.models.database import SessionLocal, BotState, StrategyConfig, for_update
 
         cls = STRATEGY_REGISTRY[name]
         instance = cls()
@@ -1583,7 +1583,7 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
                 cfg.trading_mode if cfg and cfg.trading_mode else None
             ) or settings.TRADING_MODE
             
-            state = db.query(BotState).filter_by(mode=strategy_mode).first()
+            state = for_update(db, db.query(BotState).filter_by(mode=strategy_mode)).first()
             if not state:
                 raise HTTPException(status_code=404, detail="Bot state not initialized")
             cfg = (
