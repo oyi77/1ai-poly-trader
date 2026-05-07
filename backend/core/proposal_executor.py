@@ -436,7 +436,7 @@ class ProposalExecutor:
         proposals = db.query(StrategyProposal).filter(
                 StrategyProposal.admin_decision == "executed"
             ).order_by(StrategyProposal.executed_at.desc()).limit(limit).all()
-        
+
         result = []
         for p in proposals:
             result.append({
@@ -448,7 +448,7 @@ class ProposalExecutor:
                 "impact_measured": p.impact_measured,
                 "admin_user_id": p.admin_user_id
             })
-        
+
         return result
     
     def _calculate_sharpe_ratio(self, trades: List[Trade]) -> float:

@@ -17,16 +17,16 @@ from backend.ai.mirofish_client import (
 def mock_db_settings():
     """Mock database settings for MiroFish client initialization."""
     mock_session = MagicMock()
-    
+
     settings_map = {
         "mirofish_api_url": "https://test.mirofish.ai",
         "mirofish_api_key": "test_key_123",
         "mirofish_api_timeout": 10.0,
     }
-    
+
     query_count = [0]
     query_keys = ["mirofish_api_url", "mirofish_api_key", "mirofish_api_timeout"]
-    
+
     def mock_query(model):
         mock_query_obj = MagicMock()
         
@@ -47,7 +47,7 @@ def mock_db_settings():
         
         mock_query_obj.filter = mock_filter
         return mock_query_obj
-    
+
     mock_session.query = mock_query
 
     with (
