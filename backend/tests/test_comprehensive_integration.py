@@ -99,6 +99,11 @@ def test_mirofish_service_lifecycle():
     
     assert service.state.value == "stopped"
     
+    # Edge case: stopping an already stopped service
+    result = service.stop()
+    assert result["state"] == "stopped"
+    assert result["message"] == "Already stopped"
+
     result = service.start()
     assert result["state"] == "running"
     assert "Started" in result["message"]
@@ -115,6 +120,11 @@ def test_mirofish_service_lifecycle():
     assert result["state"] == "stopped"
     assert "Stopped" in result["message"]
     
+    # Edge case: stopping again
+    result = service.stop()
+    assert result["state"] == "stopped"
+    assert result["message"] == "Already stopped"
+
     assert service.state.value == "stopped"
 
 
