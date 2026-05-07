@@ -1254,7 +1254,7 @@ def seed_default_data():
         _set_sqlite_busy_timeout(db, 1000)
 
         for mode in ["paper", "testnet", "live"]:
-            existing = db.query(BotState).filter_by(mode=mode).first()
+            existing = for_update(db, db.query(BotState).filter_by(mode=mode)).first()
             if not existing:
                 initial_bankroll = app_settings.INITIAL_BANKROLL
                 if mode == "testnet":

@@ -318,9 +318,9 @@ class GeneralMarketScanner(BaseStrategy):
         # Fetch current bankroll
         bankroll = 100.0
         try:
-            from backend.models.database import BotState
+            from backend.models.database import BotState, for_update
 
-            state = ctx.db.query(BotState).first()
+            state = for_update(ctx.db, ctx.db.query(BotState)).first()
             if state:
                 if ctx.mode == "paper":
                     bankroll = float(
