@@ -181,14 +181,16 @@ class WalletReconciler:
 
     async def import_blockchain_history(self, max_pages: Optional[int] = None) -> int:
         """
-        Download ALL historical trades from blockchain via Data API.
+        Download ALL historical trades from blockchain via Data API /activity endpoint.
 
-        Fetches from https://data-api.polymarket.com/positions?user={wallet_address}.
-        Imports trades with source='external' if they don't exist locally.
-        Deduplicates by market_ticker and timestamp.
+        Fetches from {DATA_API_URL}/activity?user={wallet_address}, paginating
+        through all records. Filters to type=TRADE and aggregates by conditionId
+        to produce one DB Trade per unique market (slug). This avoids duplicates
+        and wrong-sized trades caused by the old /positions-based approach which
+        used token_ids as market_ticker (DB uses slugs).
 
         Args:
-            max_pages: Unused (Data API returns all positions in one call)
+            max_pages: Safety cap on pagination (None = fetch all)
 
         Returns:
             Count of newly imported trades
@@ -200,65 +202,146 @@ class WalletReconciler:
         self.logger.info(f"Importing blockchain history for {self.wallet_address}")
 
         try:
-            # Fetch positions from Data API
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    settings.DATA_API_URL + "/positions",
-                    params={"user": self.wallet_address}
-                )
-                response.raise_for_status()
-                positions = response.json()
+            # Paginate through ALL activity records
+            all_trades: list[dict] = []
+            offset = 0
+            page_limit = 100
+            pages_fetched = 0
 
-            self.logger.info(f"Downloaded {len(positions)} positions from Data API")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                while True:
+                    response = await client.get(
+                        settings.DATA_API_URL + "/activity",
+                        params={
+                            "user": self.wallet_address,
+                            "limit": page_limit,
+                            "offset": offset,
+                        },
+                    )
+                    response.raise_for_status()
+                    batch = response.json()
+
+                    if not batch:
+                        break
+
+                    # Filter to TRADE records only
+                    trade_records = [r for r in batch if r.get("type") == "TRADE"]
+                    all_trades.extend(trade_records)
+
+                    offset += len(batch)
+                    pages_fetched += 1
+
+                    if max_pages is not None and pages_fetched >= max_pages:
+                        self.logger.info(f"Reached max_pages={max_pages} limit")
+                        break
+
+                    # If we got fewer than page_limit, we've reached the end
+                    if len(batch) < page_limit:
+                        break
+
+            self.logger.info(
+                f"Downloaded {len(all_trades)} TRADE records from activity API "
+                f"({pages_fetched} pages)"
+            )
+
+            if not all_trades:
+                return 0
+
+            # Aggregate by conditionId: one position per unique market
+            agg: dict[str, dict] = {}
+            for rec in all_trades:
+                cond_id = rec.get("conditionId", "")
+                slug = rec.get("slug", "")
+                if not cond_id or not slug:
+                    continue
+
+                if cond_id not in agg:
+                    agg[cond_id] = {
+                        "slug": slug,
+                        "conditionId": cond_id,
+                        "total_size": 0.0,
+                        "weighted_price_sum": 0.0,
+                        "outcome": rec.get("outcome", "Yes"),
+                        "title": rec.get("title", ""),
+                    }
+
+                size = float(rec.get("size", 0))
+                price = float(rec.get("price", 0))
+                agg[cond_id]["total_size"] += size
+                agg[cond_id]["weighted_price_sum"] += size * price
+
+            self.logger.info(f"Aggregated into {len(agg)} unique positions by conditionId")
 
             imported = 0
-            for pos in positions:
-                # Import both open and redeemable (settled) positions
-                _is_redeemable = pos.get("redeemable", False)
+            for cond_id, pos_data in agg.items():
+                slug = pos_data["slug"]
+                total_size = pos_data["total_size"]
+                outcome = pos_data["outcome"]
 
-                # Use asset (token_id) as market_ticker (enables CLOB API midpoint lookup)
-                market_slug = pos["asset"]
-                size = pos["initialValue"]
-                avg_price = pos["avgPrice"]
-                outcome = pos["outcome"]
+                # Compute weighted average price
+                if total_size > 0:
+                    avg_price = pos_data["weighted_price_sum"] / total_size
+                else:
+                    avg_price = 0.0
 
+                # Check if a Trade with this exact slug already exists
                 existing = self.db.query(Trade).filter(
-                    Trade.market_ticker == market_slug
+                    Trade.market_ticker == slug,
+                    Trade.trading_mode == self.mode,
                 ).first()
 
                 if existing:
-                    if abs(existing.size - size) > 0.01:
-                        from backend.models.audit_logger import log_position_updated
-                        old_size = existing.size
-                        self.logger.info(
-                            f"Updating position size for {market_slug}: "
-                            f"{existing.size} -> {size}"
+                    size_diff = abs((existing.size or 0.0) - total_size)
+                    if size_diff <= 0.01:
+                        # Already imported with matching size — skip
+                        self.logger.debug(
+                            f"Trade {slug} already in DB (id={existing.id}, "
+                            f"size={existing.size})"
                         )
-                        existing.size = size
+                        continue
+                    else:
+                        # Size differs — update with audit log
+                        from backend.models.audit_logger import log_position_updated
+
+                        old_size = existing.size
+                        old_entry_price = existing.entry_price
+                        self.logger.info(
+                            f"Updating position size for {slug}: "
+                            f"{old_size} -> {total_size} (conditionId aggregation)"
+                        )
+                        existing.size = total_size
+                        existing.entry_price = avg_price
                         existing.last_sync_at = datetime.now(timezone.utc)
+                        existing.blockchain_verified = True
                         log_position_updated(
                             db=self.db,
-                            position_id=f"{market_slug}:{existing.id}",
-                            old_state={"size": old_size, "last_sync_at": None},
-                            new_state={"size": size, "last_sync_at": existing.last_sync_at.isoformat()},
+                            position_id=f"{slug}:{existing.id}",
+                            old_state={
+                                "size": old_size,
+                                "entry_price": old_entry_price,
+                            },
+                            new_state={
+                                "size": total_size,
+                                "entry_price": avg_price,
+                                "last_sync_at": existing.last_sync_at.isoformat(),
+                            },
                             user_id="system:reconciliation",
                         )
-                    else:
-                        self.logger.debug(f"Trade {market_slug} already in DB (id={existing.id})")
                     continue
 
+                # No existing trade — create new one
                 new_trade = Trade(
-                    market_ticker=market_slug,
+                    market_ticker=slug,
                     platform="polymarket",
                     direction="up" if outcome == "Yes" else "down",
                     entry_price=avg_price,
-                    size=size,
+                    size=total_size,
                     timestamp=datetime.now(timezone.utc),
                     trading_mode=self.mode,
                     settled=False,
                     result=None,
                     source="external",
-                    strategy=self._resolve_strategy_for_position(market_slug) or "wallet_import",
+                    strategy=self._resolve_strategy_for_position(slug) or "wallet_import",
                     blockchain_verified=True,
                     settlement_source=None,
                     external_import_at=datetime.now(timezone.utc),
@@ -270,8 +353,9 @@ class WalletReconciler:
                 self.db.add(new_trade)
                 imported += 1
                 self.logger.info(
-                    f"Imported orphaned position: {market_slug} "
-                    f"({outcome} @ {avg_price}, {size} shares)"
+                    f"Imported position: {slug} "
+                    f"({outcome} @ {avg_price:.4f}, {total_size:.2f} shares, "
+                    f"condId={cond_id[:16]}...)"
                 )
 
             self.db.commit()
@@ -283,7 +367,8 @@ class WalletReconciler:
                 reconciliation_data={
                     "operation": "import_blockchain_history",
                     "imported_count": imported,
-                    "total_positions": len(positions),
+                    "total_trade_records": len(all_trades),
+                    "unique_positions": len(agg),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
                 user_id="system:reconciliation",
@@ -300,13 +385,10 @@ class WalletReconciler:
             raise
 
     async def import_activity_redeems(self) -> int:
-        """
-        Import REDEEM records from the activity API.
+        """Import REDEEM records from /activity API using exact slug matching.
 
-        The /positions endpoint only returns current/recent positions. Once a
-        winning position is fully redeemed, it disappears from /positions. The
-        /activity endpoint's REDEEM records are the only way to recover these
-        trades and ensure accurate P&L.
+        REDEEM records capture winning positions that disappeared from /positions
+        after full redemption. Uses ONLY exact slug matching — no loose prefix.
         """
         if not self.wallet_address:
             self.logger.warning("Wallet address is empty, skipping REDEEM activity import")
@@ -315,110 +397,100 @@ class WalletReconciler:
         self.logger.info(f"Importing REDEEM activity for {self.wallet_address}")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    settings.DATA_API_URL + "/activity",
-                    params={"user": self.wallet_address, "limit": 200},
-                )
-                response.raise_for_status()
-                activities = response.json()
+            all_redeems: list[dict] = []
+            offset = 0
+            page_limit = 100
 
-            redeem_records = [a for a in activities if a.get("type") == "REDEEM"]
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                while True:
+                    response = await client.get(
+                        settings.DATA_API_URL + "/activity",
+                        params={
+                            "user": self.wallet_address,
+                            "limit": page_limit,
+                            "offset": offset,
+                        },
+                    )
+                    response.raise_for_status()
+                    batch = response.json()
+
+                    if not batch:
+                        break
+
+                    all_redeems.extend(r for r in batch if r.get("type") == "REDEEM")
+                    offset += len(batch)
+                    if len(batch) < page_limit:
+                        break
+
             self.logger.info(
-                f"Found {len(redeem_records)} REDEEM records in activity API"
+                f"Found {len(all_redeems)} REDEEM records in activity API"
             )
 
             imported = 0
-            for record in redeem_records:
+            for record in all_redeems:
                 condition_id = record.get("conditionId", "")
-                title = record.get("title", "")
+                slug = record.get("slug", "")
                 redeem_amount = float(record.get("usdcSize", 0))
-                _tx_hash = record.get("transactionHash", "")
                 timestamp_unix = record.get("timestamp", 0)
 
                 if not condition_id:
                     continue
 
-                slug = record.get("slug", "")
-                _event_slug = record.get("eventSlug", "")
-
+                # Step 1: Exact slug match
                 existing = None
-                if condition_id:
-                    token_id_trades = self.db.query(Trade).filter(
-                        (Trade.market_ticker.contains(condition_id[:32])) &
-                        (Trade.trading_mode == self.mode)
-                    ).all()
-                    if len(token_id_trades) == 1:
-                        existing = token_id_trades[0]
-                    elif len(token_id_trades) > 1:
-                        for mt in token_id_trades:
-                            market_ticker = mt.market_ticker or ""
-                            if condition_id in market_ticker:
-                                existing = mt
-                                break
+                if slug:
+                    existing = self.db.query(Trade).filter(
+                        Trade.market_ticker == slug,
+                        Trade.trading_mode == self.mode,
+                    ).first()
 
-                if existing is None and slug:
-                    slug_prefix = slug[:min(len(slug), 40)]
-                    matching_trades = self.db.query(Trade).filter(
-                        (Trade.market_ticker.contains(slug_prefix)) &
-                        (Trade.trading_mode == self.mode)
+                # Step 2: If no slug match, scan all mode trades in Python and
+                # match by conditionId stored in the activity record vs slug
+                if existing is None and condition_id:
+                    all_mode_trades = self.db.query(Trade).filter(
+                        Trade.trading_mode == self.mode,
                     ).all()
-                    if len(matching_trades) == 1:
-                        existing = matching_trades[0]
-                    elif len(matching_trades) > 1:
-                        for mt in matching_trades:
-                            market_ticker = mt.market_ticker or ""
-                            if slug in market_ticker or market_ticker in slug:
-                                existing = mt
-                                break
-
-                if existing is None and title:
-                    title_prefix = title[:min(len(title), 30)]
-                    matching_trades = self.db.query(Trade).filter(
-                        (Trade.market_ticker.contains(title_prefix)) &
-                        (Trade.trading_mode == self.mode)
-                    ).all()
-                    if len(matching_trades) == 1:
-                        existing = matching_trades[0]
-                    elif len(matching_trades) > 1:
-                        for mt in matching_trades:
-                            market_ticker = mt.market_ticker or ""
-                            if title in market_ticker or market_ticker in title:
-                                existing = mt
-                                break
+                    for t in all_mode_trades:
+                        # Exact match: the slug IS the market_ticker
+                        if t.market_ticker == slug:
+                            existing = t
+                            break
 
                 if existing:
-                    if not existing.settled:
-                        existing.settled = True
-                        # We will set result below after PnL is calculated
-                        existing.settlement_source = "activity_api_redeem"
-                        existing.blockchain_verified = True
-                        if existing.size and existing.size > 0 and existing.entry_price:
-                            dollar_cost = existing.size * existing.entry_price
-                            existing.pnl = redeem_amount - dollar_cost
-                            if existing.pnl > 0:
-                                existing.result = "win"
-                            elif existing.pnl < 0:
-                                existing.result = "loss"
-                            else:
-                                existing.result = "push"
+                    if existing.settled:
+                        continue
+
+                    existing.settled = True
+                    existing.settlement_source = "activity_api_redeem"
+                    existing.blockchain_verified = True
+                    if existing.size and existing.size > 0 and existing.entry_price:
+                        dollar_cost = existing.size * existing.entry_price
+                        existing.pnl = redeem_amount - dollar_cost
+                        if existing.pnl > 0:
+                            existing.result = "win"
+                        elif existing.pnl < 0:
+                            existing.result = "loss"
                         else:
-                            existing.result = "closed"
-                        existing.settlement_time = (
-                            datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
-                            if timestamp_unix else datetime.now(timezone.utc)
-                        )
-                        imported += 1
-                        self.logger.info(
-                            f"Marked as redeemed from activity: {existing.market_ticker} "
-                            f"(amount={redeem_amount})"
-                        )
+                            existing.result = "push"
+                    else:
+                        existing.result = "closed"
+                    existing.settlement_time = (
+                        datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
+                        if timestamp_unix else datetime.now(timezone.utc)
+                    )
+                    imported += 1
+                    self.logger.info(
+                        f"Marked as redeemed from activity: {existing.market_ticker} "
+                        f"(amount={redeem_amount})"
+                    )
                     continue
 
+                # Orphaned REDEEM — no matching trade in DB
                 if redeem_amount > 0:
                     self.logger.warning(
-                        f"Orphaned REDEEM: conditionId={condition_id[:16] if condition_id else 'N/A'}..., "
-                        f"amount={redeem_amount}, title={title[:60] if title else 'N/A'}"
+                        f"Orphaned REDEEM: slug={slug}, "
+                        f"condId={condition_id[:16]}..., "
+                        f"amount={redeem_amount}"
                     )
 
             self.db.commit()
@@ -431,43 +503,49 @@ class WalletReconciler:
             return 0
 
     async def sync_current_positions(self) -> SyncResult:
-        """
-        Fetch current open positions from blockchain.
+        """Fetch current open positions and compare with DB.
 
-        Compares with DB. Marks positions as closed if blockchain says they're gone.
-        Updates last_sync_at timestamps for positions still open.
-
-        Returns:
-            SyncResult with updated/closed counts
+        Builds blockchain_map keyed by slug (primary) and asset/token_id (fallback)
+        so DB trades with slug market_tickers match correctly.
         """
         self.logger.info("Syncing current positions from blockchain")
 
         result = SyncResult()
 
         try:
-            # Fetch open positions from Data API
             blockchain_positions = await self._fetch_open_positions()
 
-            # Build map of blockchain positions by asset (token_id)
-            blockchain_map = {
-                pos["asset"]: pos
-                for pos in blockchain_positions
-            }
+            # Primary map keyed by slug; fallback map keyed by asset (token_id)
+            blockchain_by_slug: dict[str, dict] = {}
+            blockchain_by_asset: dict[str, dict] = {}
+            for pos in blockchain_positions:
+                slug = pos.get("slug", "")
+                asset = pos.get("asset", "")
+                if slug:
+                    blockchain_by_slug[slug] = pos
+                if asset:
+                    blockchain_by_asset[asset] = pos
 
-            self.logger.debug(f"Blockchain has {len(blockchain_map)} open positions")
+            self.logger.debug(
+                f"Blockchain has {len(blockchain_positions)} open positions "
+                f"({len(blockchain_by_slug)} by slug, {len(blockchain_by_asset)} by asset)"
+            )
 
-            # Query DB for open trades
             db_open_trades = self.db.query(Trade).filter(
                 (Trade.trading_mode == self.mode) &
-                (Trade.settlement_time.is_(None)) &  # Still open
+                (Trade.settlement_time.is_(None)) &
                 (~Trade.settled)
             ).all()
 
             self.logger.debug(f"DB has {len(db_open_trades)} open trades")
 
-            # Compare
             for db_trade in db_open_trades:
-                if db_trade.market_ticker not in blockchain_map:
+                ticker = db_trade.market_ticker or ""
+
+                # Look up position by slug first, then by asset/token_id
+                blockchain_pos = blockchain_by_slug.get(ticker) or blockchain_by_asset.get(ticker)
+
+                if blockchain_pos is None:
                     from backend.core.settlement_helpers import (
                         fetch_resolution_for_trade,
                         calculate_pnl,
@@ -478,13 +556,13 @@ class WalletReconciler:
                     except Exception as exc:
                         self.logger.warning(
                             f"Resolution lookup failed for trade {db_trade.id} "
-                            f"({db_trade.market_ticker}): {exc}. Leaving open."
+                            f"({ticker}): {exc}. Leaving open."
                         )
                         continue
 
                     if not is_resolved or settlement_value is None:
                         self.logger.warning(
-                            f"Position {db_trade.market_ticker} (id={db_trade.id}) "
+                            f"Position {ticker} (id={db_trade.id}) "
                             f"closed on-chain but resolution unknown. Leaving open for retry."
                         )
                         continue
@@ -505,18 +583,16 @@ class WalletReconciler:
                     else:
                         db_trade.result = "push"
                     self.logger.info(
-                        f"Position {db_trade.market_ticker} (id={db_trade.id}) "
+                        f"Position {ticker} (id={db_trade.id}) "
                         f"closed via reconciliation: settlement={settlement_value} pnl=${pnl:+.2f}"
                     )
                     result.closed_count += 1
                 else:
-                    # Position still open - check for discrepancies
-                    blockchain_pos = blockchain_map[db_trade.market_ticker]
                     blockchain_size = blockchain_pos.get("initialValue", 0.0)
                     db_size = db_trade.size or 0.0
 
                     self.alert_manager.check_position_discrepancy(
-                        position_id=db_trade.market_ticker,
+                        position_id=ticker,
                         db_value=db_size,
                         blockchain_value=blockchain_size,
                         mode=self.mode,
@@ -526,7 +602,7 @@ class WalletReconciler:
                     db_trade.blockchain_verified = True
                     result.updated_count += 1
                     self.logger.debug(
-                        f"Position {db_trade.market_ticker} (id={db_trade.id}) "
+                        f"Position {ticker} (id={db_trade.id}) "
                         f"still open, updated sync timestamp"
                     )
 
@@ -559,13 +635,9 @@ class WalletReconciler:
         return result
 
     async def detect_orphaned_positions(self) -> list[OrphanedPosition]:
-        """
-        Find positions on blockchain that don't exist in DB.
+        """Find positions on blockchain that don't exist in DB.
 
-        These are trades placed by bot but DB record was lost (or external trades).
-
-        Returns:
-            List of OrphanedPosition objects
+        Matches by slug (primary) and asset/token_id (fallback).
         """
         self.logger.info("Detecting orphaned positions")
 
@@ -574,18 +646,32 @@ class WalletReconciler:
 
             orphans = []
             for pos in blockchain_positions:
-                # Check if trade exists in DB
-                existing = self.db.query(Trade).filter(
-                    (Trade.market_ticker == pos["asset"]) &
-                    (~Trade.settled)
-                ).first()
+                slug = pos.get("slug", "")
+                asset = pos.get("asset", "")
+
+                # Check by slug first, then by asset (token_id)
+                existing = None
+                if slug:
+                    existing = self.db.query(Trade).filter(
+                        (Trade.market_ticker == slug) &
+                        (Trade.trading_mode == self.mode) &
+                        (~Trade.settled)
+                    ).first()
+
+                if not existing and asset:
+                    existing = self.db.query(Trade).filter(
+                        (Trade.market_ticker == asset) &
+                        (Trade.trading_mode == self.mode) &
+                        (~Trade.settled)
+                    ).first()
 
                 if existing:
-                    continue  # Found in DB
+                    continue
 
-                # Orphaned!
+                # Use slug as market_id (matches DB convention), fallback to asset
+                market_id = slug or asset
                 orphan = OrphanedPosition(
-                    market_id=pos["asset"],
+                    market_id=market_id,
                     blockchain_size=pos["initialValue"],
                     blockchain_entry_price=pos["avgPrice"],
                     detected_at=datetime.now(timezone.utc)
@@ -620,7 +706,8 @@ class WalletReconciler:
         try:
             # Check again if it exists (race condition)
             existing = self.db.query(Trade).filter(
-                Trade.market_ticker == orphan.market_id
+                Trade.market_ticker == orphan.market_id,
+                Trade.trading_mode == self.mode,
             ).first()
 
             if existing:
@@ -663,24 +750,7 @@ class WalletReconciler:
             return False
 
     async def _fetch_open_positions(self) -> list[dict]:
-        """
-        Fetch trader's current open positions from Data API.
-
-        Called by sync_current_positions() and detect_orphaned_positions().
-
-        Returns:
-            List of position dicts with structure:
-            [
-                {
-                    "slug": "btc-up-5m",
-                    "size": 100.5,
-                    "avgPrice": 0.42,
-                    "outcome": "YES",
-                    "initialValue": 42.21,
-                },
-                ...
-            ]
-        """
+        """Fetch open positions from Data API. Returns raw API dicts with slug, asset, etc."""
         if not self.wallet_address:
             self.logger.warning("Wallet address is empty, skipping open positions fetch")
             return []
