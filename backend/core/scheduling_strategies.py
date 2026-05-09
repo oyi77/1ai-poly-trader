@@ -1,5 +1,6 @@
 """Background job functions scheduled by APScheduler."""
 
+import gc
 import logging
 from datetime import datetime, timezone
 from sqlalchemy import func
@@ -963,6 +964,8 @@ async def strategy_cycle_job(strategy_name: str, mode: str = "paper") -> None:
         update_heartbeat(strategy_name)
     except Exception:
         pass
+
+    gc.collect()
 
 
 async def sync_testnet_wallet():

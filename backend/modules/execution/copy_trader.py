@@ -16,6 +16,7 @@ Data flow:
 import asyncio
 import json
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -269,6 +270,9 @@ class CopyTraderStrategy(BaseStrategy):
     description = "Mirror top Polymarket whale traders proportionally to our bankroll"
     category = "copy_trading"
 
+    # Cache for active market condition_ids (refreshed every 5 min)
+    _ACTIVE_CACHE_TTL = 300  # seconds
+
     def __init__(self, max_wallets: int = 20, min_score: float = 30.0):
         super().__init__()
         # Resolve bankroll from DB (BotState) or fall back to default
@@ -277,6 +281,8 @@ class CopyTraderStrategy(BaseStrategy):
             bankroll=bankroll, max_wallets=max_wallets, min_score=min_score
         )
         self._task: asyncio.Task | None = None
+        self._active_condition_ids: set[str] = set()
+        self._active_cache_ts: float = 0.0
 
     @staticmethod
     def _resolve_bankroll(mode: str = None) -> float:
@@ -312,6 +318,37 @@ class CopyTraderStrategy(BaseStrategy):
         except Exception:
             pass
         return 1000.0  # safe default
+
+    async def _fetch_active_condition_ids(self) -> set[str]:
+        if (
+            self._active_condition_ids
+            and (time.monotonic() - self._active_cache_ts) < self._ACTIVE_CACHE_TTL
+        ):
+            return self._active_condition_ids
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    f"{GAMMA_HOST}/markets",
+                    params={"closed": "false", "active": "true"},
+                )
+                if resp.status_code == 200:
+                    markets = resp.json()
+                    if isinstance(markets, list):
+                        self._active_condition_ids = {
+                            m["conditionId"]
+                            for m in markets
+                            if isinstance(m, dict) and m.get("conditionId")
+                        }
+                        self._active_cache_ts = time.monotonic()
+                        logger.info(
+                            f"CopyTrader: refreshed active market cache — "
+                            f"{len(self._active_condition_ids)} active condition_ids"
+                        )
+        except Exception as e:
+            logger.warning(f"CopyTrader: failed to fetch active markets: {e}")
+
+        return self._active_condition_ids
 
     async def market_filter(self, markets):
         return markets
@@ -371,6 +408,13 @@ class CopyTraderStrategy(BaseStrategy):
             if not self._engine._running:
                 await self._engine.start()
 
+            # Ensure shared httpx client exists to prevent per-call client leaks
+            if not self._engine._http:
+                self._engine._http = httpx.AsyncClient(
+                    timeout=httpx.Timeout(15.0),
+                    limits=httpx.Limits(max_keepalive_connections=5),
+                )
+
             wallet_pool = await self._get_active_wallets(ctx)
 
             signals = await self._engine.poll_once()
@@ -422,8 +466,25 @@ class CopyTraderStrategy(BaseStrategy):
                 ctx.db.add(log_row)
 
             ctx.db.commit()
+            ctx.db.expire_all()
             result.decisions_recorded = len([s for s in (signals or []) if s])
             result.trades_attempted = len(signals) if signals else 0
+
+            # Filter out signals for expired/settled markets
+            if signals:
+                active_ids = await self._fetch_active_condition_ids()
+                before_count = len(signals)
+                signals = [
+                    s for s in signals
+                    if s.source_trade.condition_id in active_ids
+                ]
+                filtered = before_count - len(signals)
+                if filtered:
+                    ctx.logger.info(
+                        f"CopyTrader: filtered {filtered}/{before_count} signals "
+                        f"for expired/settled markets — {len(signals)} remain"
+                    )
+                result.trades_attempted = len(signals)
 
             # Fetch token_ids in parallel for all signals
             token_id_tasks = [
