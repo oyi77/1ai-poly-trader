@@ -38,6 +38,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 | `backend/models/genome_registry.py` | ORM models for genome persistence — GenomeRegistry, GenomePerformance, GenomeShadowTrade |
 | `backend/repositories/genome_repository.py` | Repository layer — CRUD operations for genome persistence |
 | `backend/application/strategy/genome_compiler.py` | GenomeCompiler — runtime translation of StrategyGenome into executable BaseStrategy subclass |
+| `backend/application/strategy/genome_strategy.py` | Genome strategy template — executes chromosome-mapped entry/exit/risk/execution logic at runtime |
 | `docs/architecture/adr-006-agi-autonomy-framework.md` | AGI autonomy governance — promotion gates, safety boundaries, human-in-the-loop override |
 
 ## Subdirectories
@@ -59,6 +60,7 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 - **MANDATORY: Documentation Sync** — Every code change MUST be accompanied by updating all affected documentation. This includes: AGENTS.md files (root + relevant subdirectory), API docs (`docs/api.md`), ADRs (`docs/architecture/`) for architectural decisions, `IMPLEMENTATION_GAPS.md` for newly discovered gaps, `.env.example` for new environment variables. Do NOT skip docs updates. If you add/rename/remove a file, update the Key Files table in the nearest AGENTS.md. If you add a new endpoint, update `docs/api.md`. If you change behavior, update the relevant doc.
 - Never commit `.env` — it contains live API keys and wallet credentials
 - Environment variables are documented in `.env.example`; always keep that in sync
+- **Database schema changes require an Alembic migration**: `alembic revision --autogenerate -m "description"` then `alembic upgrade head`. Never modify existing migration files.
 - Production deploys to Railway (backend) + Vercel (frontend) — check `railway.json` and `vercel.json`
 - Docusaurus docs deploy inside the Vercel frontend under `/docs/`; document URLs are emitted as `.html` files and Vercel rewrites extensionless `/docs/*` routes to those files before the Vite catch-all so docs pages do not render the dashboard shell.
 - PM2 manages three processes in production: `polyedge-api` (FastAPI server), `polyedge-bot` (background worker + scheduler), `polyedge-frontend` (Vite dev server) — process names are `polyedge-*`, not just `polyedge`
@@ -81,8 +83,9 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 - All sensitive operations guarded by circuit breakers and risk limits
 - Redis optional — falls back to SQLite queue when unavailable
 - `backend/modules/` is for infrastructure modules (data feeds, execution helpers, arbitrage, scanners) — NOT alpha strategies. Alpha strategies go in `backend/strategies/`.
-- **Strategy Governance**: AGI health check (`AGI_HEALTH_CHECK_ENABLED`, every 15 min via `AGI_HEALTH_CHECK_INTERVAL_MINUTES`) auto-kills strategies with <30% win rate after sufficient trades. Killed strategies are disabled in `StrategyConfig` and should NOT be manually re-enabled. Current active strategies: `agi_orchestrator`, `btc_oracle` (re-enabled, 52.1% WR, +$161 PnL), `copy_trader`, `universal_scanner`, `weather_emos`, `whale_frontrun`, `whale_pnl_tracker`. Disabled: `general_scanner` (warned, 10% WR), `btc_momentum` (deprecated), `realtime_scanner`, `probability_arb`.
+- **Strategy Governance**: AGI health check (`AGI_HEALTH_CHECK_ENABLED`, every 15 min via `AGI_HEALTH_CHECK_INTERVAL_MINUTES`) auto-kills strategies with <30% win rate after sufficient trades. Killed strategies are disabled in `StrategyConfig` and should NOT be manually re-enabled. The authoritative enabled/disabled state is always the `StrategyConfig` table in the DB — the list below is a snapshot. Active (`backend/strategies/`): `agi_orchestrator`, `btc_oracle` (52.1% WR, +$161 PnL), `universal_scanner`, `bond_scanner`, `cex_pm_leadlag`, `cross_market_arb`, `line_movement_detector`, `market_maker`. Active (`backend/modules/`, module-resident): `copy_trader`, `weather_emos`, `whale_frontrun`, `whale_pnl_tracker`. Disabled: `general_scanner` (10% WR, auto-killed), `btc_momentum` (deprecated), `realtime_scanner`, `probability_arb`. Module-resident strategies live in `backend/modules/` because they source signals from external feeds (leaderboard mirroring, on-chain data, weather APIs) rather than generating independent alpha from market analysis — they are infrastructure, not alpha strategies, but they are registered and governed the same way.
 - **Trade Attribution**: `auto_trader` (`backend/core/auto_trader.py`) is an execution router, NOT a strategy. It routes pending signals through risk validation. Trade attribution uses `Signal.track_name` to preserve the originating strategy name. Historical trades attributed to "auto_trader" actually came from various signal sources routed through the auto-execute path.
+- **Genome feedback loop**: `shadow_validation_job` (`backend/application/agi/evolution_jobs.py`) is the canonical shadow-trade feedback loop. It recalculates per-genome fitness from settled `ShadowTrade`, syncs `GenomePerformance`, promotes SHADOW→PAPER and PAPER→LIVE by metric gates, and auto-kills terminal performers to GRAVEYARD.
 
 ## Dependencies
 

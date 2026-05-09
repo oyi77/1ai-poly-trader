@@ -1,6 +1,6 @@
 # Implementation Gaps — PolyEdge Trading Bot
 
-**Last Updated:** 2026-05-09 (Round 12 — Full AGI vision implementation: LIVE_TRIAL phase, demotion→improvement loop, LLM synthesis with 4-gate validation, KG read-back, calibration drift→retrain, risk-tier allocation, per-strategy rollback, forensics overhaul, AGI cycle observability)
+**Last Updated:** 2026-05-09 (Round 12 — Full AGI vision implementation: LIVE_TRIAL phase, demotion→improvement loop, LLM synthesis with 4-gate validation, KG read-back, calibration drift→retrain, risk-tier allocation, per-strategy rollback, forensics overhaul, AGI cycle observability + genome fitness feedback loop from settled shadow trades; Known Gaps section below remains active)
 
 This file is the single source of truth for what's built vs planned. Every future agent must
 read this before proposing work — avoid re-litigating already-completed items.
@@ -45,6 +45,8 @@ Format:
 ~~**[STRAT-11] Cross-market arb circuit breakers defined but not wired to settings**~~ → **Fixed** (2026-05-09): `_CB_THRESHOLD` and `_CB_TIMEOUT` now read from `settings.CIRCUIT_BREAKER_THRESHOLD` / `settings.CIRCUIT_BREAKER_TIMEOUT`. Affects: `backend/strategies/cross_market_arb.py`.
 
 ~~**[DATA-1,2,4] WebSocket reconnect state, aggregator staleness, Polygon listener**~~ → **Verified Fixed** (2026-05-09): All three already fixed in prior rounds.
+
+~~**No genome fitness feedback loop from shadow outcomes** — SHADOW/PAPER genomes were not re-scored from settled shadow trades, so promotion and kill decisions lacked direct trade-performance feedback.~~ → **Fixed** (2026-05-09): `backend/application/strategy/shadow_runner.py` now exposes per-genome metric calculation from settled shadow trades (win rate, Sharpe, drawdown, PnL stats). `backend/application/agi/evolution_jobs.py:shadow_validation_job` now recalculates and persists `FitnessMetrics` + `fitness_json`, syncs `GenomePerformance`, enforces stage gates (SHADOW→PAPER requires min 20 trades, win_rate ≥45%, Sharpe ≥0.5; PAPER→LIVE requires min 50 trades, win_rate ≥50%, Sharpe ≥0.8, max_drawdown ≤20%), and auto-kills genomes to GRAVEYARD when max_drawdown >50% or (Sharpe < -2 and win_rate <5%). Tests: `backend/tests/test_evolution_jobs_feedback_loop.py`.
 
 ~~**SSE/WebSocket auth bypass when token omitted**~~ → **Fixed** (2026-05-07): Realtime auth now requires either a valid admin cookie session or legacy `token=ADMIN_API_KEY`. Added centralized `authorize_realtime_access()` in `backend/api/auth.py`; wired into `backend/api/events/sse_router.py` and all secured WS routes in `backend/api/websockets_routes.py`.
 
