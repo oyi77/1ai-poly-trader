@@ -614,6 +614,7 @@ class PolymarketCLOB:
                 price=price,
                 size=shares,
                 side=side,
+                nonce=int(time.time() * 1000),
             )
 
             # ClobClient.create_order handles tick-size resolution, neg_risk, signing
