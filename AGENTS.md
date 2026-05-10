@@ -9,8 +9,8 @@ Polyedge is a full-stack automated prediction market trading bot targeting Polym
 
 | File | Description |
 |------|-------------|
-| `main.py` | Application entry point — starts FastAPI server and background workers |
-| `run.py` | Alternate runner with environment validation |
+| `main.py` | Entry point redirect — prints message to use `python run.py` instead |
+| `run.py` | True application entry point — starts FastAPI server and background workers |
 | `requirements.txt` | Python package dependencies |
 | `docker-compose.yml` | Multi-service container setup (app + Redis) |
 | `Dockerfile` | Backend container build |
