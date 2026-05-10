@@ -25,6 +25,9 @@ _kalshi_rate_limiter = ExternalRateLimiter(
     max_calls_per_minute=settings.RATE_LIMIT_KALSHI,
 )
 
+# Circuit breaker for Kalshi API (protects order operations)
+_kalshi_breaker = CircuitBreaker("kalshi_api", failure_threshold=5, recovery_timeout=60.0)
+
 
 class KalshiClient:
     """Async Kalshi API client using RSA-PSS signature auth."""
@@ -113,7 +116,7 @@ class KalshiClient:
                 response.raise_for_status()
                 return response.json()
 
-        return await kalshi_breaker.call(_fetch)
+        return await _kalshi_breaker.call(_fetch)
 
     async def batch_create_orders(self, orders: list[dict]) -> dict:
         return await self._request("POST", "/portfolio/batch_create_orders", json={"orders": orders})

@@ -223,7 +223,6 @@ class ExternalRateLimiter:
                 return result
 
             except RateLimitError as e:
-
                 # Get Retry-After from error directly or from headers
                 response_headers = {}
                 if e.details and "headers" in e.details:
