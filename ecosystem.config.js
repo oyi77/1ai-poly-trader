@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'polyedge-api',
       script: 'python3',
-      args: '-m uvicorn backend.api.main:app --host 0.0.0.0 --port 8100 --workers 1',
+      args: '-m uvicorn backend.api.main:app --host 0.0.0.0 --port ${PORT:-8100} --workers 1',
       cwd: '.',
       interpreter: 'none',
       env: {
@@ -23,7 +23,7 @@ module.exports = {
     {
       name: 'polyedge-frontend',
       script: 'sh',
-      args: '-c "[ -d dist ] || npm run build && npx vite preview --host 0.0.0.0 --port 5174"',
+      args: '-c "[ -d dist ] || npm run build && npx vite preview --host 0.0.0.0 --port ${VITE_DEV_SERVER_PORT:-5174}"',
       cwd: './frontend',
       interpreter: 'none',
       watch: false,

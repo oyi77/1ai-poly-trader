@@ -95,6 +95,9 @@ class ConfigRegistry:
     # Brain/BK-Hub API
     BK_BRAIN_URL: str = "http://localhost:9099"
     BRAIN_API_URL: str = "http://localhost:9099"
+
+    # Goldsky GraphQL API (Polymarket historical order data)
+    GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
     
     # API_BASE_URL - FastAPI server URL (constructed from API_HOST and API_PORT)
     API_HOST: str = "localhost"
@@ -409,6 +412,9 @@ class ConfigRegistry:
     POLYMARKET_WS_ENABLED: bool = True
     POLYMARKET_USER_WS_ENABLED: bool = False
     POLYMARKET_WS_SUBSCRIPTION_LIMIT: int = 200
+    API_REQUEST_TIMEOUT: float = 30.0
+    DATABASE_QUERY_TIMEOUT: float = 10.0
+    EXTERNAL_API_TIMEOUT: float = 15.0
     WS_HANDLER_TIMEOUT_MS: int = 100
     
     # Telegram
@@ -650,6 +656,7 @@ class ConfigRegistry:
     # --------------------------------------------------------------------------
     CACHE_URL: str = "sqlite:///./cache.db"
     CACHE_TTL_SECONDS: int = 300
+    REDIS_DEFAULT_URL: str = "redis://localhost:6379"
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_ENABLED: bool = False
     
@@ -997,6 +1004,19 @@ class ConfigRegistry:
                 issues.append(f"{name} must be >= 0, got {value}")
         
         return issues
+
+    # ------------------------------------------------------------------
+    # Derived Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def active_modes_set(self) -> set[str]:
+        valid = {"paper", "testnet", "live"}
+        modes = {m.strip() for m in self.ACTIVE_MODES.split(",") if m.strip()}
+        return modes & valid or {"paper"}
+
+    def is_mode_active(self, mode: str) -> bool:
+        return mode in self.active_modes_set
 
 
 class Settings(BaseSettings):

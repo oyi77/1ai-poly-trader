@@ -335,7 +335,8 @@ class BtcOracleStrategy(BaseStrategy):
             from backend.data.crypto import compute_btc_microstructure
             try:
                 micro = await compute_btc_microstructure()
-            except Exception:
+            except Exception as e:
+                logger.debug("BTC microstructure computation failed: %s", e)
                 micro = None
 
             if micro and micro.momentum_5m is not None:
@@ -501,7 +502,8 @@ class BtcOracleStrategy(BaseStrategy):
 
                     try:
                         clob_token_ids = _json.loads(clob_token_ids)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse CLOB token IDs from JSON: %s", e)
                         clob_token_ids = []
                 if clob_token_ids and len(clob_token_ids) >= 2:
                     clob_token_id = str(clob_token_ids[0] if direction in ("yes", "up") else clob_token_ids[1])
