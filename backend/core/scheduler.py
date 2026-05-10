@@ -360,6 +360,35 @@ def _load_strategy_jobs() -> None:
             for cfg in configs:
                 schedule_strategy(cfg.strategy_name, cfg.interval_seconds or 60, mode)
 
+    # Register WS-driven strategies with event bus
+    _register_event_driven_strategies()
+
+
+def _register_event_driven_strategies() -> None:
+    """Register strategies that support WS events with the event bus."""
+    from backend.strategies.registry import STRATEGY_REGISTRY
+    from backend.core.event_bus import event_bus
+    from backend.core.ws_fallback import WsFirstExecutor
+
+    for name, strategy_cls in STRATEGY_REGISTRY.items():
+        strategy = strategy_cls()
+        tokens = getattr(strategy, "subscribed_tokens", set())
+        events = getattr(strategy, "subscribed_events", {"last_trade_price"})
+
+        if not tokens:
+            continue
+
+        executor = WsFirstExecutor(name)
+        event_bus.subscribe_strategy(
+            strategy_name=name,
+            token_ids=tokens,
+            event_types=events,
+            handler=strategy.on_market_event,
+            fallback_handler=executor.on_ws_disconnected,
+        )
+        logger.info("EventBus: registered '%s' with %d tokens, %d event types",
+                     name, len(tokens), len(events))
+
 
 def start_scheduler():
     """Start the background scheduler for BTC 5-min trading."""
