@@ -191,7 +191,8 @@ class TestGeneralScannerFilters:
 class TestRegistryRegistration:
     def test_registered_in_registry(self):
         """Both new strategies must appear in STRATEGY_REGISTRY after load_all_strategies."""
-        from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY
+        from backend.strategies.loader import load_all_strategies
+        from backend.strategies.registry import STRATEGY_REGISTRY
 
         load_all_strategies()
 
@@ -204,7 +205,8 @@ class TestRegistryRegistration:
 
     def test_bond_scanner_has_correct_metadata(self):
         """BondScannerStrategy has expected name, category, and default_params."""
-        from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY
+        from backend.strategies.loader import load_all_strategies
+        from backend.strategies.registry import STRATEGY_REGISTRY
 
         load_all_strategies()
         cls = STRATEGY_REGISTRY.get("bond_scanner")
@@ -218,7 +220,8 @@ class TestRegistryRegistration:
 
     def test_general_scanner_has_correct_metadata(self):
         """GeneralMarketScanner has expected name, category, and default_params."""
-        from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY
+        from backend.strategies.loader import load_all_strategies
+        from backend.strategies.registry import STRATEGY_REGISTRY
 
         load_all_strategies()
         cls = STRATEGY_REGISTRY.get("general_scanner")

@@ -11,7 +11,8 @@ from sqlalchemy.pool import StaticPool
 from backend.models.database import Base, Trade
 from backend.core.backtester import BacktestConfig, BacktestEngine
 from backend.core.risk_manager import RiskManager
-from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY
+from backend.strategies.loader import load_all_strategies
+from backend.strategies.registry import STRATEGY_REGISTRY
 
 
 TEST_ENGINE = create_engine(

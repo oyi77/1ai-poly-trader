@@ -15,8 +15,8 @@ from backend.models.backtest import BacktestRun, BacktestTrade
 from backend.strategies.registry import (
     BaseStrategy,
     STRATEGY_REGISTRY,
-    load_all_strategies,
 )
+from backend.strategies.loader import load_all_strategies
 from backend.api.auth import require_admin
 from backend.api.validation import BacktestRunRequest as ValidatedBacktestRunRequest
 

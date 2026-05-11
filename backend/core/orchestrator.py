@@ -84,7 +84,7 @@ class Orchestrator:
             profile.min_edge_threshold,
         )
 
-        from backend.strategies.registry import load_all_strategies
+        from backend.strategies.loader import load_all_strategies
 
         load_all_strategies()  # trigger auto-registration
 
