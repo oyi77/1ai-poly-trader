@@ -10,8 +10,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
 from backend.config import settings
+from backend.core.circuit_breaker import CircuitBreaker
 from backend.core.external_rate_limiter import ExternalRateLimiter
-from backend.core.circuit_breaker_pybreaker import kalshi_breaker
 
 logger = logging.getLogger("trading_bot")
 
@@ -24,6 +24,9 @@ _kalshi_rate_limiter = ExternalRateLimiter(
     name="kalshi",
     max_calls_per_minute=settings.RATE_LIMIT_KALSHI,
 )
+
+# Circuit breaker for Kalshi API (protects order operations)
+_kalshi_breaker = CircuitBreaker("kalshi_api", failure_threshold=5, recovery_timeout=60.0)
 
 
 class KalshiClient:
@@ -113,7 +116,7 @@ class KalshiClient:
                 response.raise_for_status()
                 return response.json()
 
-        return await kalshi_breaker.call(_fetch)
+        return await _kalshi_breaker.call(_fetch)
 
     async def batch_create_orders(self, orders: list[dict]) -> dict:
         return await self._request("POST", "/portfolio/batch_create_orders", json={"orders": orders})
