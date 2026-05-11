@@ -1465,7 +1465,8 @@ async def get_strategy(
     db: Session = Depends(get_db),
 ):
     """Get a single strategy config by name."""
-    from backend.strategies.registry import STRATEGY_REGISTRY, load_all_strategies
+    from backend.strategies.registry import STRATEGY_REGISTRY
+    from backend.strategies.loader import load_all_strategies
 
     if not STRATEGY_REGISTRY:
         load_all_strategies()

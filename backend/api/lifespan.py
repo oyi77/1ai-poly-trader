@@ -21,7 +21,7 @@ from backend.data.orderbook_cache import get_orderbook_cache
 from backend.models.database import BotState, MarketWatch, Trade, StrategyConfig, for_update
 from backend.core.mode_context import ModeExecutionContext, register_context
 from backend.core.risk_manager import RiskManager
-from backend.strategies.registry import load_all_strategies
+from backend.strategies.loader import load_all_strategies
 from backend.core.bankroll_reconciliation import reconcile_bot_state
 from backend.api_websockets import brain_stream, activity_stream, proposals, livestream
 # from backend.api.graceful_shutdown import GracefulShutdownHandler

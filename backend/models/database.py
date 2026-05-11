@@ -1384,7 +1384,8 @@ def seed_default_data():
                     existing.testnet_initial_bankroll = 100.0
                     logger.info("Backfilled testnet_initial_bankroll = 100.0")
 
-        from backend.strategies.registry import load_all_strategies, STRATEGY_REGISTRY
+        from backend.strategies.loader import load_all_strategies
+        from backend.strategies.registry import STRATEGY_REGISTRY
         load_all_strategies()
 
         for strategy_name in STRATEGY_REGISTRY.keys():
