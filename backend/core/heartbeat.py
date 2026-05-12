@@ -148,23 +148,22 @@ async def watchdog_job() -> None:
                 threshold = max(h["interval_seconds"] * 4, 300)
                 if h["lag_seconds"] > threshold:
                     logger.error(
-                    f"[WATCHDOG] Strategy {h['name']} heartbeat stale: "
-                    f"lag={h['lag_seconds']}s threshold={threshold}s",
-                    extra={"component": "watchdog"},
-                )
-                record_decision(
-                    db,
-                    "watchdog",
-                    h["name"],
-                    "ERROR",
-                    signal_data={
-                        "lag_seconds": h["lag_seconds"],
-                        "healthy": False,
-                        "sources": ["heartbeat_watchdog"],
-                    },
-                    reason=f"Heartbeat stale: {h['lag_seconds']:.0f}s since last cycle",
-                )
-                db.commit()
+                        f"[WATCHDOG] Strategy {h['name']} heartbeat stale: "
+                        f"lag={h['lag_seconds']}s threshold={threshold}s"
+                    )
+                    record_decision(
+                        db,
+                        "watchdog",
+                        h["name"],
+                        "ERROR",
+                        signal_data={
+                            "lag_seconds": h["lag_seconds"],
+                            "healthy": False,
+                            "sources": ["heartbeat_watchdog"],
+                        },
+                        reason=f"Heartbeat stale: {h['lag_seconds']:.0f}s since last cycle",
+                    )
+                    db.commit()
 
                 # Send Telegram alert if configured (with dedup window)
                 try:
