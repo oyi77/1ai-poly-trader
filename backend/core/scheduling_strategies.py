@@ -8,6 +8,8 @@ from sqlalchemy import func
 from backend.config import settings
 from backend.models.database import (
     Trade,
+from backend.core.heartbeat import update_heartbeat
+
     BotState,
     Signal,
     PendingApproval,
