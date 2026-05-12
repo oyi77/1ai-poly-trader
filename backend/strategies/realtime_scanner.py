@@ -259,7 +259,7 @@ class RealtimeScannerStrategy(BaseStrategy):
                                 ),
                                 "model_probability": confidence,
                                 "market_probability": current_price,
-                                "platform": "polymarket",
+                                "platform": settings.DEFAULT_VENUE,
                                 "strategy_name": self.name,
                                 "token_id": token_id,
                                 "reasoning": f"realtime_scanner velocity={slow_velocity:.3f}",

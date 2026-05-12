@@ -345,7 +345,7 @@ class LineMovementDetectorStrategy(BaseStrategy):
             "model_probability": confidence,
             "market_probability": movement.current_price,
             "size": size,
-            "platform": "polymarket",
+            "platform": settings.DEFAULT_VENUE,
             "strategy_name": self.name,
             "token_id": movement.token_id,
             "condition_id": movement.condition_id,

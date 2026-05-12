@@ -1,9 +1,12 @@
 """
-Cross-Market Arbitrage Engine — Polymarket ↔ Kalshi price gap detection.
+Cross-Market Arbitrage Engine — multi-venue price gap detection.
 
 PARETO TASK #3: Detects and auto-executes cross-platform arbitrage.
-When Polymarket YES + Kalshi YES < $1.00 for the same event,
+When VenueA YES + VenueB YES < $1.00 for the same event,
 buy on the cheaper platform, sell on the expensive one.
+
+Venue configuration pulled from settings.MARKET_PROVIDERS.
+To change which venues to arbitrage, update config — no code changes needed.
 
 Target: <200ms detection + execution.
 """
