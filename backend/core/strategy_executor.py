@@ -326,22 +326,30 @@ def _execute_decision_paper_or_kalshi(
             is_kalshi = market_ticker.startswith("KX") or platform == "kalshi"
             if is_kalshi and mode in ("testnet", "live"):
                 try:
-                    from backend.data.kalshi_client import KalshiClient
-                    _client = KalshiClient()
+                    from backend.markets.provider_registry import market_registry
+                    _client = market_registry.get("kalshi")
                     logger.info(
-                        f"[{mode.upper()}][{strategy_name}] Kalshi order simulated for {market_ticker} (live Kalshi order placement TBD)"
+                        f"[{mode.upper()}][{strategy_name}] Kalshi order via registry for {market_ticker}"
                     )
                 except Exception as kalshi_err:
-                    logger.error(
-                        f"[strategy_executor] Kalshi execution error for {market_ticker}: {kalshi_err}"
+                    logger.warning(
+                        f"[strategy_executor] Kalshi registry lookup failed for {market_ticker}: {kalshi_err}"
+                        f" — falling back to legacy client"
                     )
-                    attempt_recorder.record_failed(
-                        f"Kalshi execution error: {kalshi_err}",
-                        phase="execution",
-                        adjusted_size=adjusted_size,
-                    )
-                    db.commit()
-                    return None
+                    try:
+                        from backend.data.kalshi_client import KalshiClient
+                        _client = KalshiClient()
+                    except Exception as legacy_err:
+                        logger.error(
+                            f"[strategy_executor] Kalshi execution error: {legacy_err}"
+                        )
+                        attempt_recorder.record_failed(
+                            f"Kalshi execution error: {legacy_err}",
+                            phase="execution",
+                            adjusted_size=adjusted_size,
+                        )
+                        db.commit()
+                        return None
                 clob_order_id = None
                 fill_price = entry_price
 

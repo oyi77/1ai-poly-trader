@@ -198,7 +198,7 @@ async def _execute_trade(
         "confidence": signal.confidence,
         "model_probability": signal.model_probability,
         "token_id": token_id,
-        "platform": "polymarket",
+        "platform": settings.DEFAULT_VENUE,
         "reasoning": f"edge {signal.edge:.3f} >= threshold, {signal.direction} @ {entry_price:.0%}",
     }
 
@@ -542,7 +542,7 @@ async def weather_scan_and_trade_job(mode: str):
                     "confidence": signal.model_probability,
                     "model_probability": signal.model_probability,
                     "token_id": token_id,
-                    "platform": "polymarket",
+                    "platform": settings.DEFAULT_VENUE,
                     "market_type": "weather",
                     "reasoning": f"weather signal: {signal.market.city_name}",
                 }
@@ -778,7 +778,7 @@ async def auto_trader_job(mode: str):
                         "confidence": getattr(sig, "confidence", 0.0) or 0.0,
                         "model_probability": getattr(sig, "model_probability", None),
                         "token_id": token_id,
-                        "platform": "kalshi" if sig.market_ticker.startswith("KX") else "polymarket",
+                        "platform": "kalshi" if sig.market_ticker.startswith("KX") else settings.DEFAULT_VENUE,
                     }
                     source_strategy = getattr(sig, "track_name", None)
                     if not source_strategy:
