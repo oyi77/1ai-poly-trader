@@ -25,6 +25,7 @@ Python FastAPI backend — trading engine, strategy execution, AI signal generat
 | `api/` | FastAPI routers — auth, markets, trading, AGI, admin, WebSocket/SSE (see `api/AGENTS.md`) |
 | `models/` | SQLAlchemy ORM models and session factory (see `models/AGENTS.md`) |
 | `data/` | Market data providers, CLOB client, Gamma API, market universe scanner (see `data/AGENTS.md`) |
+| `markets/` | Normalized market provider plugin system; Polymarket/Kalshi wrappers return `OrderStatus.REJECTED` for invalid live orders instead of raising raw `NotImplementedError`; paper limit orders stay open without mutating positions until filled |
 | `domain/` | Core domain models — genome, evolution engine (see `domain/AGENTS.md`) |
 | `modules/` | Infrastructure modules: data feeds, execution helpers, scanners, arbitrage (see `modules/AGENTS.md`) |
 | `application/` | Application layer — genome compiler, AGI/meta/strategy orchestration (see `application/AGENTS.md`) |
