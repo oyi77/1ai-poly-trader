@@ -297,8 +297,9 @@ async def get_wallet_balance(
             async with clob_from_settings(mode=active_trading_modes[0]) as clob:
                 balance_data = await clob.get_wallet_balance()
 
-                if balance_data.get("error") is None:
-                    usdc_balance = balance_data.get("usdc_balance", 0.0)
+                raw_usdc_balance = balance_data.get("usdc_balance") if balance_data.get("error") is None else None
+                if isinstance(raw_usdc_balance, (int, float)):
+                    usdc_balance = float(raw_usdc_balance)
                     last_updated = datetime.now(timezone.utc).isoformat()
 
                     cache_payload = _json.dumps(
