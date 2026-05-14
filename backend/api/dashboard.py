@@ -367,12 +367,12 @@ async def get_dashboard(
     """Get all dashboard data in one call - returns stats for all 3 modes."""
     try:
         stats = await asyncio.wait_for(
-            get_stats(db=db, mode=None), timeout=12.0
+            get_stats(db=db, mode=None), timeout=6.0
         )
     except (asyncio.TimeoutError, Exception) as e:
         logger.warning(f"[dashboard] get_stats timed out after 12s: {e}")
         stats = await asyncio.wait_for(
-            get_stats(db=db, mode=settings.TRADING_MODE), timeout=8.0
+            get_stats(db=db, mode=settings.TRADING_MODE), timeout=4.0
         )
 
     # Fetch BTC price from microstructure first, fallback to CoinGecko
@@ -429,7 +429,7 @@ async def get_dashboard(
     windows = []
     try:
         markets = await asyncio.wait_for(
-            fetch_active_btc_markets(), timeout=8.0
+            fetch_active_btc_markets(), timeout=4.0
         )
         windows = [
             BtcWindowResponse(
@@ -457,7 +457,7 @@ async def get_dashboard(
     signals = []
     try:
         raw_signals = await asyncio.wait_for(
-            scan_for_signals(), timeout=10.0
+            scan_for_signals(), timeout=2.0
         )
         signals = [
             _signal_to_response(s, actionable=s.passes_threshold) for s in raw_signals
@@ -507,7 +507,7 @@ async def get_dashboard(
             from backend.data.weather import fetch_ensemble_forecast, CITY_CONFIG
 
             wx_signals = await asyncio.wait_for(
-                scan_for_weather_signals(mode=settings.TRADING_MODE), timeout=8.0
+                scan_for_weather_signals(mode=settings.TRADING_MODE), timeout=3.0
             )
             weather_signals_data = [
                 WeatherSignalResponse(**_weather_signal_to_response(s).model_dump())
