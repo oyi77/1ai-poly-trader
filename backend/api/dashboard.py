@@ -76,30 +76,45 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            numeric_ids = [t for t in still_unresolved if t.isdigit()]
-            if numeric_ids:
-                for ticker in numeric_ids[:10]:
-                    try:
-                        resp = await client.get(f"https://gamma-api.polymarket.com/markets/{ticker}")
-                        if resp.status_code == 200:
-                            m = resp.json()
-                            q = m.get("question", "")
-                            if q:
-                                _market_question_cache[ticker] = q
-                                result[ticker] = q
-                                continue
-                    except Exception:
-                        logger.exception(f"Failed to resolve market question for ticker {ticker}")
-                        pass
-                    result[ticker] = ticker
-            else:
-                for ticker in still_unresolved:
-                    result[ticker] = ticker
-    except Exception:
-        logger.exception("Failed to batch-resolve market questions from Gamma API")
-        for ticker in still_unresolved:
+
+        async def fetch_question(client: httpx.AsyncClient, ticker: str) -> tuple[str, str]:
+            try:
+                resp = await asyncio.wait_for(
+                    client.get(f"https://gamma-api.polymarket.com/markets/{ticker}"),
+                    timeout=1.5,
+                )
+                if resp.status_code == 200:
+                    question = (resp.json() or {}).get("question", "")
+                    if question:
+                        return ticker, question
+            except Exception:
+                logger.debug(f"dashboard market question lookup skipped for {ticker}")
+            return ticker, ticker
+
+        numeric_ids = [t for t in still_unresolved if t.isdigit()]
+        non_numeric = [t for t in still_unresolved if not t.isdigit()]
+        for ticker in non_numeric:
             result[ticker] = ticker
+
+        if numeric_ids:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                question_results = await asyncio.wait_for(
+                    asyncio.gather(
+                        *(fetch_question(client, ticker) for ticker in numeric_ids[:10]),
+                        return_exceptions=True,
+                    ),
+                    timeout=2.5,
+                )
+            for item in question_results:
+                if isinstance(item, Exception):
+                    continue
+                ticker, question = item
+                _market_question_cache[ticker] = question
+                result[ticker] = question
+    except Exception:
+        logger.warning("dashboard market question lookup timed out; using ticker fallbacks")
+        for ticker in still_unresolved:
+            result.setdefault(ticker, ticker)
 
     return result
 
@@ -352,12 +367,12 @@ async def get_dashboard(
     """Get all dashboard data in one call - returns stats for all 3 modes."""
     try:
         stats = await asyncio.wait_for(
-            get_stats(db=db, mode=None), timeout=12.0
+            get_stats(db=db, mode=None), timeout=6.0
         )
     except (asyncio.TimeoutError, Exception) as e:
         logger.warning(f"[dashboard] get_stats timed out after 12s: {e}")
         stats = await asyncio.wait_for(
-            get_stats(db=db, mode=settings.TRADING_MODE), timeout=8.0
+            get_stats(db=db, mode=settings.TRADING_MODE), timeout=4.0
         )
 
     # Fetch BTC price from microstructure first, fallback to CoinGecko
@@ -414,7 +429,7 @@ async def get_dashboard(
     windows = []
     try:
         markets = await asyncio.wait_for(
-            fetch_active_btc_markets(), timeout=8.0
+            fetch_active_btc_markets(), timeout=4.0
         )
         windows = [
             BtcWindowResponse(
@@ -442,7 +457,7 @@ async def get_dashboard(
     signals = []
     try:
         raw_signals = await asyncio.wait_for(
-            scan_for_signals(), timeout=10.0
+            scan_for_signals(), timeout=2.0
         )
         signals = [
             _signal_to_response(s, actionable=s.passes_threshold) for s in raw_signals
@@ -492,7 +507,7 @@ async def get_dashboard(
             from backend.data.weather import fetch_ensemble_forecast, CITY_CONFIG
 
             wx_signals = await asyncio.wait_for(
-                scan_for_weather_signals(mode=settings.TRADING_MODE), timeout=8.0
+                scan_for_weather_signals(mode=settings.TRADING_MODE), timeout=3.0
             )
             weather_signals_data = [
                 WeatherSignalResponse(**_weather_signal_to_response(s).model_dump())
