@@ -32,6 +32,36 @@ class AutoTrader:
     ) -> ExecutionResult:
         confidence = float(signal.get("confidence", 0.0))
         size = float(signal.get("size", 0.0))
+        market_ticker = signal.get("market_ticker", "")
+        event_slug = signal.get("event_slug", "")
+
+        try:
+            from backend.db.utils import get_db_session
+            from backend.models.database import Trade
+            from sqlalchemy import or_
+
+            with get_db_session() as db:
+                filters = [Trade.settled.is_(False), Trade.trading_mode == mode]
+                if market_ticker:
+                    filters.append(Trade.market_ticker == market_ticker)
+                if event_slug:
+                    filters.append(Trade.event_slug == event_slug)
+
+                existing = db.query(Trade).filter(*filters).first()
+                if existing:
+                    from loguru import logger
+                    logger.info(
+                        f"[auto_trader] Duplicate position blocked for {market_ticker}/{event_slug}: "
+                        f"existing trade {existing.id} still open"
+                    )
+                    return ExecutionResult(
+                        False,
+                        False,
+                        f"Duplicate open position on {market_ticker or event_slug} (trade {existing.id})"
+                    )
+        except Exception as e:
+            from loguru import logger
+            logger.error(f"[auto_trader] Error checking for duplicate position: {e}")
 
         decision = self.risk.validate_trade(
             size=size,
