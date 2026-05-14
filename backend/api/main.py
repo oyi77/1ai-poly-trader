@@ -59,6 +59,7 @@ from backend.api.provider_credentials import router as provider_credentials_rout
 from backend.api.v1.ai_providers import router as ai_providers_router
 from backend.api.v1.data_sources import router as data_sources_router
 from backend.api.v1.market_providers import router as market_providers_router
+from backend.api.v1.market_orders import router as market_orders_router
 
 # HFT shared data service
 from backend.data.shared_service import router as shared_data_router
@@ -145,6 +146,7 @@ app.include_router(learning_router, prefix="/api/v1")
 app.include_router(ai_providers_router, prefix="/api/v1")
 app.include_router(data_sources_router, prefix="/api/v1")
 app.include_router(market_providers_router, prefix="/api/v1")
+app.include_router(market_orders_router, prefix="/api/v1")
 app.include_router(agi_router, prefix="/api/v1/agi")
 app.include_router(provider_credentials_router, prefix="/api/v1")
 
