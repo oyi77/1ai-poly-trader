@@ -63,13 +63,13 @@ Build a unified plugin architecture where modules declare themselves as plugins,
 - All documentation updates
 
 ### Definition of Done
-- [ ] `backend/core/plugin_registry.py` passes unit tests
-- [ ] All four domain plugin systems pass unit tests
-- [ ] Sandbox 4-gate validation passes all test cases
-- [ ] All API endpoints functional via integration tests
+- [x] `backend/core/plugin_registry.py` passes unit tests
+- [x] All four domain plugin systems pass unit tests
+- [x] Sandbox 4-gate validation passes all test cases
+- [x] All API endpoints functional via integration tests
 - [ ] Frontend panels display plugin status and control enable/disable
-- [ ] All tests run under `SHADOW_MODE=true` with mock data only
-- [ ] Documentation complete in all AGENTS.md files, `docs/api.md`, and ADRs
+- [x] All tests run under `SHADOW_MODE=true` with mock data only
+- [x] Documentation complete in all AGENTS.md files, `docs/api.md`, and ADRs
 
 ### Must Have
 - All plugin systems use shared registry base
@@ -264,7 +264,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Wave 1: Core Infrastructure (Tasks 1-8)
 
-- [ ] 1. Create `backend/core/plugin_registry.py` - Generic base for all plugin registries
+- [x] 1. Create `backend/core/plugin_registry.py` - Generic base for all plugin registries
 
   **What to do**:
   - Create generic `PluginRegistry[T_Manifest, T_Plugin]` abstract base class
@@ -306,12 +306,12 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: None (creating new pattern)
 
   **Acceptance Criteria**:
-  - [ ] `backend/core/plugin_registry.py` created with all methods
-  - [ ] `pytest backend/tests/test_plugin_registry.py::test_register_valid_plugin` → PASS
-  - [ ] `pytest backend/tests/test_plugin_registry.py::test_auto_discover` → PASS
-  - [ ] `pytest backend/tests/test_plugin_registry.py::test_enabled_persistence` → PASS
-  - [ ] No linter errors (`ruff check backend/core/plugin_registry.py`)
-  - [ ] Type checking passes (`mypy backend/core/plugin_registry.py`)
+  - [x] `backend/core/plugin_registry.py` created with all methods
+  - [x] `pytest backend/tests/test_plugin_registry.py::test_register_valid_plugin` → PASS
+  - [x] `pytest backend/tests/test_plugin_registry.py::test_auto_discover` → PASS
+  - [x] `pytest backend/tests/test_plugin_registry.py::test_enabled_persistence` → PASS
+  - [x] No linter errors (`ruff check backend/core/plugin_registry.py`)
+  - [x] Type checking passes (`mypy backend/core/plugin_registry.py`)
 
   **QA Scenarios (MANDATORY - task is INCOMPLETE without these)**:
 
@@ -329,7 +329,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     Evidence: .sisyphus/evidence/task-01-register-valid-plugin.py
   \`\`\`
 
-- [ ] 2. Create `backend/core/plugin_errors.py` - Shared error types
+- [x] 2. Create `backend/core/plugin_errors.py` - Shared error types
 
   **What to do**:
   - Create custom exception hierarchy mirroring the spec
@@ -372,10 +372,10 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/ai/base.py:BaseAIClient` - similar exception pattern
 
   **Acceptance Criteria**:
-  - [ ] All 11 exception types defined
-  - [ ] All exceptions importable from `backend.core.plugin_errors`
-  - [ ] `pytest backend/tests/test_plugin_errors.py::test_inheritance` → PASS
-  - [ ] No linter errors
+  - [x] All 11 exception types defined
+  - [x] All exceptions importable from `backend.core.plugin_errors`
+  - [x] `pytest backend/tests/test_plugin_errors.py::test_inheritance` → PASS
+  - [x] No linter errors
 
   **QA Scenarios**:
 
@@ -389,7 +389,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     Evidence: .sisyphus/evidence/task-02-import-exceptions.sh
   \`\`\`
 
-- [ ] 3. Create `backend/ai/base_provider.py` - AI provider abstract base
+- [x] 3. Create `backend/ai/base_provider.py` - AI provider abstract base
 
   **What to do**:
   - Create `ProviderManifest` dataclass with all fields from spec
@@ -428,12 +428,12 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/ai/base.py:BaseAIClient` - existing base class
 
   **Acceptance Criteria**:
-  - [ ] `ProviderManifest` dataclass with all required fields
-  - [ ] `BaseAIProvider` abstract base with all abstract methods
-  - [ ] Provider without abstract method implementation raises proper error
-  - [ ] `pytest backend/tests/test_ai_base.py::test_abstract_class` → PASS
+  - [x] `ProviderManifest` dataclass with all required fields
+  - [x] `BaseAIProvider` abstract base with all abstract methods
+  - [x] Provider without abstract method implementation raises proper error
+  - [x] `pytest backend/tests/test_ai_base.py::test_abstract_class` → PASS
 
-- [ ] 4. Create `backend/ai/provider_registry.py` - AI provider registry
+- [x] 4. Create `backend/ai/provider_registry.py` - AI provider registry
 
   **What to do**:
   - Subclass `PluginRegistry[ProviderManifest, BaseAIProvider]`
@@ -478,11 +478,11 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **API References**: `backend/models/bot_state.py:BotState.misc_data` - storage location
 
   **Acceptance Criteria**:
-  - [ ] Registry loads existing providers (claude, groq) from their files
-  - [ ] Health check loop runs in background, marks degraded on failure
-  - [ ] `pytest backend/tests/test_ai_provider_registry.py` → PASS (all 6 tests)
+  - [x] Registry loads existing providers (claude, groq) from their files
+  - [x] Health check loop runs in background, marks degraded on failure
+  - [x] `pytest backend/tests/test_ai_provider_registry.py` → PASS (all 6 tests)
 
-- [ ] 5. Create `backend/data/base_source.py` - Data source abstract base
+- [x] 5. Create `backend/data/base_source.py` - Data source abstract base
 
   **What to do**:
   - Create `DataType` enum with all data types from spec
@@ -524,12 +524,12 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/data/provider.py:DataProvider` - existing interface
 
   **Acceptance Criteria**:
-  - [ ] `DataType` enum with all required data types
-  - [ ] `DataSourceManifest` dataclass complete
-  - [ ] `BaseDataSource` abstract base with all abstract methods
-  - [ ] `pytest backend/tests/test_data_base.py` → PASS
+  - [x] `DataType` enum with all required data types
+  - [x] `DataSourceManifest` dataclass complete
+  - [x] `BaseDataSource` abstract base with all abstract methods
+  - [x] `pytest backend/tests/test_data_base.py` → PASS
 
-- [ ] 6. Create `backend/data/source_registry.py` - Data source registry
+- [x] 6. Create `backend/data/source_registry.py` - Data source registry
 
   **What to do**:
   - Subclass `PluginRegistry[DataSourceManifest, BaseDataSource]`
@@ -572,12 +572,12 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/data/market_universe.py:MarketUniverseScanner` - existing scanner
 
   **Acceptance Criteria**:
-  - [ ] Registry implements all required methods
-  - [ ] `get_for_type()` filters correctly by data type
-  - [ ] Health check loop runs correctly
-  - [ ] `pytest backend/tests/test_data_registry.py` → PASS
+  - [x] Registry implements all required methods
+  - [x] `get_for_type()` filters correctly by data type
+  - [x] Health check loop runs correctly
+  - [x] `pytest backend/tests/test_data_registry.py` → PASS
 
-- [ ] 7. Create `backend/markets/order_types.py` - Normalized order dataclasses
+- [x] 7. Create `backend/markets/order_types.py` - Normalized order dataclasses
 
   **What to do**:
   - Create `OrderSide` enum (YES, NO, BUY, SELL)
@@ -618,11 +618,11 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/models/__init__.py` - existing models pattern
 
   **Acceptance Criteria**:
-  - [ ] All enums defined with correct values
-  - [ ] All dataclasses created with all required fields
-  - [ ] `pytest backend/tests/test_order_types.py` → PASS
+  - [x] All enums defined with correct values
+  - [x] All dataclasses created with all required fields
+  - [x] `pytest backend/tests/test_order_types.py` → PASS
 
-- [ ] 8. Create `backend/markets/base_provider.py` - Market provider abstract base
+- [x] 8. Create `backend/markets/base_provider.py` - Market provider abstract base
 
   **What to do**:
   - Create `VenueCapability` enum (LIMIT_ORDERS, MARKET_ORDERS, FOK_ORDERS, SHORT_SELLING, STREAMING_FILLS, MARKET_SEARCH, BATCH_ORDERS)
@@ -670,11 +670,11 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/data/provider.py:DataProvider` - similar pattern
 
   **Acceptance Criteria**:
-  - [ ] All enums and dataclasses defined
-  - [ ] Base class abstract with all required methods
-  - [ ] `pytest backend/tests/test_market_base.py` → PASS
+  - [x] All enums and dataclasses defined
+  - [x] Base class abstract with all required methods
+  - [x] `pytest backend/tests/test_market_base.py` → PASS
 
-- [ ] 9. Create `backend/ai/providers/__init__.py` - Auto-discover setup
+- [x] 9. Create `backend/ai/providers/__init__.py` - Auto-discover setup
 
   **What to do**:
   - Import `provider_registry` from `backend.ai.provider_registry`
@@ -712,11 +712,11 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/ai/__init__.py` - existing exports pattern
 
   **Acceptance Criteria**:
-  - [ ] Auto-discover imports all provider files
-  - [ ] Providers registered in registry
-  - [ ] `pytest backend/tests/test_ai_provider_registry.py::test_auto_discover` → PASS
+  - [x] Auto-discover imports all provider files
+  - [x] Providers registered in registry
+  - [x] `pytest backend/tests/test_ai_provider_registry.py::test_auto_discover` → PASS
 
-- [ ] 10. Create `backend/ai/providers/claude_provider.py` - Claude plugin
+- [x] 10. Create `backend/ai/providers/claude_provider.py` - Claude plugin
 
   **What to do**:
   - Create new file importing existing `claude.py` logic
@@ -753,13 +753,13 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/ai/claude.py` - source logic to wrap
 
   **Acceptance Criteria**:
-  - [ ] ClaudeProvider subclass of BaseAIProvider
-  - [ ] @provider_registry.plugin decorator applied
-  - [ ] Manifest has correct values
-  - [ ] Complete calls existing claude logic
-  - [ ] `pytest backend/tests/test_claude_provider.py` → PASS
+  - [x] ClaudeProvider subclass of BaseAIProvider
+  - [x] @provider_registry.plugin decorator applied
+  - [x] Manifest has correct values
+  - [x] Complete calls existing claude logic
+  - [x] `pytest backend/tests/test_claude_provider.py` → PASS
 
-- [ ] 11. Create `backend/ai/providers/groq_provider.py` - Groq plugin
+- [x] 11. Create `backend/ai/providers/groq_provider.py` - Groq plugin
 
   **What to do**:
   - Create new file importing existing `groq.py` logic
@@ -792,13 +792,13 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/ai/groq.py` - source logic to wrap
 
   **Acceptance Criteria**:
-  - [ ] GroqProvider subclass of BaseAIProvider
-  - [ ] @provider_registry.plugin decorator
-  - [ ] Manifest correct
-  - [ ] Complete calls existing groq logic
-  - [ ] `pytest backend/tests/test_groq_provider.py` → PASS
+  - [x] GroqProvider subclass of BaseAIProvider
+  - [x] @provider_registry.plugin decorator
+  - [x] Manifest correct
+  - [x] Complete calls existing groq logic
+  - [x] `pytest backend/tests/test_groq_provider.py` → PASS
 
-- [ ] 12. Refactor `backend/ai/ensemble.py` - Registry-based routing
+- [x] 12. Refactor `backend/ai/ensemble.py` - Registry-based routing
 
   **What to do**:
   - Import `provider_registry` from `backend.ai.provider_registry`
@@ -839,13 +839,13 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **API References**: `backend/monitoring/` - Prometheus metrics
 
   **Acceptance Criteria**:
-  - [ ] Ensemble reads providers from registry
-  - [ ] Failed providers skipped gracefully
-  - [ ] Metrics emitted correctly
-  - [ ] Cost tracker enforced
-  - [ ] `pytest backend/tests/test_ensemble_registry.py` → PASS
+  - [x] Ensemble reads providers from registry
+  - [x] Failed providers skipped gracefully
+  - [x] Metrics emitted correctly
+  - [x] Cost tracker enforced
+  - [x] `pytest backend/tests/test_ensemble_registry.py` → PASS
 
-- [ ] 13. Create `backend/api/v1/ai_providers.py` - AI provider API endpoints
+- [x] 13. Create `backend/api/v1/ai_providers.py` - AI provider API endpoints
 
   **What to do**:
   - Create new FastAPI router `ai_providers.py`
@@ -883,14 +883,14 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **API References**: `backend/models/auth.py` - admin auth pattern
 
   **Acceptance Criteria**:
-  - [ ] All 4 endpoints implemented
-  - [ ] Authentication required
-  - [ ] Response models match spec
-  - [ ] `pytest backend/tests/test_ai_provider_api.py` → PASS
+  - [x] All 4 endpoints implemented
+  - [x] Authentication required
+  - [x] Response models match spec
+  - [x] `pytest backend/tests/test_ai_provider_api.py` → PASS
 
 ### Wave 2: AI Provider System Complete (Tasks 14)
 
-- [ ] 14. Create `backend/tests/test_ai_provider_registry.py` - Unit tests
+- [x] 14. Create `backend/tests/test_ai_provider_registry.py` - Unit tests
 
   **What to do**:
   - Create test file with 6 test functions
@@ -926,13 +926,13 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Pattern References**: `backend/tests/test_base.py` - existing test structure
 
   **Acceptance Criteria**:
-  - [ ] All 6 tests pass
-  - [ ] No live API calls
-  - [ ] `pytest backend/tests/test_ai_provider_registry.py` → PASS (6/6)
+  - [x] All 6 tests pass
+  - [x] No live API calls
+  - [x] `pytest backend/tests/test_ai_provider_registry.py` → PASS (6/6)
 
 ### Wave 3: Data Source System (Tasks 15-22)
 
-- [ ] 15. Create `backend/data/sources/__init__.py` - Auto-discover setup
+- [x] 15. Create `backend/data/sources/__init__.py` - Auto-discover setup
 
   **What to do**:
   - Import `source_registry` from `backend.data.source_registry`
@@ -954,7 +954,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 22 (tests)
   - **Blocked By**: Task 6 (registry)
 
-- [ ] 16. Create `backend/data/sources/polymarket_source.py` - Polymarket plugin
+- [x] 16. Create `backend/data/sources/polymarket_source.py` - Polymarket plugin
 
   **What to do**:
   - Create `PolymarketSource` subclass of `BaseDataSource`
@@ -980,7 +980,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 20 (strategy context)
   - **Blocked By**: Task 6, Task 15
 
-- [ ] 17. Create `backend/data/sources/kalshi_source.py` - Kalshi plugin
+- [x] 17. Create `backend/data/sources/kalshi_source.py` - Kalshi plugin
 
   **What to do**:
   - Create `KalshiSource` subclass of `BaseDataSource`
@@ -1006,7 +1006,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 20 (strategy context)
   - **Blocked By**: Task 6, Task 15
 
-- [ ] 18. Create `backend/data/sources/mock_source.py` - Mock data source
+- [x] 18. Create `backend/data/sources/mock_source.py` - Mock data source
 
   **What to do**:
   - Create `MockDataSource` subclass of `BaseDataSource`
@@ -1035,7 +1035,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 19 (registry)
   - **Blocked By**: Task 6, Task 15
 
-- [ ] 19. Create `backend/data/market_universe.py` - Update to use registry
+- [x] 19. Create `backend/data/market_universe.py` - Update to use registry
 
   **What to do**:
   - Import `source_registry` from `backend.data.source_registry`
@@ -1059,7 +1059,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 6, Tasks 16, 17, 18
 
-- [ ] 20. Update `backend/strategies/base.py` - Add data_registry to StrategyContext
+- [x] 20. Update `backend/strategies/base.py` - Add data_registry to StrategyContext
 
   **What to do**:
   - Import `DataSourceRegistry` from `backend.data.source_registry`
@@ -1084,7 +1084,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 22 (integration tests)
   - **Blocked By**: Task 6, Task 19
 
-- [ ] 21. Create `backend/api/v1/data_sources.py` - Data source API endpoints
+- [x] 21. Create `backend/api/v1/data_sources.py` - Data source API endpoints
 
   **What to do**:
   - Create new FastAPI router
@@ -1110,7 +1110,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Frontend API client (task 69)
   - **Blocked By**: None
 
-- [ ] 22. Create `backend/tests/test_data_source_registry.py` - Unit tests
+- [x] 22. Create `backend/tests/test_data_source_registry.py` - Unit tests
 
   **What to do**:
   - Create test file with test functions
@@ -1134,7 +1134,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Wave 4: Market Provider System (Tasks 23-32)
 
-- [ ] 23. Create `backend/markets/provider_registry.py` - Market provider registry
+- [x] 23. Create `backend/markets/provider_registry.py` - Market provider registry
 
   **What to do**:
   - Subclass `PluginRegistry[MarketProviderManifest, BaseMarketProvider]`
@@ -1164,7 +1164,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Tasks 25, 26, 27, 28 (providers and executor)
   - **Blocked By**: Task 1, Task 7, Task 8
 
-- [ ] 24. Create `backend/markets/providers/__init__.py` - Auto-discover
+- [x] 24. Create `backend/markets/providers/__init__.py` - Auto-discover
 
   **What to do**:
   - Import `market_registry`
@@ -1184,7 +1184,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 32 (tests)
   - **Blocked By**: Task 23
 
-- [ ] 25. Create `backend/markets/providers/polymarket_provider.py` - Polymarket plugin
+- [x] 25. Create `backend/markets/providers/polymarket_provider.py` - Polymarket plugin
 
   **What to do**:
   - Create `PolymarketProvider` subclass of `BaseMarketProvider`
@@ -1211,7 +1211,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 28, 30 (executor and API)
   - **Blocked By**: Task 23, Task 24
 
-- [ ] 26. Create `backend/markets/providers/kalshi_provider.py` - Kalshi plugin
+- [x] 26. Create `backend/markets/providers/kalshi_provider.py` - Kalshi plugin
 
   **What to do**:
   - Create `KalshiProvider` subclass of `BaseMarketProvider`
@@ -1236,7 +1236,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 28, 30
   - **Blocked By**: Task 23, Task 24
 
-- [ ] 26a. Create `backend/clients/azuro_client.py` - Shared Azuro Protocol client
+- [x] 26a. Create `backend/clients/azuro_client.py` - Shared Azuro Protocol client
 
   **What to do**:
   - Create `AzuroClient` with async GraphQL query support (via `httpx`)
@@ -1246,6 +1246,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - `async health_check(self) -> bool` — lightweight introspection query
   - `async sign_and_send_bet(self, private_key: str, condition_id: str, outcome_index: int, amount_wei: int) -> str` — EVM smart contract call via `web3.py`; return tx hash
   - Default `AZURO_GRAPH_URL`: `https://api.thegraph.com/subgraphs/name/azuro-protocol/azuro-subgraph-xdai`
+  - Update `backend/clients/__init__.py` to export `AzuroClient`: add `from .azuro_client import AzuroClient` and include in `__all__`
 
   **Test cases**:
   - `cached_query()` makes only 1 HTTP call for 2 requests within TTL
@@ -1281,7 +1282,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     Evidence: .sisyphus/evidence/task-26a-cache.txt
   ```
 
-- [ ] 26b. Create `backend/markets/providers/predict_fun_provider.py` - predict.fun via Azuro
+- [x] 26b. Create `backend/markets/providers/predict_fun_provider.py` - predict.fun via Azuro
 
   **What to do**:
   - Create `PredictFunProvider(BaseMarketProvider)` with `@market_registry.plugin`
@@ -1315,7 +1316,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     Evidence: .sisyphus/evidence/task-26b-registered.txt
   ```
 
-- [ ] 26c. Create `backend/markets/providers/bookmaker_xyz_provider.py` - bookmaker.xyz via Azuro
+- [x] 26c. Create `backend/markets/providers/bookmaker_xyz_provider.py` - bookmaker.xyz via Azuro
 
   **What to do**:
   - Create `BookmakerXyzProvider(BaseMarketProvider)` with `@market_registry.plugin`
@@ -1345,7 +1346,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     Evidence: .sisyphus/evidence/task-26c-singleton.txt
   ```
 
-- [ ] 26d. Create `backend/clients/limitless_client.py` + `limitless_provider.py` - limitless.exchange
+- [x] 26d. Create `backend/clients/limitless_client.py` + `limitless_provider.py` - limitless.exchange
 
   **What to do**:
   - Create `backend/clients/limitless_client.py`:
@@ -1355,6 +1356,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     - `async place_order(self, market_id: str, side: str, size: float, price: float, private_key: str) -> dict` — EIP-712 sign + `POST /orders`
     - `async cancel_order(self, order_id: str, private_key: str) -> bool`
     - `async health_check(self) -> bool` — `GET /markets?limit=1`
+  - Update `backend/clients/__init__.py` to export `LimitlessClient`: add `from .limitless_client import LimitlessClient` and include in `__all__`
   - Create `backend/markets/providers/limitless_provider.py`:
     - `LimitlessProvider(BaseMarketProvider)` with `@market_registry.plugin`
     - name=`"limitless"`, `is_live_venue=True`
@@ -1392,7 +1394,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     Evidence: .sisyphus/evidence/task-26d-registered.txt
   ```
 
-- [ ] 26e. Create `backend/clients/sxbet_client.py` + `sxbet_provider.py` - sx.bet
+- [x] 26e. Create `backend/clients/sxbet_client.py` + `sxbet_provider.py` - sx.bet
 
   **What to do**:
   - Create `backend/clients/sxbet_client.py`:
@@ -1402,6 +1404,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
     - `async get_orderbook(self, market_hash: str) -> dict` — `GET /orders?marketHashes={hash}`
     - `async place_maker_order(self, market_hash: str, outcome_index: int, odds: float, stake_wei: int, private_key: str) -> dict` — EIP-712 sign + `POST /orders/new`
     - `async health_check(self) -> bool` — `GET /sports`
+  - Update `backend/clients/__init__.py` to export `SXBetClient`: add `from .sxbet_client import SXBetClient` and include in `__all__`
   - Create `backend/markets/providers/sxbet_provider.py`:
     - `SXBetProvider(BaseMarketProvider)` with `@market_registry.plugin`
     - name=`"sxbet"`, `is_live_venue=True`
@@ -1470,7 +1473,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 32 (tests)
   - **Blocked By**: Task 23, Task 24
 
-- [ ] 28. Refactor `backend/strategies/order_executor.py` - Use market registry
+- [x] 28. Refactor `backend/strategies/order_executor.py` - Use market registry
 
   **What to do**:
   - Import `market_registry`
@@ -1499,7 +1502,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 30, 32
   - **Blocked By**: Tasks 25, 26, 27, 23
 
-- [ ] 29. Update `backend/core/settlement.py` - Use registry stream
+- [x] 29. Update `backend/core/settlement.py` - Use registry stream
 
   **What to do**:
   - Import `market_registry`
@@ -1525,7 +1528,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 32 (integration tests)
   - **Blocked By**: Tasks 25, 26, 27, 28
 
-- [ ] 30. Create `backend/api/v1/market_providers.py` - Market provider API
+- [x] 30. Create `backend/api/v1/market_providers.py` - Market provider API
 
   **What to do**:
   - Create new FastAPI router
@@ -1558,14 +1561,15 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Frontend API client (task 70)
   - **Blocked By**: None
 
-- [ ] 31. Create `backend/api/v1/market_orders.py` - Order management API
+- [x] 31. Create `backend/api/v1/market_orders.py` - Order management API
 
   **What to do**:
   - Create new FastAPI router for order endpoints
   - Implement POST `/api/v1/markets/order` - place order
   - Implement DELETE `/api/v1/markets/order/{venue}/{order_id}` - cancel
   - Implement GET `/api/v1/markets/order/{venue}/{order_id}` - get status
-  - Add to `backend/api/v1/__init__.py`
+  - Add router to `backend/api/main.py`: `app.include_router(market_orders_router, prefix="/api/v1")`
+  - Import the router at top of `backend/api/main.py` alongside other routers
 
   **Test cases**:
   - Order lifecycle endpoints work
@@ -1581,7 +1585,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Frontend order controls
   - **Blocked By**: None
 
-- [ ] 32. Create `backend/tests/test_market_provider_registry.py` - Unit tests
+- [x] 32. Create `backend/tests/test_market_provider_registry.py` - Unit tests
 
   **What to do**:
   - Create test file with comprehensive tests
@@ -1608,7 +1612,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Wave 5: AGI Core Infrastructure (Tasks 33-37)
 
-- [ ] 33. Create `backend/agi/agent_state.py` - AgentState dataclass
+- [x] 33. Create `backend/agi/agent_state.py` - AgentState dataclass
 
   **What to do**:
   - Create `AgentState` dataclass
@@ -1634,7 +1638,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 35, 36 (registry, engine depend on state)
   - **Blocked By**: Task 1
 
-- [ ] 34. Create `backend/agi/base_node.py` - AGI node abstract base
+- [x] 34. Create `backend/agi/base_node.py` - AGI node abstract base
 
   **What to do**:
   - Create `NodeManifest` dataclass with all fields
@@ -1661,7 +1665,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 35, 44-60 (nodes depend on this)
   - **Blocked By**: Task 33
 
-- [ ] 35. Create `backend/agi/node_registry.py` - Node registry
+- [x] 35. Create `backend/agi/node_registry.py` - Node registry
 
   **What to do**:
   - Subclass `PluginRegistry[NodeManifest, BaseAGINode]`
@@ -1688,7 +1692,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 44-60 (nodes depend on this)
   - **Blocked By**: Task 33, Task 34
 
-- [ ] 36. Create `backend/agi/graph_engine.py` - Directed graph executor
+- [x] 36. Create `backend/agi/graph_engine.py` - Directed graph executor
 
   **What to do**:
   - Create `GraphDefinition` dataclass with nodes, edges, entry/exit
@@ -1721,7 +1725,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 54-57 (graph definitions)
   - **Blocked By**: Task 33, Task 34, Task 35
 
-- [ ] 37. Create `backend/tests/test_graph_engine.py` - Graph engine tests
+- [x] 37. Create `backend/tests/test_graph_engine.py` - Graph engine tests
 
   **What to do**:
   - Test linear graph execution
@@ -1746,7 +1750,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Wave 6: AGI Sandbox System (Tasks 38-43)
 
-- [ ] 38. Create `backend/agi/sandbox/sandbox_manager.py` - Sandbox manager
+- [x] 38. Create `backend/agi/sandbox/sandbox_manager.py` - Sandbox manager
 
   **What to do**:
   - Create `SandboxManager` class
@@ -1775,7 +1779,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 39 (validator depends on manager)
   - **Blocked By**: Task 36 (graph engine)
 
-- [ ] 39. Create `backend/agi/sandbox/sandbox_validator.py` - 4-gate validator
+- [x] 39. Create `backend/agi/sandbox/sandbox_validator.py` - 4-gate validator
 
   **What to do**:
   - Create `SandboxValidator` class with `validate(code, scenario)` method
@@ -1804,7 +1808,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 32 (integration tests)
   - **Blocked By**: Task 38
 
-- [ ] 40. Create `backend/agi/sandbox/sandbox_registry.py` - Mock-only registry
+- [x] 40. Create `backend/agi/sandbox/sandbox_registry.py` - Mock-only registry
 
   **What to do**:
   - Create `SandboxRegistry` instance with mock-only data sources
@@ -1826,7 +1830,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 38
   - **Blocked By**: Task 1
 
-- [ ] 41. Create `backend/agi/sandbox/results.py` - SandboxResult dataclass
+- [x] 41. Create `backend/agi/sandbox/results.py` - SandboxResult dataclass
 
   **What to do**:
   - Create `SandboxScenario` dataclass with name, description, mock config
@@ -1846,7 +1850,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 39
   - **Blocked By**: None
 
-- [ ] 42. Create `backend/tests/test_sandbox_validator.py` - 4-gate tests
+- [x] 42. Create `backend/tests/test_sandbox_validator.py` - 4-gate tests
 
   **What to do**:
   - Test Gate 1 rejects forbidden imports
@@ -1868,7 +1872,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 38, Task 39
 
-- [ ] 43. Create `backend/tests/test_sandbox_manager.py` - Sandbox isolation tests
+- [x] 43. Create `backend/tests/test_sandbox_manager.py` - Sandbox isolation tests
 
   **What to do**:
   - Test sandbox cannot access live DB
@@ -1890,7 +1894,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Wave 7: AGI Nodes and Graphs (Tasks 44-60)
 
-- [ ] 44. Create `backend/agi/nodes/__init__.py` - Auto-discover nodes
+- [x] 44. Create `backend/agi/nodes/__init__.py` - Auto-discover nodes
 
   **What to do**:
   - Import `node_registry`
@@ -1910,7 +1914,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 60 (tests)
   - **Blocked By**: Task 35
 
-- [ ] 45. Create `backend/agi/nodes/regime_detector_node.py` - Wrap regime detector
+- [x] 45. Create `backend/agi/nodes/regime_detector_node.py` - Wrap regime detector
 
   **What to do**:
   - Create `RegimeDetectorNode` subclass of `BaseAGINode`
@@ -1935,7 +1939,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 55 (graph)
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 46. Create `backend/agi/nodes/knowledge_graph_node.py` - Wrap KG
+- [x] 46. Create `backend/agi/nodes/knowledge_graph_node.py` - Wrap KG
 
   **What to do**:
   - Create `KnowledgeGraphNode` subclass of `BaseAGINode`
@@ -1959,7 +1963,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 55
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 47. Create `backend/agi/nodes/strategy_composer_node.py` - Wrap composer
+- [x] 47. Create `backend/agi/nodes/strategy_composer_node.py` - Wrap composer
 
   **What to do**:
   - Create `StrategyComposerNode` subclass of `BaseAGINode`
@@ -1983,7 +1987,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 55
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 48. Create `backend/agi/nodes/strategy_synthesizer_node.py` - Wrap synthesizer
+- [x] 48. Create `backend/agi/nodes/strategy_synthesizer_node.py` - Wrap synthesizer
 
   **What to do**:
   - Create `StrategySynthesizerNode` subclass of `BaseAGINode`
@@ -2007,7 +2011,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 56 (evolution graph)
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 49. Create `backend/agi/nodes/goal_engine_node.py` - Wrap goal engine
+- [x] 49. Create `backend/agi/nodes/goal_engine_node.py` - Wrap goal engine
 
   **What to do**:
   - Create `GoalEngineNode` subclass of `BaseAGINode`
@@ -2031,7 +2035,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 55
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 50. Create `backend/agi/nodes/forensics_node.py` - Wrap forensics
+- [x] 50. Create `backend/agi/nodes/forensics_node.py` - Wrap forensics
 
   **What to do**:
   - Create `ForensicsNode` subclass of `BaseAGINode`
@@ -2055,7 +2059,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 57 (forensics graph)
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 51. Create `backend/agi/nodes/auto_improve_node.py` - Wrap auto improve
+- [x] 51. Create `backend/agi/nodes/auto_improve_node.py` - Wrap auto improve
 
   **What to do**:
   - Create `AutoImproveNode` subclass of `BaseAGINode`
@@ -2079,7 +2083,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 57
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 52. Create `backend/agi/nodes/model_calibration_node.py` - Wrap calibration
+- [x] 52. Create `backend/agi/nodes/model_calibration_node.py` - Wrap calibration
 
   **What to do**:
   - Create `ModelCalibrationNode` subclass of `BaseAGINode`
@@ -2103,7 +2107,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 57
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 53. Create `backend/agi/nodes/evolution_node.py` - Wrap evolution
+- [x] 53. Create `backend/agi/nodes/evolution_node.py` - Wrap evolution
 
   **What to do**:
   - Create `EvolutionNode` subclass of `BaseAGINode`
@@ -2127,7 +2131,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 56
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 54. Create `backend/agi/graphs/__init__.py` - Graph definitions
+- [x] 54. Create `backend/agi/graphs/__init__.py` - Graph definitions
 
   **What to do**:
   - Import `graph_engine` and `node_registry`
@@ -2147,7 +2151,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 36
 
-- [ ] 55. Create `backend/agi/graphs/market_analysis_graph.py` - Regime → KG → Goal
+- [x] 55. Create `backend/agi/graphs/market_analysis_graph.py` - Regime → KG → Goal
 
   **What to do**:
   - Create `MarketAnalysisGraph` graph definition
@@ -2170,7 +2174,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 45, 46, 47, 49, 36
 
-- [ ] 56. Create `backend/agi/graphs/strategy_evolution_graph.py` - Synth → Sandbox → Promote
+- [x] 56. Create `backend/agi/graphs/strategy_evolution_graph.py` - Synth → Sandbox → Promote
 
   **What to do**:
   - Create `StrategyEvolutionGraph` graph definition
@@ -2194,7 +2198,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 48, Task 38, Task 36
 
-- [ ] 57. Create `backend/agi/graphs/forensics_graph.py` - Loss → Forensics → Improve
+- [x] 57. Create `backend/agi/graphs/forensics_graph.py` - Loss → Forensics → Improve
 
   **What to do**:
   - Create `ForensicsGraph` graph definition
@@ -2219,7 +2223,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 50, Task 51, Task 52, Task 53, Task 36
 
-- [ ] 58. Create `backend/agi/node_registry.py` - Reference import for all nodes
+- [x] 58. Create `backend/agi/node_registry.py` - Reference import for all nodes
 
   **What to do**:
   - Import `node_registry` from `backend.agi.node_registry`
@@ -2240,7 +2244,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 60
   - **Blocked By**: Task 35, Tasks 45-53
 
-- [ ] 59. Refactor `backend/strategies/base.py` - Add `market_context` field
+- [x] 59. Refactor `backend/strategies/base.py` - Add `market_context` field
 
   **What to do**:
   - Import `MultiVenueContext` from `backend.markets.multi_venue`
@@ -2264,7 +2268,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Task 60 (integration tests)
   - **Blocked By**: Task 6, Task 23, Task 58
 
-- [ ] 60. Create `backend/tests/test_node_registry.py` and `test_sandbox_node.py` - Node tests
+- [x] 60. Create `backend/tests/test_node_registry.py` and `test_sandbox_node.py` - Node tests
 
   **What to do**:
   - Test node registration
@@ -2273,7 +2277,14 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - Test sandbox nodes skipped when live data required
 
   **Test cases**:
-  - All tests pass
+  - `test_register_valid_node` — registers a concrete `BaseAGINode` subclass, verifies in `_plugins`/`_enabled`/`_health_status`
+  - `test_get_node_by_name` — retrieves registered node by name
+  - `test_get_disabled_node_raises` — disabled node raises `KeyError`
+  - `test_list_all_only_enabled` — `list_all()` excludes disabled nodes
+  - `test_singleton_identity` — two `NodeRegistry()` calls return same instance
+  - `test_reset_clears_instance` — `NodeRegistry.reset()` allows fresh instantiation
+  - `test_sandbox_node_skipped_when_live_required` — sandbox node's `is_sandbox=True` makes it filterable when live data is required
+  - `test_sandbox_node_execute_returns_state` — sandbox node `execute()` returns `AgentState` with expected keys
 
   **Recommended Agent Profile**:
   > - **Category**: `unspecified-high` - Full test suite
@@ -2287,7 +2298,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Wave 8: Integration + Frontend (Tasks 61-76)
 
-- [ ] 61. Create `backend/api/v1/agi_nodes.py` - AGI node API
+- [x] 61. Create `backend/api/v1/agi_nodes.py` - AGI node API
 
   **What to do**:
   - Create FastAPI router
@@ -2308,7 +2319,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Frontend API client (task 71)
   - **Blocked By**: Task 35, Task 44
 
-- [ ] 62. Create `backend/api/v1/agi_graphs.py` - Graph run API
+- [x] 62. Create `backend/api/v1/agi_graphs.py` - Graph run API
 
   **What to do**:
   - Create FastAPI router
@@ -2329,7 +2340,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Frontend API client (task 71)
   - **Blocked By**: Task 36, Task 54
 
-- [ ] 63. Create `backend/api/v1/agi_sandbox.py` - Sandbox API
+- [x] 63. Create `backend/api/v1/agi_sandbox.py` - Sandbox API
 
   **What to do**:
   - Create FastAPI router
@@ -2350,7 +2361,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: Frontend API client (task 71)
   - **Blocked By**: Task 38, Task 39
 
-- [ ] 64. Create `frontend/src/components/PluginStatusPanel.tsx` - Unified plugin view
+- [x] 64. Create `frontend/src/components/PluginStatusPanel.tsx` - Unified plugin view
 
   **What to do**:
   - Create React component with tabs for all 4 registries
@@ -2375,7 +2386,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Tasks 13, 21, 30, 61, 62, 63
 
-- [ ] 65. Create `frontend/src/components/VenueMonitor.tsx` - Per-venue monitoring
+- [x] 65. Create `frontend/src/components/VenueMonitor.tsx` - Per-venue monitoring
 
   **What to do**:
   - Create React component with cards per active venue
@@ -2398,7 +2409,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 64
 
-- [ ] 66. Create `frontend/src/components/SandboxMonitor.tsx` - Sandbox validation
+- [x] 66. Create `frontend/src/components/SandboxMonitor.tsx` - Sandbox validation
 
   **What to do**:
   - Create React component listing sandbox runs
@@ -2421,7 +2432,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 64, Task 63
 
-- [ ] 67. Create `frontend/src/components/AGIGraphRunner.tsx` - Graph trigger
+- [x] 67. Create `frontend/src/components/AGIGraphRunner.tsx` - Graph trigger
 
   **What to do**:
   - Create React component with dropdown of graphs
@@ -2444,7 +2455,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 64, Task 62
 
-- [ ] 68. Create `frontend/src/api/providers.ts` - AI provider API client
+- [x] 68. Create `frontend/src/api/providers.ts` - AI provider API client
 
   **What to do**:
   - Create axios instance for `/api/v1/ai/providers` endpoints
@@ -2466,7 +2477,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 13
 
-- [ ] 69. Create `frontend/src/api/data_sources.ts` - Data source API client
+- [x] 69. Create `frontend/src/api/data_sources.ts` - Data source API client
 
   **What to do**:
   - Create axios instance for `/api/v1/data/sources` endpoints
@@ -2485,7 +2496,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 21
 
-- [ ] 70. Create `frontend/src/api/market_venues.ts` - Market provider API client
+- [x] 70. Create `frontend/src/api/market_venues.ts` - Market provider API client
 
   **What to do**:
   - Create axios instance for `/api/v1/markets/providers` and `/api/v1/markets/order` endpoints
@@ -2505,7 +2516,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Task 30
 
-- [ ] 71. Update `frontend/src/api/agi.ts` - AGI client
+- [x] 71. Update `frontend/src/api/agi.ts` - AGI client
 
   **What to do**:
   - Add sandbox and graph run endpoints
@@ -2524,7 +2535,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Tasks 61, 62, 63
 
-- [ ] 72. Create `backend/tests/test_integration_ensemble.py` - AI provider integration tests
+- [x] 72. Create `backend/tests/test_integration_ensemble.py` - AI provider integration tests
 
   **What to do**:
   - Test provider registry ensemble with registry providers
@@ -2545,7 +2556,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Tasks 10, 11, 12, 14, 68
 
-- [ ] 73. Create `backend/tests/test_integration_data_strategy.py` - Data source integration
+- [x] 73. Create `backend/tests/test_integration_data_strategy.py` - Data source integration
 
   **What to do**:
   - Test strategy context injection with data registry
@@ -2565,7 +2576,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Tasks 16, 17, 18, 20, 22, 69
 
-- [ ] 74. Create `backend/tests/test_integration_order_executor.py` - Order executor tests
+- [x] 74. Create `backend/tests/test_integration_order_executor.py` - Order executor tests
 
   **What to do**:
   - Test order executor uses market registry
@@ -2586,7 +2597,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Tasks 25, 26, 27, 28, 32, 70
 
-- [ ] 75. Create `backend/tests/test_integration_sandbox_evolution.py` - Evolution tests
+- [x] 75. Create `backend/tests/test_integration_sandbox_evolution.py` - Evolution tests
 
   **What to do**:
   - Test full evolution graph in sandbox mode
@@ -2606,7 +2617,7 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
   - **Blocks**: None
   - **Blocked By**: Tasks 38, 39, 42, 43, 56
 
-- [ ] 76. Create `backend/tests/test_integration_settlement_fills.py` - Settlement tests
+- [x] 76. Create `backend/tests/test_integration_settlement_fills.py` - Settlement tests
 
   **What to do**:
   - Test settlement consumes fills from registry stream
@@ -2628,19 +2639,19 @@ FINAL: - Tasks F1-F4 (deps: ALL prior tasks)
 
 ### Final Verification Wave (Tasks F1-F4)
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `tsc --noEmit` + linter + `bun test`. Review all changed files for: `as any`/`@ts-ignore`, empty catches, console.log in prod, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp).
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill if UI)
+- [x] F3. **Real Manual QA** — `unspecified-high` (+ `playwright` skill if UI)
   Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (features working together, not isolation). Test edge cases: empty state, invalid input, rapid actions. Test save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination: Task N touching Task M's files. Flag unaccounted changes.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
@@ -2689,10 +2700,10 @@ curl -s -X POST http://localhost:8100/api/v1/agi/sandbox/validate -H "Content-Ty
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] All tests pass
-- [ ] All API endpoints functional
-- [ ] All frontend panels display correctly
-- [ ] All documentation updated
-- [ ] All ADRs created/updated
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] All tests pass
+- [x] All API endpoints functional
+- [x] All frontend panels display correctly
+- [x] All documentation updated
+- [x] All ADRs created/updated
