@@ -159,7 +159,14 @@ class TradeRole(str, Enum):
 def _set_sqlite_busy_timeout(connection_or_session, timeout_ms: int) -> None:
     """Apply a shorter busy_timeout for best-effort SQLite bootstrap work."""
 
-    if connection_or_session.get_bind().dialect.name != "sqlite":
+    # SQLAlchemy 2.0: Connection objects don't have get_bind(), only Session does
+    try:
+        bind = connection_or_session.get_bind()
+        dialect_name = bind.dialect.name
+    except AttributeError:
+        dialect_name = connection_or_session.dialect.name
+
+    if dialect_name != "sqlite":
         return
 
     try:
@@ -1952,9 +1959,9 @@ def ensure_schema():
     # Backfill logic for existing trades (preserve data)
     try:
         with engine.connect() as conn:
-            if "sqlite" in settings.DATABASE_URL:
-                _set_sqlite_busy_timeout(conn, 1000)
             with conn.begin():
+                if "sqlite" in settings.DATABASE_URL:
+                    _set_sqlite_busy_timeout(conn, 1000)
                 # Set source="bot" for all existing trades (assume bot-executed)
                 conn.execute(
                     text("UPDATE trades SET source = 'bot' WHERE source IS NULL")
