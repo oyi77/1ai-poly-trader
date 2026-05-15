@@ -1,6 +1,7 @@
 """Authentication and admin routes."""
 
 import secrets
+import shutil
 import time
 from fastapi import Depends, HTTPException, Header, APIRouter, Request, Response, Cookie
 from pydantic import BaseModel
@@ -570,18 +571,25 @@ async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends
     # Restart polyedge-bot to pick up new credentials
     import asyncio as _asyncio
 
-    try:
-        _proc = await _asyncio.create_subprocess_exec(
-            "pm2",
-            "restart",
-            "polyedge-bot",
-            stdout=_asyncio.subprocess.PIPE,
-            stderr=_asyncio.subprocess.PIPE,
-        )
-        await _asyncio.wait_for(_proc.communicate(), timeout=10)
-        logger.info("polyedge-bot restarted to apply new credentials")
-    except Exception as _e:
-        logger.warning(f"Could not restart polyedge-bot: {_e}")
+    pm2_path = shutil.which("pm2")
+    if not pm2_path:
+        logger.warning("pm2 not found in PATH; skipping restart")
+    else:
+        SERVICE_NAME = "polyedge-bot"
+        try:
+            _proc = await _asyncio.create_subprocess_exec(
+                pm2_path,
+                "restart",
+                SERVICE_NAME,
+                stdout=_asyncio.subprocess.PIPE,
+                stderr=_asyncio.subprocess.PIPE,
+            )
+            await _asyncio.wait_for(_proc.communicate(), timeout=10)
+            logger.info("polyedge-bot restarted to apply new credentials")
+        except (_asyncio.subprocess.SubprocessError, OSError, _asyncio.TimeoutError) as _e:
+            logger.warning(f"Could not restart polyedge-bot: {_e}")
+        except Exception:
+            logger.exception("Unexpected error restarting polyedge-bot")
 
     _sig = settings.POLYMARKET_SIGNATURE_TYPE
     _creds_live_ok = (

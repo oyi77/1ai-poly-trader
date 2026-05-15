@@ -1,6 +1,7 @@
 """Database models and connection for BTC 5-min trading bot."""
 
 import os
+import re
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -1465,6 +1466,22 @@ def seed_default_data():
         db.close()
 
 
+_DDL_COL_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_DDL_TYPE_RE = re.compile(r'^(VARCHAR|TEXT|INTEGER|REAL|BOOLEAN|TIMESTAMP|DATETIME|JSON)(\s+.*)?$', re.IGNORECASE)
+
+
+def _safe_ddl_identifier(name: str) -> str:
+    if not _DDL_COL_RE.match(name):
+        raise ValueError(f"Invalid DDL identifier: {name!r}")
+    return name
+
+
+def _safe_ddl_type(type_str: str) -> str:
+    if not _DDL_TYPE_RE.match(type_str):
+        raise ValueError(f"Invalid DDL type: {type_str!r}")
+    return type_str
+
+
 def ensure_schema():
     """Ensure newer schema fields exist even if migration wasn't run."""
     inspector = inspect(engine)
@@ -1997,9 +2014,11 @@ def ensure_schema():
     for col, col_type in [("status", "TEXT DEFAULT 'pending'"), ("auto_promotable", "BOOLEAN DEFAULT 0"), ("proposed_params", "JSON"), ("backtest_passed", "BOOLEAN DEFAULT 0"), ("backtest_sharpe", "REAL"), ("backtest_win_rate", "REAL")]:
         if col not in proposal_col_names:
             try:
+                safe_col = _safe_ddl_identifier(col)
+                safe_type = _safe_ddl_type(col_type)
                 with engine.connect() as conn:
                     with conn.begin():
-                        conn.execute(text(f"ALTER TABLE strategy_proposal ADD COLUMN {col} {col_type}"))
+                        conn.execute(text(f"ALTER TABLE strategy_proposal ADD COLUMN {safe_col} {safe_type}"))
                         logger.info(f"Added '{col}' column to strategy_proposal")
             except Exception as e:
                 logger.warning(f"Schema migration: could not add strategy_proposal.{col}: {e}")
@@ -2024,9 +2043,11 @@ def ensure_schema():
     ]:
         if col not in gr_cols:
             try:
+                safe_col = _safe_ddl_identifier(col)
+                safe_type = _safe_ddl_type(coltype)
                 with engine.connect() as conn:
                     with conn.begin():
-                        conn.execute(text(f"ALTER TABLE genome_registry ADD COLUMN {col} {coltype}"))
+                        conn.execute(text(f"ALTER TABLE genome_registry ADD COLUMN {safe_col} {safe_type}"))
                         logger.info(f"Added '{col}' column to genome_registry")
             except Exception as e:
                 logger.warning(f"Schema migration: could not add genome_registry.{col}: {e}")

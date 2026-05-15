@@ -76,7 +76,8 @@ class ConfigRegistry:
                     setattr(self, name, float(env_val))
                 elif isinstance(default, (dict, list)):
                     try:
-                        setattr(self, name, eval(env_val))
+                        import ast
+                        setattr(self, name, ast.literal_eval(env_val))
                     except Exception:
                         setattr(self, name, default)
                 else:
@@ -1000,6 +1001,9 @@ class ConfigRegistry:
             issues.append(f"SCAN_INTERVAL_SECONDS too aggressive: {self.SCAN_INTERVAL_SECONDS}s (min: 5s)")
         if self.SETTLEMENT_INTERVAL_SECONDS < 30:
             issues.append(f"SETTLEMENT_INTERVAL_SECONDS too aggressive: {self.SETTLEMENT_INTERVAL_SECONDS}s (min: 30s)")
+
+        if not self.WALLET_FERNET_KEY:
+            issues.append("WALLET_FERNET_KEY is empty — wallet encryption disabled: private keys stored in plaintext. This is safe for dev/paper-only but NOT for live production trading.")
 
         # Check HFT parameters
         if self.HFT_SCANNER_CIRCUIT_BREAKER_THRESHOLD < 1:
