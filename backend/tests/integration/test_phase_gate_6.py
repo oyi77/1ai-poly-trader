@@ -2,7 +2,6 @@
 Aggregates Tasks 31-34 to verify all benchmarks pass."""
 
 import pytest
-import json
 from pathlib import Path
 
 

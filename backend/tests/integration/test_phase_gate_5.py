@@ -2,7 +2,7 @@
 Aggregates Tasks 25-29 to verify goal formation and planning pipeline."""
 
 import pytest
-from backend.agi.core_values import CoreValues, AlignmentResult
+from backend.agi.core_values import CoreValues
 from backend.agi.multi_objective_optimizer import MultiObjectiveOptimizer, Goal
 from backend.agi.long_term_planner import LongTermPlanner, LongTermPlan
 

@@ -1,6 +1,5 @@
 """Tests for backend.core.strategy_executor — strategy decision → trade pipeline."""
 
-import importlib
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 

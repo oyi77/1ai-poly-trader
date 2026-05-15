@@ -1,11 +1,8 @@
 """Comprehensive tests for the AGI self-improvement system."""
 import ast
-import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
-import pytest
 
 from backend.agi.codebase_intelligence import (
     CodebaseScanner,
@@ -13,11 +10,9 @@ from backend.agi.codebase_intelligence import (
     ImprovementCandidate,
     ModuleGraph,
     CodebaseHealthMetrics,
-    ModuleInfo,
 )
 from backend.agi.extended_sandbox import (
     ExtendedSandbox,
-    SandboxConfig,
     SandboxResult,
 )
 from backend.agi.self_healing import (
@@ -50,8 +45,8 @@ class TestModuleGraph:
 
     def test_leaf_modules(self):
         g = ModuleGraph()
-        a = g.add_module("backend/core/a.py", "backend.core.a", ["backend.core.b"], [], 10)
-        b = g.add_module("backend/core/b.py", "backend.core.b", [], [], 10)
+        g.add_module("backend/core/a.py", "backend.core.a", ["backend.core.b"], [], 10)
+        g.add_module("backend/core/b.py", "backend.core.b", [], [], 10)
         leaves = g.leaf_modules()
         assert len(leaves) == 1
         assert leaves[0].package == "backend.core.a"
@@ -105,13 +100,11 @@ x = 5
         assert "x" not in exports
 
     def test_path_to_package_conversion(self):
-        from pathlib import Path
         fpath = Path("backend/core/foo.py")
         pkg = CodebaseScanner._path_to_package(fpath)
         assert pkg == "backend.core.foo"
 
     def test_path_to_package_init(self):
-        from pathlib import Path
         fpath = Path("backend/core/__init__.py")
         pkg = CodebaseScanner._path_to_package(fpath)
         assert pkg == "backend.core"
