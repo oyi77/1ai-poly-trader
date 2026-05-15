@@ -15,8 +15,7 @@ from unittest.mock import Mock, patch
 
 from backend.core.proposal_applier import ProposalApplier
 from backend.core.proposal_executor import ProposalExecutor
-        _reload_executor()
-        from backend.core.strategy_executor import execute_decision
+from backend.core.strategy_executor import execute_decision
 from backend.models.database import (
     StrategyProposal,
     StrategyConfig,
