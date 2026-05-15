@@ -37,8 +37,7 @@ class CredentialResponse(BaseModel):
     is_secret: bool
     description: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class UpsertCredentialRequest(BaseModel):
