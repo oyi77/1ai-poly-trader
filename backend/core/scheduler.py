@@ -74,6 +74,9 @@ worker: Optional[Worker] = None
 worker_task: Optional[asyncio.Task] = None
 task_manager: Optional[TaskManager] = None
 
+# Concurrency guard for scheduler state mutations (threading.Lock since start_scheduler is sync)
+_scheduler_state_lock = threading.Lock()
+
 # Event log for terminal display (in-memory, last 200 events)
 event_log: List[dict] = []
 MAX_LOG_SIZE = 200
@@ -272,7 +275,8 @@ def load_scheduler_state(sched: AsyncIOScheduler) -> int:
                 if grace is not None:
                     add_kwargs["misfire_grace_time"] = int(grace)
                 try:
-                    sched.add_job(func, trigger, **add_kwargs)
+                    with _scheduler_state_lock:
+                        sched.add_job(func, trigger, **add_kwargs)
                     restored += 1
                 except Exception as exc:
                     logger.warning(f"Failed to restore job '{row.job_name}': {exc}")

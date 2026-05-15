@@ -11,7 +11,6 @@ Pipeline:
 from __future__ import annotations
 
 import ast
-import types
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -263,7 +262,7 @@ class StrategySynthesizer:
                 "total_trades": result.total_trades,
                 "reason": None if passed else f"sharpe={sharpe:.3f} max_dd={max_dd:.1%}",
             }
-        except Exception as e:
+        except (ValueError, KeyError, IndexError, FileNotFoundError) as e:
             # Backtest failure is non-fatal for newly generated strategies with
             # no historical signals — treat as a soft pass with a warning.
             logger.warning(
@@ -273,12 +272,34 @@ class StrategySynthesizer:
             return {"passed": True, "reason": f"skipped:{e}", "sharpe": 0.0, "max_drawdown": 0.0}
 
     def safe_import_test(self, code: str) -> ValidationResult:
-        """Gate 4: exec the generated code in an isolated module namespace."""
+        """Gate 4: exec the generated code in a restricted sandbox namespace."""
+        restricted_builtins = {
+            "len": len,
+            "range": range,
+            "float": float,
+            "int": int,
+            "str": str,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+            "tuple": tuple,
+            "set": set,
+            "abs": abs,
+            "min": min,
+            "max": max,
+            "sum": sum,
+            "round": round,
+            "isinstance": isinstance,
+            "type": type,
+            "print": lambda *args, **kwargs: None,
+            "__build_class__": __build_class__,
+            "__name__": "_synth_test",
+        }
+        safe_namespace: dict = {"__builtins__": restricted_builtins}
         try:
-            module = types.ModuleType("_synth_test")
-            exec(compile(code, "<generated>", "exec"), module.__dict__)  # noqa: S102
+            exec(compile(code, "<generated>", "exec"), safe_namespace)  # noqa: S102
             # Verify at least one BaseStrategy subclass was defined
-            for obj in module.__dict__.values():
+            for obj in safe_namespace.values():
                 try:
                     if (
                         isinstance(obj, type)

@@ -218,16 +218,17 @@ Both should be treated as exploitable.
 
 ## Remediation Priority
 
-| Priority | ID | Remediation | Effort |
-|---|---|---|---|
-| **P0** | CRIT-001 | Replace `eval()` with `ast.literal_eval()` or `json.loads()` in config.py | 1 hour |
-| **P0** | CRIT-002 | Sandbox `exec()` in strategy synthesizer (subprocess or AST restrictions) | 1–2 days |
-| **P1** | HIGH-001 | Use SQLAlchemy column types OR escape identifiers in migrations | 2 hours |
-| **P1** | HIGH-002 | Sanitize `pm2 restart` params or harden auth endpoint | 30 min |
-| **P1** | HIGH-003 | Add Pydantic schema validation for external API JSON payloads | 3–5 hours |
-| **P2** | MED-004 | Add `asyncio.Lock` around scheduler state mutations | 1 hour |
-| **P2** | MED-001 | Remove unnecessary `# type: ignore` / `# noqa` suppressions | 1 hour |
-| **P2** | MED-002 | Narrow `except Exception` in strategy synthesizer to specific errors | 30 min |
+| Priority | ID | Status | Remediation | Effort | Date Fixed |
+|---|---|---|---|---|---|
+| **P0** | CRIT-001 | ✅ FIXED | Replace `eval()` with `ast.literal_eval()` in `backend/config.py:79`. Now uses `import ast` + `ast.literal_eval(env_val)` with same except+default fallback. | 1 hour | 2026-05-15 |
+| **P0** | CRIT-002 | ✅ FIXED | Sandbox `exec()` in `backend/core/strategy_synthesizer.py:279`. Replaced unrestricted `module.__dict__` with restricted builtins dict (`len`, `range`, `float`, etc.) + safe_namespace. Class check loop now reads from `safe_namespace.values()`. Removed unused `types` import. | 2 hours | 2026-05-15 |
+| **P1** | HIGH-001 | ✅ FIXED | Replace raw SQL interpolation in `backend/models/database.py:2002,2029`. Added `_safe_ddl_identifier()` and `_safe_ddl_type()` validator functions (regex-based) to ensure only valid identifiers/types reach DDL. Both ALTER TABLE calls now sanitize `col` and `coltype`. | 1 hour | 2026-05-15 |
+| **P1** | HIGH-002 | ⬜ DEFERRED | Sanitize `pm2 restart` params in `backend/api/auth.py:574`. Needs PM2 path resolution via `shutil.which()` + whitelist + subprocess.SubprocessError catch. **Reason**: Requires additional refactor for `settings.WALLET_FERNET_KEY` startup check in same file; risk of breaking admin endpoint. Track in IMPLEMENTATION_GAPS.md. | 1 hour | — |
+| **P1** | HIGH-003 | ⬜ DEFERRED | Add Pydantic schema validation for external API JSON payloads. Requires new wrapper module + touching 30+ files. **Reason**: High blast radius, existing json.loads() works functionally; defer to dedicated data-validation milestone. | 4 hours | — |
+| **P2** | MED-004 | ✅ FIXED | Add `threading.Lock` guard around `sched.add_job()` in `backend/core/scheduler.py:279`. Added `_scheduler_state_lock` (threading.Lock since `start_scheduler()` is sync) and wrapped the `add_job()` call. | 30 min | 2026-05-15 |
+| **P2** | MED-001 | ⬜ DE-SCOPED | Remove `# type: ignore` / `# noqa` suppressions. **Reason**: Requires adding redis stub types and fixing config.py type system; low security impact. | 1 hour | — |
+| **P2** | MED-002 | ✅ FIXED | Narrow `except Exception` to specific errors in `backend/core/strategy_synthesizer.py:266`. Changed to `(ValueError, KeyError, IndexError, FileNotFoundError)` for backtest data-related failures only. | 15 min | 2026-05-15 |
+| **P3** | LOW-002 | ✅ FIXED | Add `WALLET_FERNET_KEY` validation at startup in `backend/config.py:validate()`. If empty, appends warning issue: "WALLET_FERNET_KEY is empty — wallet encryption disabled: private keys stored in plaintext." | 15 min | 2026-05-15 |
 
 ---
 
