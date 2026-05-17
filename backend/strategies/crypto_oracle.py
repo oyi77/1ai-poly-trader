@@ -712,8 +712,9 @@ class CryptoOracleStrategy(BaseStrategy):
                         oracle_implied = market_mid + (min_edge * 2 if direction == "yes" else -min_edge * 2)
                         oracle_implied = max(0.05, min(0.95, oracle_implied))
                     edge = oracle_implied - market_mid
-                    if direction == "no":
-                        edge = -edge  # flip sign for NO direction
+                    # No sign flip needed — market_mid is already market.no_price
+                    # for NO direction (line 682), so oracle_implied - market_mid
+                    # gives correct positive edge when NO is underpriced.
 
                     decision = "BUY" if edge > 0 else "SKIP"
                     confidence_score = min(1.0, abs(edge + min_edge) / min_edge) if min_edge > 0 else 0.0
