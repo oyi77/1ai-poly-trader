@@ -734,3 +734,35 @@ Key categories:
 | LOW | 66 | Style/type issues (25), minor bugs (15), dead code (10), infra gaps (8), documentation (8) |
 
 **Grand Total: 259 findings** across the entire codebase.
+
+---
+
+## Live Loss Incident (2026-05-17) — $925 Drawdown
+
+**Profile**: $811 all-time profit → -$114.32. **$925 lost in single session.**
+
+### Root Cause Analysis
+
+| # | Cause | Files | Impact |
+|---|-------|-------|--------|
+| L-01 | **Duplicate guard blocks same-direction only** — `Trade.direction == direction` allows buying BOTH Up AND Down on same market within 5 min window | `strategy_executor.py:382` | Bot committed ~$1,750 Down + ~$700 Up across 13 BTC 5-min windows. One side always loses. |
+| L-02 | **Edge always 0 in crypto_oracle** — `edge = abs(oracle_implied - market_mid) - min_edge` simplifies to `min_edge - min_edge = 0` | `crypto_oracle.py:696` | No real signal. Direction selection is random (momentum flips). |
+| L-03 | **Edge always 0 in universal_scanner** — `implied_prob = 1.0 - no_price = price`, `edge = price - price = 0` | `universal_scanner.py:387-388` | Same — no real signal on WS path. |
+| L-04 | **No per-market position cap** — Bot can open unlimited positions on same event across time windows | `strategy_executor.py` | 13 separate BTC 5-min windows traded simultaneously |
+| L-05 | **model_probability 1.0/0.0** — `crypto_oracle.py:804` sets absolute certainty, Kelly sizing = max bet | `crypto_oracle.py:804` | $50+ positions on fabricated certainty |
+| L-06 | **Eurovision/Trump spam** — universal_scanner or general_market_scanner DCA-ing 80+ micro-trades into stale/expired markets | `universal_scanner.py`, `general_market_scanner.py` | Wasted gas, noise trades |
+
+### Trade Pattern Evidence
+
+- **10:10-11:15AM ET**: 13 BTC 5-min windows, each with $50+ Down buys AND $50+ Up buys
+- **Finland Eurovision**: ~80 trades at $0.053 each (50.5 tokens) — bot DCA-ing into resolved market
+- **Trump/Xi**: ~100 trades at $1-$1.30 each on "Will Trump say Iran/Nuclear/Strait"
+- **Sports/esports**: ~30 micro-trades at $0.052 each on LoL, Dota, baseball
+
+### Fixes Required (P0 — before next live session)
+
+1. Fix duplicate guard: block same MARKET+WINDOW, not just same direction
+2. Fix edge calculation in crypto_oracle and universal_scanner
+3. Add per-market position cap (max 1 open position per event)
+4. Fix model_probability to use bounded estimates (not 1.0/0.0)
+5. Add stale-market filter to skip markets near/after resolution
