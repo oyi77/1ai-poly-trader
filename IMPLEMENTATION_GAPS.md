@@ -469,3 +469,67 @@ All AGI cognitive/evolution/learning modules implemented and integration-validat
 
 ## Missing MarketProviderPlugin implementations
 Due to PR #95 not being merged on this branch, KalshiProvider and PolymarketProvider are not fully implemented. They need to be added once MarketProviderPlugin is available.
+
+---
+
+## Known Gaps (2026-05-17) — True Full AGI Trading Engine Framework
+
+### 🔴 CRITICAL — System Integrity
+
+| # | Gap | Impact | Priority |
+|---|-----|--------|----------|
+| G-01 | **No auto-restart on crash** — Bot guardian only monitors, doesn't restart PM2 processes on segfault/memory leak | 1h+ downtime if bot OOMs | 🔴 P0 |
+| G-02 | **Polymarket WebSocket not reconnecting** — If WS disconnects, real-time 5-min market data stops flowing. No reconnection logic in `polymarket_websocket.py`. | Missed crypto 5-min markets | 🔴 P0 |
+| G-03 | **Bot_state lock contention** — 140+ concurrent connections killing each other. `botstate_mutex` exists but strategy_executor.py sometimes skips it. | DB deadlocks | 🔴 P0 |
+| G-04 | **No disk space monitoring** — SQLite/PostgreSQL could fill disk. No alert when >90% | System crash | 🔴 P0 |
+
+### 🟡 HIGH — AGI Pipeline Complete
+
+| # | Gap | Impact | Priority |
+|---|-----|--------|----------|
+| G-05 | **No strategy evolution loop** — AGI should automatically: scan all strategies → disable losing → enable winning → create new variants. Currently manual. | Missed profit opportunities | 🟡 P1 |
+| G-06 | **Fronttest validation not scheduled** — `FronttestValidator.can_go_live()` exists but never runs automatically. Requires manual API call. | Paper→Live gate manual | 🟡 P1 |
+| G-07 | **No cross-validation** — Paper trades from different time periods not compared. A strategy could win in May but lose in April. | Overfitting risk | 🟡 P1 |
+| G-08 | **No paper→live correlation tracking** — If paper scores don't correlate with live results, the pipeline is meaningless. Need to track this. | Pipeline validity unknown | 🟡 P1 |
+| G-09 | **Strategy performance decay detection** — No check if a strategy's win rate is degrading over time. Should auto-disable. | Gradual capital bleed | 🟡 P1 |
+
+### 🟡 HIGH — Trading Accuracy
+
+| # | Gap | Impact | Priority |
+|---|-----|--------|----------|
+| G-10 | **crypto_oracle never tested live** — Code exists, enabled in paper, but 0 trades ever executed. Unknown if it actually works with ETH/SOL markets. | Wasted opportunity | 🟡 P1 |
+| G-11 | **No ETH/SOL 5-min market discovery** — `crypto_oracle` has WS subscription for token_ids but we haven't verified ETH/SOL 5-min markets actually exist on Polymarket. | Feature may not work | 🟡 P1 |
+| G-12 | **Backtest data is Kalshi-only** — Backtests for auto_trader use Kalshi data, not Polymarket. Results don't translate. | Misleading backtest results | 🟡 P1 |
+| G-13 | **No real-time dashboard integration** — Frontend shows data but doesn't update in real-time with WebSocket. Requires manual refresh. | Poor UX | 🟡 P1 |
+
+### 🟢 MEDIUM — Risk & Safety
+
+| # | Gap | Impact | Priority |
+|---|-----|--------|----------|
+| G-14 | **No max drawdown per strategy** — Risk layer only checks total + daily. No individual stop-loss per strategy. | Single bad strategy could bleed all capital | 🟢 P2 |
+| G-15 | **No trade size limits based on volatility** — All trades use fixed $50 size. Should scale down in high volatility. | Unnecessary risk | 🟢 P2 |
+| G-16 | **No cooldown period after loss** — If a strategy loses 3 trades in a row, it should pause for 1 hour. Not implemented. | Tilt-trading | 🟢 P2 |
+| G-17 | **No circuit breaker by market type** — If all crypto markets are crashing, should stop ALL crypto trades. Currently only checks per-strategy. | Cascade failure risk | 🟢 P2 |
+| G-18 | **No position concentration limit** — The same underlying event (e.g. Fed decision) could have 5+ spread markets. Bot could over-concentrate. | Overexposure | 🟢 P2 |
+
+### 🔵 LOW — Polish & Docs
+
+| # | Gap | Impact | Priority |
+|---|-----|--------|----------|
+| G-19 | **README outdated** — Still references old architecture without strategy gate, crypto oracle, or risk layer. | New devs get wrong picture | 🔵 P3 |
+| G-20 | **No API docs for new endpoints** — `docs/api.md` missing strategy gate, risk check endpoints. | API consumers blind | 🔵 P3 |
+| G-21 | **No monitoring dashboard** — No visual display of: active strategies, gate status, daily PnL, risk alerts. | Debugging hard | 🔵 P3 |
+| G-22 | **Tests don't cover strategy gate** — `strategy_gate.py` has 0 unit tests. If refactored, breaks silently. | Regression risk | 🔵 P3 |
+| G-23 | **No performance benchmarks** — No baseline for trade execution latency, settlement speed, or strategy cycle time. | Can't measure improvement | 🔵 P3 |
+
+---
+
+### Summary
+
+**4 🔴 Critical** — System stability issues that WILL cause downtime
+**5 🟡 High (Pipeline)** — AGI can't auto-optimize without these
+**3 🟡 High (Accuracy)** — Trading features that may not work
+**5 🟢 Medium** — Risk safety net incomplete
+**5 🔵 Low** — Docs/observability polish
+
+**Total: 23 gaps** remaining before "True Full AGI Trading Engine Framework" is complete.
