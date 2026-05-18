@@ -221,6 +221,8 @@ def test_mutate_genome_high_fitness():
 
 def test_mutate_genome_low_fitness():
     """Test mutation with low fitness score (higher mutation rate)."""
+    import random
+    random.seed(42)  # Fix seed for deterministic test
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
