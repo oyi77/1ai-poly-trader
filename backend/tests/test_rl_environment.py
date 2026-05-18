@@ -5,7 +5,7 @@ import pytest
 gymnasium = pytest.importorskip("gymnasium")
 check_env = gymnasium.utils.env_checker.check_env
 
-from backend.core.rl_environment import (
+from backend.core.rl_environment import (  # noqa: E402
     ACTION_BUY,
     ACTION_HOLD,
     ACTION_SELL,
