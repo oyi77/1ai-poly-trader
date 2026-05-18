@@ -26,7 +26,12 @@ _sched_stub.run_manual_scan = MagicMock(return_value=None)
 sys.modules.setdefault("apscheduler", MagicMock())
 sys.modules.setdefault("apscheduler.schedulers", MagicMock())
 sys.modules.setdefault("apscheduler.schedulers.asyncio", MagicMock())
+sys.modules.setdefault("apscheduler.triggers", MagicMock())
+sys.modules.setdefault("apscheduler.triggers.interval", MagicMock())
+sys.modules.setdefault("apscheduler.triggers.cron", MagicMock())
+sys.modules.setdefault("apscheduler.events", MagicMock())
 sys.modules["backend.core.scheduler"] = _sched_stub
+sys.modules["backend.core.scheduling.scheduler"] = _sched_stub
 
 # ---------------------------------------------------------------------------
 # Loguru → caplog bridge: routes loguru output into pytest caplog
@@ -181,6 +186,20 @@ _MODULES_WITH_SESSIONLOCAL = [
     "backend.core.fronttest_validator",
     "backend.core.cache_cleanup",
     "backend.core.auto_redeem",
+    # New subpackage paths (after core/ refactor)
+    "backend.core.settlement.settlement",
+    "backend.core.settlement.settlement_helpers",
+    "backend.core.settlement.settlement_ws",
+    "backend.core.settlement.auto_redeem",
+    "backend.core.risk.risk_manager",
+    "backend.core.risk.risk_profiles",
+    "backend.core.scheduling.scheduler",
+    "backend.core.scheduling.scheduling_strategies",
+    "backend.core.learning.auto_improve",
+    "backend.core.learning.retrain_trigger",
+    "backend.core.wallet.bankroll_allocator",
+    "backend.core.wallet.bankroll_reconciliation",
+    "backend.core.wallet.wallet_reconciliation",
     "backend.strategies.wallet_sync",
     "backend.strategies.base",
     "backend.modules.execution.copy_trader",
