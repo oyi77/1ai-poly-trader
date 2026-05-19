@@ -25,19 +25,12 @@ class LimitlessClient:
             return resp.json()
 
     async def place_order(self, market_id: str, side: str, size: float, price: float, private_key: str) -> dict:
-        """Place an order. EIP-712 signing stub — real impl would sign the order struct."""
-        logger.info("LimitlessClient.place_order called", market_id=market_id, side=side)
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            payload = {"marketId": market_id, "side": side, "size": size, "price": price}
-            resp = await client.post(f"{self._base_url}/orders", json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        """Place an order. EIP-712 signing not implemented — cannot send unsigned orders."""
+        raise RuntimeError("LimitlessClient.place_order: EIP-712 signing not implemented — orders cannot be placed without cryptographic signatures")
 
     async def cancel_order(self, order_id: str, private_key: str) -> bool:
-        """Cancel an open order."""
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.delete(f"{self._base_url}/orders/{order_id}")
-            return resp.status_code == 200
+        """Cancel an open order. EIP-712 signing not implemented."""
+        raise RuntimeError("LimitlessClient.cancel_order: EIP-712 signing not implemented — orders cannot be cancelled without cryptographic signatures")
 
     async def health_check(self) -> bool:
         """Check if Limitless Exchange API is available."""

@@ -557,7 +557,7 @@ def create_cognitive_core(
             from backend.config import settings as _settings
             hub_url = getattr(_settings, "BRAIN_API_URL", "")
         except Exception:
-            pass
+            logger.debug("Could not load BRAIN_API_URL from settings")
 
     if hub_url:
         try:

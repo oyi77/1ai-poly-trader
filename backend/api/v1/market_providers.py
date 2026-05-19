@@ -206,7 +206,8 @@ async def aggregate_positions(_: Session = Depends(require_admin)):
             provider = market_registry.get(manifest.name)
             positions = await provider.get_positions()
             all_positions.extend(positions)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to get positions from %s: %s", manifest.name, e)
             continue
     return {
         "positions": [
@@ -231,7 +232,8 @@ async def aggregate_balance(_: Session = Depends(require_admin)):
             provider = market_registry.get(manifest.name)
             balance = await provider.get_balance()
             balances.append(balance)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to get balance from %s: %s", manifest.name, e)
             continue
 
     total_available = sum(b.available_cash for b in balances)

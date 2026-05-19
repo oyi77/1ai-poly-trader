@@ -143,7 +143,8 @@ def detect_regime_and_rebalance(db: Session) -> str:
         for genome in get_live_genomes(db):
             try:
                 chromosomes = json.loads(genome.chromosomes_json) if genome.chromosomes_json else {}
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to parse chromosomes for genome %s: %s", genome.id, e)
                 chromosomes = {}
             chromosomes.setdefault("meta", {})["next_mutation_target"] = "risk_chromosome"
             genome.chromosomes_json = json.dumps(chromosomes)
