@@ -102,9 +102,9 @@ class BacktestingPyAdapter(BaseBacktestStrategyRunner):
                 self._params = params
 
             def next(self):
-                # Scaffold: delegate to PolyEdge strategy's signal generation
-                # Real implementation would map OHLCV data to market events
-                pass
+                raise NotImplementedError(
+                    "WrappedStrategy.next() not implemented — backtesting adapter cannot map OHLCV data to PolyEdge market events"
+                )
 
         return WrappedStrategy
 

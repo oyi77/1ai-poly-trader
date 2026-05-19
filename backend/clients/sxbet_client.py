@@ -35,13 +35,8 @@ class SXBetClient:
             return resp.json()
 
     async def place_maker_order(self, market_hash: str, outcome_index: int, odds: float, stake_wei: int, private_key: str) -> dict:
-        """Place a maker order. EIP-712 signing stub — real impl would sign the maker order struct."""
-        logger.info("SXBetClient.place_maker_order called", market_hash=market_hash, outcome_index=outcome_index)
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            payload = {"marketHash": market_hash, "outcomeIndex": outcome_index, "odds": odds, "stakeWei": stake_wei}
-            resp = await client.post(f"{self._base_url}/orders/new", json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        """Place a maker order. EIP-712 signing not implemented — cannot send unsigned orders."""
+        raise RuntimeError("SXBetClient.place_maker_order: EIP-712 signing not implemented — orders cannot be placed without cryptographic signatures")
 
     async def health_check(self) -> bool:
         """Check if SX.bet API is available."""
