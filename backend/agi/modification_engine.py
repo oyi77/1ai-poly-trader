@@ -25,10 +25,10 @@ from typing import Any, Optional
 
 from loguru import logger
 
-
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
+
 
 class ChangeType(Enum):
     STRATEGY = "strategy"
@@ -54,22 +54,25 @@ class ChangeStatus(Enum):
 @dataclass
 class CodeChange:
     """A proposed modification to the codebase."""
+
     change_id: str
     change_type: ChangeType
     title: str
     description: str
-    files_modified: list[str]           # Relative paths
-    diff_summary: str                   # Short description of each change
-    motivation: str                     # Why this change is needed
-    risk_level: str                     # "low", "medium", "high"
+    files_modified: list[str]  # Relative paths
+    diff_summary: str  # Short description of each change
+    motivation: str  # Why this change is needed
+    risk_level: str  # "low", "medium", "high"
     status: ChangeStatus = ChangeStatus.PROPOSED
     branch_name: str = ""
-    validation_results: dict[str, Any] = field(default_factory=lambda: {
-        "tests_passed": 0,
-        "tests_failed": 0,
-        "lint_errors": 0,
-        "validation_log": [],
-    })
+    validation_results: dict[str, Any] = field(
+        default_factory=lambda: {
+            "tests_passed": 0,
+            "tests_failed": 0,
+            "lint_errors": 0,
+            "validation_log": [],
+        }
+    )
     created_at: float = field(default_factory=time.time)
     merged_at: Optional[float] = None
 
@@ -77,17 +80,19 @@ class CodeChange:
 @dataclass
 class GeneratedCode:
     """Output from an LLM code generation request."""
+
     code: str
-    file_path: str                  # Where to write the file
+    file_path: str  # Where to write the file
     strategy_name: str = ""
     imports_needed: list[str] = field(default_factory=list)
-    confidence: float = 0.0         # 0-1
+    confidence: float = 0.0  # 0-1
     explanation: str = ""
 
 
 # ---------------------------------------------------------------------------
 # SafeModifier — git-branch → modify → validate → merge
 # ---------------------------------------------------------------------------
+
 
 class SafeModifier:
     """Applies code changes with git-based safety guarantees.
@@ -147,12 +152,13 @@ class SafeModifier:
         original = self._run_git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
         self._run_git("checkout", original.replace(branch, "").strip() or "main")
         try:
-            self._run_git("merge", branch, "--no-ff", "-m",
-                          f"agi-merge: {branch}")
+            self._run_git("merge", branch, "--no-ff", "-m", f"agi-merge: {branch}")
             logger.info("[SafeModifier] Merged '{}' into main", branch)
             return True
         except subprocess.CalledProcessError:
-            logger.warning("[SafeModifier] Merge conflict in '{}' — aborting merge", branch)
+            logger.warning(
+                "[SafeModifier] Merge conflict in '{}' — aborting merge", branch
+            )
             self._run_git("merge", "--abort", check=False)
             return False
 
@@ -171,7 +177,12 @@ class SafeModifier:
 
     def run_tests(self, affected_files: list[str]) -> dict[str, Any]:
         """Run pytest on files related to the change."""
-        results = {"tests_passed": 0, "tests_failed": 0, "output": "", "validation_log": []}
+        results = {
+            "tests_passed": 0,
+            "tests_failed": 0,
+            "output": "",
+            "validation_log": [],
+        }
 
         # Find test files for the affected modules
         test_targets = []
@@ -230,10 +241,16 @@ class SafeModifier:
     # Main API
     # ------------------------------------------------------------------
 
-    def propose_change(self, change_type: ChangeType, title: str,
-                       description: str, files_modified: list[str],
-                       diff_summary: str, motivation: str,
-                       risk_level: str = "medium") -> CodeChange:
+    def propose_change(
+        self,
+        change_type: ChangeType,
+        title: str,
+        description: str,
+        files_modified: list[str],
+        diff_summary: str,
+        motivation: str,
+        risk_level: str = "medium",
+    ) -> CodeChange:
         """Create a change proposal without applying it."""
         change = CodeChange(
             change_id=str(uuid.uuid4())[:16],
@@ -248,8 +265,7 @@ class SafeModifier:
         self.history.append(change)
         return change
 
-    def apply_change(self, change: CodeChange,
-                     callback) -> CodeChange:
+    def apply_change(self, change: CodeChange, callback) -> CodeChange:
         """Apply a change using git branch → modify → validate → merge flow.
 
         Args:
@@ -268,7 +284,9 @@ class SafeModifier:
             # Apply the actual code changes via callback
             change.status = ChangeStatus.APPLIED
             if not callback(change, str(self.repo_path)):
-                logger.warning("[SafeModifier] Callback returned False for '{}'", change.change_id)
+                logger.warning(
+                    "[SafeModifier] Callback returned False for '{}'", change.change_id
+                )
                 self._abandon_branch(change.branch_name)
                 change.status = ChangeStatus.ABANDONED
                 return change
@@ -290,17 +308,24 @@ class SafeModifier:
                 if self._merge_back(change.branch_name):
                     change.status = ChangeStatus.MERGED
                     change.merged_at = time.time()
-                    logger.info("[SafeModifier] MERGED: {} — {}", change.change_id, change.title)
+                    logger.info(
+                        "[SafeModifier] MERGED: {} — {}", change.change_id, change.title
+                    )
                 else:
                     change.status = ChangeStatus.ABANDONED
             else:
-                logger.warning("[SafeModifier] FAILED: {} — {} tests failed",
-                               change.change_id, results["tests_failed"])
+                logger.warning(
+                    "[SafeModifier] FAILED: {} — {} tests failed",
+                    change.change_id,
+                    results["tests_failed"],
+                )
                 self._abandon_branch(change.branch_name)
                 change.status = ChangeStatus.ABANDONED
 
         except Exception as exc:
-            logger.error("[SafeModifier] Error applying change '{}': {}", change.change_id, exc)
+            logger.error(
+                "[SafeModifier] Error applying change '{}': {}", change.change_id, exc
+            )
             self._abandon_branch(change.branch_name)
             change.status = ChangeStatus.ABANDONED
         finally:
@@ -322,8 +347,12 @@ class SafeModifier:
         stats = {
             "total": len(self.history),
             "merged": sum(1 for c in self.history if c.status == ChangeStatus.MERGED),
-            "abandoned": sum(1 for c in self.history if c.status == ChangeStatus.ABANDONED),
-            "rolled_back": sum(1 for c in self.history if c.status == ChangeStatus.ROLLED_BACK),
+            "abandoned": sum(
+                1 for c in self.history if c.status == ChangeStatus.ABANDONED
+            ),
+            "rolled_back": sum(
+                1 for c in self.history if c.status == ChangeStatus.ROLLED_BACK
+            ),
         }
         return stats
 
@@ -331,6 +360,7 @@ class SafeModifier:
 # ---------------------------------------------------------------------------
 # CodeGenerator — LLM-powered code generation
 # ---------------------------------------------------------------------------
+
 
 class CodeGenerator:
     """Generates code changes via LLM with validation gates.
@@ -342,9 +372,9 @@ class CodeGenerator:
     def __init__(self) -> None:
         self._generation_count = 0
 
-    async def generate_module(self, description: str,
-                              target_path: str,
-                              context: Optional[str] = None) -> Optional[GeneratedCode]:
+    async def generate_module(
+        self, description: str, target_path: str, context: Optional[str] = None
+    ) -> Optional[GeneratedCode]:
         """Generate a new module or modify an existing one via LLM.
 
         Args:
@@ -358,6 +388,7 @@ class CodeGenerator:
         self._generation_count += 1
         try:
             from backend.ai.strategy_composer import StrategyComposer
+
             composer = StrategyComposer()
 
             prompt = (
@@ -385,7 +416,9 @@ class CodeGenerator:
                 return GeneratedCode(
                     code=result["code"],
                     file_path=target_path,
-                    strategy_name=result.get("strategy_name", f"gen_{self._generation_count}"),
+                    strategy_name=result.get(
+                        "strategy_name", f"gen_{self._generation_count}"
+                    ),
                     confidence=0.7,
                     explanation=result.get("description", ""),
                 )
@@ -412,13 +445,14 @@ class CodeGenerator:
             f"class {module_name.title().replace('_', '')}:\n"
             f'    """TODO: implement — {description}"""\n\n'
             f"    def __init__(self) -> None:\n"
-            f"        logger.info(f\"{module_name} initialized\")\n"
+            f'        logger.info(f"{module_name} initialized")\n'
         )
 
 
 # ---------------------------------------------------------------------------
 # ChangeTracker — persists change history
 # ---------------------------------------------------------------------------
+
 
 class ChangeTracker:
     """Persists change history to JSON for audit and rollback."""
@@ -440,9 +474,9 @@ class ChangeTracker:
                 pass
 
     def _save(self) -> None:
-        self._file.write_text(json.dumps(
-            {"changes": self._changes}, indent=2, default=str
-        ))
+        self._file.write_text(
+            json.dumps({"changes": self._changes}, indent=2, default=str)
+        )
 
     def record(self, change: CodeChange) -> None:
         """Record a change's state."""

@@ -3,6 +3,7 @@
 Extends the existing training/ infrastructure with gradient boosting,
 enhanced features, and periodic retraining support.
 """
+
 from __future__ import annotations
 
 import os
@@ -26,6 +27,7 @@ DEFAULT_MODEL_PATH = os.path.join(
 @dataclass
 class MLTrainResult:
     """Result from ML training run."""
+
     model_path: str
     n_examples: int
     feature_order: List[str]
@@ -65,7 +67,9 @@ class MLTrainer:
                 logger.warning(
                     f"Only {len(examples)} examples, generating synthetic fallback"
                 )
-                examples.extend(self._synthetic_examples(max(min_examples, 64) - len(examples)))
+                examples.extend(
+                    self._synthetic_examples(max(min_examples, 64) - len(examples))
+                )
             else:
                 raise ValueError(
                     f"Need at least {min_examples} examples, got {len(examples)}"
@@ -128,6 +132,7 @@ class MLTrainer:
     def _save_model(self, model) -> None:
         """Save trained model to disk."""
         import joblib
+
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         with open(self.model_path, "wb") as fh:
             joblib.dump(
@@ -143,6 +148,7 @@ class MLTrainer:
     def _synthetic_examples(self, n: int) -> List[TrainingExample]:
         """Generate synthetic training examples for fallback."""
         import random as _random
+
         rng = _random.Random(42)
         out: List[TrainingExample] = []
         for _ in range(n):

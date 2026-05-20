@@ -9,7 +9,6 @@ from typing import Dict
 from backend.config import settings
 
 
-
 class RegimeConfidenceRouter:
     """Routes confidence thresholds based on current market regime.
 
@@ -23,29 +22,29 @@ class RegimeConfidenceRouter:
     # Higher multiplier = lower threshold (more aggressive)
     REGIME_MULTIPLIERS: Dict[str, Dict[str, float]] = {
         "bull": {
-            "BTC Momentum": 0.90,      # More conservative in bull markets
-            "Market Maker": 1.10,      # More aggressive in bull markets
-            "__default__": 1.00
+            "BTC Momentum": 0.90,  # More conservative in bull markets
+            "Market Maker": 1.10,  # More aggressive in bull markets
+            "__default__": 1.00,
         },
         "bear": {
-            "BTC Momentum": 1.15,      # More aggressive in bear markets
-            "Market Maker": 0.90,      # More conservative in bear markets
-            "__default__": 1.05
+            "BTC Momentum": 1.15,  # More aggressive in bear markets
+            "Market Maker": 0.90,  # More conservative in bear markets
+            "__default__": 1.05,
         },
         "volatile": {
-            "BTC Momentum": 1.25,      # More aggressive in volatile markets
-            "Market Maker": 1.30,      # More aggressive in volatile markets
-            "__default__": 1.15
+            "BTC Momentum": 1.25,  # More aggressive in volatile markets
+            "Market Maker": 1.30,  # More aggressive in volatile markets
+            "__default__": 1.15,
         },
         "sideways": {
-            "BTC Momentum": 1.10,      # Slightly more aggressive in sideways
-            "Market Maker": 0.85,      # More conservative in sideways
-            "__default__": 1.00
+            "BTC Momentum": 1.10,  # Slightly more aggressive in sideways
+            "Market Maker": 0.85,  # More conservative in sideways
+            "__default__": 1.00,
         },
         "event_dense": {
-            "News Catalyst": 0.85,      # More conservative during events
-            "Event Catalyst": 0.85,    # More conservative during events
-            "__default__": 1.05
+            "News Catalyst": 0.85,  # More conservative during events
+            "Event Catalyst": 0.85,  # More conservative during events
+            "__default__": 1.05,
         },
     }
 
@@ -66,7 +65,9 @@ class RegimeConfidenceRouter:
         regime_map = self.REGIME_MULTIPLIERS.get(regime, {})
         return regime_map.get(strategy_name, regime_map.get("__default__", 1.00))
 
-    def get_adjusted_threshold(self, strategy_name: str, base_threshold: float) -> float:
+    def get_adjusted_threshold(
+        self, strategy_name: str, base_threshold: float
+    ) -> float:
         """Calculate regime-adjusted confidence threshold.
 
         Args:

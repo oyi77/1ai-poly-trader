@@ -1,8 +1,8 @@
 """Tests for backend/ai/ensemble.py — multi-model signal ensemble."""
+
 import pytest
 
 from backend.ai.ensemble import EnsembleSignal, EnsembleSignalGenerator
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

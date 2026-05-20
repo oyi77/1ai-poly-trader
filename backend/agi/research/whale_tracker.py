@@ -99,15 +99,25 @@ class WhaleTracker:
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    entries = data if isinstance(data, list) else data.get("data", data.get("entries", []))
+                    entries = (
+                        data
+                        if isinstance(data, list)
+                        else data.get("data", data.get("entries", []))
+                    )
                     rank = 0
                     for entry in entries:
                         rank += 1
                         pnl = float(entry.get("pnl", entry.get("profit", 0)) or 0)
                         wr = float(entry.get("winRate", entry.get("win_rate", 0)) or 0)
-                        volume = float(entry.get("volume", entry.get("volume_30d", 0)) or 0)
-                        trades = int(entry.get("numTrades", entry.get("num_trades", 0)) or 0)
-                        addr = entry.get("address", entry.get("wallet", entry.get("user", "")))
+                        volume = float(
+                            entry.get("volume", entry.get("volume_30d", 0)) or 0
+                        )
+                        trades = int(
+                            entry.get("numTrades", entry.get("num_trades", 0)) or 0
+                        )
+                        addr = entry.get(
+                            "address", entry.get("wallet", entry.get("user", ""))
+                        )
 
                         if not addr:
                             continue
@@ -118,17 +128,21 @@ class WhaleTracker:
                         if trades < self.min_trades:
                             continue
 
-                        score = _compute_copy_signal_score({
-                            "pnl_30d": pnl,
-                            "win_rate": wr,
-                            "volume_30d": volume,
-                            "num_trades": trades,
-                        })
+                        score = _compute_copy_signal_score(
+                            {
+                                "pnl_30d": pnl,
+                                "win_rate": wr,
+                                "volume_30d": volume,
+                                "num_trades": trades,
+                            }
+                        )
 
                         whales.append(
                             WhaleProfile(
                                 address=addr,
-                                username=entry.get("username", entry.get("name", addr[:10])),
+                                username=entry.get(
+                                    "username", entry.get("name", addr[:10])
+                                ),
                                 pnl_30d=pnl,
                                 volume_30d=volume,
                                 win_rate=wr,
@@ -141,15 +155,13 @@ class WhaleTracker:
                         if len(whales) >= self.top_n:
                             break
                 else:
-                    logger.warning(
-                        "Leaderboard API returned %d", resp.status_code
-                    )
+                    logger.warning("Leaderboard API returned %d", resp.status_code)
         except Exception as exc:
             logger.warning("Whale discovery failed: %s", exc)
 
         # Sort by copy signal score
         whales.sort(key=lambda w: w.copy_signal_score, reverse=True)
-        self._whales = whales[:self.top_n]
+        self._whales = whales[: self.top_n]
 
         logger.info(
             "Whale tracker: discovered %d qualifying whales (top score: %.2f)",
@@ -158,9 +170,7 @@ class WhaleTracker:
         )
         return self._whales
 
-    async def fetch_whale_positions(
-        self, whale: WhaleProfile
-    ) -> List[dict]:
+    async def fetch_whale_positions(self, whale: WhaleProfile) -> List[dict]:
         """Fetch current positions for a whale wallet."""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -174,14 +184,10 @@ class WhaleTracker:
                     whale.positions = positions
                     return positions
         except Exception as exc:
-            logger.debug(
-                "Position fetch failed for %s: %s", whale.address[:10], exc
-            )
+            logger.debug("Position fetch failed for %s: %s", whale.address[:10], exc)
         return []
 
-    async def generate_copy_signals(
-        self, min_score: float = 0.5
-    ) -> List[CopySignal]:
+    async def generate_copy_signals(self, min_score: float = 0.5) -> List[CopySignal]:
         """Generate copy-trading signals from top whale positions."""
         if not self._whales:
             await self.discover_whales()
@@ -198,8 +204,12 @@ class WhaleTracker:
                     continue
 
                 side = pos.get("side", pos.get("outcome", "BUY"))
-                direction = "yes" if str(side).upper() in ("BUY", "BID", "YES") else "no"
-                market = pos.get("condition_id", pos.get("asset", pos.get("market", "")))
+                direction = (
+                    "yes" if str(side).upper() in ("BUY", "BID", "YES") else "no"
+                )
+                market = pos.get(
+                    "condition_id", pos.get("asset", pos.get("market", ""))
+                )
 
                 signals.append(
                     CopySignal(
@@ -216,6 +226,7 @@ class WhaleTracker:
 
             # Rate limiting
             import asyncio
+
             await asyncio.sleep(0.5)
 
         signals.sort(key=lambda s: s.confidence, reverse=True)

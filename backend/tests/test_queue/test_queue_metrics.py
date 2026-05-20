@@ -1,4 +1,5 @@
 """Tests for backend/monitoring/queue_metrics.py (RQ-016)."""
+
 import pytest
 import backend.monitoring.queue_metrics as _metrics_mod
 from backend.monitoring.queue_metrics import QueueMetrics, JobTimer

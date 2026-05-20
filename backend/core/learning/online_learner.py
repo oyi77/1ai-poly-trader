@@ -20,21 +20,31 @@ _param_tuner = SafeParamTuner()
 def _health_enabled() -> bool:
     try:
         from backend.config import settings
+
         return getattr(settings, "AGI_STRATEGY_HEALTH_ENABLED", True)
     except Exception:
-        logger.exception("[OnlineLearner] Failed to read AGI_STRATEGY_HEALTH_ENABLED setting")
+        logger.exception(
+            "[OnlineLearner] Failed to read AGI_STRATEGY_HEALTH_ENABLED setting"
+        )
         return True
 
 
 def _load_persisted_weights(strategy: str, db: Session) -> None:
     try:
         from backend.models.database import StrategyConfig
-        config = db.query(StrategyConfig).filter(
-            StrategyConfig.strategy_name == strategy
-        ).first()
+
+        config = (
+            db.query(StrategyConfig)
+            .filter(StrategyConfig.strategy_name == strategy)
+            .first()
+        )
         if config is None or not config.params:
             return
-        params = json.loads(config.params) if isinstance(config.params, str) else config.params
+        params = (
+            json.loads(config.params)
+            if isinstance(config.params, str)
+            else config.params
+        )
         learned = params.get("learned_weights")
         if not learned:
             return
@@ -46,25 +56,35 @@ def _load_persisted_weights(strategy: str, db: Session) -> None:
             bd = _calibration._betas.get(strategy)
             if bd is None:
                 from backend.core.trading_calibration import BetaDistribution
+
                 bd = BetaDistribution()
                 _calibration._betas[strategy] = bd
             bd.alpha = float(cal_data[0])
             bd.beta = float(cal_data[1])
         logger.info("[OnlineLearner] Loaded persisted weights for '%s'", strategy)
     except Exception as e:
-        logger.exception("[OnlineLearner] Failed to load persisted weights for '%s'", strategy)
+        logger.exception(
+            "[OnlineLearner] Failed to load persisted weights for '%s'", strategy
+        )
         logger.debug("[OnlineLearner] Could not load weights for '%s': %s", strategy, e)
 
 
 def _persist_weights(strategy: str, db: Session) -> None:
     try:
         from backend.models.database import StrategyConfig
-        config = db.query(StrategyConfig).filter(
-            StrategyConfig.strategy_name == strategy
-        ).first()
+
+        config = (
+            db.query(StrategyConfig)
+            .filter(StrategyConfig.strategy_name == strategy)
+            .first()
+        )
         if config is None:
             return
-        params = json.loads(config.params) if isinstance(config.params, str) else (config.params or {})
+        params = (
+            json.loads(config.params)
+            if isinstance(config.params, str)
+            else (config.params or {})
+        )
         if isinstance(config.params, str):
             params = json.loads(config.params)
         elif config.params:
@@ -85,11 +105,17 @@ def _persist_weights(strategy: str, db: Session) -> None:
         db.commit()
         logger.info(
             "[OnlineLearner] Persisted weights for '%s': thompson=(%.1f,%.1f) cal=(%.1f,%.1f)",
-            strategy, ts_alpha, ts_beta, cal_data[0], cal_data[1],
+            strategy,
+            ts_alpha,
+            ts_beta,
+            cal_data[0],
+            cal_data[1],
         )
     except Exception as e:
         logger.exception("[OnlineLearner] Failed to persist weights for '%s'", strategy)
-        logger.warning("[OnlineLearner] Failed to persist weights for '%s': %s", strategy, e)
+        logger.warning(
+            "[OnlineLearner] Failed to persist weights for '%s': %s", strategy, e
+        )
 
 
 class OnlineLearner:
@@ -98,18 +124,27 @@ class OnlineLearner:
         if not strategy or strategy == "unknown":
             try:
                 from backend.models.database import TradeContext
-                ctx = db.query(TradeContext).filter(TradeContext.trade_id == trade.id).first()
+
+                ctx = (
+                    db.query(TradeContext)
+                    .filter(TradeContext.trade_id == trade.id)
+                    .first()
+                )
                 if ctx and ctx.strategy_name:
                     strategy = ctx.strategy_name
             except Exception:
-                logger.exception("[OnlineLearner] Failed to look up trade context for attribution")
+                logger.exception(
+                    "[OnlineLearner] Failed to look up trade context for attribution"
+                )
         strategy = strategy or "general_scanner"
 
         _load_persisted_weights(strategy, db)
 
         outcome = record_outcome(trade, db)
         if outcome is None:
-            logger.warning(f"[OnlineLearner] Failed to record outcome for trade {getattr(trade, 'id', '?')}")
+            logger.warning(
+                f"[OnlineLearner] Failed to record outcome for trade {getattr(trade, 'id', '?')}"
+            )
             return
 
         prob = getattr(trade, "model_probability", None)
@@ -124,7 +159,9 @@ class OnlineLearner:
         if _health_enabled():
             health = _health_monitor.assess(strategy, db)
             if health.get("status") == "killed":
-                logger.warning(f"[OnlineLearner] Strategy '{strategy}' killed by health monitor")
+                logger.warning(
+                    f"[OnlineLearner] Strategy '{strategy}' killed by health monitor"
+                )
                 return
 
         _param_tuner.revert_if_degraded(strategy, db)
@@ -150,10 +187,14 @@ class OnlineLearner:
         try:
             from backend.db.utils import get_db_session
             from backend.models.database import StrategyConfig
+
             with get_db_session() as db:
-                names = [r[0] for r in db.query(StrategyConfig.strategy_name).filter(
-                    StrategyConfig.enabled.is_(True)
-                ).all()]
+                names = [
+                    r[0]
+                    for r in db.query(StrategyConfig.strategy_name)
+                    .filter(StrategyConfig.enabled.is_(True))
+                    .all()
+                ]
             if not names:
                 names = ["btc_oracle", "weather_emos", "copy_trader"]
             return self.get_allocation(names, total_capital=1.0)

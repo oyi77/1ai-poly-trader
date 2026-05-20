@@ -3,13 +3,14 @@ Phase 2 tests for copy trader strategy.
 
 Tests proportional sizing, deduplication, exit detection, and scoring.
 """
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-
 
 # ============================================================================
 # Test LeaderboardScorer
 # ============================================================================
+
 
 class TestLeaderboardScorer:
     """Test composite trader scoring."""
@@ -27,6 +28,7 @@ class TestLeaderboardScorer:
     def test_score_weights_sum_to_one(self):
         """Scoring weights must sum to 1.0."""
         from backend.modules.execution.copy_trader import LeaderboardScorer
+
         total = sum(LeaderboardScorer.WEIGHTS.values())
         assert abs(total - 1.0) < 1e-10, f"Weights sum to {total}, expected 1.0"
 
@@ -34,15 +36,25 @@ class TestLeaderboardScorer:
         """Trader with 40/50 unique markets scores higher on diversity than 5/50."""
         from backend.modules.execution.copy_trader import ScoredTrader
 
-        diverse = ScoredTrader(user="test_user", 
-            wallet="0xaaa", pseudonym="A",
-            profit_30d=10000, win_rate=0.6, total_trades=50,
-            unique_markets=40, estimated_bankroll=50000,
+        diverse = ScoredTrader(
+            user="test_user",
+            wallet="0xaaa",
+            pseudonym="A",
+            profit_30d=10000,
+            win_rate=0.6,
+            total_trades=50,
+            unique_markets=40,
+            estimated_bankroll=50000,
         )
-        concentrated = ScoredTrader(user="test_user", 
-            wallet="0xbbb", pseudonym="B",
-            profit_30d=10000, win_rate=0.6, total_trades=50,
-            unique_markets=5, estimated_bankroll=50000,
+        concentrated = ScoredTrader(
+            user="test_user",
+            wallet="0xbbb",
+            pseudonym="B",
+            profit_30d=10000,
+            win_rate=0.6,
+            total_trades=50,
+            unique_markets=5,
+            estimated_bankroll=50000,
         )
 
         assert diverse.market_diversity > concentrated.market_diversity
@@ -50,20 +62,32 @@ class TestLeaderboardScorer:
     def test_market_diversity_capped_at_one(self):
         """Diversity never exceeds 1.0 even if unique > total (data anomaly)."""
         from backend.modules.execution.copy_trader import ScoredTrader
-        trader = ScoredTrader(user="test_user", 
-            wallet="0x", pseudonym="X",
-            profit_30d=0, win_rate=0.5, total_trades=10,
-            unique_markets=999, estimated_bankroll=1000,
+
+        trader = ScoredTrader(
+            user="test_user",
+            wallet="0x",
+            pseudonym="X",
+            profit_30d=0,
+            win_rate=0.5,
+            total_trades=10,
+            unique_markets=999,
+            estimated_bankroll=1000,
         )
         assert trader.market_diversity <= 1.0
 
     def test_zero_trades_diversity_is_zero(self):
         """Trader with 0 trades has 0 diversity."""
         from backend.modules.execution.copy_trader import ScoredTrader
-        trader = ScoredTrader(user="test_user", 
-            wallet="0x", pseudonym="X",
-            profit_30d=0, win_rate=0, total_trades=0,
-            unique_markets=0, estimated_bankroll=1000,
+
+        trader = ScoredTrader(
+            user="test_user",
+            wallet="0x",
+            pseudonym="X",
+            profit_30d=0,
+            win_rate=0,
+            total_trades=0,
+            unique_markets=0,
+            estimated_bankroll=1000,
         )
         assert trader.market_diversity == 0.0
 
@@ -71,6 +95,7 @@ class TestLeaderboardScorer:
 # ============================================================================
 # Test TradeMirror proportional sizing
 # ============================================================================
+
 
 class TestTradeMirror:
     """Test proportional sizing formula."""
@@ -102,28 +127,45 @@ class TestTradeMirror:
 
     def test_proportional_sizing_reference_example(self):
         """Reference: wallet_bankroll=10000, our=500, trade=200 → size=10."""
-        from backend.modules.execution.copy_trader import CopyTrader, ScoredTrader, WalletTrade
-        trader = ScoredTrader(user="test_user", 
-            wallet="0xtest", pseudonym="T",
-            profit_30d=5000, win_rate=0.6, total_trades=30,
-            unique_markets=20, estimated_bankroll=10000.0,
+        from backend.modules.execution.copy_trader import (
+            CopyTrader,
+            ScoredTrader,
+            WalletTrade,
+        )
+
+        trader = ScoredTrader(
+            user="test_user",
+            wallet="0xtest",
+            pseudonym="T",
+            profit_30d=5000,
+            win_rate=0.6,
+            total_trades=30,
+            unique_markets=20,
+            estimated_bankroll=10000.0,
             score=75.0,
         )
-        trade = WalletTrade(user="test_user", 
-            wallet="0xtest", condition_id="cond123",
-            outcome="YES", side="BUY",
-            price=0.45, size=200.0,
+        trade = WalletTrade(
+            user="test_user",
+            wallet="0xtest",
+            condition_id="cond123",
+            outcome="YES",
+            side="BUY",
+            price=0.45,
+            size=200.0,
             timestamp="2026-04-07T10:00:00Z",
         )
         ct = CopyTrader(bankroll=500.0)
         signal = ct._mirror_buy(trader, trade)
         assert signal is not None
-        assert abs(signal.our_size - 10.0) < 0.01, f"Expected $10.00, got ${signal.our_size:.2f}"
+        assert (
+            abs(signal.our_size - 10.0) < 0.01
+        ), f"Expected $10.00, got ${signal.our_size:.2f}"
 
 
 # ============================================================================
 # Test WalletWatcher deduplication and exit detection
 # ============================================================================
+
 
 class TestWalletWatcher:
     """Test trade deduplication and exit threshold logic."""
@@ -136,8 +178,16 @@ class TestWalletWatcher:
         mock_http = AsyncMock()
         mock_resp = MagicMock()
         mock_resp.json.return_value = [
-            {"transactionHash": "0xtx1", "side": "BUY", "conditionId": "c1",
-             "outcomeIndex": 0, "price": "0.45", "size": "100", "timestamp": "t1", "title": "Test"},
+            {
+                "transactionHash": "0xtx1",
+                "side": "BUY",
+                "conditionId": "c1",
+                "outcomeIndex": 0,
+                "price": "0.45",
+                "size": "100",
+                "timestamp": "t1",
+                "title": "Test",
+            },
         ]
         mock_resp.raise_for_status = MagicMock()
         mock_http.get = AsyncMock(return_value=mock_resp)
@@ -162,13 +212,29 @@ class TestWalletWatcher:
 
         # First poll: existing trade
         first_trades = [
-            {"transactionHash": "0xtx1", "side": "BUY", "conditionId": "c1",
-             "outcomeIndex": 0, "price": "0.45", "size": "100", "timestamp": "t1", "title": "Old"},
+            {
+                "transactionHash": "0xtx1",
+                "side": "BUY",
+                "conditionId": "c1",
+                "outcomeIndex": 0,
+                "price": "0.45",
+                "size": "100",
+                "timestamp": "t1",
+                "title": "Old",
+            },
         ]
         # Second poll: new trade added
         second_trades = first_trades + [
-            {"transactionHash": "0xtx2", "side": "BUY", "conditionId": "c2",
-             "outcomeIndex": 0, "price": "0.60", "size": "50", "timestamp": "t2", "title": "New"},
+            {
+                "transactionHash": "0xtx2",
+                "side": "BUY",
+                "conditionId": "c2",
+                "outcomeIndex": 0,
+                "price": "0.60",
+                "size": "50",
+                "timestamp": "t2",
+                "title": "New",
+            },
         ]
 
         responses = [first_trades, second_trades]
@@ -204,13 +270,33 @@ class TestWalletWatcher:
         # Sequence: BUY 100, then SELL 60 (60% > 50% → exit)
         trade_sequences = [
             # Poll 1: seed BUY
-            [{"transactionHash": "tx1", "side": "BUY", "conditionId": "c1",
-              "outcomeIndex": 0, "price": "0.45", "size": "100", "timestamp": "t1", "title": "T"}],
+            [
+                {
+                    "transactionHash": "tx1",
+                    "side": "BUY",
+                    "conditionId": "c1",
+                    "outcomeIndex": 0,
+                    "price": "0.45",
+                    "size": "100",
+                    "timestamp": "t1",
+                    "title": "T",
+                }
+            ],
             # Poll 2: new BUY (mirrors entry tracking)
             [],
             # Poll 3: SELL 60 → cumulative=60 >= 50% of 100
-            [{"transactionHash": "tx2", "side": "SELL", "conditionId": "c1",
-              "outcomeIndex": 0, "price": "0.70", "size": "60", "timestamp": "t3", "title": "T"}],
+            [
+                {
+                    "transactionHash": "tx2",
+                    "side": "SELL",
+                    "conditionId": "c1",
+                    "outcomeIndex": 0,
+                    "price": "0.70",
+                    "size": "60",
+                    "timestamp": "t3",
+                    "title": "T",
+                }
+            ],
         ]
 
         async def mock_get(*args, **kwargs):
@@ -231,7 +317,8 @@ class TestWalletWatcher:
 
         # Mock _get_entry_size to return 100.0 for the BUY
         from unittest.mock import patch
-        with patch.object(watcher, '_get_entry_size', return_value=100.0):
+
+        with patch.object(watcher, "_get_entry_size", return_value=100.0):
             # Poll 1: seed (tx1 BUY seen)
             await watcher.poll("0xwallet")
 
@@ -251,8 +338,18 @@ class TestWalletWatcher:
 
         # Entry: 100, Sell: 40 (40% < 50% → no exit)
         trade_sequences = [
-            [{"transactionHash": "tx1", "side": "BUY", "conditionId": "c1",
-              "outcomeIndex": 0, "price": "0.45", "size": "100", "timestamp": "t1", "title": "T"}],
+            [
+                {
+                    "transactionHash": "tx1",
+                    "side": "BUY",
+                    "conditionId": "c1",
+                    "outcomeIndex": 0,
+                    "price": "0.45",
+                    "size": "100",
+                    "timestamp": "t1",
+                    "title": "T",
+                }
+            ],
         ]
 
         call_count = [0]
@@ -263,8 +360,16 @@ class TestWalletWatcher:
             else:
                 # Add a 40 SELL
                 data = trade_sequences[0] + [
-                    {"transactionHash": "tx2", "side": "SELL", "conditionId": "c1",
-                     "outcomeIndex": 0, "price": "0.60", "size": "30", "timestamp": "t2", "title": "T"}
+                    {
+                        "transactionHash": "tx2",
+                        "side": "SELL",
+                        "conditionId": "c1",
+                        "outcomeIndex": 0,
+                        "price": "0.60",
+                        "size": "30",
+                        "timestamp": "t2",
+                        "title": "T",
+                    }
                 ]
             resp = MagicMock()
             resp.json.return_value = data
@@ -276,7 +381,7 @@ class TestWalletWatcher:
         watcher = WalletWatcher(mock_http)
 
         # Mock _get_entry_size to return 100.0 for the BUY
-        with patch.object(watcher, '_get_entry_size', return_value=100.0):
+        with patch.object(watcher, "_get_entry_size", return_value=100.0):
             await watcher.poll("0xwallet")
 
             # Poll 2: SELL 30 appears → cumulative=30 < 40% of 100 → no exit signal

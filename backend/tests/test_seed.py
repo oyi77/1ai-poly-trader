@@ -47,9 +47,15 @@ def test_archetype_names():
     genomes = seed_initial_population()
     archetype_names = [genome.strategy_name for genome in genomes]
     expected_names = [
-        "Arbitrage Hunter", "Momentum Surfer", "Weather Oracle",
-        "News Catalyst", "Whale Mirror", "Market Maker",
-        "Statistical Arb", "Event Catalyst", "Flash Opportunity"
+        "Arbitrage Hunter",
+        "Momentum Surfer",
+        "Weather Oracle",
+        "News Catalyst",
+        "Whale Mirror",
+        "Market Maker",
+        "Statistical Arb",
+        "Event Catalyst",
+        "Flash Opportunity",
     ]
 
     for expected_name in expected_names:
@@ -61,9 +67,15 @@ def test_archetype_types():
     genomes = seed_initial_population()
     archetype_types = [genome.archetype for genome in genomes]
     expected_types = [
-        "arbitrage_hunter", "momentum_surfer", "weather_oracle",
-        "news_catalyst", "whale_mirror", "market_maker",
-        "statistical_arb", "event_catalyst", "flash_opportunity"
+        "arbitrage_hunter",
+        "momentum_surfer",
+        "weather_oracle",
+        "news_catalyst",
+        "whale_mirror",
+        "market_maker",
+        "statistical_arb",
+        "event_catalyst",
+        "flash_opportunity",
     ]
 
     for expected_type in expected_types:
@@ -82,11 +94,16 @@ def test_archetype_specific_traits():
     momentum_surfer = next(g for g in genomes if g.archetype == "momentum_surfer")
     assert "1m" in momentum_surfer.chromosomes["perception"].timeframes
     assert "5m" in momentum_surfer.chromosomes["perception"].timeframes
-    assert momentum_surfer.chromosomes["cognition"].entry_logic.trigger_type == "momentum_breakout"
+    assert (
+        momentum_surfer.chromosomes["cognition"].entry_logic.trigger_type
+        == "momentum_breakout"
+    )
 
     weather_oracle = next(g for g in genomes if g.archetype == "weather_oracle")
     assert "open_meteo" in weather_oracle.chromosomes["perception"].data_sources
-    assert weather_oracle.chromosomes["perception"].signal_aggregation == "bayesian_fusion"
+    assert (
+        weather_oracle.chromosomes["perception"].signal_aggregation == "bayesian_fusion"
+    )
 
     flash_opportunity = next(g for g in genomes if g.archetype == "flash_opportunity")
     assert flash_opportunity.chromosomes["execution"].execution_speed_target_ms == 50
@@ -103,6 +120,7 @@ def test_genome_ids_unique():
 def test_diversity_injection():
     """Test that diversity injection produces variation across calls."""
     import random
+
     original_state = random.getstate()
     try:
         random.seed(42)
@@ -114,9 +132,12 @@ def test_diversity_injection():
         momo2 = next(g for g in pop2 if g.archetype == "momentum_surfer")
 
         traits_differ = (
-            momo1.chromosomes["execution"].slippage_tolerance != momo2.chromosomes["execution"].slippage_tolerance or
-            momo1.chromosomes["risk"].kelly_fraction != momo2.chromosomes["risk"].kelly_fraction or
-            momo1.chromosomes["meta"].mutation_rate != momo2.chromosomes["meta"].mutation_rate
+            momo1.chromosomes["execution"].slippage_tolerance
+            != momo2.chromosomes["execution"].slippage_tolerance
+            or momo1.chromosomes["risk"].kelly_fraction
+            != momo2.chromosomes["risk"].kelly_fraction
+            or momo1.chromosomes["meta"].mutation_rate
+            != momo2.chromosomes["meta"].mutation_rate
         )
 
         assert traits_differ

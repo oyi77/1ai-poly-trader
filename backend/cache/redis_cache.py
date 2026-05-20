@@ -3,6 +3,7 @@ Redis-backed cache with circuit-breaker fallback to SQLiteCache.
 
 RQ-014: Redis cache with circuit-breaker fallback to SQLite
 """
+
 import json
 import time
 from typing import Optional, Any
@@ -136,6 +137,7 @@ class RedisCache(AbstractCache):
 
     def get(self, key: str) -> Optional[Any]:
         """Retrieve value; falls back to SQLiteCache on Redis failure."""
+
         def _op(r: Redis):
             raw = r.get(key)
             if raw is None:

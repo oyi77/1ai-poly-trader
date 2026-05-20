@@ -21,15 +21,15 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-
-
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SandboxResult:
     """Result from a sandbox execution."""
+
     run_id: str
     passed: bool
     tests_passed: int = 0
@@ -43,17 +43,19 @@ class SandboxResult:
 @dataclass
 class SandboxConfig:
     """Configuration for the extended sandbox."""
-    test_timeout: int = 300               # Max seconds for test execution
-    code_timeout: int = 30                # Max seconds for generated code execution
-    max_memory_mb: int = 512              # Memory limit (approximate)
-    allow_network: bool = False           # Block network by default
-    allow_filesystem_writes: bool = False # Block writes by default
-    temp_dir: str = ""                    # Temp directory for execution
+
+    test_timeout: int = 300  # Max seconds for test execution
+    code_timeout: int = 30  # Max seconds for generated code execution
+    max_memory_mb: int = 512  # Memory limit (approximate)
+    allow_network: bool = False  # Block network by default
+    allow_filesystem_writes: bool = False  # Block writes by default
+    temp_dir: str = ""  # Temp directory for execution
 
 
 # ---------------------------------------------------------------------------
 # ExtendedSandbox — subprocess-based code execution
 # ---------------------------------------------------------------------------
+
 
 class ExtendedSandbox:
     """Runs generated code and tests in isolated subprocess.
@@ -88,20 +90,29 @@ class ExtendedSandbox:
         # Basic syntax check
         try:
             import ast as _ast
+
             _ast.parse(code)
         except SyntaxError as exc:
             errors.append(f"Syntax error: {exc}")
             passed = False
             duration = (time.time() - start) * 1000
             result = SandboxResult(
-                run_id=run_id, passed=False, errors=errors, duration_ms=round(duration, 1)
+                run_id=run_id,
+                passed=False,
+                errors=errors,
+                duration_ms=round(duration, 1),
             )
             self._results.append(result)
             return result
 
         # Check for forbidden imports
-        forbidden = ["import os", "import subprocess", "import shutil",
-                     "import socket", "import sys"]
+        forbidden = [
+            "import os",
+            "import subprocess",
+            "import shutil",
+            "import socket",
+            "import sys",
+        ]
         for forbid in forbidden:
             if forbid in code:
                 errors.append(f"Forbidden import: {forbid}")
@@ -111,7 +122,10 @@ class ExtendedSandbox:
         if passed:
             try:
                 with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".py", delete=False, dir=self.config.temp_dir or None
+                    mode="w",
+                    suffix=".py",
+                    delete=False,
+                    dir=self.config.temp_dir or None,
                 ) as f:
                     f.write(code)
                     temp_path = f.name
@@ -120,14 +134,20 @@ class ExtendedSandbox:
                 env["PYTHONPATH"] = os.getcwd()
 
                 result_proc = subprocess.run(
-                    [sys.executable, "-c",
-                     f"import ast; ast.parse(open('{temp_path}').read()); print('OK')"],
-                    capture_output=True, text=True,
+                    [
+                        sys.executable,
+                        "-c",
+                        f"import ast; ast.parse(open('{temp_path}').read()); print('OK')",
+                    ],
+                    capture_output=True,
+                    text=True,
                     timeout=timeout or self.config.code_timeout,
                     env=env,
                 )
                 if result_proc.returncode != 0:
-                    errors.append(result_proc.stderr.strip() or result_proc.stdout.strip())
+                    errors.append(
+                        result_proc.stderr.strip() or result_proc.stdout.strip()
+                    )
                     passed = False
 
                 os.unlink(temp_path)
@@ -141,7 +161,10 @@ class ExtendedSandbox:
 
         duration = (time.time() - start) * 1000
         result = SandboxResult(
-            run_id=run_id, passed=passed, errors=errors, duration_ms=round(duration, 1),
+            run_id=run_id,
+            passed=passed,
+            errors=errors,
+            duration_ms=round(duration, 1),
         )
         self._results.append(result)
         return result
@@ -150,8 +173,9 @@ class ExtendedSandbox:
     # Test execution (run pytest in subprocess)
     # ------------------------------------------------------------------
 
-    def run_tests(self, test_paths: list[str],
-                  timeout: Optional[int] = None) -> SandboxResult:
+    def run_tests(
+        self, test_paths: list[str], timeout: Optional[int] = None
+    ) -> SandboxResult:
         """Run pytest on specified test files in a subprocess.
 
         Returns parsed test results including pass/fail counts.
@@ -160,8 +184,13 @@ class ExtendedSandbox:
         start = time.time()
 
         if not test_paths:
-            return SandboxResult(run_id=run_id, passed=True, tests_passed=0,
-                                 output="No tests to run", duration_ms=0)
+            return SandboxResult(
+                run_id=run_id,
+                passed=True,
+                tests_passed=0,
+                output="No tests to run",
+                duration_ms=0,
+            )
 
         try:
             env = os.environ.copy()
@@ -172,7 +201,8 @@ class ExtendedSandbox:
 
             result = subprocess.run(
                 [sys.executable, "-m", "pytest"] + test_paths + ["-q", "--no-header"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
                 timeout=timeout or self.config.test_timeout,
                 env=env,
                 cwd=os.getcwd(),
@@ -206,21 +236,26 @@ class ExtendedSandbox:
             passed = tests_failed == 0 and result.returncode == 0
             duration = (time.time() - start) * 1000
             sandbox_result = SandboxResult(
-                run_id=run_id, passed=passed,
-                tests_passed=tests_passed, tests_failed=tests_failed,
-                output=output[:2000], duration_ms=round(duration, 1),
+                run_id=run_id,
+                passed=passed,
+                tests_passed=tests_passed,
+                tests_failed=tests_failed,
+                output=output[:2000],
+                duration_ms=round(duration, 1),
             )
 
         except subprocess.TimeoutExpired:
             sandbox_result = SandboxResult(
-                run_id=run_id, passed=False,
+                run_id=run_id,
+                passed=False,
                 errors=["Tests timed out"],
                 tests_failed=999,
                 duration_ms=(time.time() - start) * 1000,
             )
         except Exception as exc:
             sandbox_result = SandboxResult(
-                run_id=run_id, passed=False,
+                run_id=run_id,
+                passed=False,
                 errors=[f"Test execution error: {exc}"],
                 duration_ms=(time.time() - start) * 1000,
             )
@@ -232,8 +267,12 @@ class ExtendedSandbox:
     # Full change validation (code + tests)
     # ------------------------------------------------------------------
 
-    def validate_change(self, code: str, test_code: Optional[str] = None,
-                        test_paths: Optional[list[str]] = None) -> SandboxResult:
+    def validate_change(
+        self,
+        code: str,
+        test_code: Optional[str] = None,
+        test_paths: Optional[list[str]] = None,
+    ) -> SandboxResult:
         """Validate a code change end-to-end.
 
         1. Validate the generated code syntax + imports
@@ -257,8 +296,11 @@ class ExtendedSandbox:
         if test_code:
             # Write test code to temp file and run
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", delete=False,
-                prefix="sandbox_test_", dir=self.config.temp_dir or None,
+                mode="w",
+                suffix=".py",
+                delete=False,
+                prefix="sandbox_test_",
+                dir=self.config.temp_dir or None,
             ) as f:
                 f.write(test_code)
                 test_file = f.name
@@ -274,9 +316,12 @@ class ExtendedSandbox:
             return self.run_tests(test_paths)
 
         # No tests to run — code alone passed
-        return SandboxResult(run_id=code_result.run_id, passed=True,
-                             output="Code validated, no tests provided",
-                             duration_ms=code_result.duration_ms)
+        return SandboxResult(
+            run_id=code_result.run_id,
+            passed=True,
+            output="Code validated, no tests provided",
+            duration_ms=code_result.duration_ms,
+        )
 
     # ------------------------------------------------------------------
     # Results

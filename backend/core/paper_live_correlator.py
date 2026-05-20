@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 @dataclass
 class PaperLiveCorrelation:
     """Correlation metrics between paper and live performance for a strategy."""
+
     strategy: str
     paper_trades: int = 0
     live_trades: int = 0
@@ -121,7 +122,9 @@ class PaperLiveCorrelator:
             result.live_trades = len(live)
 
             if len(paper) < self.min_paper_trades or len(live) < self.min_live_trades:
-                result.warning = f"Insufficient data: paper={len(paper)}, live={len(live)}"
+                result.warning = (
+                    f"Insufficient data: paper={len(paper)}, live={len(live)}"
+                )
                 return result
 
             # Compute win rates
@@ -140,7 +143,9 @@ class PaperLiveCorrelator:
 
             # Rolling correlation: compare win rates in aligned time windows
             result.wr_correlation = self._rolling_correlation(paper, live, metric="win")
-            result.pnl_correlation = self._rolling_correlation(paper, live, metric="pnl")
+            result.pnl_correlation = self._rolling_correlation(
+                paper, live, metric="pnl"
+            )
 
             # Degradation ratio
             if result.paper_win_rate > 0:
@@ -149,7 +154,9 @@ class PaperLiveCorrelator:
                 result.degradation_ratio = 1.0
 
             # Is correlated if degradation is acceptable
-            result.is_correlated = result.degradation_ratio >= self.degradation_threshold
+            result.is_correlated = (
+                result.degradation_ratio >= self.degradation_threshold
+            )
 
             if not result.is_correlated:
                 result.warning = (
@@ -160,13 +167,19 @@ class PaperLiveCorrelator:
             logger.info(
                 "[PaperLiveCorrelator] '%s': paper_wr=%.3f live_wr=%.3f "
                 "degradation=%.3f correlated=%s",
-                strategy, result.paper_win_rate, result.live_win_rate,
-                result.degradation_ratio, result.is_correlated,
+                strategy,
+                result.paper_win_rate,
+                result.live_win_rate,
+                result.degradation_ratio,
+                result.is_correlated,
             )
 
         except Exception as e:
             logger.error(
-                "[PaperLiveCorrelator] Failed for '%s': %s", strategy, e, exc_info=True,
+                "[PaperLiveCorrelator] Failed for '%s': %s",
+                strategy,
+                e,
+                exc_info=True,
             )
             result.warning = f"Error: {e}"
         finally:
@@ -186,16 +199,17 @@ class PaperLiveCorrelator:
 
         try:
             from backend.models.database import StrategyConfig
+
             active = (
-                db.query(StrategyConfig)
-                .filter(StrategyConfig.enabled.is_(True))
-                .all()
+                db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
             )
             for cfg in active:
                 corr = self.compute_correlation(cfg.strategy_name, db=db)
                 results.append(corr)
         except Exception as e:
-            logger.error("[PaperLiveCorrelator] compute_all failed: %s", e, exc_info=True)
+            logger.error(
+                "[PaperLiveCorrelator] compute_all failed: %s", e, exc_info=True
+            )
         finally:
             if _owned:
                 db.close()
@@ -229,12 +243,20 @@ class PaperLiveCorrelator:
         live_vals = []
 
         for i in range(n_windows):
-            p_slice = paper[i * paper_chunk:(i + 1) * paper_chunk]
-            l_slice = live[i * live_chunk:(i + 1) * live_chunk]
+            p_slice = paper[i * paper_chunk : (i + 1) * paper_chunk]
+            l_slice = live[i * live_chunk : (i + 1) * live_chunk]
 
             if metric == "win":
-                paper_vals.append(sum(1 for o in p_slice if o.result == "win") / len(p_slice) if p_slice else 0)
-                live_vals.append(sum(1 for o in l_slice if o.result == "win") / len(l_slice) if l_slice else 0)
+                paper_vals.append(
+                    sum(1 for o in p_slice if o.result == "win") / len(p_slice)
+                    if p_slice
+                    else 0
+                )
+                live_vals.append(
+                    sum(1 for o in l_slice if o.result == "win") / len(l_slice)
+                    if l_slice
+                    else 0
+                )
             else:
                 paper_vals.append(sum(o.pnl or 0 for o in p_slice))
                 live_vals.append(sum(o.pnl or 0 for o in l_slice))
@@ -258,4 +280,5 @@ class PaperLiveCorrelator:
 
 def _get_session():
     from backend.models.database import SessionLocal
+
     return SessionLocal()

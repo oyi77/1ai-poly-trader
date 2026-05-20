@@ -17,7 +17,7 @@ async def get_alerts(
     alert_type: Optional[str] = None,
     severity: Optional[str] = None,
     resolved: Optional[bool] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Get recent system alerts with optional filtering.
@@ -30,10 +30,7 @@ async def get_alerts(
     """
     manager = AlertManager(db)
     alerts = manager.get_recent_alerts(
-        limit=limit,
-        alert_type=alert_type,
-        severity=severity,
-        resolved=resolved
+        limit=limit, alert_type=alert_type, severity=severity, resolved=resolved
     )
 
     stats = manager.get_alert_stats()
@@ -43,7 +40,7 @@ async def get_alerts(
         "alerts": alerts,
         "stats": stats,
         "system_metrics": metrics,
-        "total": len(alerts)
+        "total": len(alerts),
     }
 
 

@@ -19,6 +19,7 @@ def test_all_losses_low_score():
 
 def test_score_in_range():
     import random
+
     random.seed(42)
     trades = [{"pnl": random.uniform(-100, 100), "size": 50} for _ in range(20)]
     score = calculate_whale_score(trades)

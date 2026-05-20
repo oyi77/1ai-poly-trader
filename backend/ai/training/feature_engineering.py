@@ -5,11 +5,11 @@ that ``PredictionEngine.predict`` consumes. Phase 4 milestone — replaces
 the original NotImplementedError stub with a working transform that
 mirrors ``PredictionEngine.extract_features``.
 """
+
 from __future__ import annotations
 
 import math
 from typing import Any, Dict, List
-
 
 # Canonical feature order — kept stable so trained model coefficients align.
 FEATURE_ORDER: List[str] = [
@@ -44,12 +44,15 @@ class FeatureEngineer:
             # warning for observability.
             if row.get("sentiment") is None and row.get("whale_pressure") is None:
                 import logging
+
                 logging.getLogger(__name__).warning(
                     "model_probability missing and no sentiment/whale data; edge will be 0"
                 )
             sentiment_signal = max(-0.15, min(0.15, sentiment * 0.1))
             whale_signal = max(-0.15, min(0.15, whale_pressure * 0.1))
-            model_probability = max(0.01, min(0.99, yes_price + sentiment_signal + whale_signal))
+            model_probability = max(
+                0.01, min(0.99, yes_price + sentiment_signal + whale_signal)
+            )
         edge = model_probability - yes_price
 
         return {

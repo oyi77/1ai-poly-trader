@@ -142,9 +142,7 @@ class ErrorLogger:
 
             return {
                 "by_type": {error_type: count for error_type, count in type_counts},
-                "by_endpoint": {
-                    endpoint: count for endpoint, count in endpoint_counts
-                },
+                "by_endpoint": {endpoint: count for endpoint, count in endpoint_counts},
             }
         except Exception as e:
             logger.error("Failed to get error aggregation: {e}", e=e)
@@ -197,7 +195,11 @@ class ErrorLogger:
                 .delete()
             )
             self.db_session.commit()
-            logger.info("Deleted {deleted} errors older than {days} days", deleted=deleted, days=days)
+            logger.info(
+                "Deleted {deleted} errors older than {days} days",
+                deleted=deleted,
+                days=days,
+            )
             return deleted
         except Exception as e:
             logger.error("Failed to cleanup old errors: {e}", e=e)

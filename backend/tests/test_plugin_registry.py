@@ -1,4 +1,5 @@
 """Test suite for the generic PluginRegistry."""
+
 import asyncio
 import pytest
 

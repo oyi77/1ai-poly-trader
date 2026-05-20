@@ -1,8 +1,13 @@
 """Tests for trade settlement logic."""
+
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from backend.core.settlement import calculate_pnl, _parse_market_resolution, check_market_settlement
+from backend.core.settlement import (
+    calculate_pnl,
+    _parse_market_resolution,
+    check_market_settlement,
+)
 from backend.models.database import Trade
 
 
@@ -92,17 +97,17 @@ class TestCalculatePnl:
         assert pnl == pnl_win(50.0, 0.30)  # +35.00
 
     def test_pnl_rounded_to_two_decimal_places(self):
-        trade = make_trade(direction="up", entry_price=1/3, size=100.0)
+        trade = make_trade(direction="up", entry_price=1 / 3, size=100.0)
         pnl = calculate_pnl(trade, settlement_value=1.0)
-        assert pnl == pnl_win(100.0, 1/3)  # +66.67
+        assert pnl == pnl_win(100.0, 1 / 3)  # +66.67
 
     def test_pnl_at_entry_price_50_percent(self):
         """Edge case: 50c entry price — symmetric win/loss."""
         trade = make_trade(direction="up", entry_price=0.50, size=100.0)
         win_pnl = calculate_pnl(trade, settlement_value=1.0)
         loss_pnl = calculate_pnl(trade, settlement_value=0.0)
-        assert win_pnl == pnl_win(100.0, 0.50)    # +50.00
-        assert loss_pnl == pnl_loss(100.0, 0.50)   # -50.00
+        assert win_pnl == pnl_win(100.0, 0.50)  # +50.00
+        assert loss_pnl == pnl_loss(100.0, 0.50)  # -50.00
 
 
 class TestParseMarketResolution:
@@ -154,7 +159,10 @@ class TestCheckMarketSettlement:
     async def test_settled_trade_returns_pnl(self):
         trade = make_trade(direction="up", entry_price=0.60, size=100.0)
 
-        with patch("backend.core.settlement.settlement_helpers.fetch_polymarket_resolution", new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "backend.core.settlement.settlement_helpers.fetch_polymarket_resolution",
+            new_callable=AsyncMock,
+        ) as mock_fetch:
             mock_fetch.return_value = (True, 1.0)
             is_settled, settlement_value, pnl = await check_market_settlement(trade)
 
@@ -166,7 +174,10 @@ class TestCheckMarketSettlement:
     async def test_unresolved_market_returns_none(self):
         trade = make_trade(direction="up", entry_price=0.60, size=100.0)
 
-        with patch("backend.core.settlement.settlement_helpers.fetch_polymarket_resolution", new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "backend.core.settlement.settlement_helpers.fetch_polymarket_resolution",
+            new_callable=AsyncMock,
+        ) as mock_fetch:
             mock_fetch.return_value = (False, None)
             is_settled, settlement_value, pnl = await check_market_settlement(trade)
 

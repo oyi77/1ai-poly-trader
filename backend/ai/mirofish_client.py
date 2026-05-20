@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 @dataclass
 class MiroFishSignal:
     """MiroFish prediction signal."""
+
     market_id: str
     prediction: float  # 0.0-1.0
     confidence: float  # 0.0-1.0
@@ -29,6 +30,7 @@ class MiroFishSignal:
 @dataclass
 class ErrorResponse:
     """Structured error response for fallback handling."""
+
     error_type: str
     message: str
     timestamp: str
@@ -74,29 +76,36 @@ class MiroFishClient:
         db_source = None
         try:
             from backend.db.utils import get_db_session
+
             with get_db_session() as db:
                 # Query database for credentials
                 if not self.api_url:
-                    db_url = db.query(SystemSettings).filter(
-                        SystemSettings.key == "mirofish_api_url"
-                    ).first()
+                    db_url = (
+                        db.query(SystemSettings)
+                        .filter(SystemSettings.key == "mirofish_api_url")
+                        .first()
+                    )
                     if db_url:
                         self.api_url = db_url.value
                         db_source = "database"
 
                 if not self.api_key:
-                    db_key = db.query(SystemSettings).filter(
-                        SystemSettings.key == "mirofish_api_key"
-                    ).first()
+                    db_key = (
+                        db.query(SystemSettings)
+                        .filter(SystemSettings.key == "mirofish_api_key")
+                        .first()
+                    )
                     if db_key:
                         self.api_key = db_key.value
                         if not db_source:
                             db_source = "database"
 
                 if not self.timeout:
-                    db_timeout = db.query(SystemSettings).filter(
-                        SystemSettings.key == "mirofish_api_timeout"
-                    ).first()
+                    db_timeout = (
+                        db.query(SystemSettings)
+                        .filter(SystemSettings.key == "mirofish_api_timeout")
+                        .first()
+                    )
                     if db_timeout:
                         self.timeout = float(db_timeout.value)
                         if not db_source:
@@ -124,7 +133,9 @@ class MiroFishClient:
                     if not extended_source:
                         extended_source = "extended_settings"
                 except ValueError:
-                    logger.warning(f"Invalid MIROFISH_API_TIMEOUT in settings: {timeout_extended}")
+                    logger.warning(
+                        f"Invalid MIROFISH_API_TIMEOUT in settings: {timeout_extended}"
+                    )
 
         # Finally fall back to environment variables (legacy support)
         env_source = None
@@ -146,11 +157,14 @@ class MiroFishClient:
                     if not env_source:
                         env_source = "environment"
                 except ValueError:
-                    logger.warning(f"Invalid MIROFISH_API_TIMEOUT env var: {timeout_env}")
+                    logger.warning(
+                        f"Invalid MIROFISH_API_TIMEOUT env var: {timeout_env}"
+                    )
 
         # Apply defaults
         if not self.api_url:
             from backend.config import settings as _s
+
             self.api_url = _s.MIROFISH_API_URL
         if not self.api_key:
             self.api_key = ""
@@ -249,6 +263,7 @@ class MiroFishClient:
 
                 try:
                     from backend.services.mirofish_service import get_mirofish_service
+
                     get_mirofish_service().record_signal_fetch(len(signals))
                 except Exception:
                     logger.exception("Failed to record MiroFish signal fetch")
@@ -264,8 +279,7 @@ class MiroFishClient:
                 last_error = e
                 self._consecutive_failures += 1
                 logger.warning(
-                    f"MiroFish API timeout (attempt {attempt}): {e}",
-                    exc_info=True
+                    f"MiroFish API timeout (attempt {attempt}): {e}", exc_info=True
                 )
 
                 if attempt < len(retry_delays):
@@ -278,7 +292,7 @@ class MiroFishClient:
                 logger.error(
                     f"MiroFish API HTTP error (attempt {attempt}): "
                     f"status={e.response.status_code}, body={e.response.text}",
-                    exc_info=True
+                    exc_info=True,
                 )
 
                 # Don't retry on 4xx client errors
@@ -294,7 +308,7 @@ class MiroFishClient:
                 self._consecutive_failures += 1
                 logger.error(
                     f"MiroFish API unexpected error (attempt {attempt}): {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
 
                 if attempt < len(retry_delays):
@@ -402,7 +416,7 @@ class MiroFishClient:
                 "error_type": error_type,
                 "consecutive_failures": self._consecutive_failures,
                 "circuit_open": self._circuit_open,
-            }
+            },
         )
 
         return ErrorResponse(
@@ -415,6 +429,7 @@ class MiroFishClient:
     async def _async_sleep(self, seconds: float):
         """Async sleep helper for retry delays."""
         import asyncio
+
         await asyncio.sleep(seconds)
 
     def reset_circuit_breaker(self):

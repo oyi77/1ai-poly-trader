@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from dataclasses import dataclass
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -21,9 +20,9 @@ def _make_market(
         "slug": slug,
         "question": question,
         "volume": volume,
-        "outcomePrices": outcome_prices
-        if outcome_prices is not None
-        else ["0.45", "0.55"],
+        "outcomePrices": (
+            outcome_prices if outcome_prices is not None else ["0.45", "0.55"]
+        ),
         "category": category,
     }
 
@@ -151,17 +150,17 @@ class TestGeneralScannerFilters:
         assert low_vol["volume"] < min_volume, "Low-volume should be rejected"
 
         good_market = _make_market(volume=200000, category="politics")
-        assert good_market["volume"] >= min_volume, (
-            "High-volume should pass volume filter"
-        )
-        assert good_market["category"].lower() in allowed_cats, (
-            "politics should be in allowed categories"
-        )
+        assert (
+            good_market["volume"] >= min_volume
+        ), "High-volume should pass volume filter"
+        assert (
+            good_market["category"].lower() in allowed_cats
+        ), "politics should be in allowed categories"
 
         bad_cat = _make_market(volume=200000, category="uncategorized_xyz")
-        assert bad_cat["category"].lower() not in allowed_cats, (
-            "Unknown category should be filtered"
-        )
+        assert (
+            bad_cat["category"].lower() not in allowed_cats
+        ), "Unknown category should be filtered"
 
     def test_price_range_filter(self):
         """Markets outside min_price/max_price range should be rejected."""
@@ -196,12 +195,12 @@ class TestRegistryRegistration:
 
         load_all_strategies()
 
-        assert "bond_scanner" in STRATEGY_REGISTRY, (
-            "bond_scanner should be registered after load_all_strategies()"
-        )
-        assert "general_scanner" in STRATEGY_REGISTRY, (
-            "general_scanner should be registered after load_all_strategies()"
-        )
+        assert (
+            "bond_scanner" in STRATEGY_REGISTRY
+        ), "bond_scanner should be registered after load_all_strategies()"
+        assert (
+            "general_scanner" in STRATEGY_REGISTRY
+        ), "general_scanner should be registered after load_all_strategies()"
 
     def test_bond_scanner_has_correct_metadata(self):
         """BondScannerStrategy has expected name, category, and default_params."""

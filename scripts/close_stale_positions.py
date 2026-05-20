@@ -53,6 +53,7 @@ def _now() -> datetime:
 
 # ── core logic ───────────────────────────────────────────────────────────────
 
+
 def _get_stale_trades(db, *, hours: int) -> list[Trade]:
     """Return open (unsettled) trades older than `hours`."""
     cutoff = _now() - timedelta(hours=hours)
@@ -91,9 +92,9 @@ def _estimate_pnl(trade: Trade, current_price: float | None) -> float | None:
 def _determine_action(trade: Trade, edge_pp: float | None) -> str:
     """Classify what we would do with this position."""
     if edge_pp is not None and edge_pp > 5:
-        return "hold"      # still has edge, don't exit
+        return "hold"  # still has edge, don't exit
     if trade.result in ("win", "loss"):
-        return "resolve"   # outcome known, just need settlement
+        return "resolve"  # outcome known, just need settlement
     return "exit"
 
 
@@ -111,12 +112,13 @@ def _fetch_current_price(market_ticker: str | None) -> float | None:
         from backend.data.polymarket_clob import PolymarketCLOB
 
         clob = PolymarketCLOB(
-            private_key=None,   # paper / read-only
+            private_key=None,  # paper / read-only
             api_key=getattr(settings, "CLOB_API_KEY", None),
             base_url=getattr(settings, "CLOB_API_URL", None),
         )
         # get_mid_price is the sync entry point
         import asyncio
+
         price = asyncio.get_event_loop().run_until_complete(
             clob.get_mid_price(market_ticker)
         )
@@ -126,17 +128,29 @@ def _fetch_current_price(market_ticker: str | None) -> float | None:
         return None
 
 
-def _dry_run_report(trades: list[Trade], hours: int, show_prices: bool) -> tuple[int, float]:
+def _dry_run_report(
+    trades: list[Trade], hours: int, show_prices: bool
+) -> tuple[int, float]:
     """Print the dry-run table and return (count, estimated_recovery)."""
     total_recovery = 0.0
 
     print(f"\n{'=' * 105}")
-    print(f"  STALE POSITIONS — DRY RUN  (threshold: {hours}h, as of {_now().strftime('%Y-%m-%d %H:%M UTC')})")
+    print(
+        f"  STALE POSITIONS — DRY RUN  (threshold: {hours}h, as of {_now().strftime('%Y-%m-%d %H:%M UTC')})"
+    )
     print(f"{'=' * 105}")
     print()
-    print(TABLE_FMT.format(
-        "trade_id", "market_ticker", "age_hours", "entry_px", "current_px", "pnl_est", "action"
-    ))
+    print(
+        TABLE_FMT.format(
+            "trade_id",
+            "market_ticker",
+            "age_hours",
+            "entry_px",
+            "current_px",
+            "pnl_est",
+            "action",
+        )
+    )
     print(SEP)
 
     for trade in trades:
@@ -160,19 +174,25 @@ def _dry_run_report(trades: list[Trade], hours: int, show_prices: bool) -> tuple
         pnl_str = f"${pnl_est:.2f}" if pnl_est is not None else "N/A"
         market = trade.market_ticker or "unknown"
 
-        print(TABLE_FMT.format(
-            str(trade.id),
-            market[:30],
-            age_str,
-            entry_str,
-            curr_str,
-            pnl_str,
-            action,
-        ))
+        print(
+            TABLE_FMT.format(
+                str(trade.id),
+                market[:30],
+                age_str,
+                entry_str,
+                curr_str,
+                pnl_str,
+                action,
+            )
+        )
 
     print(SEP)
     print(f"  Total positions: {len(trades)}")
-    exit_count = sum(1 for t in trades if _determine_action(t, getattr(t, 'edge_at_entry', None)) == "exit")
+    exit_count = sum(
+        1
+        for t in trades
+        if _determine_action(t, getattr(t, "edge_at_entry", None)) == "exit"
+    )
     print(f"  Would close:    {exit_count}")
     print(f"  Estimated recovery: ${total_recovery:.2f}")
     print()
@@ -209,9 +229,11 @@ def _execute_closes(trades: list[Trade], dry_run: bool = False) -> tuple[int, fl
             est_pnl = None
 
         if dry_run:
-            print(f"    trade_id={trade.id} market={trade.market_ticker} "
-                  f"direction={trade.direction} size={trade.size} "
-                  f"(est_pnl={est_pnl})")
+            print(
+                f"    trade_id={trade.id} market={trade.market_ticker} "
+                f"direction={trade.direction} size={trade.size} "
+                f"(est_pnl={est_pnl})"
+            )
         else:
             try:
                 from backend.data.polymarket_clob import PolymarketCLOB
@@ -223,6 +245,7 @@ def _execute_closes(trades: list[Trade], dry_run: bool = False) -> tuple[int, fl
                 )
 
                 import asyncio
+
                 # Determine the opposing side for closing
                 close_side = "SELL" if trade.direction == "up" else "BUY"
                 size = trade.filled_size or trade.size or 1.0
@@ -258,6 +281,7 @@ def _execute_closes(trades: list[Trade], dry_run: bool = False) -> tuple[int, fl
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -306,11 +330,15 @@ def main() -> int:
 
     # Validate flags
     if args.execute and not args.force:
-        print("ERROR: --execute requires --force to confirm. Refusing to proceed.\n"
-              "  Example: python scripts/close_stale_positions.py --execute --force")
+        print(
+            "ERROR: --execute requires --force to confirm. Refusing to proceed.\n"
+            "  Example: python scripts/close_stale_positions.py --execute --force"
+        )
         return 1
 
-    dry_run = not args.execute or args.dry_run  # dry-run unless both --execute AND --force
+    dry_run = (
+        not args.execute or args.dry_run
+    )  # dry-run unless both --execute AND --force
     if args.dry_run:
         dry_run = True
 
@@ -321,13 +349,17 @@ def main() -> int:
         stale_trades = _get_stale_trades(db, hours=hours)
 
     if not stale_trades:
-        print(f"[INFO] No stale positions found (threshold: {hours}h). Exiting cleanly.")
+        print(
+            f"[INFO] No stale positions found (threshold: {hours}h). Exiting cleanly."
+        )
         return 0
 
     if dry_run:
         exit_count, recovery = _dry_run_report(stale_trades, hours, show_prices=True)
         print(f"\n  To close {exit_count} positions (est. recovery ${recovery:.2f}):")
-        print(f"    python scripts/close_stale_positions.py --execute --force --hours {hours}")
+        print(
+            f"    python scripts/close_stale_positions.py --execute --force --hours {hours}"
+        )
     else:
         exit_count, recovery = _execute_closes(stale_trades, dry_run=False)
 

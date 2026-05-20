@@ -3,6 +3,7 @@
 Validates that crypto_oracle can discover and analyze BTC/ETH/SOL 5-min markets
 with mocked API calls.
 """
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
@@ -71,7 +72,9 @@ class TestDynamicSizing:
     """Test dynamic position sizing."""
 
     def test_zero_cap_returns_zero(self):
-        assert calculate_dynamic_size(edge=0.1, confidence=0.8, max_position_usd=0) == 0.0
+        assert (
+            calculate_dynamic_size(edge=0.1, confidence=0.8, max_position_usd=0) == 0.0
+        )
 
     def test_scales_with_edge(self):
         small = calculate_dynamic_size(edge=0.01, confidence=0.5, max_position_usd=100)
@@ -85,9 +88,7 @@ class TestDynamicSizing:
         assert result >= 5.0
 
     def test_capped_at_max(self):
-        result = calculate_dynamic_size(
-            edge=1.0, confidence=1.0, max_position_usd=50
-        )
+        result = calculate_dynamic_size(edge=1.0, confidence=1.0, max_position_usd=50)
         assert result <= 50.0
 
 
@@ -207,7 +208,9 @@ class TestCryptoOracleDiscovery:
         ctx.mode = "paper"
         ctx.db = MagicMock()
 
-        with patch("backend.data.btc_markets.fetch_active_crypto_markets", mock_markets):
+        with patch(
+            "backend.data.btc_markets.fetch_active_crypto_markets", mock_markets
+        ):
             result = await strategy.run_cycle(ctx)
 
         assert result.decisions_recorded >= 0  # Should not crash
@@ -227,7 +230,11 @@ class TestCryptoOracleDiscovery:
         ctx.db = MagicMock()
 
         # Should iterate over ETH without crashing
-        with patch("backend.core.market_scanner.fetch_markets_by_keywords", new_callable=AsyncMock, return_value=[]):
+        with patch(
+            "backend.core.market_scanner.fetch_markets_by_keywords",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
             result = await strategy.run_cycle(ctx)
         assert result is not None
 
@@ -245,6 +252,10 @@ class TestCryptoOracleDiscovery:
         ctx.mode = "paper"
         ctx.db = MagicMock()
 
-        with patch("backend.core.market_scanner.fetch_markets_by_keywords", new_callable=AsyncMock, return_value=[]):
+        with patch(
+            "backend.core.market_scanner.fetch_markets_by_keywords",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
             result = await strategy.run_cycle(ctx)
         assert result is not None

@@ -1,4 +1,5 @@
 """Tests for portfolio optimizer and strategy attribution."""
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
@@ -11,10 +12,10 @@ from backend.core.attribution import (
     compute_attribution,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _metrics(name: str, sharpe: float) -> StrategyMetrics:
     return StrategyMetrics(
@@ -50,6 +51,7 @@ def _make_trade(
 # ---------------------------------------------------------------------------
 # PortfolioOptimizer tests
 # ---------------------------------------------------------------------------
+
 
 class TestAllocateByShareRatio:
     """test_allocate_by_sharpe — higher Sharpe gets more weight."""
@@ -134,6 +136,7 @@ class TestPerStrategyCap:
 # Attribution tests
 # ---------------------------------------------------------------------------
 
+
 class TestAttributionSumsTo100:
     """test_attribution_sums_to_100 — contribution_pct sums correctly."""
 
@@ -143,7 +146,9 @@ class TestAttributionSumsTo100:
             _make_trade(strategy="a", pnl=30.0, timestamp=now),
             _make_trade(strategy="b", pnl=70.0, timestamp=now),
         ]
-        result = compute_attribution(trades, now - timedelta(hours=1), now + timedelta(hours=1))
+        result = compute_attribution(
+            trades, now - timedelta(hours=1), now + timedelta(hours=1)
+        )
         total_pct = sum(a.contribution_pct for a in result)
         assert abs(total_pct - 100.0) < 1e-6
 
@@ -153,7 +158,9 @@ class TestAttributionSumsTo100:
             _make_trade(strategy="a", pnl=0.0, timestamp=now),
             _make_trade(strategy="b", pnl=0.0, timestamp=now),
         ]
-        result = compute_attribution(trades, now - timedelta(hours=1), now + timedelta(hours=1))
+        result = compute_attribution(
+            trades, now - timedelta(hours=1), now + timedelta(hours=1)
+        )
         for a in result:
             assert a.contribution_pct == 0.0
 
@@ -163,7 +170,9 @@ class TestAttributionSumsTo100:
             _make_trade(strategy="a", pnl=50.0, settled=True, timestamp=now),
             _make_trade(strategy="b", pnl=50.0, settled=False, timestamp=now),
         ]
-        result = compute_attribution(trades, now - timedelta(hours=1), now + timedelta(hours=1))
+        result = compute_attribution(
+            trades, now - timedelta(hours=1), now + timedelta(hours=1)
+        )
         # Only strategy a should appear
         strategies = {a.strategy for a in result}
         assert "b" not in strategies
@@ -187,6 +196,7 @@ class TestAttributionSumsTo100:
 # ---------------------------------------------------------------------------
 # Rebalance drift test
 # ---------------------------------------------------------------------------
+
 
 class TestRebalanceNeededDrift:
     """test_rebalance_needed_drift — detects when drift exceeds tolerance."""
@@ -223,4 +233,6 @@ class TestRebalanceNeededDrift:
         # With tight tolerance 0.01 -> rebalance needed
         assert optimizer.rebalance_needed(current, target, drift_tolerance=0.01) is True
         # With loose tolerance 0.10 -> no rebalance
-        assert optimizer.rebalance_needed(current, target, drift_tolerance=0.10) is False
+        assert (
+            optimizer.rebalance_needed(current, target, drift_tolerance=0.10) is False
+        )

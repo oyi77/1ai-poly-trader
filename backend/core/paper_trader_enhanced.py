@@ -17,6 +17,7 @@ from loguru import logger
 @dataclass
 class SimulatedFill:
     """Result of simulating a fill against the order book."""
+
     price: float
     size: float
     slippage: float
@@ -28,6 +29,7 @@ class SimulatedFill:
 @dataclass
 class PaperPosition:
     """A paper trading position."""
+
     market_id: str
     direction: str  # "yes" or "no"
     entry_price: float
@@ -42,6 +44,7 @@ class PaperPosition:
 @dataclass
 class PaperTradeResult:
     """Result of a paper trade execution."""
+
     success: bool
     position: Optional[PaperPosition] = None
     fill: Optional[SimulatedFill] = None
@@ -77,7 +80,9 @@ class EnhancedPaperTrader:
     # Public API
     # ------------------------------------------------------------------
 
-    def update_order_book(self, market_id: str, bids: list[dict], asks: list[dict]) -> None:
+    def update_order_book(
+        self, market_id: str, bids: list[dict], asks: list[dict]
+    ) -> None:
         """Update the simulated order book for a market."""
         self._order_book[market_id] = {
             "bids": sorted(bids, key=lambda x: float(x.get("price", 0)), reverse=True),
@@ -104,7 +109,9 @@ class EnhancedPaperTrader:
             PaperTradeResult with fill details or rejection reason.
         """
         if size <= 0:
-            return PaperTradeResult(success=False, rejection_reason="Size must be positive")
+            return PaperTradeResult(
+                success=False, rejection_reason="Size must be positive"
+            )
 
         if size > self.bankroll:
             return PaperTradeResult(
@@ -224,7 +231,11 @@ class EnhancedPaperTrader:
         fill = SimulatedFill(
             price=exit_price,
             size=pos.size,
-            slippage=abs(exit_price - pos.entry_price) / pos.entry_price if pos.entry_price > 0 else 0,
+            slippage=(
+                abs(exit_price - pos.entry_price) / pos.entry_price
+                if pos.entry_price > 0
+                else 0
+            ),
             latency_ms=self._simulate_latency(),
             partial=False,
             timestamp=time.time(),
@@ -276,7 +287,9 @@ class EnhancedPaperTrader:
             "positions": len(self.positions),
             "total_exposure": total_exposure,
             "trades_executed": len(self.trade_history),
-            "exposure_pct": total_exposure / self.bankroll * 100 if self.bankroll > 0 else 0,
+            "exposure_pct": (
+                total_exposure / self.bankroll * 100 if self.bankroll > 0 else 0
+            ),
         }
 
     # ------------------------------------------------------------------

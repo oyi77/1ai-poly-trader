@@ -1,4 +1,5 @@
 """Integration test: full learning feedback loop end-to-end."""
+
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
@@ -8,7 +9,10 @@ from sqlalchemy.pool import StaticPool
 
 from backend.models.database import Base, StrategyConfig
 from backend.models.outcome_tables import (
-    StrategyOutcome, ParamChange, StrategyHealthRecord, TradingCalibrationRecord
+    StrategyOutcome,
+    ParamChange,
+    StrategyHealthRecord,
+    TradingCalibrationRecord,
 )
 from backend.core.outcome_repository import record_outcome, get_strategy_stats
 from backend.core.trading_calibration import TradingCalibration
@@ -100,7 +104,12 @@ def test_thompson_sampler_update_and_allocate(db):
 def test_strategy_health_active(db):
     monitor = StrategyHealthMonitor()
     for i in range(35):
-        t = _make_trade(i + 100, "btc_oracle", "win" if i % 2 == 0 else "loss", 5.0 if i % 2 == 0 else -3.0)
+        t = _make_trade(
+            i + 100,
+            "btc_oracle",
+            "win" if i % 2 == 0 else "loss",
+            5.0 if i % 2 == 0 else -3.0,
+        )
         t.trading_mode = "paper"
         record_outcome(t, db)
 
@@ -124,6 +133,7 @@ def test_strategy_health_kill(db):
 
 def test_safe_param_tuner_no_crash(db):
     import json
+
     config = StrategyConfig(
         strategy_name="btc_oracle",
         enabled=True,
@@ -133,7 +143,12 @@ def test_safe_param_tuner_no_crash(db):
     db.commit()
 
     for i in range(25):
-        t = _make_trade(i + 300, "btc_oracle", "win" if i % 3 != 0 else "loss", 5.0 if i % 3 != 0 else -2.0)
+        t = _make_trade(
+            i + 300,
+            "btc_oracle",
+            "win" if i % 3 != 0 else "loss",
+            5.0 if i % 3 != 0 else -2.0,
+        )
         record_outcome(t, db)
 
     tuner = SafeParamTuner()
@@ -143,6 +158,7 @@ def test_safe_param_tuner_no_crash(db):
 
 def test_online_learner_full_loop(db):
     import json
+
     config = StrategyConfig(
         strategy_name="copy_trader",
         enabled=True,
@@ -153,7 +169,12 @@ def test_online_learner_full_loop(db):
 
     learner = OnlineLearner()
     for i in range(40):
-        t = _make_trade(i + 400, "copy_trader", "win" if i % 2 == 0 else "loss", 4.0 if i % 2 == 0 else -2.0)
+        t = _make_trade(
+            i + 400,
+            "copy_trader",
+            "win" if i % 2 == 0 else "loss",
+            4.0 if i % 2 == 0 else -2.0,
+        )
         learner.on_trade_settled(t, db)
 
     alloc = learner.get_allocation(["copy_trader"], total_capital=500.0)

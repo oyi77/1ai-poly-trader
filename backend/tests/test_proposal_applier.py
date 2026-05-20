@@ -12,12 +12,7 @@ import json
 from datetime import datetime, timezone, timedelta
 
 from backend.core.proposal_applier import ProposalApplier, get_applier
-from backend.models.database import (
-    StrategyProposal,
-    StrategyConfig,
-    AuditLog,
-    Base
-)
+from backend.models.database import StrategyProposal, StrategyConfig, AuditLog, Base
 
 
 @pytest.fixture
@@ -46,11 +41,13 @@ def strategy_config(db_session):
         strategy_name="btc_momentum",
         enabled=True,
         interval_seconds=300,
-        params=json.dumps({
-            "min_edge_threshold": 0.05,
-            "max_position_usd": 100.0,
-            "kelly_fraction": 0.25
-        })
+        params=json.dumps(
+            {
+                "min_edge_threshold": 0.05,
+                "max_position_usd": 100.0,
+                "kelly_fraction": 0.25,
+            }
+        ),
     )
     db_session.add(config)
     db_session.commit()
@@ -61,40 +58,45 @@ def strategy_config(db_session):
 def approved_proposal(db_session, strategy_config):
     proposal = StrategyProposal(
         strategy_name="btc_momentum",
-        change_details={
-            "min_edge_threshold": 0.08,
-            "max_position_usd": 150.0
-        },
+        change_details={"min_edge_threshold": 0.08, "max_position_usd": 150.0},
         expected_impact="Increase win rate by reducing false positives",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
     return proposal
 
 
-def test_apply_proposal_to_config_success(applier, db_session, approved_proposal, strategy_config):
+def test_apply_proposal_to_config_success(
+    applier, db_session, approved_proposal, strategy_config
+):
     proposal_id = approved_proposal.id
 
     result = applier.apply_proposal_to_config(proposal_id, db=db_session)
 
     assert result is True
 
-    updated_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "btc_momentum"
-    ).first()
+    updated_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "btc_momentum")
+        .first()
+    )
 
     params = json.loads(updated_config.params)
     assert params["min_edge_threshold"] == 0.08
     assert params["max_position_usd"] == 150.0
     assert params["kelly_fraction"] == 0.25
 
-    audit_entry = db_session.query(AuditLog).filter(
-        AuditLog.event_type == "CONFIG_UPDATED",
-        AuditLog.entity_id == "btc_momentum"
-    ).first()
+    audit_entry = (
+        db_session.query(AuditLog)
+        .filter(
+            AuditLog.event_type == "CONFIG_UPDATED",
+            AuditLog.entity_id == "btc_momentum",
+        )
+        .first()
+    )
 
     assert audit_entry is not None
     assert audit_entry.old_value["params"]["min_edge_threshold"] == 0.05
@@ -108,7 +110,7 @@ def test_apply_proposal_updates_enabled_flag(applier, db_session, strategy_confi
         expected_impact="Disable strategy for maintenance",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -117,9 +119,11 @@ def test_apply_proposal_updates_enabled_flag(applier, db_session, strategy_confi
 
     assert result is True
 
-    updated_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "btc_momentum"
-    ).first()
+    updated_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "btc_momentum")
+        .first()
+    )
 
     assert updated_config.enabled is False
 
@@ -131,7 +135,7 @@ def test_apply_proposal_updates_interval(applier, db_session, strategy_config):
         expected_impact="Reduce execution frequency",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -140,9 +144,11 @@ def test_apply_proposal_updates_interval(applier, db_session, strategy_config):
 
     assert result is True
 
-    updated_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "btc_momentum"
-    ).first()
+    updated_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "btc_momentum")
+        .first()
+    )
 
     assert updated_config.interval_seconds == 600
 
@@ -153,7 +159,7 @@ def test_apply_proposal_not_approved(applier, db_session, strategy_config):
         change_details={"min_edge_threshold": 0.08},
         expected_impact="Test",
         admin_decision="pending",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -162,9 +168,11 @@ def test_apply_proposal_not_approved(applier, db_session, strategy_config):
 
     assert result is False
 
-    config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "btc_momentum"
-    ).first()
+    config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "btc_momentum")
+        .first()
+    )
     params = json.loads(config.params)
     assert params["min_edge_threshold"] == 0.05
 
@@ -181,7 +189,7 @@ def test_apply_proposal_config_not_found(applier, db_session):
         change_details={"min_edge_threshold": 0.08},
         expected_impact="Test",
         admin_decision="approved",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -218,7 +226,7 @@ def test_get_config_timeline(applier, db_session, strategy_config):
             old_value={"params": {"min_edge_threshold": 0.05 + i * 0.01}},
             new_value={"params": {"min_edge_threshold": 0.05 + (i + 1) * 0.01}},
             user_id="admin@example.com",
-            details={"proposal_id": i + 1}
+            details={"proposal_id": i + 1},
         )
         db_session.add(audit)
     db_session.commit()
@@ -243,7 +251,9 @@ def test_get_applier_singleton():
     assert applier1 is applier2
 
 
-def test_config_change_affects_next_trade(applier, db_session, approved_proposal, strategy_config):
+def test_config_change_affects_next_trade(
+    applier, db_session, approved_proposal, strategy_config
+):
     """Test that config changes take effect on next strategy execution cycle."""
 
     result = applier.apply_proposal_to_config(approved_proposal.id, db=db_session)
@@ -265,7 +275,7 @@ def test_multiple_proposals_applied_sequentially(applier, db_session, strategy_c
         expected_impact="First change",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal1)
     db_session.commit()
@@ -280,7 +290,7 @@ def test_multiple_proposals_applied_sequentially(applier, db_session, strategy_c
         expected_impact="Second change",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal2)
     db_session.commit()

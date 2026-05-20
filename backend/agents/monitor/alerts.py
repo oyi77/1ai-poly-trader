@@ -122,9 +122,7 @@ class AlertManager:
                     for line in f:
                         try:
                             alert = json.loads(line.strip())
-                            ts = datetime.fromisoformat(
-                                alert["timestamp"]
-                            ).timestamp()
+                            ts = datetime.fromisoformat(alert["timestamp"]).timestamp()
                             if ts >= cutoff:
                                 if level is None or alert.get("level") == level:
                                     alerts.append(alert)
@@ -153,9 +151,7 @@ class AlertManager:
                 level=level,
             )
         except ImportError:
-            logger.debug(
-                "[AlertManager] telegram_bot not available (not a blocker)"
-            )
+            logger.debug("[AlertManager] telegram_bot not available (not a blocker)")
         except Exception as exc:
             logger.debug(f"[AlertManager] Telegram send failed: {exc}")
 

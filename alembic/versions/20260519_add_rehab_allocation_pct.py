@@ -4,6 +4,7 @@ Revision ID: rehab_alloc_001
 Revises: head
 Create Date: 2026-05-19
 """
+
 from alembic import op
 import sqlalchemy as sa
 

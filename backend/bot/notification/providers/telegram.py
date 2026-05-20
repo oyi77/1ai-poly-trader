@@ -10,7 +10,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Circuit breaker for Telegram API — protects against cascading failures
-_telegram_breaker = CircuitBreaker("telegram_api", failure_threshold=5, recovery_timeout=60.0)
+_telegram_breaker = CircuitBreaker(
+    "telegram_api", failure_threshold=5, recovery_timeout=60.0
+)
 
 # Rate limiter for Telegram API — respects ~30 msg/sec global limit
 _telegram_rate_limiter = ExternalRateLimiter(
@@ -35,11 +37,15 @@ class TelegramProvider(BaseNotificationProvider):
     def __init__(self):
         self.bot_instance = get_bot()
 
-    async def send(self, message: str, event_type: str, details: Optional[dict] = None) -> bool:
+    async def send(
+        self, message: str, event_type: str, details: Optional[dict] = None
+    ) -> bool:
         if not self.bot_instance:
             return False
         try:
-            await _telegram_rate_limiter.call(self.bot_instance.send_telegram_message, message)
+            await _telegram_rate_limiter.call(
+                self.bot_instance.send_telegram_message, message
+            )
             return True
         except CircuitOpenError:
             logger.warning("Telegram circuit OPEN, notification dropped")

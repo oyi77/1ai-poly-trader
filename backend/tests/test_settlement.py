@@ -11,9 +11,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from backend.models.database import Base, Trade, BotState, SettlementEvent
-from backend.core.settlement.settlement_helpers import calculate_pnl, process_settled_trade
+from backend.core.settlement.settlement_helpers import (
+    calculate_pnl,
+    process_settled_trade,
+)
 from backend.config import settings
-
 
 # ---------------------------------------------------------------------------
 # In-memory SQLite fixture (per-test isolation)
@@ -235,7 +237,9 @@ class TestBankrollUpdate:
 
         state = _state_for_mode(db, "paper")
         state.bankroll = settings.INITIAL_BANKROLL
-        state.paper_bankroll = settings.INITIAL_BANKROLL - 10.0  # stake deducted at open
+        state.paper_bankroll = (
+            settings.INITIAL_BANKROLL - 10.0
+        )  # stake deducted at open
         state.paper_pnl = 0.0
         state.paper_trades = 0
         state.paper_wins = 0
@@ -266,7 +270,9 @@ class TestBankrollUpdate:
 
         state = _state_for_mode(db, "paper")
         state.bankroll = settings.INITIAL_BANKROLL
-        state.paper_bankroll = settings.INITIAL_BANKROLL - 10.0  # stake deducted at open
+        state.paper_bankroll = (
+            settings.INITIAL_BANKROLL - 10.0
+        )  # stake deducted at open
         state.paper_pnl = 0.0
         state.paper_trades = 0
         state.paper_wins = 0
@@ -334,7 +340,9 @@ class TestBankrollUpdate:
         db.flush()
         del db.info["allow_live_financial_update"]
 
-        trade = _make_trade(db, direction="up", entry_price=0.40, size=40.0, trading_mode="live")
+        trade = _make_trade(
+            db, direction="up", entry_price=0.40, size=40.0, trading_mode="live"
+        )
         trade.settled = True
         trade.result = "loss"
         trade.pnl = -40.0
@@ -415,11 +423,16 @@ class TestProcessSettledTrade:
         assert trade.settlement_time is not None
         assert trade.settlement_time.replace(tzinfo=timezone.utc) >= before
 
-    async def test_online_learner_failure_rolls_back_and_does_not_abort_settlement(self, db):
+    async def test_online_learner_failure_rolls_back_and_does_not_abort_settlement(
+        self, db
+    ):
         trade = _make_trade(db)
         trade_id = trade.id
 
-        with patch("backend.core.online_learner.OnlineLearner.on_trade_settled", side_effect=RuntimeError("boom {pk_1}")):
+        with patch(
+            "backend.core.online_learner.OnlineLearner.on_trade_settled",
+            side_effect=RuntimeError("boom {pk_1}"),
+        ):
             result = await process_settled_trade(trade, True, 1.0, 6.0, db)
 
         assert result is True
@@ -427,7 +440,9 @@ class TestProcessSettledTrade:
         assert trade.result == "win"
         db.commit()
         db.flush()
-        events = db.query(SettlementEvent).filter(SettlementEvent.trade_id == trade_id).all()
+        events = (
+            db.query(SettlementEvent).filter(SettlementEvent.trade_id == trade_id).all()
+        )
         assert len(events) == 1
 
 
@@ -493,7 +508,8 @@ class TestDeduplication:
                 return {"DEDUP-MKT": (False, None)}
 
             with patch(
-                "backend.core.settlement.settlement._resolve_markets", side_effect=mock_resolve
+                "backend.core.settlement.settlement._resolve_markets",
+                side_effect=mock_resolve,
             ):
                 from backend.core.settlement.settlement import settle_pending_trades
 
@@ -520,7 +536,10 @@ async def test_reconcile_positions_targets_live_open_trades(db):
         yield SimpleNamespace(get_trader_positions=AsyncMock(return_value=[]))
 
     with (
-        patch("backend.data.polymarket_clob.clob_from_settings", side_effect=fake_clob_factory),
+        patch(
+            "backend.data.polymarket_clob.clob_from_settings",
+            side_effect=fake_clob_factory,
+        ),
         patch.object(settings, "TRADING_MODE", "live"),
         patch.object(settings, "POLYMARKET_BUILDER_ADDRESS", "0xFAKE_TEST_WALLET"),
     ):

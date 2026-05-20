@@ -1,6 +1,5 @@
 """Tests for backend.core.market_classifier."""
 
-
 from backend.core.market_classifier import MARKET_CATEGORIES, classify_market
 
 

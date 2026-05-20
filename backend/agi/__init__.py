@@ -1,4 +1,5 @@
 """AGI package initialization."""
+
 from backend.agi.agent_state import AgentState
 from backend.agi.base_node import NodeManifest, BaseAGINode
 from backend.agi.node_registry import node_registry, NodeRegistry

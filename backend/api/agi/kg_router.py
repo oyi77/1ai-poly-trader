@@ -1,5 +1,6 @@
 """Knowledge Graph API router.
-Wave 10: Knowledge Graph (Part 10). Mounted at /api/v1/agi/knowledge-graph via main.py."""
+Wave 10: Knowledge Graph (Part 10). Mounted at /api/v1/agi/knowledge-graph via main.py.
+"""
 
 import json
 from typing import Optional
@@ -10,7 +11,6 @@ from sqlalchemy.orm import Session
 
 from backend.models.database import get_db
 from backend.application.agi.knowledge_graph import KnowledgeGraph
-
 
 kg_router = APIRouter(prefix="/agi/knowledge-graph", tags=["agi"])
 
@@ -59,7 +59,9 @@ async def get_node_neighbors(
 ) -> dict:
     """Get neighbors of a node in the knowledge graph."""
     if direction not in ["outgoing", "incoming"]:
-        raise HTTPException(status_code=400, detail="direction must be 'outgoing' or 'incoming'")
+        raise HTTPException(
+            status_code=400, detail="direction must be 'outgoing' or 'incoming'"
+        )
 
     kg = KnowledgeGraph()
     neighbors = kg.query_neighbors(node_id, relationship, direction, db)
@@ -74,7 +76,9 @@ async def get_node_neighbors(
                 "node_id": n.node_id,
                 "node_type": n.node_type,
                 "label": n.label,
-                "properties": json.loads(n.properties_json) if n.properties_json else {}
+                "properties": (
+                    json.loads(n.properties_json) if n.properties_json else {}
+                ),
             }
             for n in neighbors
         ],

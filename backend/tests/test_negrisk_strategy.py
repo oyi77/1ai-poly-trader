@@ -1,4 +1,5 @@
 """Tests for negrisk_strategy: detection, fair probability, order construction."""
+
 import pytest
 
 from backend.strategies.negrisk_strategy import (
@@ -9,7 +10,6 @@ from backend.strategies.negrisk_strategy import (
     detect_neg_risk_events,
     construct_orders,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fair probability tests
@@ -321,9 +321,27 @@ class TestFullPipeline:
     def test_end_to_end_underpriced_event(self):
         """Full pipeline: detect -> fair prob -> Kelly -> orders."""
         markets = [
-            {"slug": "election", "question": "Alice", "yes_price": 0.25, "no_price": 0.80, "token_id": "t0"},
-            {"slug": "election", "question": "Bob", "yes_price": 0.25, "no_price": 0.80, "token_id": "t1"},
-            {"slug": "election", "question": "Carol", "yes_price": 0.25, "no_price": 0.80, "token_id": "t2"},
+            {
+                "slug": "election",
+                "question": "Alice",
+                "yes_price": 0.25,
+                "no_price": 0.80,
+                "token_id": "t0",
+            },
+            {
+                "slug": "election",
+                "question": "Bob",
+                "yes_price": 0.25,
+                "no_price": 0.80,
+                "token_id": "t1",
+            },
+            {
+                "slug": "election",
+                "question": "Carol",
+                "yes_price": 0.25,
+                "no_price": 0.80,
+                "token_id": "t2",
+            },
         ]
 
         # Step 1: detect
@@ -355,7 +373,9 @@ class TestFullPipeline:
             sum_deviation=event.deviation,
             kelly_bets=kelly_bets,
         )
-        orders = construct_orders(event, fair_result, min_edge=0.02, max_position_usd=50.0)
+        orders = construct_orders(
+            event, fair_result, min_edge=0.02, max_position_usd=50.0
+        )
         assert len(orders) == 3
         for o in orders:
             assert o.side == "BUY"

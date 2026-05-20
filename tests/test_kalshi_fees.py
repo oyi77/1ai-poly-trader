@@ -31,7 +31,17 @@ class TestKalshiFee:
     def test_fee_peaks_at_50c(self):
         """Fee should be maximum at P=0.50 (max uncertainty)."""
         fees = []
-        for p_str in ["0.10", "0.20", "0.30", "0.40", "0.50", "0.60", "0.70", "0.80", "0.90"]:
+        for p_str in [
+            "0.10",
+            "0.20",
+            "0.30",
+            "0.40",
+            "0.50",
+            "0.60",
+            "0.70",
+            "0.80",
+            "0.90",
+        ]:
             fee = _kalshi_fee(Decimal(p_str), Decimal("100"))
             fees.append(fee)
         # 0.50 should have the highest fee
@@ -45,8 +55,12 @@ class TestKalshiFee:
         fee_high = _kalshi_fee(Decimal("0.99"), Decimal("100"))
         fee_mid = _kalshi_fee(Decimal("0.50"), Decimal("100"))
         # Fees at extremes should be much less than at midpoint
-        assert fee_low < fee_mid * Decimal("0.1"), f"Extreme fee ${fee_low} not much less than mid ${fee_mid}"
-        assert fee_high < fee_mid * Decimal("0.1"), f"Extreme fee ${fee_high} not much less than mid ${fee_mid}"
+        assert fee_low < fee_mid * Decimal(
+            "0.1"
+        ), f"Extreme fee ${fee_low} not much less than mid ${fee_mid}"
+        assert fee_high < fee_mid * Decimal(
+            "0.1"
+        ), f"Extreme fee ${fee_high} not much less than mid ${fee_mid}"
 
     def test_maker_fee_lower_than_taker(self):
         """Maker fee should always be lower than taker fee at same price."""
@@ -81,7 +95,9 @@ class TestKalshiFee:
             fee_p = _kalshi_fee(Decimal(p_str), Decimal("100"))
             fee_1mp = _kalshi_fee(Decimal(str(1.0 - float(p_str))), Decimal("100"))
             diff = abs(fee_p - fee_1mp)
-            assert diff <= Decimal("0.01"), f"Asymmetric at P={p_str}: {fee_p} vs {fee_1mp} (diff={diff})"
+            assert diff <= Decimal(
+                "0.01"
+            ), f"Asymmetric at P={p_str}: {fee_p} vs {fee_1mp} (diff={diff})"
 
     def test_fee_rates_correct(self):
         """Verify the module-level fee rate constants."""

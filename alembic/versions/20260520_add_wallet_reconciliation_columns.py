@@ -4,6 +4,7 @@ Revision ID: wallet_recon_001
 Revises: rehab_alloc_001
 Create Date: 2026-05-20
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -21,13 +22,22 @@ def _column_exists(table: str, column: str) -> bool:
 
 def upgrade() -> None:
     if not _column_exists("bot_state", "total_deposits"):
-        op.add_column("bot_state", sa.Column("total_deposits", sa.Float(), server_default="0.0"))
+        op.add_column(
+            "bot_state", sa.Column("total_deposits", sa.Float(), server_default="0.0")
+        )
     if not _column_exists("bot_state", "total_withdrawals"):
-        op.add_column("bot_state", sa.Column("total_withdrawals", sa.Float(), server_default="0.0"))
+        op.add_column(
+            "bot_state",
+            sa.Column("total_withdrawals", sa.Float(), server_default="0.0"),
+        )
     if not _column_exists("bot_state", "last_wallet_sync_at"):
-        op.add_column("bot_state", sa.Column("last_wallet_sync_at", sa.DateTime(), nullable=True))
+        op.add_column(
+            "bot_state", sa.Column("last_wallet_sync_at", sa.DateTime(), nullable=True)
+        )
     if not _column_exists("bot_state", "wallet_pnl"):
-        op.add_column("bot_state", sa.Column("wallet_pnl", sa.Float(), server_default="0.0"))
+        op.add_column(
+            "bot_state", sa.Column("wallet_pnl", sa.Float(), server_default="0.0")
+        )
 
 
 def downgrade() -> None:

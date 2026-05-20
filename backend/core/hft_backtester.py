@@ -1,5 +1,7 @@
 """HFT Performance Backtester — backtest HFT strategies with transaction costs and survivorship bias."""
+
 from dataclasses import dataclass
+
 
 @dataclass
 class BacktestResult:
@@ -70,14 +72,17 @@ class HFTBacktester:
         max_dd = (peak - bankroll) / peak if peak > 0 else 0.0
         avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
 
-        pnls = [((sig.get("exit_price", 0.5) - sig.get("price", 0.5)) * sig.get("size", 0))
-                - (sig.get("size", 0) * self._poly_fee)
-                - (sig.get("size", 0) * self._kalshi_fee)
-                - (sig.get("size", 0) * (self._slippage_bps / 10000.0))
-                for sig in signals]
+        pnls = [
+            ((sig.get("exit_price", 0.5) - sig.get("price", 0.5)) * sig.get("size", 0))
+            - (sig.get("size", 0) * self._poly_fee)
+            - (sig.get("size", 0) * self._kalshi_fee)
+            - (sig.get("size", 0) * (self._slippage_bps / 10000.0))
+            for sig in signals
+        ]
 
         if len(pnls) > 1:
             import statistics
+
             pnl_stdev = statistics.stdev(pnls)
             sharpe = (statistics.mean(pnls) / pnl_stdev) if pnl_stdev > 0 else 0.0
         else:
@@ -106,7 +111,11 @@ class HFTBacktester:
         for _ in range(n_runs):
             sigs = [signal_template.copy() for _ in range(50)]
             result = self.backtest_signals(sigs, starting)
-            outcomes.append(result.ending_bankroll if hasattr(result, "ending_bankroll") else result.pnl + starting)
+            outcomes.append(
+                result.ending_bankroll
+                if hasattr(result, "ending_bankroll")
+                else result.pnl + starting
+            )
 
         outcomes.sort()
         return {

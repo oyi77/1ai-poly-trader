@@ -1,4 +1,5 @@
 """Dashboard API endpoints."""
+
 import asyncio
 import time
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from backend.data.crypto import compute_btc_microstructure, fetch_crypto_price
 from backend.models.database import BotState, Trade, TradeContext, get_db
 
 from loguru import logger
+
 # ── Market question cache (market_ticker → question) ──────────────────────
 _market_question_cache: dict[str, str] = {}
 _market_question_cache_built = False
@@ -37,6 +39,7 @@ def _build_market_question_cache(db: Session) -> None:
 
     try:
         from backend.models.database import MarketWatch
+
         rows = db.query(MarketWatch).all()
         for row in rows:
             if row.ticker and row.ticker not in _market_question_cache:
@@ -65,8 +68,8 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
     # First pass: decode slug-based tickers locally (e.g. "bun-dor-ein-2026-05-08-dor")
     still_unresolved: list[str] = []
     for ticker in unresolved:
-        if ticker and not ticker.isdigit() and '-' in ticker:
-            decoded = ticker.replace('-', ' ').title()
+        if ticker and not ticker.isdigit() and "-" in ticker:
+            decoded = ticker.replace("-", " ").title()
             _market_question_cache[ticker] = decoded
             result[ticker] = decoded
         else:
@@ -78,7 +81,9 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
     try:
         import httpx
 
-        async def fetch_question(client: httpx.AsyncClient, ticker: str) -> tuple[str, str]:
+        async def fetch_question(
+            client: httpx.AsyncClient, ticker: str
+        ) -> tuple[str, str]:
             try:
                 resp = await asyncio.wait_for(
                     client.get(f"https://gamma-api.polymarket.com/markets/{ticker}"),
@@ -101,7 +106,10 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
             async with httpx.AsyncClient(timeout=2.0) as client:
                 question_results = await asyncio.wait_for(
                     asyncio.gather(
-                        *(fetch_question(client, ticker) for ticker in numeric_ids[:10]),
+                        *(
+                            fetch_question(client, ticker)
+                            for ticker in numeric_ids[:10]
+                        ),
                         return_exceptions=True,
                     ),
                     timeout=2.5,
@@ -113,7 +121,9 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
                 _market_question_cache[ticker] = question
                 result[ticker] = question
     except Exception:
-        logger.warning("dashboard market question lookup timed out; using ticker fallbacks")
+        logger.warning(
+            "dashboard market question lookup timed out; using ticker fallbacks"
+        )
         for ticker in still_unresolved:
             result.setdefault(ticker, ticker)
 
@@ -122,6 +132,7 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
     # Batch-resolve from Gamma API
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             for ticker in unresolved:
                 try:
@@ -138,16 +149,22 @@ async def _resolve_market_questions(tickers: list[str], db: Session) -> dict[str
                                 result[ticker] = question
                                 continue
                 except Exception:
-                    logger.exception(f"Failed to fetch market question for condition {ticker}")
+                    logger.exception(
+                        f"Failed to fetch market question for condition {ticker}"
+                    )
                 result[ticker] = ticker
     except Exception:
-        logger.exception("Failed to batch-resolve market questions from Gamma API (unreachable fallback)")
+        logger.exception(
+            "Failed to batch-resolve market questions from Gamma API (unreachable fallback)"
+        )
         for ticker in unresolved:
             result[ticker] = ticker
 
     return result
 
+
 router = APIRouter(tags=["dashboard"])
+
 
 class BtcPriceResponse(BaseModel):
     price: float
@@ -156,6 +173,7 @@ class BtcPriceResponse(BaseModel):
     market_cap: float
     volume_24h: float
     last_updated: datetime
+
 
 class BtcWindowResponse(BaseModel):
     slug: str
@@ -170,6 +188,7 @@ class BtcWindowResponse(BaseModel):
     time_until_end: float
     spread: float
 
+
 class MicrostructureResponse(BaseModel):
     rsi: float = 50.0
     momentum_1m: float = 0.0
@@ -181,6 +200,7 @@ class MicrostructureResponse(BaseModel):
     price: float = 0.0
     source: str = "unknown"
 
+
 class WeatherForecastResponse(BaseModel):
     city_key: str
     city_name: str
@@ -191,6 +211,7 @@ class WeatherForecastResponse(BaseModel):
     std_low: float
     num_members: int
     ensemble_agreement: float
+
 
 class WeatherMarketResponse(BaseModel):
     slug: str
@@ -206,6 +227,7 @@ class WeatherMarketResponse(BaseModel):
     yes_price: float
     no_price: float
     volume: float
+
 
 class WeatherSignalResponse(BaseModel):
     market_id: str
@@ -225,6 +247,7 @@ class WeatherSignalResponse(BaseModel):
     ensemble_std: float
     ensemble_members: int
     actionable: bool = False
+
 
 class DashboardData(BaseModel):
     stats: BotStats
@@ -273,12 +296,18 @@ async def _get_cached_dashboard_data(db: Session) -> DashboardData:
         _dashboard_cache_expires_at = time.monotonic() + ttl_seconds
         return dashboard_data
 
-def _serialize_trade_response(trade: Trade, contexts: dict[int, TradeContext], market_questions: dict[str, str] | None = None) -> TradeResponse:
+
+def _serialize_trade_response(
+    trade: Trade,
+    contexts: dict[int, TradeContext],
+    market_questions: dict[str, str] | None = None,
+) -> TradeResponse:
     context = contexts.get(trade.id)
     return TradeResponse(
         id=trade.id,
         market_ticker=trade.market_ticker,
-        market_question=(market_questions or {}).get(trade.market_ticker) or trade.event_slug,
+        market_question=(market_questions or {}).get(trade.market_ticker)
+        or trade.event_slug,
         platform=trade.platform,
         event_slug=trade.event_slug,
         direction=trade.direction,
@@ -288,7 +317,8 @@ def _serialize_trade_response(trade: Trade, contexts: dict[int, TradeContext], m
         settled=trade.settled,
         result=trade.result,
         pnl=trade.pnl,
-        strategy=(context.strategy if context else None) or getattr(trade, "strategy", None),
+        strategy=(context.strategy if context else None)
+        or getattr(trade, "strategy", None),
         signal_source=(context.signal_source if context else None)
         or getattr(trade, "signal_source", None),
         confidence=(context.confidence if context else None)
@@ -296,19 +326,25 @@ def _serialize_trade_response(trade: Trade, contexts: dict[int, TradeContext], m
         trading_mode=trade.trading_mode,
     )
 
+
 def _load_trade_contexts(db: Session, trades: list[Trade]) -> dict[int, TradeContext]:
     trade_ids = [trade.id for trade in trades]
     if not trade_ids:
         return {}
     return {
         context.trade_id: context
-        for context in db.query(TradeContext).filter(TradeContext.trade_id.in_(trade_ids)).all()
+        for context in db.query(TradeContext)
+        .filter(TradeContext.trade_id.in_(trade_ids))
+        .all()
     }
+
 
 def _build_account_equity_curve(db: Session, curve_mode: str = "live") -> list[dict]:
     """Build dashboard equity points without letting historical backfills redefine live equity."""
     equity_curve: list[dict] = []
-    initial_bankroll = 100.0 if curve_mode == "testnet" else float(settings.INITIAL_BANKROLL)
+    initial_bankroll = (
+        100.0 if curve_mode == "testnet" else float(settings.INITIAL_BANKROLL)
+    )
     mode_state = db.query(BotState).filter_by(mode=curve_mode).first()
 
     if curve_mode == "live":
@@ -333,9 +369,13 @@ def _build_account_equity_curve(db: Session, curve_mode: str = "live") -> list[d
             cumulative_realized += float(trade.pnl or 0.0)
             realized_points.append((trade.timestamp, cumulative_realized))
 
-        current_pnl = float(mode_state.total_pnl or 0.0) if mode_state else cumulative_realized
+        current_pnl = (
+            float(mode_state.total_pnl or 0.0) if mode_state else cumulative_realized
+        )
         current_bankroll = (
-            float(mode_state.bankroll or initial_bankroll) if mode_state else initial_bankroll + current_pnl
+            float(mode_state.bankroll or initial_bankroll)
+            if mode_state
+            else initial_bankroll + current_pnl
         )
 
         if realized_points:
@@ -379,11 +419,27 @@ def _build_account_equity_curve(db: Session, curve_mode: str = "live") -> list[d
 
     if mode_state:
         if curve_mode == "paper":
-            current_bankroll = mode_state.paper_bankroll if mode_state.paper_bankroll is not None else mode_state.bankroll
-            current_pnl = mode_state.paper_pnl if mode_state.paper_pnl is not None else mode_state.total_pnl
+            current_bankroll = (
+                mode_state.paper_bankroll
+                if mode_state.paper_bankroll is not None
+                else mode_state.bankroll
+            )
+            current_pnl = (
+                mode_state.paper_pnl
+                if mode_state.paper_pnl is not None
+                else mode_state.total_pnl
+            )
         else:
-            current_bankroll = mode_state.testnet_bankroll if mode_state.testnet_bankroll is not None else mode_state.bankroll
-            current_pnl = mode_state.testnet_pnl if mode_state.testnet_pnl is not None else mode_state.total_pnl
+            current_bankroll = (
+                mode_state.testnet_bankroll
+                if mode_state.testnet_bankroll is not None
+                else mode_state.bankroll
+            )
+            current_pnl = (
+                mode_state.testnet_pnl
+                if mode_state.testnet_pnl is not None
+                else mode_state.total_pnl
+            )
         equity_curve.append(
             {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -394,10 +450,9 @@ def _build_account_equity_curve(db: Session, curve_mode: str = "live") -> list[d
 
     return equity_curve
 
+
 @router.get("/dashboard", response_model=DashboardData)
-async def get_dashboard(
-    db: Session = Depends(get_db)
-):
+async def get_dashboard(db: Session = Depends(get_db)):
     """Get all dashboard data in one call - returns stats for all 3 modes."""
     return await _get_cached_dashboard_data(db)
 
@@ -405,9 +460,7 @@ async def get_dashboard(
 async def _build_dashboard_data(db: Session) -> DashboardData:
     """Build dashboard data from live sources and database snapshots."""
     try:
-        stats = await asyncio.wait_for(
-            get_stats(db=db, mode=None), timeout=6.0
-        )
+        stats = await asyncio.wait_for(get_stats(db=db, mode=None), timeout=6.0)
     except (asyncio.TimeoutError, Exception) as e:
         logger.warning(f"[dashboard] get_stats timed out after 12s: {e}")
         stats = await asyncio.wait_for(
@@ -418,9 +471,7 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
     btc_price_data = None
     micro_data = None
     try:
-        micro = await asyncio.wait_for(
-            compute_btc_microstructure(), timeout=5.0
-        )
+        micro = await asyncio.wait_for(compute_btc_microstructure(), timeout=5.0)
         if micro:
             micro_data = MicrostructureResponse(
                 rsi=micro.rsi,
@@ -444,7 +495,7 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
     except Exception as e:
         logger.warning(
             f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch BTC microstructure data, falling back to CoinGecko: {e}",
-            exc_info=True
+            exc_info=True,
         )
     if not btc_price_data:
         try:
@@ -461,15 +512,13 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
         except Exception as e:
             logger.warning(
                 f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch BTC price from CoinGecko: {e}",
-                exc_info=True
+                exc_info=True,
             )
 
     # Fetch windows
     windows = []
     try:
-        markets = await asyncio.wait_for(
-            fetch_active_btc_markets(), timeout=4.0
-        )
+        markets = await asyncio.wait_for(fetch_active_btc_markets(), timeout=4.0)
         windows = [
             BtcWindowResponse(
                 slug=m.slug,
@@ -489,22 +538,20 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
     except Exception as e:
         logger.warning(
             f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch active BTC markets: {e}",
-            exc_info=True
+            exc_info=True,
         )
 
     # Signals — return ALL signals, mark which are actionable
     signals = []
     try:
-        raw_signals = await asyncio.wait_for(
-            scan_for_signals(), timeout=2.0
-        )
+        raw_signals = await asyncio.wait_for(scan_for_signals(), timeout=2.0)
         signals = [
             _signal_to_response(s, actionable=s.passes_threshold) for s in raw_signals
         ]
     except Exception as e:
         logger.warning(
             f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to scan for trading signals: {e}",
-            exc_info=True
+            exc_info=True,
         )
 
     # Recent trades (with TradeContext enrichment + market questions)
@@ -512,7 +559,9 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
     contexts = _load_trade_contexts(db, trades)
     trade_tickers = list({t.market_ticker for t in trades if t.market_ticker})
     market_questions = await _resolve_market_questions(trade_tickers, db)
-    recent_trades = [_serialize_trade_response(t, contexts, market_questions) for t in trades]
+    recent_trades = [
+        _serialize_trade_response(t, contexts, market_questions) for t in trades
+    ]
 
     top_winning_trade_rows = (
         db.query(Trade)
@@ -527,7 +576,8 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
     )
     top_winning_contexts = _load_trade_contexts(db, top_winning_trade_rows)
     top_winning_trades = [
-        _serialize_trade_response(t, top_winning_contexts, market_questions) for t in top_winning_trade_rows
+        _serialize_trade_response(t, top_winning_contexts, market_questions)
+        for t in top_winning_trade_rows
     ]
 
     # Equity curve: match the default dashboard/account view.
@@ -577,7 +627,7 @@ async def _build_dashboard_data(db: Session) -> DashboardData:
         except Exception as e:
             logger.warning(
                 f"[api.dashboard.get_dashboard] {type(e).__name__}: Failed to fetch weather forecasts data: {e}",
-                exc_info=True
+                exc_info=True,
             )
 
     return DashboardData(

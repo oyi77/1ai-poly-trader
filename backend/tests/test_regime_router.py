@@ -22,35 +22,35 @@ def test_regime_router_initialization(regime_router):
 
 def test_get_multiplier_known_strategy_bull(regime_router):
     """Test multiplier retrieval for known strategy in bull regime."""
-    with patch.object(regime_router, '_get_current_regime', return_value="bull"):
+    with patch.object(regime_router, "_get_current_regime", return_value="bull"):
         multiplier = regime_router.get_multiplier("BTC Momentum")
         assert multiplier == 0.90
 
 
 def test_get_multiplier_known_strategy_bear(regime_router):
     """Test multiplier retrieval for known strategy in bear regime."""
-    with patch.object(regime_router, '_get_current_regime', return_value="bear"):
+    with patch.object(regime_router, "_get_current_regime", return_value="bear"):
         multiplier = regime_router.get_multiplier("Market Maker")
         assert multiplier == 0.90
 
 
 def test_get_multiplier_unknown_strategy(regime_router):
     """Test multiplier retrieval for unknown strategy."""
-    with patch.object(regime_router, '_get_current_regime', return_value="bull"):
+    with patch.object(regime_router, "_get_current_regime", return_value="bull"):
         multiplier = regime_router.get_multiplier("Unknown Strategy")
         assert multiplier == 1.00  # Default multiplier
 
 
 def test_get_multiplier_unknown_regime(regime_router):
     """Test multiplier retrieval for unknown regime."""
-    with patch.object(regime_router, '_get_current_regime', return_value="unknown"):
+    with patch.object(regime_router, "_get_current_regime", return_value="unknown"):
         multiplier = regime_router.get_multiplier("BTC Momentum")
         assert multiplier == 1.00  # Default when regime not found
 
 
 def test_get_adjusted_threshold_bull_momentum(regime_router):
     """Test adjusted threshold calculation for BTC Momentum in bull regime."""
-    with patch.object(regime_router, '_get_current_regime', return_value="bull"):
+    with patch.object(regime_router, "_get_current_regime", return_value="bull"):
         threshold = regime_router.get_adjusted_threshold("BTC Momentum", 0.70)
         # 0.70 * 0.90 = 0.63, capped at 0.95
         assert threshold == 0.63
@@ -58,7 +58,7 @@ def test_get_adjusted_threshold_bull_momentum(regime_router):
 
 def test_get_adjusted_threshold_bear_market_maker(regime_router):
     """Test adjusted threshold calculation for Market Maker in bear regime."""
-    with patch.object(regime_router, '_get_current_regime', return_value="bear"):
+    with patch.object(regime_router, "_get_current_regime", return_value="bear"):
         threshold = regime_router.get_adjusted_threshold("Market Maker", 0.70)
         # 0.70 * 0.90 = 0.63, capped at 0.95
         assert threshold == 0.63
@@ -66,7 +66,7 @@ def test_get_adjusted_threshold_bear_market_maker(regime_router):
 
 def test_get_adjusted_threshold_volatile(regime_router):
     """Test adjusted threshold calculation in volatile regime."""
-    with patch.object(regime_router, '_get_current_regime', return_value="volatile"):
+    with patch.object(regime_router, "_get_current_regime", return_value="volatile"):
         threshold = regime_router.get_adjusted_threshold("BTC Momentum", 0.60)
         # 0.60 * 1.25 = 0.75, capped at 0.95
         assert threshold == 0.75
@@ -74,7 +74,7 @@ def test_get_adjusted_threshold_volatile(regime_router):
 
 def test_get_adjusted_threshold_cap_at_95(regime_router):
     """Test that adjusted threshold is capped at 0.95."""
-    with patch.object(regime_router, '_get_current_regime', return_value="volatile"):
+    with patch.object(regime_router, "_get_current_regime", return_value="volatile"):
         threshold = regime_router.get_adjusted_threshold("BTC Momentum", 0.90)
         # 0.90 * 1.25 = 1.125, but capped at 0.95
         assert threshold == 0.95

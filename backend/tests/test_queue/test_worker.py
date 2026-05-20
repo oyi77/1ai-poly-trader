@@ -19,7 +19,6 @@ from backend.models.database import Base, JobQueue
 from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 from backend.job_queue.worker import Worker
 
-
 # ---------------------------------------------------------------------------
 # Fixture: isolated on-disk temp DB + queue + monkeypatched SessionLocal
 # ---------------------------------------------------------------------------
@@ -204,9 +203,9 @@ async def test_worker_continues_after_timeout(queue, monkeypatch):
     db = Session()
     try:
         fast_row = db.query(JobQueue).filter(JobQueue.id == int(fast_id)).first()
-        assert fast_row.status == "completed", (
-            f"Fast job should be completed, got {fast_row.status}"
-        )
+        assert (
+            fast_row.status == "completed"
+        ), f"Fast job should be completed, got {fast_row.status}"
     finally:
         db.close()
 

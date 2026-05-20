@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 @dataclass
 class DecayReport:
     """Report on performance decay for a strategy."""
+
     strategy: str
     is_decaying: bool = False
     decay_severity: str = "none"  # none, mild, moderate, severe
@@ -113,7 +114,9 @@ class PerformanceDecayDetector:
             report.trades_analyzed = len(outcomes)
 
             if len(outcomes) < self.min_trades:
-                report.recommendation = f"Insufficient data ({len(outcomes)}/{self.min_trades} trades)"
+                report.recommendation = (
+                    f"Insufficient data ({len(outcomes)}/{self.min_trades} trades)"
+                )
                 return report
 
             # Baseline: first half win rate
@@ -124,8 +127,12 @@ class PerformanceDecayDetector:
             baseline_wins = sum(1 for o in baseline_outcomes if o.result == "win")
             recent_wins = sum(1 for o in recent_outcomes if o.result == "win")
 
-            report.baseline_wr = baseline_wins / len(baseline_outcomes) if baseline_outcomes else 0.0
-            report.current_wr = recent_wins / len(recent_outcomes) if recent_outcomes else 0.0
+            report.baseline_wr = (
+                baseline_wins / len(baseline_outcomes) if baseline_outcomes else 0.0
+            )
+            report.current_wr = (
+                recent_wins / len(recent_outcomes) if recent_outcomes else 0.0
+            )
             report.wr_delta = report.current_wr - report.baseline_wr
 
             # CUSUM detection
@@ -142,8 +149,13 @@ class PerformanceDecayDetector:
             elif report.wr_delta <= self.moderate_decay_delta:
                 report.decay_severity = "moderate"
                 report.is_decaying = True
-                report.recommendation = "WARNING: Significant performance drop. Review strategy parameters."
-            elif report.wr_delta <= self.mild_decay_delta or report.cusum_score > self.cusum_threshold:
+                report.recommendation = (
+                    "WARNING: Significant performance drop. Review strategy parameters."
+                )
+            elif (
+                report.wr_delta <= self.mild_decay_delta
+                or report.cusum_score > self.cusum_threshold
+            ):
                 report.decay_severity = "mild"
                 report.is_decaying = True
                 report.recommendation = "NOTICE: Mild decay detected. Monitor closely."
@@ -155,12 +167,18 @@ class PerformanceDecayDetector:
             logger.info(
                 "[DecayDetector] '%s': baseline_wr=%.3f current_wr=%.3f "
                 "delta=%.3f cusum=%.3f severity=%s",
-                strategy, report.baseline_wr, report.current_wr,
-                report.wr_delta, report.cusum_score, report.decay_severity,
+                strategy,
+                report.baseline_wr,
+                report.current_wr,
+                report.wr_delta,
+                report.cusum_score,
+                report.decay_severity,
             )
 
         except Exception as e:
-            logger.error("[DecayDetector] Failed for '%s': %s", strategy, e, exc_info=True)
+            logger.error(
+                "[DecayDetector] Failed for '%s': %s", strategy, e, exc_info=True
+            )
             report.recommendation = f"Error: {e}"
         finally:
             if _owned:
@@ -181,14 +199,14 @@ class PerformanceDecayDetector:
 
         try:
             from backend.models.database import StrategyConfig
+
             active = (
-                db.query(StrategyConfig)
-                .filter(StrategyConfig.enabled.is_(True))
-                .all()
+                db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
             )
             for cfg in active:
                 report = self.detect(
-                    cfg.strategy_name, db=db,
+                    cfg.strategy_name,
+                    db=db,
                     lookback_days=lookback_days,
                     trading_mode=trading_mode,
                 )
@@ -237,7 +255,7 @@ class PerformanceDecayDetector:
         # Compute rolling win rate
         rolling_wr = []
         for i in range(self.window_size, len(outcomes) + 1):
-            window = outcomes[i - self.window_size:i]
+            window = outcomes[i - self.window_size : i]
             wins = sum(1 for o in window if o.result == "win")
             rolling_wr.append(wins / len(window))
 
@@ -259,4 +277,5 @@ class PerformanceDecayDetector:
 
 def _get_session():
     from backend.models.database import SessionLocal
+
     return SessionLocal()

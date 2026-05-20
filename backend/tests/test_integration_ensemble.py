@@ -137,7 +137,10 @@ class TestEnsembleSignalIntegration:
 
         assert isinstance(result, EnsembleSignal)
         # AI weight should be redistributed to technical
-        assert "ai" not in result.component_breakdown or result.component_breakdown.get("ai", 0) == 0
+        assert (
+            "ai" not in result.component_breakdown
+            or result.component_breakdown.get("ai", 0) == 0
+        )
 
     def test_extremize_function(self):
         """Test extremize function squares probability bias."""

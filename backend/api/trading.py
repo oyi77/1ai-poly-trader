@@ -95,8 +95,9 @@ class CreateSignalRequest(BaseModel):
     weight: float = 1.0
 
 
-from backend.api.validation import SignalCreateRequest as ValidatedSignalCreateRequest  # noqa: E402
-
+from backend.api.validation import (
+    SignalCreateRequest as ValidatedSignalCreateRequest,
+)  # noqa: E402
 
 # ============================================================================
 # Helper Functions
@@ -147,10 +148,15 @@ def _compute_calibration_summary(db: Session) -> Optional[CalibrationSummary]:
     correct = sum(1 for s in settled_signals if s.outcome_correct)
     accuracy = correct / total_with_outcome if total_with_outcome > 0 else 0.0
 
-    avg_predicted_edge = sum(abs(s.edge or 0.0) for s in settled_signals) / total_with_outcome
+    avg_predicted_edge = (
+        sum(abs(s.edge or 0.0) for s in settled_signals) / total_with_outcome
+    )
     # Actual edge: for correct predictions, edge was real; for incorrect, edge was negative
     avg_actual_edge = (
-        sum(abs(s.edge or 0.0) if s.outcome_correct else -abs(s.edge or 0.0) for s in settled_signals)
+        sum(
+            abs(s.edge or 0.0) if s.outcome_correct else -abs(s.edge or 0.0)
+            for s in settled_signals
+        )
         / total_with_outcome
     )
 
@@ -202,7 +208,7 @@ async def create_signal(
         confidence=request.confidence,
         reasoning=request.reasoning,
         source=request.source,
-        weight=request.weight
+        weight=request.weight,
     )
     db.add(signal)
     db.commit()
@@ -214,7 +220,7 @@ async def create_signal(
         "prediction": signal.prediction,
         "confidence": signal.confidence,
         "source": signal.source,
-        "created_at": signal.created_at.isoformat()
+        "created_at": signal.created_at.isoformat(),
     }
 
 
@@ -235,28 +241,28 @@ async def get_signals_history(
     total = query.count()
     rows = query.order_by(Signal.timestamp.desc()).offset(offset).limit(limit).all()
     items = [
-         {
-             "id": r.id,
-             "market_ticker": r.market_ticker,
-             "platform": r.platform or "polymarket",
-             "market_type": r.market_type or "btc",
-             "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-             "direction": r.direction,
-             "model_probability": r.model_probability,
-             "market_probability": r.market_price,
-             "edge": r.edge,
-             "confidence": r.confidence,
-             "suggested_size": r.suggested_size,
-             "reasoning": r.reasoning,
-             "executed": r.executed,
-             "actual_outcome": r.actual_outcome,
-             "outcome_correct": r.outcome_correct,
-             "settlement_value": r.settlement_value,
-             "settled_at": r.settled_at.isoformat() if r.settled_at else None,
-              "execution_mode": r.execution_mode or "paper",
-         }
-         for r in rows
-     ]
+        {
+            "id": r.id,
+            "market_ticker": r.market_ticker,
+            "platform": r.platform or "polymarket",
+            "market_type": r.market_type or "btc",
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            "direction": r.direction,
+            "model_probability": r.model_probability,
+            "market_probability": r.market_price,
+            "edge": r.edge,
+            "confidence": r.confidence,
+            "suggested_size": r.suggested_size,
+            "reasoning": r.reasoning,
+            "executed": r.executed,
+            "actual_outcome": r.actual_outcome,
+            "outcome_correct": r.outcome_correct,
+            "settlement_value": r.settlement_value,
+            "settled_at": r.settled_at.isoformat() if r.settled_at else None,
+            "execution_mode": r.execution_mode or "paper",
+        }
+        for r in rows
+    ]
     return {"items": items, "total": total}
 
 
@@ -433,8 +439,6 @@ async def settle_trades_endpoint(
 # ============================================================================
 
 
-
-
 # ============================================================================
 # Settlement Events Endpoint
 # ============================================================================
@@ -478,9 +482,7 @@ def get_debate_signals(
     Returns debate transcript with signal votes, bull/bear arguments,
     and consensus decision. Shows MiroFish participation with equal weight.
     """
-    decision = db.query(DecisionLog).filter(
-        DecisionLog.id == int(debate_id)
-    ).first()
+    decision = db.query(DecisionLog).filter(DecisionLog.id == int(debate_id)).first()
 
     if not decision:
         raise HTTPException(status_code=404, detail="Debate not found")
@@ -497,8 +499,13 @@ def get_debate_signals(
         }
 
     import json
+
     try:
-        signal_data = json.loads(decision.signal_data) if isinstance(decision.signal_data, str) else decision.signal_data
+        signal_data = (
+            json.loads(decision.signal_data)
+            if isinstance(decision.signal_data, str)
+            else decision.signal_data
+        )
     except (json.JSONDecodeError, TypeError):
         signal_data = {}
 
@@ -509,8 +516,16 @@ def get_debate_signals(
         "total_votes": len(signal_votes),
         "positive_votes": sum(1 for v in signal_votes if v.get("prediction", 0) > 0.5),
         "negative_votes": sum(1 for v in signal_votes if v.get("prediction", 0) <= 0.5),
-        "avg_prediction": sum(v.get("prediction", 0) for v in signal_votes) / len(signal_votes) if signal_votes else 0,
-        "avg_confidence": sum(v.get("confidence", 0) for v in signal_votes) / len(signal_votes) if signal_votes else 0,
+        "avg_prediction": (
+            sum(v.get("prediction", 0) for v in signal_votes) / len(signal_votes)
+            if signal_votes
+            else 0
+        ),
+        "avg_confidence": (
+            sum(v.get("confidence", 0) for v in signal_votes) / len(signal_votes)
+            if signal_votes
+            else 0
+        ),
     }
 
     return {
@@ -659,7 +674,8 @@ async def get_journal(
                     .filter(
                         DecisionLog.market_ticker == trade.market_ticker,
                         DecisionLog.strategy == trade.strategy,
-                        DecisionLog.created_at >= trade.timestamp - timedelta(minutes=5),
+                        DecisionLog.created_at
+                        >= trade.timestamp - timedelta(minutes=5),
                         DecisionLog.created_at <= cutoff,
                     )
                     .order_by(DecisionLog.created_at.desc())
@@ -682,9 +698,15 @@ async def get_journal(
 
             entries.append(entry)
 
-        return {"entries": entries, "total": total, "page": page, "page_size": page_size}
+        return {
+            "entries": entries,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
     except Exception:
         from loguru import logger
+
         logger.exception("Journal query failed")
         raise HTTPException(status_code=500, detail="Journal query failed")
 
@@ -746,7 +768,9 @@ async def get_journal_stats(
                     by_strategy[s]["wins"] += 1
         for s in by_strategy:
             st = by_strategy[s]
-            st["win_rate"] = round(st["wins"] / st["settled"], 4) if st["settled"] > 0 else 0.0
+            st["win_rate"] = (
+                round(st["wins"] / st["settled"], 4) if st["settled"] > 0 else 0.0
+            )
             st["pnl"] = round(st["pnl"], 2)
             del st["wins"]
             del st["settled"]
@@ -760,7 +784,10 @@ async def get_journal_stats(
                     daily[d] = {"pnl": 0.0, "trades": 0}
                 daily[d]["pnl"] += t.pnl
                 daily[d]["trades"] += 1
-        daily_pnl = [{"date": k, "pnl": round(v["pnl"], 2), "trades": v["trades"]} for k, v in sorted(daily.items())]
+        daily_pnl = [
+            {"date": k, "pnl": round(v["pnl"], 2), "trades": v["trades"]}
+            for k, v in sorted(daily.items())
+        ]
 
         return {
             "total_trades": total,
@@ -773,5 +800,6 @@ async def get_journal_stats(
         }
     except Exception:
         from loguru import logger
+
         logger.exception("Journal stats query failed")
         raise HTTPException(status_code=500, detail="Journal stats query failed")

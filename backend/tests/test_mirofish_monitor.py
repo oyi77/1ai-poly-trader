@@ -9,7 +9,7 @@ from backend.services.mirofish_monitor import (
     CircuitState,
     CircuitBreakerConfig,
     get_monitor,
-    reset_monitor
+    reset_monitor,
 )
 
 
@@ -26,7 +26,7 @@ def monitor(mock_client):
         failure_threshold=3,
         recovery_timeout=30.0,
         success_threshold=1,
-        request_timeout=10.0
+        request_timeout=10.0,
     )
     return MiroFishMonitor(mirofish_client=mock_client, config=config)
 
@@ -37,7 +37,7 @@ def fast_monitor(mock_client):
         failure_threshold=3,
         recovery_timeout=2.0,
         success_threshold=1,
-        request_timeout=1.0
+        request_timeout=1.0,
     )
     return MiroFishMonitor(mirofish_client=mock_client, config=config)
 
@@ -98,7 +98,7 @@ class TestCircuitBreakerStateTransitions:
             Exception("Error 1"),
             Exception("Error 2"),
             Exception("Error 3"),
-            []
+            [],
         ]
 
         for _ in range(3):
@@ -176,12 +176,7 @@ class TestHealthChecks:
 
     @pytest.mark.asyncio
     async def test_health_metrics_accuracy(self, monitor, mock_client):
-        mock_client.fetch_signals.side_effect = [
-            [],
-            [],
-            Exception("Error"),
-            []
-        ]
+        mock_client.fetch_signals.side_effect = [[], [], Exception("Error"), []]
 
         await monitor.call_with_circuit_breaker("fetch_signals")
         await monitor.call_with_circuit_breaker("fetch_signals")
@@ -212,7 +207,9 @@ class TestAlertThresholds:
         with caplog.at_level("WARNING"):
             await monitor.call_with_circuit_breaker("fetch_signals")
 
-        assert any("high latency" in record.message.lower() for record in caplog.records)
+        assert any(
+            "high latency" in record.message.lower() for record in caplog.records
+        )
 
     @pytest.mark.asyncio
     async def test_high_error_rate_warning(self, monitor, mock_client, caplog):
@@ -271,7 +268,7 @@ class TestMetricsTracking:
             [],
             Exception("Error"),
             [],
-            Exception("Error")
+            Exception("Error"),
         ]
 
         for _ in range(4):

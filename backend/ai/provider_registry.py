@@ -1,4 +1,5 @@
 """AI Provider registry for the plugin system."""
+
 from backend.core.plugin_errors import PluginEnvVarMissing, PluginNotFound
 from backend.core.plugin_registry import PluginRegistry
 from backend.ai.base_provider import BaseAIProvider, ProviderManifest
@@ -11,6 +12,7 @@ import os
 from typing import List
 
 from loguru import logger
+
 
 class AllProvidersExhausted(Exception):
     pass
@@ -81,6 +83,7 @@ class ProviderRegistry(PluginRegistry[ProviderManifest, BaseAIProvider]):
     def set_enabled(self, name: str, enabled: bool) -> None:
         if name not in self._plugins:
             from backend.core.plugin_errors import PluginNotFound
+
             raise PluginNotFound(f"AI provider '{name}' not found")
 
         self._enabled[name] = enabled
@@ -90,7 +93,9 @@ class ProviderRegistry(PluginRegistry[ProviderManifest, BaseAIProvider]):
             async with botstate_mutex:
                 session_factory = self._get_session_factory()
                 if session_factory is None:
-                    logger.warning("Could not persist provider enabled state: no session factory")
+                    logger.warning(
+                        "Could not persist provider enabled state: no session factory"
+                    )
                     return
 
                 with session_factory() as db:
@@ -119,6 +124,7 @@ class ProviderRegistry(PluginRegistry[ProviderManifest, BaseAIProvider]):
     def _get_session_factory(self):
         try:
             from backend.models.database import session_scope
+
             return session_scope
         except ImportError:
             return None
@@ -129,14 +135,21 @@ class ProviderRegistry(PluginRegistry[ProviderManifest, BaseAIProvider]):
                 is_healthy = await provider.health_check()
                 self._health_status[name] = is_healthy
                 if not is_healthy:
-                    logger.warning(f"Provider '{name}' failed health check and is marked degraded")
+                    logger.warning(
+                        f"Provider '{name}' failed health check and is marked degraded"
+                    )
                     with _metrics_lock:
-                        _metrics["ai_provider_health_check_failures_total"] = _metrics.get("ai_provider_health_check_failures_total", 0) + 1
+                        _metrics["ai_provider_health_check_failures_total"] = (
+                            _metrics.get("ai_provider_health_check_failures_total", 0)
+                            + 1
+                        )
             except Exception as e:
                 self._health_status[name] = False
                 logger.warning(f"Provider '{name}' health check error: {e}")
                 with _metrics_lock:
-                    _metrics["ai_provider_health_check_failures_total"] = _metrics.get("ai_provider_health_check_failures_total", 0) + 1
+                    _metrics["ai_provider_health_check_failures_total"] = (
+                        _metrics.get("ai_provider_health_check_failures_total", 0) + 1
+                    )
 
     def start_health_check(self) -> None:
         async def _health_check_loop():

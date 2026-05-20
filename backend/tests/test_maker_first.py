@@ -106,12 +106,12 @@ async def test_unfilled_maker_escalates_to_taker(monkeypatch, clob):
         timeout=0.2,
     )
     assert result.success is True
-    assert taker_called["flag"] is True, (
-        "Taker escalation must be attempted on unfilled maker"
-    )
-    assert not getattr(result, "maker_filled", False), (
-        "maker_filled must be False when taker escalation was used"
-    )
+    assert (
+        taker_called["flag"] is True
+    ), "Taker escalation must be attempted on unfilled maker"
+    assert not getattr(
+        result, "maker_filled", False
+    ), "maker_filled must be False when taker escalation was used"
 
 
 @pytest.mark.asyncio
@@ -125,9 +125,9 @@ async def test_maker_fill_rate_metric_incremented(clob):
     def _record(market_id: str, filled: bool) -> None:
         recorded.append((market_id, filled))
 
-    assert hasattr(clob_mod, "record_maker_fill_rate"), (
-        "record_maker_fill_rate(market_id, filled) must exist for Prometheus metric"
-    )
+    assert hasattr(
+        clob_mod, "record_maker_fill_rate"
+    ), "record_maker_fill_rate(market_id, filled) must exist for Prometheus metric"
     original = clob_mod.record_maker_fill_rate
     clob_mod.record_maker_fill_rate = _record  # type: ignore[assignment]
     try:

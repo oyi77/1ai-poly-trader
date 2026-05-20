@@ -113,9 +113,7 @@ class AccountSummarizer:
                     summary.equity = float(bot_state.equity or 0.0)
                     summary.initial_balance = float(bot_state.initial_balance or 0.0)
                     summary.last_updated = (
-                        bot_state.updated_at.isoformat()
-                        if bot_state.updated_at
-                        else ""
+                        bot_state.updated_at.isoformat() if bot_state.updated_at else ""
                     )
 
                     # Open positions from misc_data
@@ -176,15 +174,9 @@ class AccountSummarizer:
                     summary.win_rate = wins / len(trades) if trades else 0.0
 
                     # Profit factor
-                    gross_win = sum(
-                        t.pnl or 0.0 for t in trades if (t.pnl or 0.0) > 0
-                    )
+                    gross_win = sum(t.pnl or 0.0 for t in trades if (t.pnl or 0.0) > 0)
                     gross_loss = abs(
-                        sum(
-                            t.pnl or 0.0
-                            for t in trades
-                            if (t.pnl or 0.0) <= 0
-                        )
+                        sum(t.pnl or 0.0 for t in trades if (t.pnl or 0.0) <= 0)
                     )
                     summary.profit_factor = (
                         gross_win / gross_loss if gross_loss > 0 else 999.0
@@ -193,9 +185,7 @@ class AccountSummarizer:
                     # Avgs
                     win_trades = [t for t in trades if (t.pnl or 0.0) > 0]
                     loss_trades = [t for t in trades if (t.pnl or 0.0) <= 0]
-                    summary.avg_win = (
-                        gross_win / len(win_trades) if win_trades else 0.0
-                    )
+                    summary.avg_win = gross_win / len(win_trades) if win_trades else 0.0
                     summary.avg_loss = (
                         gross_loss / len(loss_trades) if loss_trades else 0.0
                     )
@@ -228,9 +218,7 @@ class AccountSummarizer:
             return "inactive" if summary.initial_balance > 0 else "new"
         return "healthy"
 
-    async def get_equity_curve(
-        self, mode: str, days: int = 30
-    ) -> List[Dict[str, Any]]:
+    async def get_equity_curve(self, mode: str, days: int = 30) -> List[Dict[str, Any]]:
         """Build equity curve from settled trades."""
         curve: List[Dict[str, Any]] = []
 
@@ -251,11 +239,13 @@ class AccountSummarizer:
                 cumulative = 0.0
                 for t in trades:
                     cumulative += t.pnl or 0.0
-                    curve.append({
-                        "timestamp": t.timestamp.isoformat() if t.timestamp else "",
-                        "pnl": t.pnl or 0.0,
-                        "cumulative_pnl": cumulative,
-                    })
+                    curve.append(
+                        {
+                            "timestamp": t.timestamp.isoformat() if t.timestamp else "",
+                            "pnl": t.pnl or 0.0,
+                            "cumulative_pnl": cumulative,
+                        }
+                    )
 
         except Exception as exc:
             logger.debug(f"[AccountSummarizer] Equity curve error: {exc}")

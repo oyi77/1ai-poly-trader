@@ -1,4 +1,3 @@
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -34,7 +33,10 @@ class TestSelfDebuggerDiagnose:
         result = debugger.diagnose_error(error)
         assert result.error_type == "api_503"
         assert result.recoverable is True
-        assert "backoff" in result.suggestion.lower() or "circuit" in result.suggestion.lower()
+        assert (
+            "backoff" in result.suggestion.lower()
+            or "circuit" in result.suggestion.lower()
+        )
 
     def test_diagnose_timeout(self):
         debugger, _, _ = make_debugger_session()
@@ -42,7 +44,10 @@ class TestSelfDebuggerDiagnose:
         result = debugger.diagnose_error(error)
         assert result.error_type == "timeout"
         assert result.recoverable is True
-        assert "retry" in result.suggestion.lower() or "reduced" in result.suggestion.lower()
+        assert (
+            "retry" in result.suggestion.lower()
+            or "reduced" in result.suggestion.lower()
+        )
 
     def test_diagnose_rate_limit(self):
         debugger, _, _ = make_debugger_session()
@@ -50,7 +55,10 @@ class TestSelfDebuggerDiagnose:
         result = debugger.diagnose_error(error)
         assert result.error_type == "rate_limit"
         assert result.recoverable is True
-        assert "backoff" in result.suggestion.lower() or "jitter" in result.suggestion.lower()
+        assert (
+            "backoff" in result.suggestion.lower()
+            or "jitter" in result.suggestion.lower()
+        )
 
     def test_diagnose_auth_failure(self):
         debugger, _, _ = make_debugger_session()
@@ -58,7 +66,10 @@ class TestSelfDebuggerDiagnose:
         result = debugger.diagnose_error(error)
         assert result.error_type == "auth_failure"
         assert result.recoverable is True
-        assert "refresh" in result.suggestion.lower() or "token" in result.suggestion.lower()
+        assert (
+            "refresh" in result.suggestion.lower()
+            or "token" in result.suggestion.lower()
+        )
 
     def test_diagnose_malformed_response(self):
         debugger, _, _ = make_debugger_session()
@@ -66,14 +77,20 @@ class TestSelfDebuggerDiagnose:
         result = debugger.diagnose_error(error)
         assert result.error_type == "malformed_response"
         assert result.recoverable is True
-        assert "parser" in result.suggestion.lower() or "alternate" in result.suggestion.lower()
+        assert (
+            "parser" in result.suggestion.lower()
+            or "alternate" in result.suggestion.lower()
+        )
 
     def test_diagnose_unknown_error(self):
         debugger, _, _ = make_debugger_session()
         error = Exception("Something weird happened")
         result = debugger.diagnose_error(error)
         assert result.recoverable is False
-        assert "escalate" in result.suggestion.lower() or "human" in result.suggestion.lower()
+        assert (
+            "escalate" in result.suggestion.lower()
+            or "human" in result.suggestion.lower()
+        )
 
 
 class TestSelfDebuggerRecovery:
@@ -122,7 +139,11 @@ class TestSelfDebuggerRecovery:
             suggestion="Retry with reduced timeout",
         )
         debugger.attempt_recovery(diagnosis)
-        audit = session.query(DecisionAuditLog).filter_by(decision_type="recovery_attempt").first()
+        audit = (
+            session.query(DecisionAuditLog)
+            .filter_by(decision_type="recovery_attempt")
+            .first()
+        )
         assert audit is not None
         assert "timeout" in str(audit.input_data)
 
@@ -137,9 +158,15 @@ class TestSelfDebuggerReportUnrecoverable:
             suggestion="Call human",
         )
         debugger.report_unrecoverable(error, diagnosis)
-        audit = session.query(DecisionAuditLog).filter_by(decision_type="unrecoverable_error").first()
+        audit = (
+            session.query(DecisionAuditLog)
+            .filter_by(decision_type="unrecoverable_error")
+            .first()
+        )
         assert audit is not None
-        assert "Critical failure" in str(audit.input_data) or "critical" in str(audit.input_data)
+        assert "Critical failure" in str(audit.input_data) or "critical" in str(
+            audit.input_data
+        )
 
 
 class TestDiagnosisResult:

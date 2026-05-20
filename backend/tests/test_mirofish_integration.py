@@ -97,7 +97,11 @@ async def test_e2e_mirofish_enabled_success(mock_db, sample_mirofish_signals):
         assert abs(result.consensus_probability - expected_consensus) < 0.001
 
         # Verify API was called with correct market
-        mock_client.fetch_signals.assert_called_once_with(market="polymarket", question="Will BTC hit $100k by EOY?", market_price=0.55)
+        mock_client.fetch_signals.assert_called_once_with(
+            market="polymarket",
+            question="Will BTC hit $100k by EOY?",
+            market_price=0.55,
+        )
 
 
 @pytest.mark.asyncio
@@ -139,8 +143,10 @@ async def test_fallback_mirofish_empty_signals(mock_db, sample_debate_result):
     setting = SystemSettings(key="mirofish_enabled", value=True)
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch("backend.ai.debate_router.run_debate") as mock_run_debate:
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch("backend.ai.debate_router.run_debate") as mock_run_debate,
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(return_value=[])  # Empty signals
@@ -164,8 +170,10 @@ async def test_fallback_mirofish_api_timeout(mock_db, sample_debate_result):
     setting = SystemSettings(key="mirofish_enabled", value=True)
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch("backend.ai.debate_router.run_debate") as mock_run_debate:
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch("backend.ai.debate_router.run_debate") as mock_run_debate,
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(side_effect=TimeoutError("API timeout"))
@@ -189,8 +197,10 @@ async def test_fallback_mirofish_connection_error(mock_db, sample_debate_result)
     setting = SystemSettings(key="mirofish_enabled", value=True)
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch("backend.ai.debate_router.run_debate") as mock_run_debate:
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch("backend.ai.debate_router.run_debate") as mock_run_debate,
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(
@@ -216,8 +226,10 @@ async def test_fallback_mirofish_auth_error(mock_db, sample_debate_result):
     setting = SystemSettings(key="mirofish_enabled", value=True)
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch("backend.ai.debate_router.run_debate") as mock_run_debate:
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch("backend.ai.debate_router.run_debate") as mock_run_debate,
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(
@@ -249,7 +261,9 @@ async def test_credential_priority_database_over_env(mock_db, sample_mirofish_si
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
     # Mock database credentials
-    db_url_setting = SystemSettings(key="mirofish_api_url", value="https://db.mirofish.ai")
+    db_url_setting = SystemSettings(
+        key="mirofish_api_url", value="https://db.mirofish.ai"
+    )
     db_key_setting = SystemSettings(key="mirofish_api_key", value="db_key_12345")
 
     def mock_query_side_effect(*args):
@@ -258,7 +272,7 @@ async def test_credential_priority_database_over_env(mock_db, sample_mirofish_si
 
         def mock_first():
             # Return different settings based on filter call
-            if hasattr(mock_filter, '_key'):
+            if hasattr(mock_filter, "_key"):
                 if mock_filter._key == "mirofish_enabled":
                     return setting
                 elif mock_filter._key == "mirofish_api_url":
@@ -268,13 +282,23 @@ async def test_credential_priority_database_over_env(mock_db, sample_mirofish_si
             return None
 
         mock_filter.first = mock_first
-        mock_query.filter = lambda x: setattr(mock_filter, '_key', x.right.value) or mock_filter
+        mock_query.filter = (
+            lambda x: setattr(mock_filter, "_key", x.right.value) or mock_filter
+        )
         return mock_query
 
     mock_db.query.side_effect = mock_query_side_effect
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch.dict("os.environ", {"MIROFISH_API_URL": "https://env.mirofish.ai", "MIROFISH_API_KEY": "env_key"}):
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch.dict(
+            "os.environ",
+            {
+                "MIROFISH_API_URL": "https://env.mirofish.ai",
+                "MIROFISH_API_KEY": "env_key",
+            },
+        ),
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(return_value=sample_mirofish_signals)
@@ -382,7 +406,11 @@ async def test_parameter_preservation_all_fields(mock_db, sample_debate_result):
         assert call_kwargs["category"] == "politics"
         assert call_kwargs["context"] == "Election polling data shows tight race"
         assert call_kwargs["max_rounds"] == 3
-        assert call_kwargs["data_sources"] == ["polls", "betting_markets", "expert_forecasts"]
+        assert call_kwargs["data_sources"] == [
+            "polls",
+            "betting_markets",
+            "expert_forecasts",
+        ]
         assert call_kwargs["signal_votes"] == signal_votes
 
 

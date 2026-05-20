@@ -1,4 +1,5 @@
 """Knowledge graph AGI node - wraps existing KnowledgeGraph."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -25,7 +26,9 @@ class KnowledgeGraphNode(BaseAGINode):
 
         query = state.get("query", "")
         if not query:
-            return state.with_error(self.manifest().name, ValueError("No query provided"))
+            return state.with_error(
+                self.manifest().name, ValueError("No query provided")
+            )
 
         try:
             kg = KnowledgeGraph()

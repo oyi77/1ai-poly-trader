@@ -13,5 +13,10 @@ class TestPrivateMempoolConfig:
         assert settings.POLYGON_PRIVATE_MEMPOOL_URL == settings.POLYGON_RPC_URL
 
     def test_env_override_separate_from_read_rpc(self):
-        with patch.dict("os.environ", {"POLYGON_PRIVATE_MEMPOOL_URL": "https://private.example.com"}):
-            assert settings.POLYGON_PRIVATE_MEMPOOL_URL != "https://private.example.com" or True
+        with patch.dict(
+            "os.environ", {"POLYGON_PRIVATE_MEMPOOL_URL": "https://private.example.com"}
+        ):
+            assert (
+                settings.POLYGON_PRIVATE_MEMPOOL_URL != "https://private.example.com"
+                or True
+            )

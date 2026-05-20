@@ -1,4 +1,5 @@
 """Self-improvement planner AGI node — plans improvement cycles."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -28,13 +29,20 @@ class ImprovementPlannerNode(BaseAGINode):
             candidates_data,
             key=lambda c: severity_order.get(c.get("severity", "low"), 99),
         )[:max_changes]
-        return state.evolve(data={
-            "plan": {
-                "total_candidates": len(candidates_data),
-                "to_address": len(sorted_candidates),
-                "estimated_effort": "high" if any(
-                    c.get("severity") in ("critical", "high") for c in sorted_candidates
-                ) else "medium",
-            },
-            "prioritized_candidates": sorted_candidates,
-        })
+        return state.evolve(
+            data={
+                "plan": {
+                    "total_candidates": len(candidates_data),
+                    "to_address": len(sorted_candidates),
+                    "estimated_effort": (
+                        "high"
+                        if any(
+                            c.get("severity") in ("critical", "high")
+                            for c in sorted_candidates
+                        )
+                        else "medium"
+                    ),
+                },
+                "prioritized_candidates": sorted_candidates,
+            }
+        )

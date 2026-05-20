@@ -25,7 +25,9 @@ from backend.agents.monitor.strategy_performance import StrategyReport
 class ResearchSuggestion:
     """A single research/improvement suggestion."""
 
-    category: str = ""  # strategy_tuning | market_opportunity | risk_adjustment | copy_target | backtest_idea
+    category: str = (
+        ""  # strategy_tuning | market_opportunity | risk_adjustment | copy_target | backtest_idea
+    )
     title: str = ""
     description: str = ""
     priority: str = "medium"  # high | medium | low
@@ -221,59 +223,65 @@ class ResearchAssistant:
             daily_loss = abs(acct.get("pnl_daily", 0))
             max_loss = settings.RISK_DAILY_LOSS_LIMIT
             if daily_loss > 0 and daily_loss >= max_loss * 0.7:
-                suggestions.append(ResearchSuggestion(
-                    category="risk_adjustment",
-                    title=f"⚡ {mode.upper()}: Daily loss approaching limit",
-                    description=(
-                        f"Daily loss ${daily_loss:.2f} is at "
-                        f"{daily_loss / max_loss:.0%} of max (${max_loss}). "
-                        f"Reduce position sizes or pause active strategies."
-                    ),
-                    priority="high",
-                    expected_impact="Prevents hitting the hard daily loss limit",
-                    implementation_complexity="medium",
-                    data_supporting=(
-                        f"Daily PnL=${acct.get('pnl_daily', 0):.2f}, "
-                        f"Limit=${max_loss}"
-                    ),
-                ))
+                suggestions.append(
+                    ResearchSuggestion(
+                        category="risk_adjustment",
+                        title=f"⚡ {mode.upper()}: Daily loss approaching limit",
+                        description=(
+                            f"Daily loss ${daily_loss:.2f} is at "
+                            f"{daily_loss / max_loss:.0%} of max (${max_loss}). "
+                            f"Reduce position sizes or pause active strategies."
+                        ),
+                        priority="high",
+                        expected_impact="Prevents hitting the hard daily loss limit",
+                        implementation_complexity="medium",
+                        data_supporting=(
+                            f"Daily PnL=${acct.get('pnl_daily', 0):.2f}, "
+                            f"Limit=${max_loss}"
+                        ),
+                    )
+                )
 
         # ── Not enough strategies active ──
         active_count = sum(
             1 for sr in strategy_reports if sr.enabled and sr.status == "healthy"
         )
         if active_count == 0 and any(sr.total_trades > 0 for sr in strategy_reports):
-            suggestions.append(ResearchSuggestion(
-                category="risk_adjustment",
-                title="🔄 All strategies inactive",
-                description=(
-                    "All strategies are currently inactive or degraded. "
-                    "This may indicate a systemic issue. Check API connectivity "
-                    "and market availability."
-                ),
-                priority="high",
-                expected_impact="Restore trading capability",
-                implementation_complexity="medium",
-                data_supporting=f"Active strategies: {active_count}/{len(strategy_reports)}",
-            ))
+            suggestions.append(
+                ResearchSuggestion(
+                    category="risk_adjustment",
+                    title="🔄 All strategies inactive",
+                    description=(
+                        "All strategies are currently inactive or degraded. "
+                        "This may indicate a systemic issue. Check API connectivity "
+                        "and market availability."
+                    ),
+                    priority="high",
+                    expected_impact="Restore trading capability",
+                    implementation_complexity="medium",
+                    data_supporting=f"Active strategies: {active_count}/{len(strategy_reports)}",
+                )
+            )
 
         # ── Large unrealized PnL → review positions ──
         for mode, acct in account_summary.items():
             unrealized = acct.get("total_unrealized_pnl", 0)
             if abs(unrealized) > 200:
-                suggestions.append(ResearchSuggestion(
-                    category="risk_adjustment",
-                    title=f"📊 {mode.upper()}: Large unrealized PnL (${unrealized:+.2f})",
-                    description=(
-                        f"Unrealized PnL of ${unrealized:.2f} indicates significant "
-                        f"open positions. Review position management — consider "
-                        f"taking profits or cutting losses."
-                    ),
-                    priority="medium" if unrealized > 0 else "high",
-                    expected_impact="Lock in profits or prevent further losses",
-                    implementation_complexity="medium",
-                    data_supporting=f"Unrealized=${unrealized:.2f}, Open={acct.get('open_positions', 0)}",
-                ))
+                suggestions.append(
+                    ResearchSuggestion(
+                        category="risk_adjustment",
+                        title=f"📊 {mode.upper()}: Large unrealized PnL (${unrealized:+.2f})",
+                        description=(
+                            f"Unrealized PnL of ${unrealized:.2f} indicates significant "
+                            f"open positions. Review position management — consider "
+                            f"taking profits or cutting losses."
+                        ),
+                        priority="medium" if unrealized > 0 else "high",
+                        expected_impact="Lock in profits or prevent further losses",
+                        implementation_complexity="medium",
+                        data_supporting=f"Unrealized=${unrealized:.2f}, Open={acct.get('open_positions', 0)}",
+                    )
+                )
 
         return suggestions
 
@@ -311,14 +319,16 @@ class ResearchAssistant:
     # Trends
     # -----------------------------------------------------------------------
 
-    def _extract_trends(
-        self, strategy_reports: List[StrategyReport]
-    ) -> List[str]:
+    def _extract_trends(self, strategy_reports: List[StrategyReport]) -> List[str]:
         """Extract performance trends across strategies."""
         trends: List[str] = []
 
         profitable = [sr for sr in strategy_reports if sr.is_profitable]
-        losing = [sr for sr in strategy_reports if not sr.is_profitable and sr.total_trades > 0]
+        losing = [
+            sr
+            for sr in strategy_reports
+            if not sr.is_profitable and sr.total_trades > 0
+        ]
         no_data = [sr for sr in strategy_reports if sr.total_trades == 0]
 
         if profitable:
@@ -326,9 +336,7 @@ class ResearchAssistant:
                 f"🟢 {len(profitable)}/{len(strategy_reports)} strategies profitable"
             )
         if losing:
-            trends.append(
-                f"🔴 {len(losing)}/{len(strategy_reports)} strategies losing"
-            )
+            trends.append(f"🔴 {len(losing)}/{len(strategy_reports)} strategies losing")
         if no_data:
             trends.append(
                 f"⚪ {len(no_data)}/{len(strategy_reports)} strategies inactive (no data)"
@@ -348,9 +356,7 @@ class ResearchAssistant:
     # Market Observations
     # -----------------------------------------------------------------------
 
-    def _market_observations(
-        self, strategy_reports: List[StrategyReport]
-    ) -> List[str]:
+    def _market_observations(self, strategy_reports: List[StrategyReport]) -> List[str]:
         """Generate observations about market conditions from strategy behavior."""
         observations: List[str] = []
 
@@ -365,9 +371,7 @@ class ResearchAssistant:
 
         # If all are losing, market may be in a tough regime
         losing_all = all(
-            not sr.is_profitable
-            for sr in strategy_reports
-            if sr.total_trades > 0
+            not sr.is_profitable for sr in strategy_reports if sr.total_trades > 0
         )
         if losing_all and len(strategy_reports) > 1:
             observations.append(

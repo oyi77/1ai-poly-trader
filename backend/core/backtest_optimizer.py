@@ -119,7 +119,7 @@ class BacktestOptimizer:
             logger.warning(
                 f"Grid has {len(combinations)} combos, capping at {self.max_combinations}"
             )
-            combinations = combinations[:self.max_combinations]
+            combinations = combinations[: self.max_combinations]
 
         results: list[OptimizationResult] = []
         engine = PyBrokerEngine()
@@ -171,15 +171,17 @@ class BacktestOptimizer:
             if overfit_ratio > 1.5:
                 score *= 0.5  # Heavy penalty for overfitting
 
-            results.append(OptimizationResult(
-                params=params,
-                backtest=bt_result,
-                walk_forward=wf_result,
-                oos_sharpe=oos_sharpe,
-                is_sharpe=is_sharpe,
-                overfit_ratio=overfit_ratio,
-                score=score,
-            ))
+            results.append(
+                OptimizationResult(
+                    params=params,
+                    backtest=bt_result,
+                    walk_forward=wf_result,
+                    oos_sharpe=oos_sharpe,
+                    is_sharpe=is_sharpe,
+                    overfit_ratio=overfit_ratio,
+                    score=score,
+                )
+            )
 
         # Sort by composite score (best first)
         results.sort(key=lambda r: r.score, reverse=True)
@@ -267,15 +269,17 @@ class BacktestOptimizer:
             if overfit > 1.5:
                 score *= 0.5
 
-            results.append(OptimizationResult(
-                params=params,
-                backtest=bt_result,
-                walk_forward=wf_result,
-                oos_sharpe=oos_sharpe,
-                is_sharpe=is_sharpe,
-                overfit_ratio=overfit,
-                score=score,
-            ))
+            results.append(
+                OptimizationResult(
+                    params=params,
+                    backtest=bt_result,
+                    walk_forward=wf_result,
+                    oos_sharpe=oos_sharpe,
+                    is_sharpe=is_sharpe,
+                    overfit_ratio=overfit,
+                    score=score,
+                )
+            )
 
         results.sort(key=lambda r: r.score, reverse=True)
 

@@ -50,36 +50,49 @@ def _load_globals():
 
     if resolve_wallet is None:
         from backend.core.wallet_resolver import resolve_wallet as _rw
+
         resolve_wallet = _rw
     if analyze_wallet is None:
         from backend.core.wallet_analyzer import analyze_wallet as _aw
+
         analyze_wallet = _aw
     if analyze_wallet_rapid is None:
         from backend.core.wallet_analyzer import analyze_wallet_rapid as _awr
+
         analyze_wallet_rapid = _awr
     if compare_wallets is None:
         from backend.core.wallet_analyzer import compare_wallets as _cw
+
         compare_wallets = _cw
     if find_profitable_traders is None:
         from backend.core.wallet_scanner import find_profitable_traders as _fpt
+
         find_profitable_traders = _fpt
     if find_proxy_wallet is None:
         from backend.core.proxy_finder import find_proxy_wallet as _fpw
+
         find_proxy_wallet = _fpw
     if get_all_closed_positions is None:
         from backend.data.wallet_history import get_all_closed_positions as _gcp
+
         get_all_closed_positions = _gcp
     if strategy_fingerprint is None:
         from backend.strategies.fingerprint import strategy_fingerprint as _sf
+
         strategy_fingerprint = _sf
     if replicate_strategy is None:
         from backend.strategies.replication import replicate_strategy as _rs
+
         replicate_strategy = _rs
     if scan_for_opportunities is None:
-        from backend.strategies.opportunity_detector import scan_for_opportunities as _so
+        from backend.strategies.opportunity_detector import (
+            scan_for_opportunities as _so,
+        )
+
         scan_for_opportunities = _so
     if TradeJournal is None:
         from backend.monitoring.trade_journal import TradeJournal as _TJ
+
         TradeJournal = _TJ
 
 
@@ -217,9 +230,7 @@ async def cmd_journal(args):
     journal = TradeJournal()
 
     if args.export:
-        path = journal.export_csv(
-            start_date=args.from_date, end_date=args.to_date
-        )
+        path = journal.export_csv(start_date=args.from_date, end_date=args.to_date)
         print(f"Exported to: {path}")
     elif args.summary:
         summary = journal.get_daily_summary(args.date)
@@ -288,7 +299,9 @@ def _print_scan_results(traders):
 def _print_fingerprint(result):
     print("=== Strategy Fingerprint ===")
     print(f"Type:        {result.strategy_type}")
-    print(f"Category:    {result.primary_category} ({result.primary_category_share:.0%})")
+    print(
+        f"Category:    {result.primary_category} ({result.primary_category_share:.0%})"
+    )
     print(f"Confidence:  {result.confidence:.2f}")
     print(f"Copy Rating: {result.copy_trade_suitability}/10")
     print(f"Replicable:  {result.is_replicable} ({result.replication_difficulty})")
@@ -385,9 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
     # replicate
     p_rep = sub.add_parser("replicate", help="Replicate strategy")
     p_rep.add_argument("wallet", help="Source wallet")
-    p_rep.add_argument(
-        "--capital", type=float, default=1000, help="Available capital"
-    )
+    p_rep.add_argument("--capital", type=float, default=1000, help="Available capital")
 
     # resolve
     p_res = sub.add_parser("resolve", help="Resolve wallet input")

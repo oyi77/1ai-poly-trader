@@ -9,6 +9,7 @@ from backend.api.auth import require_admin
 from backend.core.error_logger import get_error_logger
 
 from loguru import logger
+
 router = APIRouter(prefix="/errors", tags=["errors"])
 
 

@@ -1,6 +1,5 @@
 from backend.agi.graph_engine import GraphDefinition
 
-
 STRATEGY_EVOLUTION_GRAPH = GraphDefinition(
     name="strategy_evolution",
     nodes=["strategy_synthesizer", "model_calibration", "evolution"],

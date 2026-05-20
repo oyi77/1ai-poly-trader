@@ -22,7 +22,7 @@ from backend.models.database import (
     Trade,
     BotState,
     AuditLog,
-    Base
+    Base,
 )
 
 
@@ -37,10 +37,7 @@ def db_session():
     session = Session()
 
     bot_state = BotState(
-        mode="paper",
-        bankroll=10000.0,
-        paper_bankroll=10000.0,
-        is_running=True
+        mode="paper", bankroll=10000.0, paper_bankroll=10000.0, is_running=True
     )
     session.add(bot_state)
     session.commit()
@@ -56,10 +53,7 @@ def strategy_config(db_session):
         strategy_name="test_strategy",
         enabled=True,
         interval_seconds=300,
-        params=json.dumps({
-            "min_edge_threshold": 0.05,
-            "max_position_usd": 100.0
-        })
+        params=json.dumps({"min_edge_threshold": 0.05, "max_position_usd": 100.0}),
     )
     db_session.add(config)
     db_session.commit()
@@ -78,7 +72,7 @@ async def test_proposal_changes_max_position_limit(db_session, strategy_config):
         expected_impact="Reduce position size for risk management",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -87,9 +81,11 @@ async def test_proposal_changes_max_position_limit(db_session, strategy_config):
 
     assert result is True
 
-    updated_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "test_strategy"
-    ).first()
+    updated_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "test_strategy")
+        .first()
+    )
     params = json.loads(updated_config.params)
     assert params["max_position_usd"] == 50.0
 
@@ -102,23 +98,18 @@ async def test_proposal_changes_max_position_limit(db_session, strategy_config):
         "confidence": 0.8,
         "model_probability": 0.7,
         "platform": "polymarket",
-        "reasoning": "Test trade"
+        "reasoning": "Test trade",
     }
 
-    with patch('backend.core.strategy_executor.get_context') as mock_context:
+    with patch("backend.core.strategy_executor.get_context") as mock_context:
         mock_ctx = Mock()
         mock_ctx.risk_manager.validate_trade.return_value = Mock(
-            allowed=True,
-            adjusted_size=5.0,
-            reason="Adjusted to max_position_usd limit"
+            allowed=True, adjusted_size=5.0, reason="Adjusted to max_position_usd limit"
         )
         mock_context.return_value = mock_ctx
 
         trade_result = await execute_decision(
-            decision,
-            strategy_name="test_strategy",
-            mode="paper",
-            db=db_session
+            decision, strategy_name="test_strategy", mode="paper", db=db_session
         )
 
     assert trade_result is not None
@@ -137,7 +128,7 @@ async def test_proposal_changes_min_edge_threshold(db_session, strategy_config):
         expected_impact="Filter out low-edge signals",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -163,7 +154,7 @@ async def test_proposal_disables_strategy(db_session, strategy_config):
         expected_impact="Disable strategy for maintenance",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
@@ -172,9 +163,11 @@ async def test_proposal_disables_strategy(db_session, strategy_config):
 
     assert result is True
 
-    updated_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "test_strategy"
-    ).first()
+    updated_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "test_strategy")
+        .first()
+    )
 
     assert updated_config.enabled is False
 
@@ -191,30 +184,36 @@ async def test_rollback_restores_old_config(db_session, strategy_config):
         expected_impact="Test negative impact",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc) - timedelta(hours=50)
+        created_at=datetime.now(timezone.utc) - timedelta(hours=50),
     )
     db_session.add(proposal)
     db_session.commit()
 
     proposal_id = proposal.id
 
-    with patch('backend.db.utils.SessionLocal', return_value=db_session):
+    with patch("backend.db.utils.SessionLocal", return_value=db_session):
         exec_result = executor.execute_proposal(proposal_id)
 
     assert exec_result is True
 
-    proposal = db_session.query(StrategyProposal).filter(
-        StrategyProposal.id == proposal_id
-    ).first()
+    proposal = (
+        db_session.query(StrategyProposal)
+        .filter(StrategyProposal.id == proposal_id)
+        .first()
+    )
 
     execution_time = datetime.now(timezone.utc) - timedelta(hours=24)
     proposal.executed_at = execution_time
     db_session.commit()
 
-    audit_log = db_session.query(AuditLog).filter(
-        AuditLog.event_type == "PROPOSAL_EXECUTED",
-        AuditLog.entity_id == str(proposal_id)
-    ).first()
+    audit_log = (
+        db_session.query(AuditLog)
+        .filter(
+            AuditLog.event_type == "PROPOSAL_EXECUTED",
+            AuditLog.entity_id == str(proposal_id),
+        )
+        .first()
+    )
     assert audit_log is not None
 
     before_pnls = [8.0, 10.0, 12.0, 9.0, 11.0]
@@ -230,7 +229,7 @@ async def test_rollback_restores_old_config(db_session, strategy_config):
             pnl=before_pnls[i],
             model_probability=0.6,
             market_price_at_entry=0.5,
-            edge_at_entry=0.1
+            edge_at_entry=0.1,
         )
         db_session.add(trade)
 
@@ -247,25 +246,29 @@ async def test_rollback_restores_old_config(db_session, strategy_config):
             pnl=after_pnls[i],
             model_probability=0.6,
             market_price_at_entry=0.5,
-            edge_at_entry=0.1
+            edge_at_entry=0.1,
         )
         db_session.add(trade)
 
     db_session.commit()
 
-    with patch('backend.db.utils.SessionLocal', return_value=db_session):
+    with patch("backend.db.utils.SessionLocal", return_value=db_session):
         rolled_back = executor.auto_rollback_if_negative(proposal_id)
 
     assert rolled_back is True
 
-    updated_proposal = db_session.query(StrategyProposal).filter(
-        StrategyProposal.id == proposal_id
-    ).first()
+    updated_proposal = (
+        db_session.query(StrategyProposal)
+        .filter(StrategyProposal.id == proposal_id)
+        .first()
+    )
     assert updated_proposal.admin_decision == "rolled_back"
 
-    updated_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "test_strategy"
-    ).first()
+    updated_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "test_strategy")
+        .first()
+    )
     params = json.loads(updated_config.params)
     assert params["min_edge_threshold"] == 0.05
 
@@ -282,12 +285,13 @@ async def test_proposal_execution_non_blocking(db_session, strategy_config):
         expected_impact="Test async execution",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()
 
     import time
+
     start_time = time.time()
 
     result = applier.apply_proposal_to_config(proposal.id, db=db_session)
@@ -312,7 +316,7 @@ async def test_multiple_concurrent_proposals_fifo(db_session, strategy_config):
             expected_impact=f"Change {i+1}",
             admin_decision="approved",
             admin_user_id="admin@example.com",
-            created_at=datetime.now(timezone.utc) + timedelta(seconds=i)
+            created_at=datetime.now(timezone.utc) + timedelta(seconds=i),
         )
         db_session.add(proposal)
         db_session.flush()
@@ -324,9 +328,11 @@ async def test_multiple_concurrent_proposals_fifo(db_session, strategy_config):
         result = applier.apply_proposal_to_config(proposal_id, db=db_session)
         assert result is True
 
-    final_config = db_session.query(StrategyConfig).filter(
-        StrategyConfig.strategy_name == "test_strategy"
-    ).first()
+    final_config = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "test_strategy")
+        .first()
+    )
     params = json.loads(final_config.params)
 
     assert params["max_position_usd"] == 120.0
@@ -344,7 +350,7 @@ async def test_config_timeline_visible(db_session, strategy_config):
         expected_impact="Test timeline",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.flush()
@@ -380,7 +386,7 @@ async def test_executor_reads_fresh_config_each_cycle(db_session, strategy_confi
         expected_impact="Test fresh read",
         admin_decision="approved",
         admin_user_id="admin@example.com",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(proposal)
     db_session.commit()

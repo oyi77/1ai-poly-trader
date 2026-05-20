@@ -12,6 +12,7 @@ Strategy subscriptions enable event-driven execution:
 - WS events are filtered and dispatched only to subscribed strategies
 - WS disconnect triggers fallback notification to affected strategies
 """
+
 import asyncio
 import inspect
 import os
@@ -31,9 +32,16 @@ StrategyHandler = Callable[["MarketEvent"], Awaitable[Optional[dict]]]
 
 class MarketEvent:
     """Typed market event delivered to strategy handlers."""
+
     __slots__ = ("token_id", "event_type", "data", "timestamp")
 
-    def __init__(self, token_id: str, event_type: str, data: Dict[str, Any], timestamp: Optional[float] = None):
+    def __init__(
+        self,
+        token_id: str,
+        event_type: str,
+        data: Dict[str, Any],
+        timestamp: Optional[float] = None,
+    ):
         self.token_id = token_id
         self.event_type = event_type
         self.data = data
@@ -42,7 +50,14 @@ class MarketEvent:
 
 class StrategySubscription:
     """A strategy's subscription to specific tokens and event types."""
-    __slots__ = ("strategy_name", "token_ids", "event_types", "handler", "fallback_handler")
+
+    __slots__ = (
+        "strategy_name",
+        "token_ids",
+        "event_types",
+        "handler",
+        "fallback_handler",
+    )
 
     def __init__(
         self,
@@ -85,7 +100,9 @@ class EventBus:
 
     def subscribe(self, queue: asyncio.Queue) -> None:
         self._subscribers.append(queue)
-        logger.debug(f"New subscriber added. Total subscribers: {len(self._subscribers)}")
+        logger.debug(
+            f"New subscriber added. Total subscribers: {len(self._subscribers)}"
+        )
 
     def unsubscribe(self, queue: asyncio.Queue) -> bool:
         try:
@@ -115,12 +132,16 @@ class EventBus:
         handler: StrategyHandler,
         fallback_handler: Optional[Callable[[], Awaitable[None]]] = None,
     ) -> None:
-        sub = StrategySubscription(strategy_name, token_ids, event_types, handler, fallback_handler)
+        sub = StrategySubscription(
+            strategy_name, token_ids, event_types, handler, fallback_handler
+        )
         self._strategy_subs[strategy_name] = sub
         for tid in token_ids:
             if strategy_name not in self._token_index[tid]:
                 self._token_index[tid].append(strategy_name)
-        logger.info(f"Strategy '{strategy_name}' subscribed: {len(token_ids)} tokens, {len(event_types)} event types")
+        logger.info(
+            f"Strategy '{strategy_name}' subscribed: {len(token_ids)} tokens, {len(event_types)} event types"
+        )
 
     def unsubscribe_strategy(self, strategy_name: str) -> None:
         sub = self._strategy_subs.pop(strategy_name, None)
@@ -155,7 +176,9 @@ class EventBus:
             if strategy_name not in self._token_index[tid]:
                 self._token_index[tid].append(strategy_name)
         sub.token_ids = token_ids
-        logger.debug(f"Strategy '{strategy_name}' tokens updated: +{len(added)} -{len(removed)}")
+        logger.debug(
+            f"Strategy '{strategy_name}' tokens updated: +{len(added)} -{len(removed)}"
+        )
 
     def get_all_subscribed_tokens(self) -> Set[str]:
         tokens: Set[str] = set()
@@ -182,9 +205,13 @@ class EventBus:
         self._ws_disconnected_at = None
         if was_disconnected:
             logger.info("EventBus: WebSocket reconnected")
-            self.publish("ws_reconnected", {"since": datetime.now(timezone.utc).isoformat()})
+            self.publish(
+                "ws_reconnected", {"since": datetime.now(timezone.utc).isoformat()}
+            )
             for sub in self._strategy_subs.values():
-                self.publish("ws_reconnected_strategy", {"strategy_name": sub.strategy_name})
+                self.publish(
+                    "ws_reconnected_strategy", {"strategy_name": sub.strategy_name}
+                )
 
     def set_ws_disconnected(self) -> None:
         if not self._ws_connected:
@@ -192,9 +219,13 @@ class EventBus:
         self._ws_connected = False
         self._ws_disconnected_at = time.time()
         logger.warning("EventBus: WebSocket disconnected")
-        self.publish("ws_disconnected", {"since": datetime.now(timezone.utc).isoformat()})
+        self.publish(
+            "ws_disconnected", {"since": datetime.now(timezone.utc).isoformat()}
+        )
         for sub in self._strategy_subs.values():
-            self.publish("ws_disconnected_strategy", {"strategy_name": sub.strategy_name})
+            self.publish(
+                "ws_disconnected_strategy", {"strategy_name": sub.strategy_name}
+            )
             if sub.fallback_handler:
                 self._schedule_task(
                     sub.fallback_handler(),
@@ -246,7 +277,9 @@ class EventBus:
         if token_id and token_id in self._token_index:
             self._dispatch_to_strategies(token_id, event_type, data)
 
-    def _dispatch_to_strategies(self, token_id: str, event_type: str, data: Dict[str, Any]) -> None:
+    def _dispatch_to_strategies(
+        self, token_id: str, event_type: str, data: Dict[str, Any]
+    ) -> None:
         for strategy_name in self._token_index.get(token_id, []):
             sub = self._strategy_subs.get(strategy_name)
             if not sub:
@@ -310,7 +343,13 @@ class EventBus:
                 f"Background task failed for {context}: {exc}"
             )
 
-    async def _invoke_handler(self, strategy_name: str, handler: StrategyHandler, event: MarketEvent, t0: float) -> None:
+    async def _invoke_handler(
+        self,
+        strategy_name: str,
+        handler: StrategyHandler,
+        event: MarketEvent,
+        t0: float,
+    ) -> None:
         try:
             result = await asyncio.wait_for(
                 handler(event),
@@ -320,23 +359,31 @@ class EventBus:
             self._dispatch_times.append(elapsed)
             self._events_dispatched += 1
             if result:
-                logger.debug(f"Strategy '{strategy_name}' returned decision: {result.get('decision', '?')} ({elapsed:.1f}ms)")
+                logger.debug(
+                    f"Strategy '{strategy_name}' returned decision: {result.get('decision', '?')} ({elapsed:.1f}ms)"
+                )
                 await self._execute_strategy_decision(strategy_name, result)
         except asyncio.TimeoutError:
             logger.error(
                 f"Strategy '{strategy_name}' handler timed out after {_HANDLER_TIMEOUT_SECONDS:.1f}s"
             )
         except Exception as exc:
-            logger.opt(exception=True).error(f"Strategy '{strategy_name}' handler crashed: {exc}")
+            logger.opt(exception=True).error(
+                f"Strategy '{strategy_name}' handler crashed: {exc}"
+            )
 
-    async def _execute_strategy_decision(self, strategy_name: str, decision: Dict[str, Any]) -> None:
+    async def _execute_strategy_decision(
+        self, strategy_name: str, decision: Dict[str, Any]
+    ) -> None:
         """Execute a BUY decision returned by an event-driven strategy handler."""
 
         if decision.get("decision") != "BUY":
             return
         market_ticker = decision.get("market_ticker") or decision.get("token_id")
         if not market_ticker:
-            logger.warning(f"Strategy '{strategy_name}' returned BUY decision without market_ticker/token_id")
+            logger.warning(
+                f"Strategy '{strategy_name}' returned BUY decision without market_ticker/token_id"
+            )
             return
 
         from backend.core.strategy_executor import execute_decision
@@ -349,11 +396,17 @@ class EventBus:
             decision_copy.setdefault("platform", "polymarket")
             decision_copy["trading_mode"] = mode
             try:
-                executed = await execute_decision(decision_copy, strategy_name, mode=mode)
+                executed = await execute_decision(
+                    decision_copy, strategy_name, mode=mode
+                )
                 if executed:
-                    logger.info(f"Strategy '{strategy_name}' executed WS decision in {mode} mode for {market_ticker}")
+                    logger.info(
+                        f"Strategy '{strategy_name}' executed WS decision in {mode} mode for {market_ticker}"
+                    )
             except Exception as exc:
-                logger.exception(f"Strategy '{strategy_name}' WS decision execution failed in {mode} mode: {exc}")
+                logger.exception(
+                    f"Strategy '{strategy_name}' WS decision execution failed in {mode} mode: {exc}"
+                )
 
     def _execution_modes_for_strategy(self, strategy_name: str) -> list[str]:
         """Resolve WS execution modes using the same StrategyConfig semantics as scheduled cycles."""
@@ -369,7 +422,11 @@ class EventBus:
                     .filter(StrategyConfig.strategy_name == strategy_name)
                     .first()
                 )
-                effective_mode = config.trading_mode if config else getattr(settings, "TRADING_MODE", "paper")
+                effective_mode = (
+                    config.trading_mode
+                    if config
+                    else getattr(settings, "TRADING_MODE", "paper")
+                )
 
             if effective_mode == "live":
                 return ["paper", "live"]
@@ -377,7 +434,9 @@ class EventBus:
                 return [effective_mode]
             return sorted(getattr(settings, "active_modes_set", {"paper"}))
         except Exception:
-            logger.exception(f"Failed to resolve WS execution modes for strategy '{strategy_name}'")
+            logger.exception(
+                f"Failed to resolve WS execution modes for strategy '{strategy_name}'"
+            )
             return ["paper"]
 
     # ── Statistics / health ──
@@ -390,8 +449,12 @@ class EventBus:
             "subscriptions": self.get_subscription_status(),
             "total_subscribed_tokens": len(self._token_index),
             "events_dispatched": self._events_dispatched,
-            "dispatch_latency_p50_ms": round(self._percentile(times, 50), 1) if times else 0,
-            "dispatch_latency_p99_ms": round(self._percentile(times, 99), 1) if times else 0,
+            "dispatch_latency_p50_ms": (
+                round(self._percentile(times, 50), 1) if times else 0
+            ),
+            "dispatch_latency_p99_ms": (
+                round(self._percentile(times, 99), 1) if times else 0
+            ),
         }
 
     @staticmethod
@@ -428,7 +491,9 @@ def subscribe_strategy(
     handler: StrategyHandler,
     fallback_handler: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> None:
-    event_bus.subscribe_strategy(strategy_name, token_ids, event_types, handler, fallback_handler)
+    event_bus.subscribe_strategy(
+        strategy_name, token_ids, event_types, handler, fallback_handler
+    )
 
 
 def unsubscribe_strategy(strategy_name: str) -> None:

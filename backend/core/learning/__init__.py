@@ -1,11 +1,18 @@
 """Learning subpackage — ML pipelines, calibration, self-debugging, auto-improvement."""
+
 import importlib as _importlib
 
 _SUBMODULES = [
-    "learning_pipeline", "learning_system", "online_learner",
-    "auto_improve", "self_debugger", "retrain_trigger",
-    "calibration", "calibration_tracker",
+    "learning_pipeline",
+    "learning_system",
+    "online_learner",
+    "auto_improve",
+    "self_debugger",
+    "retrain_trigger",
+    "calibration",
+    "calibration_tracker",
 ]
+
 
 def __getattr__(name: str):
     if name in _SUBMODULES:

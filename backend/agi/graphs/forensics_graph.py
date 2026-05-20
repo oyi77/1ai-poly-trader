@@ -1,6 +1,5 @@
 from backend.agi.graph_engine import GraphDefinition
 
-
 FORENSICS_GRAPH = GraphDefinition(
     name="forensics",
     nodes=["forensics", "knowledge_graph", "auto_improve"],

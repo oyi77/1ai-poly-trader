@@ -132,8 +132,7 @@ async def test_fetch_signals_success(client, mock_response_data):
     assert signals[1].prediction == 0.45
 
     mock_http_client.get.assert_called_once_with(
-        "https://test.mirofish.ai/api/signals",
-        params={"market": "polymarket"}
+        "https://test.mirofish.ai/api/signals", params={"market": "polymarket"}
     )
 
 
@@ -178,9 +177,7 @@ async def test_fetch_signals_http_500_with_retry(client):
     mock_http_client = AsyncMock()
     mock_http_client.get = AsyncMock(
         side_effect=httpx.HTTPStatusError(
-            "Server error",
-            request=MagicMock(),
-            response=mock_response
+            "Server error", request=MagicMock(), response=mock_response
         )
     )
 
@@ -203,9 +200,7 @@ async def test_fetch_signals_http_400_no_retry(client):
     mock_http_client = AsyncMock()
     mock_http_client.get = AsyncMock(
         side_effect=httpx.HTTPStatusError(
-            "Bad request",
-            request=MagicMock(),
-            response=mock_response
+            "Bad request", request=MagicMock(), response=mock_response
         )
     )
 
@@ -413,6 +408,7 @@ async def test_get_client_reuses_existing_client(client):
 @pytest.mark.asyncio
 async def test_fetch_signals_logs_metrics(client, mock_response_data, caplog):
     import logging
+
     caplog.set_level(logging.INFO)
 
     mock_response = MagicMock()
@@ -434,11 +430,14 @@ async def test_database_priority_over_env_vars(mock_db_settings):
     """Verify database settings take priority over environment variables."""
     import os
 
-    with patch.dict(os.environ, {
-        "MIROFISH_API_URL": "https://env.mirofish.ai",
-        "MIROFISH_API_KEY": "env_key",
-        "MIROFISH_API_TIMEOUT": "5.0",
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "MIROFISH_API_URL": "https://env.mirofish.ai",
+            "MIROFISH_API_KEY": "env_key",
+            "MIROFISH_API_TIMEOUT": "5.0",
+        },
+    ):
         client = MiroFishClient()
 
         assert client.api_url == "https://test.mirofish.ai"
@@ -455,11 +454,14 @@ async def test_env_vars_fallback_when_no_database():
         mock_session_class.return_value = mock_session
         mock_session.query.return_value.filter.return_value.first.return_value = None
 
-        with patch.dict(os.environ, {
-            "MIROFISH_API_URL": "https://env.mirofish.ai",
-            "MIROFISH_API_KEY": "env_key",
-            "MIROFISH_API_TIMEOUT": "15.0",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "MIROFISH_API_URL": "https://env.mirofish.ai",
+                "MIROFISH_API_KEY": "env_key",
+                "MIROFISH_API_TIMEOUT": "15.0",
+            },
+        ):
             client = MiroFishClient()
 
             assert client.api_url == "https://env.mirofish.ai"

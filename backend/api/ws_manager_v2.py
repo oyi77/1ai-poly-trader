@@ -58,7 +58,9 @@ class TopicWebSocketManager:
             else:
                 logger.warning("Redis publisher failed, falling back to in-memory")
         except Exception as e:
-            logger.warning(f"Redis initialization failed: {e}. Using in-memory fallback")
+            logger.warning(
+                f"Redis initialization failed: {e}. Using in-memory fallback"
+            )
             self.redis_enabled = False
 
     async def _subscribe_all_topics(self):
@@ -96,7 +98,9 @@ class TopicWebSocketManager:
             topic: Topic name to subscribe to
         """
         async with self._lock:
-            is_new_topic = topic not in self.subscriptions or not self.subscriptions[topic]
+            is_new_topic = (
+                topic not in self.subscriptions or not self.subscriptions[topic]
+            )
             self.subscriptions[topic].add(websocket)
 
         if is_new_topic and self.redis_subscriber:
@@ -137,7 +141,9 @@ class TopicWebSocketManager:
         if self.redis_enabled and self.redis_publisher:
             published = await self.redis_publisher.publish(topic, message)
             if not published:
-                logger.warning(f"Redis publish failed for '{topic}', falling back to local")
+                logger.warning(
+                    f"Redis publish failed for '{topic}', falling back to local"
+                )
                 self.redis_enabled = False
                 await self._broadcast_local(topic, message)
         else:
@@ -155,10 +161,11 @@ class TopicWebSocketManager:
         tasks = []
         for websocket in subscribers:
             from backend.api.main import app
-            if hasattr(app.state, 'task_manager'):
+
+            if hasattr(app.state, "task_manager"):
                 task = await app.state.task_manager.create_task(
                     self._send_to_client(websocket, topic, message),
-                    name=f"ws_send_{topic}"
+                    name=f"ws_send_{topic}",
                 )
             else:
                 task = asyncio.create_task(
@@ -182,9 +189,7 @@ class TopicWebSocketManager:
         try:
             await websocket.send_json(message)
         except Exception as e:
-            logger.debug(
-                f"WS stale connection removed from '{topic}': {e}"
-            )
+            logger.debug(f"WS stale connection removed from '{topic}': {e}")
             # Remove from all topics on send failure
             await self.disconnect(websocket)
 

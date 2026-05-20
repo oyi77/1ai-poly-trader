@@ -1,4 +1,5 @@
 """Tests for AGI scheduler job wiring (self-review, research pipeline)."""
+
 import inspect
 import json
 from datetime import datetime, timezone
@@ -159,7 +160,9 @@ def _chromosomes_payload():
     }
 
 
-def _add_genome(db, *, archetype: str, sharpe: float, strategy_name: str) -> GenomeRegistry:
+def _add_genome(
+    db, *, archetype: str, sharpe: float, strategy_name: str
+) -> GenomeRegistry:
     now = datetime.now(timezone.utc)
     genome = GenomeRegistry(
         genome_id=str(uuid4()),
@@ -167,7 +170,9 @@ def _add_genome(db, *, archetype: str, sharpe: float, strategy_name: str) -> Gen
         archetype=archetype,
         version="1.0.0",
         stage="DRAFT",
-        lineage_json=json.dumps({"parent_genome_ids": [], "generation": 1, "creator": "human"}),
+        lineage_json=json.dumps(
+            {"parent_genome_ids": [], "generation": 1, "creator": "human"}
+        ),
         chromosomes_json=json.dumps(_chromosomes_payload()),
         fitness_json=json.dumps(
             {
@@ -193,7 +198,9 @@ class TestEvolutionJobs:
     def test_mutation_cycle_creates_offspring(self, db, monkeypatch):
         from backend.application.agi import evolution_jobs as jobs
 
-        parent = _add_genome(db, archetype="momentum_surfer", sharpe=0.9, strategy_name="parent-a")
+        parent = _add_genome(
+            db, archetype="momentum_surfer", sharpe=0.9, strategy_name="parent-a"
+        )
         monkeypatch.setattr(jobs.settings, "EVOLUTION_ENGINE_ENABLED", True)
         monkeypatch.setattr(jobs.settings, "AGI_POPULATION_SIZE", 20)
         monkeypatch.setattr(jobs.settings, "AGI_MUTATION_RATE", 0.10)
@@ -211,7 +218,11 @@ class TestEvolutionJobs:
 
         created = jobs.run_mutation_cycle()
         assert created == 2  # 20 * 0.10
-        children = db.query(GenomeRegistry).filter(GenomeRegistry.genome_id.like(f"{parent.genome_id}-mut-%")).all()
+        children = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.genome_id.like(f"{parent.genome_id}-mut-%"))
+            .all()
+        )
         assert len(children) == 2
 
     def test_crossover_cycle_creates_hybrids(self, db, monkeypatch):
@@ -243,7 +254,9 @@ class TestEvolutionJobs:
     def test_update_fitness_from_shadow_recalculates_metrics(self, db, monkeypatch):
         from backend.application.agi import evolution_jobs as jobs
 
-        genome = _add_genome(db, archetype="market_maker", sharpe=0.2, strategy_name="fitness-target")
+        genome = _add_genome(
+            db, archetype="market_maker", sharpe=0.2, strategy_name="fitness-target"
+        )
         monkeypatch.setattr(jobs.settings, "EVOLUTION_ENGINE_ENABLED", True)
         db.add_all(
             [
@@ -278,7 +291,11 @@ class TestEvolutionJobs:
         updated = jobs.update_fitness_from_shadow()
         assert updated == 1
 
-        refreshed = db.query(GenomeRegistry).filter(GenomeRegistry.genome_id == genome.genome_id).first()
+        refreshed = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.genome_id == genome.genome_id)
+            .first()
+        )
         metrics = json.loads(refreshed.fitness_json)
         assert metrics["total_trades"] == 2
         assert metrics["win_rate"] == 0.5
@@ -303,7 +320,11 @@ class TestEvolutionJobs:
 
         created = jobs.rebalance_population()
         assert created == 2
-        rebalanced = db.query(GenomeRegistry).filter(GenomeRegistry.strategy_name.like("rebalance-%")).all()
+        rebalanced = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.strategy_name.like("rebalance-%"))
+            .all()
+        )
         assert len(rebalanced) == 2
         assert all(g.archetype != "market_maker" for g in rebalanced)
 
@@ -311,16 +332,22 @@ class TestEvolutionJobs:
 class TestEvolutionSchedulerRegistration:
     def test_scheduler_uses_configured_evolution_intervals(self):
         import os
-        workspace_root = os.environ.get("GITHUB_WORKSPACE", os.path.join(os.path.dirname(__file__), "../.."))
-        scheduler_file = os.path.join(workspace_root, "backend", "core", "scheduling", "scheduler.py")
+
+        workspace_root = os.environ.get(
+            "GITHUB_WORKSPACE", os.path.join(os.path.dirname(__file__), "../..")
+        )
+        scheduler_file = os.path.join(
+            workspace_root, "backend", "core", "scheduling", "scheduler.py"
+        )
         if not os.path.exists(scheduler_file):
-            scheduler_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../core/scheduler.py"))
+            scheduler_file = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../../core/scheduler.py")
+            )
         with open(scheduler_file, "r", encoding="utf-8") as f:
             source = f.read()
 
         assert "IntervalTrigger(hours=settings.AGI_MUTATION_INTERVAL_HOURS)" in source
         assert "IntervalTrigger(hours=settings.AGI_CROSSOVER_INTERVAL_HOURS)" in source
-        assert "id=\"evolution_mutation_cycle\"" in source
-        assert "id=\"evolution_crossover_cycle\"" in source
-        assert "id=\"evolution_population_rebalance\"" in source
-
+        assert 'id="evolution_mutation_cycle"' in source
+        assert 'id="evolution_crossover_cycle"' in source
+        assert 'id="evolution_population_rebalance"' in source

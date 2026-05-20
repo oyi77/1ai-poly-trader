@@ -7,12 +7,15 @@ Handles:
 - Old backups (>30 days, keep weekly)
 - Disk space monitoring
 """
+
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any
 
 from loguru import logger
+
+
 class CleanupStats:
     """Track cleanup operation statistics."""
 
@@ -73,20 +76,25 @@ async def cleanup_websocket_messages(max_age_hours: int = 24) -> int:
         from backend.models.database import WebSocketMessage
 
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
             # Query old messages
-            old_messages = db.query(WebSocketMessage).filter(
-                WebSocketMessage.created_at < cutoff_time
-            ).all()
+            old_messages = (
+                db.query(WebSocketMessage)
+                .filter(WebSocketMessage.created_at < cutoff_time)
+                .all()
+            )
 
             count = len(old_messages)
             if count > 0:
                 for msg in old_messages:
                     db.delete(msg)
                 db.commit()
-                logger.info(f"WebSocket cleanup: removed {count} messages older than {max_age_hours}h")
+                logger.info(
+                    f"WebSocket cleanup: removed {count} messages older than {max_age_hours}h"
+                )
 
             return count
     except Exception as e:
@@ -125,7 +133,9 @@ async def cleanup_log_files(max_age_days: int = 7, log_dir: str = "logs") -> int
                 logger.warning(f"Failed to remove log file {log_file.name}: {e}")
 
         if removed > 0:
-            logger.info(f"Log cleanup: removed {removed} files older than {max_age_days} days")
+            logger.info(
+                f"Log cleanup: removed {removed} files older than {max_age_days} days"
+            )
 
         return removed
     except Exception as e:
@@ -134,9 +144,7 @@ async def cleanup_log_files(max_age_days: int = 7, log_dir: str = "logs") -> int
 
 
 async def cleanup_backup_files(
-    max_age_days: int = 30,
-    backup_dir: str = "backups",
-    keep_weekly: bool = True
+    max_age_days: int = 30, backup_dir: str = "backups", keep_weekly: bool = True
 ) -> int:
     """Clean old backup files, keeping weekly backups.
 
@@ -190,7 +198,9 @@ async def cleanup_backup_files(
                         removed += 1
                         logger.debug(f"Removed old backup: {backup_file.name}")
                     except Exception as e:
-                        logger.warning(f"Failed to remove backup {backup_file.name}: {e}")
+                        logger.warning(
+                            f"Failed to remove backup {backup_file.name}: {e}"
+                        )
         else:
             for backup_file in old_backups:
                 try:
@@ -273,16 +283,16 @@ async def run_cleanup_cycle() -> CleanupStats:
     stats.cache_entries_removed = await cleanup_cache_entries()
 
     # Clean WebSocket messages (>24h)
-    stats.websocket_messages_removed = await cleanup_websocket_messages(max_age_hours=24)
+    stats.websocket_messages_removed = await cleanup_websocket_messages(
+        max_age_hours=24
+    )
 
     # Clean logs (>7 days)
     stats.log_files_removed = await cleanup_log_files(max_age_days=7, log_dir="logs")
 
     # Clean backups (>30 days, keep weekly)
     stats.backup_files_removed = await cleanup_backup_files(
-        max_age_days=30,
-        backup_dir="backups",
-        keep_weekly=True
+        max_age_days=30, backup_dir="backups", keep_weekly=True
     )
 
     # Check disk space
@@ -292,8 +302,8 @@ async def run_cleanup_cycle() -> CleanupStats:
     # Calculate space freed (rough estimate from file removals)
     # In production, track actual file sizes
     stats.space_freed_mb = (
-        stats.log_files_removed * 5 +  # Assume ~5MB per log file
-        stats.backup_files_removed * 50  # Assume ~50MB per backup
+        stats.log_files_removed * 5  # Assume ~5MB per log file
+        + stats.backup_files_removed * 50  # Assume ~50MB per backup
     )
 
     logger.info(f"Cleanup cycle complete: {stats.to_dict()}")
@@ -308,12 +318,10 @@ async def cache_cleanup_job():
         stats = await run_cleanup_cycle()
 
         from backend.core.scheduler import log_event
-        log_event(
-            "success",
-            "Cache cleanup completed",
-            stats.to_dict()
-        )
+
+        log_event("success", "Cache cleanup completed", stats.to_dict())
     except Exception as e:
         logger.error(f"Cache cleanup job failed: {e}", exc_info=True)
         from backend.core.scheduler import log_event
+
         log_event("error", f"Cache cleanup failed: {e}")

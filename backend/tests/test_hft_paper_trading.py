@@ -33,7 +33,9 @@ class SimulationResult:
     trades: list[PaperTrade]
 
 
-def simulate_hft_day(bankroll: float, signals: int = 50) -> tuple[float, list[PaperTrade]]:
+def simulate_hft_day(
+    bankroll: float, signals: int = 50
+) -> tuple[float, list[PaperTrade]]:
     """Simulate one day of HFT trading."""
     trades = []
     daily_pnl = 0.0
@@ -43,23 +45,31 @@ def simulate_hft_day(bankroll: float, signals: int = 50) -> tuple[float, list[Pa
         exit_price = entry + random.gauss(0, 0.02)
         size = bankroll * 0.25 * random.uniform(0.5, 1.0)
 
-        pnl = (exit_price - entry) * size if random.random() > 0.4 else -(abs(exit_price - entry) * size * 0.5)
+        pnl = (
+            (exit_price - entry) * size
+            if random.random() > 0.4
+            else -(abs(exit_price - entry) * size * 0.5)
+        )
         win = pnl > 0
 
-        trades.append(PaperTrade(
-            market_id=f"sim-{random.randint(1, 10000)}",
-            side="BUY",
-            entry_price=entry,
-            size=size,
-            pnl=pnl,
-            win=win,
-        ))
+        trades.append(
+            PaperTrade(
+                market_id=f"sim-{random.randint(1, 10000)}",
+                side="BUY",
+                entry_price=entry,
+                size=size,
+                pnl=pnl,
+                win=win,
+            )
+        )
         daily_pnl += pnl
 
     return bankroll + daily_pnl, trades
 
 
-def simulate_30_days(starting_bankroll: float = 100.0, daily_target_return: float = 0.023) -> SimulationResult:
+def simulate_30_days(
+    starting_bankroll: float = 100.0, daily_target_return: float = 0.023
+) -> SimulationResult:
     """
     Simulate 30 days of HFT paper trading.
 
@@ -85,8 +95,12 @@ def simulate_30_days(starting_bankroll: float = 100.0, daily_target_return: floa
     max_dd = (peak - bankroll) / peak if peak > 0 else 0.0
 
     mean_ret = sum(daily_returns) / len(daily_returns) if daily_returns else 0.0
-    std_ret = (sum((r - mean_ret) ** 2 for r in daily_returns) / len(daily_returns)) ** 0.5 if daily_returns else 1.0
-    sharpe = (mean_ret / std_ret * (252 ** 0.5)) if std_ret > 0 else 0.0
+    std_ret = (
+        (sum((r - mean_ret) ** 2 for r in daily_returns) / len(daily_returns)) ** 0.5
+        if daily_returns
+        else 1.0
+    )
+    sharpe = (mean_ret / std_ret * (252**0.5)) if std_ret > 0 else 0.0
 
     monthly_return = (bankroll - starting_bankroll) / starting_bankroll
 
@@ -128,7 +142,7 @@ def tail_risk_analysis(n_scenarios: int = 1000, starting: float = 100.0) -> dict
         r = simulate_30_days(starting)
         outcomes.append(r.ending_bankroll)
 
-    worst_1pct = sorted(outcomes)[:int(n_scenarios * 0.01)]
+    worst_1pct = sorted(outcomes)[: int(n_scenarios * 0.01)]
     return {
         "worst_1pct_mean": sum(worst_1pct) / len(worst_1pct) if worst_1pct else 0,
         "worst_case": min(outcomes),

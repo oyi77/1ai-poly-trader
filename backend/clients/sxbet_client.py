@@ -1,4 +1,5 @@
 """SX.bet REST + EIP-712 client."""
+
 import os
 import httpx
 
@@ -7,7 +8,9 @@ class SXBetClient:
     """SX.bet API client."""
 
     def __init__(self, base_url: str = None):
-        self._base_url = (base_url or os.getenv("SXBET_API_URL", "https://api.sx.bet")).rstrip("/")
+        self._base_url = (
+            base_url or os.getenv("SXBET_API_URL", "https://api.sx.bet")
+        ).rstrip("/")
 
     async def get_sports(self) -> list:
         """Get available sports."""
@@ -29,13 +32,24 @@ class SXBetClient:
     async def get_orderbook(self, market_hash: str) -> dict:
         """Get orderbook for a specific market."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"{self._base_url}/orders", params={"marketHashes": market_hash})
+            resp = await client.get(
+                f"{self._base_url}/orders", params={"marketHashes": market_hash}
+            )
             resp.raise_for_status()
             return resp.json()
 
-    async def place_maker_order(self, market_hash: str, outcome_index: int, odds: float, stake_wei: int, private_key: str) -> dict:
+    async def place_maker_order(
+        self,
+        market_hash: str,
+        outcome_index: int,
+        odds: float,
+        stake_wei: int,
+        private_key: str,
+    ) -> dict:
         """Place a maker order. EIP-712 signing not implemented — cannot send unsigned orders."""
-        raise RuntimeError("SXBetClient.place_maker_order: EIP-712 signing not implemented — orders cannot be placed without cryptographic signatures")
+        raise RuntimeError(
+            "SXBetClient.place_maker_order: EIP-712 signing not implemented — orders cannot be placed without cryptographic signatures"
+        )
 
     async def health_check(self) -> bool:
         """Check if SX.bet API is available."""

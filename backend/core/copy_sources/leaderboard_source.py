@@ -39,20 +39,26 @@ class LeaderboardCopySource(CopySource):
         if self._db is not None:
             rows = (
                 self._db.query(WalletConfig)
-                .filter(WalletConfig.source == "leaderboard", WalletConfig.enabled.is_(True))
+                .filter(
+                    WalletConfig.source == "leaderboard", WalletConfig.enabled.is_(True)
+                )
                 .all()
             )
             tracked = {r.wallet_address: (r.whale_score or 50.0) for r in rows}
 
         signals: list[CopySignalData] = []
-        for event in activity if isinstance(activity, list) else activity.get("data", []):
+        for event in (
+            activity if isinstance(activity, list) else activity.get("data", [])
+        ):
             wallet_addr = event.get("maker_address") or event.get("wallet", "")
             if wallet_addr not in tracked:
                 continue
 
             ts_raw = event.get("timestamp") or event.get("created_at", "")
             try:
-                ts = datetime.fromisoformat(ts_raw.rstrip("Z")).replace(tzinfo=timezone.utc)
+                ts = datetime.fromisoformat(ts_raw.rstrip("Z")).replace(
+                    tzinfo=timezone.utc
+                )
             except Exception:
                 continue
 
@@ -78,7 +84,9 @@ class LeaderboardCopySource(CopySource):
     async def is_healthy(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(f"{settings.DATA_API_URL}/data-api/v2/activity", params={"limit": 1})
+                resp = await client.get(
+                    f"{settings.DATA_API_URL}/data-api/v2/activity", params={"limit": 1}
+                )
                 return resp.status_code == 200
         except Exception:
             return False

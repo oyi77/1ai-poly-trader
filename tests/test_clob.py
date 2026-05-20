@@ -8,7 +8,6 @@ that can be validated without live network calls.
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-
 # ============================================================================
 # Test OrderBook
 # ============================================================================

@@ -22,10 +22,10 @@ from backend.core.evolution_harness import (  # noqa: E402
     create_evolution_backend,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_individuals() -> list[Individual]:
@@ -69,6 +69,7 @@ def dummy_fitness(ind: Individual) -> tuple[float, ...]:
 # Dominance helper
 # ---------------------------------------------------------------------------
 
+
 class TestDominates:
     """Test Pareto dominance. Fitness values use DEAP convention:
     all objectives are maximized (drawdown stored as -drawdown).
@@ -100,6 +101,7 @@ class TestDominates:
 # ---------------------------------------------------------------------------
 # DEAP Backend Tests
 # ---------------------------------------------------------------------------
+
 
 class TestDEAPEvolutionBackend:
 
@@ -202,6 +204,7 @@ class TestDEAPEvolutionBackend:
 # Legacy Backend Tests
 # ---------------------------------------------------------------------------
 
+
 class TestLegacyGenomeBackend:
 
     def test_evaluate_assigns_fitness(self, sample_individuals):
@@ -260,12 +263,14 @@ class TestLegacyGenomeBackend:
 # Factory Tests
 # ---------------------------------------------------------------------------
 
+
 class TestFactory:
 
     def test_create_legacy_backend(self, monkeypatch):
         monkeypatch.setenv("EVOLUTION_BACKEND", "legacy")
         # Force reload to pick up env
         from backend.config import settings
+
         monkeypatch.setattr(settings, "EVOLUTION_BACKEND", "legacy")
         backend = create_evolution_backend("legacy")
         assert isinstance(backend, LegacyGenomeBackend)
@@ -292,6 +297,7 @@ class TestFactory:
 # ---------------------------------------------------------------------------
 # Integration: DEAP mutation/crossover round-trip
 # ---------------------------------------------------------------------------
+
 
 class TestDEAPRoundTrip:
 
@@ -331,6 +337,7 @@ class TestDEAPRoundTrip:
     def test_full_evolution_improves_fitness(self):
         """After enough generations, best fitness should improve."""
         import random as rng
+
         rng.seed(42)  # Deterministic for test
 
         population = [

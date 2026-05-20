@@ -23,6 +23,7 @@ from loguru import logger
 @dataclass
 class RollbackEvent:
     """Record of a rollback operation."""
+
     event_id: str
     change_id: str
     change_title: str
@@ -63,26 +64,44 @@ class RollbackManager:
                 pass
 
     def _save(self) -> None:
-        self._log_file.write_text(json.dumps(
-            {"events": [{
-                "event_id": e.event_id, "change_id": e.change_id,
-                "change_title": e.change_title, "reason": e.reason,
-                "branch_name": e.branch_name, "recovered": e.recovered,
-                "duration_ms": e.duration_ms, "created_at": e.created_at,
-            } for e in self._events]}, indent=2,
-        ))
+        self._log_file.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "event_id": e.event_id,
+                            "change_id": e.change_id,
+                            "change_title": e.change_title,
+                            "reason": e.reason,
+                            "branch_name": e.branch_name,
+                            "recovered": e.recovered,
+                            "duration_ms": e.duration_ms,
+                            "created_at": e.created_at,
+                        }
+                        for e in self._events
+                    ]
+                },
+                indent=2,
+            )
+        )
 
     def _run_git(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             ["git"] + list(args),
             cwd=str(self.repo_path),
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
             timeout=30,
         )
 
-    def rollback(self, change_id: str, change_title: str,
-                 branch_name: str, reason: str = "test_failure",
-                 strategy: str = "hard") -> RollbackEvent:
+    def rollback(
+        self,
+        change_id: str,
+        change_title: str,
+        branch_name: str,
+        reason: str = "test_failure",
+        strategy: str = "hard",
+    ) -> RollbackEvent:
         """Rollback a change by deleting its branch and returning to main.
 
         Args:
@@ -112,9 +131,15 @@ class RollbackManager:
 
             elif strategy == "soft":
                 # Find the merge commit and revert it
-                result = self._run_git("log", "--oneline", "--all",
-                                       "--grep", f"agi-merge: {branch_name}",
-                                       "-n", "1")
+                result = self._run_git(
+                    "log",
+                    "--oneline",
+                    "--all",
+                    "--grep",
+                    f"agi-merge: {branch_name}",
+                    "-n",
+                    "1",
+                )
                 if result.stdout.strip():
                     merge_hash = result.stdout.split()[0]
                     self._run_git("revert", "--no-edit", merge_hash)
@@ -122,24 +147,32 @@ class RollbackManager:
 
             elif strategy == "reset":
                 # Find the commit before the change
-                result = self._run_git("log", "--oneline", "--all",
-                                       "--grep", change_id[:12],
-                                       "-n", "1")
+                result = self._run_git(
+                    "log", "--oneline", "--all", "--grep", change_id[:12], "-n", "1"
+                )
                 if result.stdout.strip():
                     commit_hash = result.stdout.split()[0]
                     self._run_git("revert", "--no-edit", commit_hash)
                     recovered = True
 
             if recovered:
-                logger.info("[RollbackManager] Rolled back '{}' ({}) using {} strategy",
-                            change_title, change_id, strategy)
+                logger.info(
+                    "[RollbackManager] Rolled back '{}' ({}) using {} strategy",
+                    change_title,
+                    change_id,
+                    strategy,
+                )
             else:
-                logger.warning("[RollbackManager] Rollback failed for '{}' ({})",
-                               change_title, change_id)
+                logger.warning(
+                    "[RollbackManager] Rollback failed for '{}' ({})",
+                    change_title,
+                    change_id,
+                )
 
         except Exception as exc:
-            logger.error("[RollbackManager] Rollback error for '{}': {}",
-                         change_id, exc)
+            logger.error(
+                "[RollbackManager] Rollback error for '{}': {}", change_id, exc
+            )
 
         event = RollbackEvent(
             event_id=event_id,

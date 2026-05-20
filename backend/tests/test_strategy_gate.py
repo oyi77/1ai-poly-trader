@@ -1,4 +1,5 @@
 """G-22: Unit tests for backend/core/strategy_gate.py."""
+
 from unittest.mock import MagicMock, patch
 
 from backend.core.strategy_gate import (

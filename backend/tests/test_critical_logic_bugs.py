@@ -3,7 +3,6 @@
 Each test verifies a specific fix to ensure the bug does not recur.
 """
 
-
 import pytest
 
 
@@ -20,9 +19,9 @@ class TestE07ProposalGeneratorRollback:
 
         gen = ProposalGenerator()
         source = inspect.getsource(gen._store_proposal)
-        assert "except" in source or "rollback" in source, (
-            "E-07: _store_proposal should have error handling"
-        )
+        assert (
+            "except" in source or "rollback" in source
+        ), "E-07: _store_proposal should have error handling"
 
     def test_approve_proposal_rollback_inside_context_manager(self):
         """approve_proposal should have proper error handling."""
@@ -55,9 +54,7 @@ class TestE08BacktestPassedComparison:
         import inspect
 
         source = inspect.getsource(proposal_generator.auto_promote_eligible_proposals)
-        assert "backtest_passed" in source, (
-            "E-08: Should filter on backtest_passed"
-        )
+        assert "backtest_passed" in source, "E-08: Should filter on backtest_passed"
 
 
 # ---------------------------------------------------------------------------
@@ -87,15 +84,24 @@ class TestE09DrawdownFloorsSessionScope:
         assert with_line_idx is not None, "Could not find `with ctx as db:` line"
 
         # All db.query() calls should be at a deeper indent than the with line
-        for i, line in enumerate(lines[with_line_idx + 1:], start=with_line_idx + 1):
+        for i, line in enumerate(lines[with_line_idx + 1 :], start=with_line_idx + 1):
             stripped = line.lstrip()
-            if not stripped or stripped.startswith("#") or stripped.startswith("except") or stripped.startswith("return"):
+            if (
+                not stripped
+                or stripped.startswith("#")
+                or stripped.startswith("except")
+                or stripped.startswith("return")
+            ):
                 continue
-            if "db.query" in stripped or "db.commit" in stripped or "db.add" in stripped:
+            if (
+                "db.query" in stripped
+                or "db.commit" in stripped
+                or "db.add" in stripped
+            ):
                 current_indent = len(line) - len(stripped)
-                assert current_indent > with_indent, (
-                    f"E-09: Line {i} uses db but is not inside the `with ctx as db:` block: {line!r}"
-                )
+                assert (
+                    current_indent > with_indent
+                ), f"E-09: Line {i} uses db but is not inside the `with ctx as db:` block: {line!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +116,9 @@ class TestE10HFTExecutorDeadCode:
         import inspect
 
         source = inspect.getsource(HFTExecutor.execute)
-        assert "validate_hft_trade" in source, "E-10: validate_hft_trade should be in execute"
+        assert (
+            "validate_hft_trade" in source
+        ), "E-10: validate_hft_trade should be in execute"
 
 
 # ---------------------------------------------------------------------------
@@ -140,13 +148,13 @@ class TestE11CalibrationRaceCondition:
         assert lock_line_idx is not None, "Could not find `with _cal_lock:` block"
 
         # The write_text call should be inside the lock (deeper indent)
-        for i, line in enumerate(lines[lock_line_idx + 1:], start=lock_line_idx + 1):
+        for i, line in enumerate(lines[lock_line_idx + 1 :], start=lock_line_idx + 1):
             stripped = line.lstrip()
             if "write_text" in stripped:
                 current_indent = len(line) - len(stripped)
-                assert current_indent > lock_indent, (
-                    f"E-11: File write on line {i} is outside the lock: {line!r}"
-                )
+                assert (
+                    current_indent > lock_indent
+                ), f"E-11: File write on line {i} is outside the lock: {line!r}"
                 return
 
         pytest.fail("Could not find write_text call in update_calibration")
@@ -164,16 +172,16 @@ class TestE12WalletAllocationMethod:
         import inspect
 
         source = inspect.getsource(bankroll_allocator)
-        assert "get_wallet_allocation" in source, (
-            "E-12: get_wallet_allocation should exist in bankroll_allocator"
-        )
+        assert (
+            "get_wallet_allocation" in source
+        ), "E-12: get_wallet_allocation should exist in bankroll_allocator"
         # Verify it takes self as first parameter (is a method)
         func = bankroll_allocator.get_wallet_allocation
         sig = inspect.signature(func)
         params = list(sig.parameters.keys())
-        assert params[0] == "self", (
-            f"E-12: First parameter should be 'self', got '{params[0]}'"
-        )
+        assert (
+            params[0] == "self"
+        ), f"E-12: First parameter should be 'self', got '{params[0]}'"
 
 
 # ---------------------------------------------------------------------------
@@ -219,12 +227,10 @@ class TestE14StrategyRankerFilter:
         import inspect
 
         source = inspect.getsource(StrategyRanker.rank_all)
-        assert "Trade.strategy" in source, (
-            "E-14: Should filter on Trade.strategy"
-        )
-        assert "is not None" in source or "isnot(None)" in source, (
-            "E-14: Should check strategy is not None"
-        )
+        assert "Trade.strategy" in source, "E-14: Should filter on Trade.strategy"
+        assert (
+            "is not None" in source or "isnot(None)" in source
+        ), "E-14: Should check strategy is not None"
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +259,9 @@ import os
 os.system('echo pwned')
 """
         result = synth.safe_import_test(malicious_code)
-        assert not result.valid, "E-15: Malicious code with import should fail validation"
+        assert (
+            not result.valid
+        ), "E-15: Malicious code with import should fail validation"
 
 
 # ---------------------------------------------------------------------------
@@ -268,9 +276,7 @@ class TestE16SettlementBotStateMock:
         import inspect
 
         source = inspect.getsource(settlement_helpers.resolve_paper_trades)
-        assert "BotState" in source, (
-            "E-16: Should reference BotState"
-        )
+        assert "BotState" in source, "E-16: Should reference BotState"
 
 
 # ---------------------------------------------------------------------------
@@ -285,9 +291,9 @@ class TestE17UniversalScannerEdge:
         import inspect
 
         source = inspect.getsource(UniversalScanner._handle_price_event)
-        assert "implied_prob = 1.0 - no_price" not in source, (
-            "E-17: implied_prob should not be derived from no_price (always gives edge=0)"
-        )
+        assert (
+            "implied_prob = 1.0 - no_price" not in source
+        ), "E-17: implied_prob should not be derived from no_price (always gives edge=0)"
 
 
 # ---------------------------------------------------------------------------
@@ -302,9 +308,7 @@ class TestE18CEXPMLeadlagImpliedProb:
         import inspect
 
         source = inspect.getsource(CexPmLeadLagStrategy.run_cycle)
-        assert "implied_prob" in source, (
-            "E-18: implied_prob should be referenced"
-        )
+        assert "implied_prob" in source, "E-18: implied_prob should be referenced"
 
 
 # ---------------------------------------------------------------------------
@@ -319,9 +323,7 @@ class TestE19E20OracleModelProbability:
         import inspect
 
         source = inspect.getsource(BtcOracleStrategy.run_cycle)
-        assert "oracle_implied" in source, (
-            "E-19: Should use oracle_implied"
-        )
+        assert "oracle_implied" in source, "E-19: Should use oracle_implied"
 
     def test_crypto_oracle_no_binary_probability(self):
         """crypto_oracle should use oracle_implied for model_probability."""
@@ -329,9 +331,7 @@ class TestE19E20OracleModelProbability:
         import inspect
 
         source = inspect.getsource(CryptoOracleStrategy.run_cycle)
-        assert "oracle_implied" in source, (
-            "E-20: Should use oracle_implied"
-        )
+        assert "oracle_implied" in source, "E-20: Should use oracle_implied"
 
 
 # ---------------------------------------------------------------------------
@@ -345,9 +345,12 @@ class TestE25GymnasiumImport:
         with open("backend/tests/test_rl_environment.py") as f:
             source = f.read()
         # Either importorskip, try/except, or pytest.mark.skipif
-        assert "importorskip" in source or "ImportError" in source or "skipIf" in source or "gymnasium" in source, (
-            "E-25: Should handle missing gymnasium gracefully"
-        )
+        assert (
+            "importorskip" in source
+            or "ImportError" in source
+            or "skipIf" in source
+            or "gymnasium" in source
+        ), "E-25: Should handle missing gymnasium gracefully"
 
 
 # ---------------------------------------------------------------------------
@@ -360,9 +363,9 @@ class TestE26RejectionLearnerImport:
         """The test file should handle missing RejectionLearner gracefully."""
         with open("backend/evals/tests/test_phase2_integration.py") as f:
             source = f.read()
-        assert "except ImportError" in source, (
-            "E-26: Should handle ImportError for RejectionLearner"
-        )
+        assert (
+            "except ImportError" in source
+        ), "E-26: Should handle ImportError for RejectionLearner"
 
 
 # ---------------------------------------------------------------------------
@@ -375,9 +378,9 @@ class TestE27CISecret:
         """The CI file should reference secrets, not contain the key."""
         with open(".github/workflows/ci.yml") as f:
             source = f.read()
-        assert "D3IR1zYU0tRIwQLOLLNWSMgChbfmTO8lqX6em_zZ2L0=" not in source, (
-            "E-27: WALLET_FERNET_KEY should not be in plaintext"
-        )
+        assert (
+            "D3IR1zYU0tRIwQLOLLNWSMgChbfmTO8lqX6em_zZ2L0=" not in source
+        ), "E-27: WALLET_FERNET_KEY should not be in plaintext"
 
 
 # ---------------------------------------------------------------------------
@@ -392,6 +395,4 @@ class TestE28PositionValuationNoPrice:
         import inspect
 
         source = inspect.getsource(position_valuation.calculate_position_market_value)
-        assert "no_price" in source, (
-            "E-28: Should reference no_price"
-        )
+        assert "no_price" in source, "E-28: Should reference no_price"

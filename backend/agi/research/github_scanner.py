@@ -193,8 +193,11 @@ class GitHubScanner:
                 "https://api.github.com/rate_limit", headers=self._headers()
             )
             if resp.status_code == 200:
-                remaining = resp.json().get("resources", {}).get("search", {}).get(
-                    "remaining", 10
+                remaining = (
+                    resp.json()
+                    .get("resources", {})
+                    .get("search", {})
+                    .get("remaining", 10)
                 )
                 if remaining < 2:
                     reset_ts = (

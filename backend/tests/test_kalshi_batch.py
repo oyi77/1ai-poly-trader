@@ -17,8 +17,7 @@ class TestKalshiBatch:
             orders = [{"ticker": "KXBTCUP", "side": "yes", "price": 65, "size": 10}]
             result = await client.batch_create_orders(orders)
             mock_req.assert_called_once_with(
-                "POST", "/portfolio/orders/batched",
-                json={"orders": orders}
+                "POST", "/portfolio/orders/batched", json={"orders": orders}
             )
             assert result["batch_id"] == "123"
 
@@ -29,8 +28,7 @@ class TestKalshiBatch:
             ids = ["order-1", "order-2"]
             result = await client.batch_cancel_orders(ids)
             mock_req.assert_called_once_with(
-                "DELETE", "/portfolio/orders/batched",
-                json={"ids": ids}
+                "DELETE", "/portfolio/orders/batched", json={"ids": ids}
             )
             assert result["cancelled"] == 2
 
@@ -40,8 +38,9 @@ class TestKalshiBatch:
             mock_req.return_value = {"amended": True}
             result = await client.amend_order("order-1", new_price=70.0)
             mock_req.assert_called_once_with(
-                "POST", "/portfolio/amend_order",
-                json={"order_id": "order-1", "new_price": 70.0}
+                "POST",
+                "/portfolio/amend_order",
+                json={"order_id": "order-1", "new_price": 70.0},
             )
             assert result["amended"] is True
 
@@ -51,6 +50,7 @@ class TestKalshiBatch:
             mock_req.return_value = {"amended": True}
             await client.amend_order("order-2", new_price=55.0, new_size=20)
             mock_req.assert_called_once_with(
-                "POST", "/portfolio/amend_order",
-                json={"order_id": "order-2", "new_price": 55.0, "new_size": 20}
+                "POST",
+                "/portfolio/amend_order",
+                json={"order_id": "order-2", "new_price": 55.0, "new_size": 20},
             )

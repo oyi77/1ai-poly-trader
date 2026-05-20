@@ -4,6 +4,7 @@ Each resolved market becomes a labelled ``TrainingExample`` whose label is
 1.0 if the YES outcome resolved positive, 0.0 otherwise. Handles paging,
 malformed rows, and network failures.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,6 +18,7 @@ from backend.ai.training.feature_engineering import FeatureEngineer
 from backend.config import settings
 
 from loguru import logger
+
 GAMMA_HOST = settings.GAMMA_API_URL
 
 
@@ -107,6 +109,7 @@ class DataCollector:
 async def collect_main():
     """CLI entry point: ``python -m backend.ai.training.data_collector``."""
     from backend.core.log import configure_logging
+
     configure_logging()
     collector = DataCollector()
     examples = await collector.collect()

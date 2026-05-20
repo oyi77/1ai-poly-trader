@@ -20,6 +20,7 @@ from backend.models.database import StrategyConfig
 
 class StrategyConfigMutation(BaseModel):
     """Immutable record of a strategy configuration mutation."""
+
     strategy_name: str
     param: str
     old_value: Any
@@ -30,7 +31,10 @@ class StrategyConfigMutation(BaseModel):
 
 # Mutation helper functions
 
-def increase_param(config: StrategyConfig, param: str, delta: float, max_val: float) -> StrategyConfigMutation:
+
+def increase_param(
+    config: StrategyConfig, param: str, delta: float, max_val: float
+) -> StrategyConfigMutation:
     """Increase a numeric parameter by delta, capped at max_val."""
     current = getattr(config, param, 0.0)
     new_val = min(current + delta, max_val)
@@ -40,11 +44,13 @@ def increase_param(config: StrategyConfig, param: str, delta: float, max_val: fl
         old_value=current,
         new_value=new_val,
         reason=f"increase_{param}",
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
     )
 
 
-def decrease_param(config: StrategyConfig, param: str, factor: float, min_val: float) -> StrategyConfigMutation:
+def decrease_param(
+    config: StrategyConfig, param: str, factor: float, min_val: float
+) -> StrategyConfigMutation:
     """Decrease a numeric parameter by factor, floored at min_val."""
     current = getattr(config, param, 1.0)
     new_val = max(current * factor, min_val)
@@ -54,13 +60,16 @@ def decrease_param(config: StrategyConfig, param: str, factor: float, min_val: f
         old_value=current,
         new_value=new_val,
         reason=f"decrease_{param}",
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
     )
 
 
-def add_to_list(config: StrategyConfig, param: str, value: str) -> StrategyConfigMutation:
+def add_to_list(
+    config: StrategyConfig, param: str, value: str
+) -> StrategyConfigMutation:
     """Add a value to a list parameter (JSON string)."""
     import json
+
     current_list = json.loads(config.params or "[]") if config.params else []
     if value not in current_list:
         current_list.append(value)
@@ -71,7 +80,7 @@ def add_to_list(config: StrategyConfig, param: str, value: str) -> StrategyConfi
             old_value=config.params,
             new_value=new_params,
             reason=f"add_{param}",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
     return None
 
@@ -83,7 +92,9 @@ def get_current_value(config: StrategyConfig, param: str) -> Any:
     return getattr(config, param, None)
 
 
-def apply_mutation_to_config(config: StrategyConfig, mutation: StrategyConfigMutation, db) -> None:
+def apply_mutation_to_config(
+    config: StrategyConfig, mutation: StrategyConfigMutation, db
+) -> None:
     """Apply mutation to StrategyConfig and persist."""
     if mutation.param == "params":
         config.params = mutation.new_value
@@ -95,17 +106,28 @@ def apply_mutation_to_config(config: StrategyConfig, mutation: StrategyConfigMut
 
 # Forensics mutation rules mapped to root causes
 
+
 def current_regime():
     """Get current market regime (simplified for now)."""
     return "neutral"
 
 
-FORENSIC_MUTATION_RULES: Dict[str, Callable[[StrategyConfig], Optional[StrategyConfigMutation]]] = {
-    "CAUSE_SLIPPAGE_HIGH": lambda c: increase_param(c, "min_edge_threshold", delta=0.02, max_val=0.50),
-    "CAUSE_REGIME_MISMATCH": lambda c: add_to_list(c, "skip_regimes", value=current_regime()),
-    "CAUSE_LATE_ENTRY": lambda c: decrease_param(c, "interval_seconds", factor=0.80, min_val=30),
+FORENSIC_MUTATION_RULES: Dict[
+    str, Callable[[StrategyConfig], Optional[StrategyConfigMutation]]
+] = {
+    "CAUSE_SLIPPAGE_HIGH": lambda c: increase_param(
+        c, "min_edge_threshold", delta=0.02, max_val=0.50
+    ),
+    "CAUSE_REGIME_MISMATCH": lambda c: add_to_list(
+        c, "skip_regimes", value=current_regime()
+    ),
+    "CAUSE_LATE_ENTRY": lambda c: decrease_param(
+        c, "interval_seconds", factor=0.80, min_val=30
+    ),
     "CAUSE_LOW_LIQUIDITY": lambda c: add_to_list(c, "blacklisted_markets", value="BTC"),
-    "CAUSE_SIGNAL_DECAY": lambda c: decrease_param(c, "confidence_lookback_window", factor=0.90, min_val=5),
+    "CAUSE_SIGNAL_DECAY": lambda c: decrease_param(
+        c, "confidence_lookback_window", factor=0.90, min_val=5
+    ),
 }
 
 
@@ -154,7 +176,11 @@ def _apply_via_safe_tuner(
 
         # Apply to config params JSON
         if config.params:
-            params = json.loads(config.params) if isinstance(config.params, str) else config.params
+            params = (
+                json.loads(config.params)
+                if isinstance(config.params, str)
+                else config.params
+            )
         else:
             params = {}
 
@@ -191,11 +217,14 @@ class ForensicsFeedbackApplicator:
 
     def _propose_mutation(self, strategy_name: str, root_cause: str) -> None:
         """Log mutation proposal when auto-mutation is disabled."""
-        publish_event("mutation_proposed", {
-            "strategy_name": strategy_name,
-            "root_cause": root_cause,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
+        publish_event(
+            "mutation_proposed",
+            {
+                "strategy_name": strategy_name,
+                "root_cause": root_cause,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
     def _mutations_today(self, strategy_name: str, db) -> int:
         """Count mutations applied today for this strategy."""
@@ -204,11 +233,7 @@ class ForensicsFeedbackApplicator:
         return 0
 
     def apply(
-        self,
-        strategy_name: str,
-        root_cause: str,
-        market_ticker: str,
-        db
+        self, strategy_name: str, root_cause: str, market_ticker: str, db
     ) -> Optional[StrategyConfigMutation]:
         """Apply forensics-driven mutation to strategy configuration.
 
@@ -231,7 +256,10 @@ class ForensicsFeedbackApplicator:
             return None
 
         # Anti-oscillation guard
-        if self._mutations_today(strategy_name, db) >= self.MAX_MUTATIONS_PER_STRATEGY_PER_DAY:
+        if (
+            self._mutations_today(strategy_name, db)
+            >= self.MAX_MUTATIONS_PER_STRATEGY_PER_DAY
+        ):
             return None
 
         # Get mutation rule
@@ -256,7 +284,9 @@ class ForensicsFeedbackApplicator:
             result = _apply_via_safe_tuner(
                 strategy_name=strategy_name,
                 param=mutation.param,
-                old_value=float(mutation.old_value) if mutation.old_value is not None else 0.0,
+                old_value=(
+                    float(mutation.old_value) if mutation.old_value is not None else 0.0
+                ),
                 new_value=float(mutation.new_value),
                 reason=root_cause,
                 db=db,

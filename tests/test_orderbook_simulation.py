@@ -1,4 +1,5 @@
 """Tests for orderbook-level fill simulation in the paper provider."""
+
 import asyncio
 from decimal import Decimal
 
@@ -12,7 +13,12 @@ from backend.markets.providers.paper_provider import (
     check_limit_order_fill,
     simulate_orderbook_fill,
 )
-from backend.markets.order_types import NormalizedOrder, OrderSide, OrderStatus, OrderType
+from backend.markets.order_types import (
+    NormalizedOrder,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -25,6 +31,7 @@ def run(coro):
 # ---------------------------------------------------------------------------
 # simulate_orderbook_fill -- unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestSimulateOrderbookFill:
     """Test the simulate_orderbook_fill function."""
@@ -120,6 +127,7 @@ class TestSimulateOrderbookFill:
 # check_limit_order_fill -- unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestCheckLimitOrderFill:
     """Test the check_limit_order_fill function."""
 
@@ -182,6 +190,7 @@ class TestCheckLimitOrderFill:
 # PaperProvider integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestPaperProviderOrderbookFill:
     """Test PaperProvider orderbook fill integration."""
 
@@ -189,10 +198,13 @@ class TestPaperProviderOrderbookFill:
     async def test_market_order_walks_levels_with_orderbook(self):
         """Market BUY uses orderbook simulation when orderbook is set."""
         provider = PaperProvider()
-        provider.set_orderbook("m1", [
-            OrderbookLevel(price=Decimal("0.50"), size=Decimal("10")),
-            OrderbookLevel(price=Decimal("0.55"), size=Decimal("20")),
-        ])
+        provider.set_orderbook(
+            "m1",
+            [
+                OrderbookLevel(price=Decimal("0.50"), size=Decimal("10")),
+                OrderbookLevel(price=Decimal("0.55"), size=Decimal("20")),
+            ],
+        )
         order = NormalizedOrder(
             market_id="m1",
             side=OrderSide.BUY,
@@ -257,7 +269,9 @@ class TestPaperProviderOrderbookFill:
         assert place_result.status == OrderStatus.OPEN
 
         # Price crosses: ask drops to 0.50
-        filled = await provider.try_fill_limit_orders("m1", Decimal("0.48"), Decimal("0.50"))
+        filled = await provider.try_fill_limit_orders(
+            "m1", Decimal("0.48"), Decimal("0.50")
+        )
         assert len(filled) == 1
         assert filled[0].status == OrderStatus.FILLED
         assert filled[0].filled_avg_price == Decimal("0.50")
@@ -277,7 +291,9 @@ class TestPaperProviderOrderbookFill:
         await provider.place_order(order)
 
         # Ask at 0.55 -- doesn't cross limit at 0.50
-        filled = await provider.try_fill_limit_orders("m1", Decimal("0.48"), Decimal("0.55"))
+        filled = await provider.try_fill_limit_orders(
+            "m1", Decimal("0.48"), Decimal("0.55")
+        )
         assert len(filled) == 0
 
         # Order should still be in the provider's open orders
@@ -296,7 +312,9 @@ class TestPaperProviderOrderbookFill:
         )
         await provider.place_order(order)
 
-        filled = await provider.try_fill_limit_orders("m1", Decimal("0.50"), Decimal("0.52"))
+        filled = await provider.try_fill_limit_orders(
+            "m1", Decimal("0.50"), Decimal("0.52")
+        )
         assert len(filled) == 1
         assert filled[0].filled_avg_price == Decimal("0.50")
 
@@ -312,7 +330,9 @@ class TestPaperProviderOrderbookFill:
             price=Decimal("0.50"),
         )
         await provider.place_order(order)
-        filled = await provider.try_fill_limit_orders("m1", Decimal("0.48"), Decimal("0.50"))
+        filled = await provider.try_fill_limit_orders(
+            "m1", Decimal("0.48"), Decimal("0.50")
+        )
 
         expected_fee = _polymarket_fee(Decimal("0.50"), Decimal("10"))
         assert filled[0].fees_paid == expected_fee

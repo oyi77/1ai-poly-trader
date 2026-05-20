@@ -22,7 +22,9 @@ async def test_websocket_per_ip_limit():
     for i, ws in enumerate(mock_websockets):
         allowed, error_msg = await limiter.check_ws_limit(ws)
         results.append((i + 1, allowed, error_msg))
-        print(f"Connection {i + 1}: {'✓ Allowed' if allowed else '✗ Rejected'} - {error_msg or 'OK'}")
+        print(
+            f"Connection {i + 1}: {'✓ Allowed' if allowed else '✗ Rejected'} - {error_msg or 'OK'}"
+        )
 
     # Verify first 10 allowed, 11th and 12th rejected
     assert results[0][1], "Connection 1 should be allowed"
@@ -60,12 +62,16 @@ async def test_global_websocket_limit():
             rejected_count += 1
 
         if i == 999 or i == 1000:
-            print(f"Connection {i + 1}: {'✓ Allowed' if allowed else '✗ Rejected'} - {error_msg or 'OK'}")
+            print(
+                f"Connection {i + 1}: {'✓ Allowed' if allowed else '✗ Rejected'} - {error_msg or 'OK'}"
+            )
 
     assert allowed_count == 1000, f"Expected 1000 allowed, got {allowed_count}"
     assert rejected_count == 1, f"Expected 1 rejected, got {rejected_count}"
 
-    print(f"\n✓ Global limit test passed: {allowed_count} allowed, {rejected_count} rejected")
+    print(
+        f"\n✓ Global limit test passed: {allowed_count} allowed, {rejected_count} rejected"
+    )
 
 
 async def test_http_per_ip_limit():
@@ -80,7 +86,9 @@ async def test_http_per_ip_limit():
         allowed, error_msg = limiter.check_http_limit(client_ip, endpoint)
         results.append((i + 1, allowed, error_msg))
         if i >= 48:
-            print(f"Request {i + 1}: {'✓ Allowed' if allowed else '✗ Rejected'} - {error_msg or 'OK'}")
+            print(
+                f"Request {i + 1}: {'✓ Allowed' if allowed else '✗ Rejected'} - {error_msg or 'OK'}"
+            )
 
     # Verify first 50 allowed, 51st+ rejected
     assert results[0][1], "Request 1 should be allowed"
@@ -146,6 +154,7 @@ async def main():
     except Exception as e:
         print(f"\n✗ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

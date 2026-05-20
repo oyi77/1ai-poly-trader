@@ -33,6 +33,7 @@ def _clean_cache(tmp_path, monkeypatch):
 # 1. Happy path -- Blockscout returns PUSD MINT transfer
 # ---------------------------------------------------------------------------
 
+
 class TestHappyPathMint:
     """Method A: PUSD MINT event yields proxy address."""
 
@@ -51,7 +52,9 @@ class TestHappyPathMint:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result == PROXY
@@ -60,6 +63,7 @@ class TestHappyPathMint:
 # ---------------------------------------------------------------------------
 # 2. No transfers -- empty response returns None
 # ---------------------------------------------------------------------------
+
 
 class TestNoTransfers:
     """Both methods return empty -> None."""
@@ -78,7 +82,9 @@ class TestNoTransfers:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result is None
@@ -87,6 +93,7 @@ class TestNoTransfers:
 # ---------------------------------------------------------------------------
 # 3. Cache hit -- pre-populated cache returns value without API call
 # ---------------------------------------------------------------------------
+
 
 class TestCacheHit:
     """Cached value is returned without hitting the network."""
@@ -98,7 +105,9 @@ class TestCacheHit:
         mock_client = AsyncMock()
         mock_client.get = AsyncMock()  # should never be called
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result == PROXY
@@ -109,6 +118,7 @@ class TestCacheHit:
 # 4. Cache expiry -- stale entry triggers fresh API call
 # ---------------------------------------------------------------------------
 
+
 class TestCacheExpiry:
     """Expired cache is ignored; fresh API result is used."""
 
@@ -116,11 +126,15 @@ class TestCacheExpiry:
         # Write an expired cache entry
         cache_file = _clean_cache / f"{EOA[2:14].lower()}.json"
         _clean_cache.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(json.dumps({
-            "eoa": EOA,
-            "proxy": "0xSTALE",
-            "timestamp": time.time() - CACHE_TTL - 100,
-        }))
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "eoa": EOA,
+                    "proxy": "0xSTALE",
+                    "timestamp": time.time() - CACHE_TTL - 100,
+                }
+            )
+        )
 
         transfer_item = {
             "token": {"address": PUSD_ADDRESS},
@@ -136,7 +150,9 @@ class TestCacheExpiry:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result == PROXY  # fresh value, not 0xSTALE
@@ -147,6 +163,7 @@ class TestCacheExpiry:
 # 5. Network error -- httpx exception returns None gracefully
 # ---------------------------------------------------------------------------
 
+
 class TestNetworkError:
     """Network failures are caught and return None."""
 
@@ -156,7 +173,9 @@ class TestNetworkError:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result is None
@@ -170,7 +189,9 @@ class TestNetworkError:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result is None
@@ -179,6 +200,7 @@ class TestNetworkError:
 # ---------------------------------------------------------------------------
 # 6. Force refresh -- ignores cache
 # ---------------------------------------------------------------------------
+
 
 class TestForceRefresh:
     """force_refresh=True bypasses the cache."""
@@ -200,7 +222,9 @@ class TestForceRefresh:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA, force_refresh=True)
 
         assert result == PROXY
@@ -210,6 +234,7 @@ class TestForceRefresh:
 # ---------------------------------------------------------------------------
 # 7. Method C fallback -- internal tx used when Method A fails
 # ---------------------------------------------------------------------------
+
 
 class TestMethodCFallback:
     """Internal-tx method is called when mint method returns nothing."""
@@ -221,16 +246,16 @@ class TestMethodCFallback:
 
         internal_resp = MagicMock()
         internal_resp.status_code = 200
-        internal_resp.json.return_value = {
-            "items": [{"to": {"address": PROXY}}]
-        }
+        internal_resp.json.return_value = {"items": [{"to": {"address": PROXY}}]}
 
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(side_effect=[empty_mint, internal_resp])
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "backend.core.proxy_finder.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await find_proxy_wallet(EOA)
 
         assert result == PROXY

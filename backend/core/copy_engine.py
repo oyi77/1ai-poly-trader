@@ -45,7 +45,9 @@ class CopyPolicyEngine:
     ) -> list[CopySignalData]:
         policy = self._get_policy(source_name)
         if policy is None:
-            logger.warning("no CopyPolicy row for source={} — all signals dropped", source_name)
+            logger.warning(
+                "no CopyPolicy row for source={} — all signals dropped", source_name
+            )
             return []
 
         if not policy.enabled:
@@ -64,7 +66,10 @@ class CopyPolicyEngine:
 
             cooldown_key = f"{source_name}:{sig.leader_address}"
             last = self._cooldown_tracker.get(cooldown_key)
-            if last is not None and (now - last).total_seconds() < policy.cooldown_seconds:
+            if (
+                last is not None
+                and (now - last).total_seconds() < policy.cooldown_seconds
+            ):
                 continue
 
             scaled = sig.raw_size * policy.size_scale_factor
@@ -75,11 +80,14 @@ class CopyPolicyEngine:
                     f"# copy signal from {source_name}", "copy_signal"
                 )
                 if sandbox_result.status != "passed":
-                    logger.warning("sandbox rejected copy signal from source={}", source_name)
+                    logger.warning(
+                        "sandbox rejected copy signal from source={}", source_name
+                    )
                     continue
 
             self._cooldown_tracker[cooldown_key] = now
             from dataclasses import replace
+
             accepted.append(replace(sig, raw_size=final_size))
 
         return accepted
@@ -87,7 +95,11 @@ class CopyPolicyEngine:
     async def update_policy(self, source_name: str, updates: dict) -> CopyPolicy:
         if self._db is None:
             raise RuntimeError("db_session required for update_policy")
-        row = self._db.query(CopyPolicy).filter(CopyPolicy.source_name == source_name).first()
+        row = (
+            self._db.query(CopyPolicy)
+            .filter(CopyPolicy.source_name == source_name)
+            .first()
+        )
         if row is None:
             row = CopyPolicy(source_name=source_name, **updates)
             self._db.add(row)

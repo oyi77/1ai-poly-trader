@@ -108,5 +108,7 @@ class SharpeRatioMetrics(BaseBacktestMetrics):
             del np
             return True
         except Exception:
-            logger.debug("Sharpe ratio health check: numpy import failed", exc_info=True)
+            logger.debug(
+                "Sharpe ratio health check: numpy import failed", exc_info=True
+            )
             return False

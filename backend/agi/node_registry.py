@@ -1,4 +1,5 @@
 """Node registry for the AGI plugin system."""
+
 import asyncio
 import logging
 from typing import List, Optional
@@ -59,9 +60,7 @@ class NodeRegistry(PluginRegistry[NodeManifest, BaseAGINode]):
     def list_all(self) -> List[NodeManifest]:
         """Return manifests of all enabled nodes."""
         return [
-            self._manifests[n]
-            for n in self._plugins
-            if self._enabled.get(n, False)
+            self._manifests[n] for n in self._plugins if self._enabled.get(n, False)
         ]
 
     def auto_discover(self, package_path: str = "backend.agi.nodes") -> int:

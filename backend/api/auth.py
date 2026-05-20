@@ -11,9 +11,12 @@ import os
 
 from backend.config import settings
 from backend.models.database import get_db, BotState, Trade, Signal
-from backend.api.validation import CredentialsUpdateRequest as ValidatedCredentialsUpdate
+from backend.api.validation import (
+    CredentialsUpdateRequest as ValidatedCredentialsUpdate,
+)
 
 from loguru import logger
+
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
@@ -70,12 +73,18 @@ _COOKIE_NAME = "admin_session"
 def _cleanup_expired_sessions() -> None:
     """Remove sessions older than TTL and enforce max store size."""
     now = time.time()
-    expired = [tok for tok, data in _SESSION_STORE.items() if now - data["created_at"] > _SESSION_TTL_SECONDS]
+    expired = [
+        tok
+        for tok, data in _SESSION_STORE.items()
+        if now - data["created_at"] > _SESSION_TTL_SECONDS
+    ]
     for tok in expired:
         del _SESSION_STORE[tok]
     # E-95: Evict oldest sessions if store exceeds max size
     if len(_SESSION_STORE) > _SESSION_MAX_SIZE:
-        sorted_sessions = sorted(_SESSION_STORE.items(), key=lambda x: x[1]["created_at"])
+        sorted_sessions = sorted(
+            _SESSION_STORE.items(), key=lambda x: x[1]["created_at"]
+        )
         for tok, _ in sorted_sessions[: len(_SESSION_STORE) - _SESSION_MAX_SIZE]:
             del _SESSION_STORE[tok]
 
@@ -90,7 +99,10 @@ def cookie_login(body: CookieLoginBody, response: Response):
     _cleanup_expired_sessions()
     key = settings.ADMIN_API_KEY
     if not key:
-        raise HTTPException(status_code=400, detail="No ADMIN_API_KEY configured — cookie auth unavailable")
+        raise HTTPException(
+            status_code=400,
+            detail="No ADMIN_API_KEY configured — cookie auth unavailable",
+        )
     if body.admin_key != key:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -127,7 +139,9 @@ def require_admin_from_cookie(
     """Authenticate via cookie + CSRF OR via Bearer header (backward compat)."""
     key = settings.ADMIN_API_KEY
     if not key:
-        raise HTTPException(status_code=403, detail="Admin access denied — ADMIN_API_KEY not configured")
+        raise HTTPException(
+            status_code=403, detail="Admin access denied — ADMIN_API_KEY not configured"
+        )
 
     # Backward compat: Bearer header auth
     if authorization and authorization == f"Bearer {key}":
@@ -135,7 +149,9 @@ def require_admin_from_cookie(
 
     # Cookie-based auth
     if not admin_session or admin_session not in _SESSION_STORE:
-        raise HTTPException(status_code=401, detail="Unauthorized — invalid or expired session")
+        raise HTTPException(
+            status_code=401, detail="Unauthorized — invalid or expired session"
+        )
 
     session = _SESSION_STORE[admin_session]
 
@@ -157,7 +173,9 @@ def require_csrf(
     """Validate CSRF token for cookie-authenticated mutating requests."""
     key = settings.ADMIN_API_KEY
     if not key:
-        raise HTTPException(status_code=403, detail="Admin access denied — ADMIN_API_KEY not configured")
+        raise HTTPException(
+            status_code=403, detail="Admin access denied — ADMIN_API_KEY not configured"
+        )
     if authorization and authorization == f"Bearer {key}":
         return
     if not admin_session or admin_session not in _SESSION_STORE:
@@ -180,7 +198,9 @@ def _get_valid_session(admin_session: str | None) -> dict | None:
     return session
 
 
-def authorize_realtime_access(token: str | None = None, admin_session: str | None = None) -> bool:
+def authorize_realtime_access(
+    token: str | None = None, admin_session: str | None = None
+) -> bool:
     """Authorize SSE/WebSocket access — requires valid auth.
 
     Checks: Bearer token matches ADMIN_API_KEY, or a valid cookie session exists.
@@ -501,12 +521,14 @@ async def toggle_mode(body: ModeToggle, _: None = Depends(require_admin)):
     if body.active:
         if mode == "live":
             missing = [
-                k for k, v in {
+                k
+                for k, v in {
                     "POLYMARKET_PRIVATE_KEY": settings.POLYMARKET_PRIVATE_KEY,
                     "POLYMARKET_API_KEY": settings.POLYMARKET_API_KEY,
                     "POLYMARKET_API_SECRET": settings.POLYMARKET_API_SECRET,
                     "POLYMARKET_API_PASSPHRASE": settings.POLYMARKET_API_PASSPHRASE,
-                }.items() if not v
+                }.items()
+                if not v
             ]
             if missing:
                 raise HTTPException(
@@ -535,21 +557,30 @@ async def toggle_mode(body: ModeToggle, _: None = Depends(require_admin)):
     settings.ACTIVE_MODES = new_value
     _persist_env_updates({"ACTIVE_MODES": new_value, "TRADING_MODE": ""})
 
-    logger.info(f"Trading mode toggled: {mode}={'ON' if body.active else 'OFF'}, active={sorted(active)}")
-    return {"status": "ok", "mode": mode, "active": body.active, "active_modes": sorted(active)}
+    logger.info(
+        f"Trading mode toggled: {mode}={'ON' if body.active else 'OFF'}, active={sorted(active)}"
+    )
+    return {
+        "status": "ok",
+        "mode": mode,
+        "active": body.active,
+        "active_modes": sorted(active),
+    }
 
 
 @router.post("/credentials")
-async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends(require_admin)):
+async def update_credentials(
+    body: ValidatedCredentialsUpdate, _: None = Depends(require_admin)
+):
     """Update Polymarket trading credentials, persist to .env, and hot-reload settings."""
     all_fields = {
         "POLYMARKET_PRIVATE_KEY": body.private_key,
         "POLYMARKET_API_KEY": body.api_key,
         "POLYMARKET_API_SECRET": body.api_secret,
         "POLYMARKET_API_PASSPHRASE": body.api_passphrase,
-        "POLYMARKET_SIGNATURE_TYPE": str(body.signature_type)
-        if body.signature_type is not None
-        else None,
+        "POLYMARKET_SIGNATURE_TYPE": (
+            str(body.signature_type) if body.signature_type is not None else None
+        ),
         "POLYMARKET_BUILDER_API_KEY": body.builder_api_key,
         "POLYMARKET_BUILDER_SECRET": body.builder_secret,
         "POLYMARKET_BUILDER_PASSPHRASE": body.builder_passphrase,
@@ -610,7 +641,11 @@ async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends
             )
             await _asyncio.wait_for(_proc.communicate(), timeout=10)
             logger.info("polyedge-bot restarted to apply new credentials")
-        except (_asyncio.subprocess.SubprocessError, OSError, _asyncio.TimeoutError) as _e:
+        except (
+            _asyncio.subprocess.SubprocessError,
+            OSError,
+            _asyncio.TimeoutError,
+        ) as _e:
             logger.warning(f"Could not restart polyedge-bot: {_e}")
         except Exception:
             logger.exception("Unexpected error restarting polyedge-bot")
@@ -622,18 +657,22 @@ async def update_credentials(body: ValidatedCredentialsUpdate, _: None = Depends
         else has_private_key and has_api_key and has_api_secret and has_api_passphrase
     )
     _missing_live = (
-        [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"]
-        if _sig in (1, 2)
-        else [
-            k
-            for k, v in {
-                "POLYMARKET_PRIVATE_KEY": has_private_key,
-                "POLYMARKET_API_KEY": has_api_key,
-                "POLYMARKET_API_SECRET": has_api_secret,
-                "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
-            }.items()
-            if not v
-        ]
+        []
+        if has_private_key
+        else (
+            ["POLYMARKET_PRIVATE_KEY"]
+            if _sig in (1, 2)
+            else [
+                k
+                for k, v in {
+                    "POLYMARKET_PRIVATE_KEY": has_private_key,
+                    "POLYMARKET_API_KEY": has_api_key,
+                    "POLYMARKET_API_SECRET": has_api_secret,
+                    "POLYMARKET_API_PASSPHRASE": has_api_passphrase,
+                }.items()
+                if not v
+            ]
+        )
     )
 
     return {
@@ -658,10 +697,16 @@ async def get_admin_system(
     state = db.query(BotState).first()
     pending_trades = (
         db.query(Trade)
-        .filter(Trade.settled.is_(False), Trade.trading_mode.in_(settings.active_modes_set))
+        .filter(
+            Trade.settled.is_(False), Trade.trading_mode.in_(settings.active_modes_set)
+        )
         .count()
     )
-    db_trade_count = db.query(Trade).filter(Trade.trading_mode.in_(settings.active_modes_set)).count()
+    db_trade_count = (
+        db.query(Trade)
+        .filter(Trade.trading_mode.in_(settings.active_modes_set))
+        .count()
+    )
     db_signal_count = db.query(Signal).count()
 
     uptime = (
@@ -685,15 +730,10 @@ async def get_admin_system(
     _sig_type = settings.POLYMARKET_SIGNATURE_TYPE
     if _sig_type in (1, 2):
         creds_live_ok = has_private_key
-        missing_for_live = (
-            [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"]
-        )
+        missing_for_live = [] if has_private_key else ["POLYMARKET_PRIVATE_KEY"]
     else:
         creds_live_ok = (
-            has_private_key
-            and has_api_key
-            and has_api_secret
-            and has_api_passphrase
+            has_private_key and has_api_key and has_api_secret and has_api_passphrase
         )
         missing_for_live = [
             k

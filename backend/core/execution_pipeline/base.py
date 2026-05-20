@@ -1,4 +1,5 @@
 """Base classes for execution pipeline stages."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List
@@ -7,6 +8,7 @@ from typing import List
 @dataclass
 class ExecutionStageManifest:
     """Declarative metadata for an execution pipeline stage."""
+
     name: str
     display_name: str
     version: str

@@ -65,13 +65,17 @@ class TestSandboxNodeRegistry:
         assert node.manifest().name == "mock_valid"
 
     def test_node_with_requires_db_true_is_rejected(self):
-        with pytest.raises(ValueError, match="requires database access - not allowed in sandbox"):
+        with pytest.raises(
+            ValueError, match="requires database access - not allowed in sandbox"
+        ):
             self.registry.register(MockDBNode)
 
         assert "mock_db_node" not in self.registry._plugins
 
     def test_node_with_requires_live_data_true_is_rejected(self):
-        with pytest.raises(ValueError, match="requires live data - not allowed in sandbox"):
+        with pytest.raises(
+            ValueError, match="requires live data - not allowed in sandbox"
+        ):
             self.registry.register(MockLiveDataNode)
 
         assert "mock_live_data_node" not in self.registry._plugins

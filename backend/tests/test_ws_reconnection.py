@@ -1,11 +1,14 @@
 """Tests for G-02: Polymarket WebSocket reconnection improvements."""
+
 import asyncio
 import time
 from unittest.mock import patch, MagicMock
 import pytest
 
 from backend.data.polymarket_websocket import (
-    PolymarketWebSocket, WebSocketConfig, ChannelType,
+    PolymarketWebSocket,
+    WebSocketConfig,
+    ChannelType,
 )
 
 

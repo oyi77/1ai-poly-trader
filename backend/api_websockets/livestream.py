@@ -8,6 +8,7 @@ from loguru import logger
 
 _task_manager = None
 
+
 def set_task_manager(tm):
     global _task_manager
     _task_manager = tm
@@ -15,6 +16,7 @@ def set_task_manager(tm):
 
 def get_task_manager():
     return _task_manager
+
 
 _pipeline_cards: List[Dict[str, Any]] = []
 _max_cards = 50
@@ -68,11 +70,11 @@ async def broadcast_signal_detected(signal: Any):
     }
 
     from backend.api.ws_manager_v2 import topic_manager
+
     tm = get_task_manager()
     if tm:
         await tm.create_task(
-            topic_manager.broadcast("livestream", message),
-            name="ls_signal_detected"
+            topic_manager.broadcast("livestream", message), name="ls_signal_detected"
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", message))
@@ -94,15 +96,19 @@ async def broadcast_stage_transition(card_id: str, new_stage: str, **kwargs):
     tm = get_task_manager()
     if tm:
         await tm.create_task(
-            topic_manager.broadcast("livestream", message),
-            name=f"ls_stage_{new_stage}"
+            topic_manager.broadcast("livestream", message), name=f"ls_stage_{new_stage}"
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", message))
     logger.debug(f"Broadcast stage_transition: {card_id} → {new_stage}")
 
 
-async def broadcast_debate_update(bull_text: str = "", bear_text: str = "", verdict: str = None, is_debating: bool = True):
+async def broadcast_debate_update(
+    bull_text: str = "",
+    bear_text: str = "",
+    verdict: str = None,
+    is_debating: bool = True,
+):
     from backend.api.ws_manager_v2 import topic_manager
 
     message = {
@@ -117,8 +123,7 @@ async def broadcast_debate_update(bull_text: str = "", bear_text: str = "", verd
     tm = get_task_manager()
     if tm:
         await tm.create_task(
-            topic_manager.broadcast("livestream", message),
-            name="ls_debate_update"
+            topic_manager.broadcast("livestream", message), name="ls_debate_update"
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", message))
@@ -148,7 +153,7 @@ async def broadcast_strategy_pulse(strategy_name: str, status: str, **kwargs):
     if tm:
         await tm.create_task(
             topic_manager.broadcast("livestream", message),
-            name=f"ls_pulse_{strategy_name}"
+            name=f"ls_pulse_{strategy_name}",
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", message))
@@ -168,12 +173,12 @@ async def broadcast_thought_log(text: str):
     tm = get_task_manager()
     if tm:
         await tm.create_task(
-            topic_manager.broadcast("livestream", message),
-            name="ls_thought_log"
+            topic_manager.broadcast("livestream", message), name="ls_thought_log"
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", message))
     logger.debug(f"Broadcast thought_log: {text[:30]}...")
+
 
 async def broadcast_trade_event(trade_data: Dict[str, Any]):
     from backend.api.ws_manager_v2 import topic_manager
@@ -188,8 +193,7 @@ async def broadcast_trade_event(trade_data: Dict[str, Any]):
     tm = get_task_manager()
     if tm:
         await tm.create_task(
-            topic_manager.broadcast("livestream", message),
-            name="ls_trade_event"
+            topic_manager.broadcast("livestream", message), name="ls_trade_event"
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", message))
@@ -210,8 +214,7 @@ async def broadcast_livestream_snapshot():
     tm = get_task_manager()
     if tm:
         await tm.create_task(
-            topic_manager.broadcast("livestream", snapshot),
-            name="ls_snapshot"
+            topic_manager.broadcast("livestream", snapshot), name="ls_snapshot"
         )
     else:
         asyncio.create_task(topic_manager.broadcast("livestream", snapshot))
@@ -222,9 +225,16 @@ async def broadcast_livestream_snapshot():
 # Livestream broadcaster task (runs in lifespan)
 # ---------------------------------------------------------------------------
 
+
 async def livestream_broadcaster():
     from backend.api.ws_manager_v2 import topic_manager
-    from backend.models.database import SessionLocal, BotState, Trade, StrategyConfig, TradeAttempt
+    from backend.models.database import (
+        SessionLocal,
+        BotState,
+        Trade,
+        StrategyConfig,
+        TradeAttempt,
+    )
     import json
     import time
 
@@ -267,9 +277,7 @@ async def livestream_broadcaster():
                     db = SessionLocal()
                     try:
                         recent_trade = (
-                            db.query(Trade)
-                            .order_by(Trade.timestamp.desc())
-                            .first()
+                            db.query(Trade).order_by(Trade.timestamp.desc()).first()
                         )
                         if recent_trade and recent_trade.timestamp:
                             trade_data = {
@@ -280,7 +288,11 @@ async def livestream_broadcaster():
                                 "size": float(recent_trade.size or 0),
                                 "pnl": float(recent_trade.pnl or 0),
                                 "settled": recent_trade.settled,
-                                "timestamp": recent_trade.timestamp.isoformat() if recent_trade.timestamp else "",
+                                "timestamp": (
+                                    recent_trade.timestamp.isoformat()
+                                    if recent_trade.timestamp
+                                    else ""
+                                ),
                             }
                     finally:
                         db.close()
@@ -303,7 +315,11 @@ async def livestream_broadcaster():
                         )
                         if recent_attempt:
                             reason = recent_attempt.reason or ""
-                            sig_data = json.loads(recent_attempt.signal_data) if recent_attempt.signal_data else {}
+                            sig_data = (
+                                json.loads(recent_attempt.signal_data)
+                                if recent_attempt.signal_data
+                                else {}
+                            )
                             if sig_data and "reasoning" in sig_data:
                                 reason = sig_data["reasoning"]
 
@@ -331,7 +347,12 @@ async def livestream_broadcaster():
                             arena_payload = {
                                 "bull_text": bull_text,
                                 "bear_text": bear_text,
-                                "verdict": dir_bias.lower() if dir_bias.lower() in ["bull", "bear", "up", "down"] else None,
+                                "verdict": (
+                                    dir_bias.lower()
+                                    if dir_bias.lower()
+                                    in ["bull", "bear", "up", "down"]
+                                    else None
+                                ),
                                 "summary": f"Analyzed {market} (bias: {dir_bias.upper()}). Confidence: {conf*100:.1f}%, Edge: {edge*100:.1f}%. Result: {recent_attempt.status.upper()}",
                                 "reason": reason,
                             }
@@ -347,7 +368,9 @@ async def livestream_broadcaster():
                         )
                         await broadcast_thought_log(arena_payload["summary"])
                         if arena_payload["reason"]:
-                            await broadcast_thought_log(f"Reasoning keys: {arena_payload['reason']}")
+                            await broadcast_thought_log(
+                                f"Reasoning keys: {arena_payload['reason']}"
+                            )
                 except Exception as e:
                     logger.debug(f"Livestream arena check error: {e}")
 

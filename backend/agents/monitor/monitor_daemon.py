@@ -341,36 +341,46 @@ class MonitorDaemon:
             if sr.recent_win_rate is not None and sr.historical_win_rate is not None:
                 wr_drop = sr.historical_win_rate - sr.recent_win_rate
                 if wr_drop > 0.20:  # 20% WR drop
-                    anomalies.append({
-                        "type": "degradation",
-                        "strategy": name,
-                        "detail": (
-                            f"WR dropped {wr_drop:.1%} "
-                            f"({sr.historical_win_rate:.1%}→{sr.recent_win_rate:.1%})"
-                        ),
-                        "level": "warning",
-                    })
+                    anomalies.append(
+                        {
+                            "type": "degradation",
+                            "strategy": name,
+                            "detail": (
+                                f"WR dropped {wr_drop:.1%} "
+                                f"({sr.historical_win_rate:.1%}→{sr.recent_win_rate:.1%})"
+                            ),
+                            "level": "warning",
+                        }
+                    )
 
             # Consecutive losses
             if sr.consecutive_losses >= 3:
-                anomalies.append({
-                    "type": "consecutive_losses",
-                    "strategy": name,
-                    "detail": f"{sr.consecutive_losses} consecutive losses",
-                    "level": "warning" if sr.consecutive_losses < 5 else "critical",
-                })
+                anomalies.append(
+                    {
+                        "type": "consecutive_losses",
+                        "strategy": name,
+                        "detail": f"{sr.consecutive_losses} consecutive losses",
+                        "level": "warning" if sr.consecutive_losses < 5 else "critical",
+                    }
+                )
 
             # Profit factor below 1.0 (not profitable)
-            if sr.profit_factor is not None and sr.profit_factor < 0.8 and sr.total_trades >= 10:
-                anomalies.append({
-                    "type": "unprofitable",
-                    "strategy": name,
-                    "detail": (
-                        f"Profit factor {sr.profit_factor:.2f} "
-                        f"(below 0.8 threshold)"
-                    ),
-                    "level": "warning",
-                })
+            if (
+                sr.profit_factor is not None
+                and sr.profit_factor < 0.8
+                and sr.total_trades >= 10
+            ):
+                anomalies.append(
+                    {
+                        "type": "unprofitable",
+                        "strategy": name,
+                        "detail": (
+                            f"Profit factor {sr.profit_factor:.2f} "
+                            f"(below 0.8 threshold)"
+                        ),
+                        "level": "warning",
+                    }
+                )
 
         return anomalies
 
@@ -391,19 +401,25 @@ class MonitorDaemon:
 
         # Account summaries
         for mode, acct in report.get("accounts", {}).items():
-            lines.extend([
-                f"┌─ {mode.upper()} ACCOUNT ──┐",
-                f"  Balance: ${acct.get('balance', 0):.2f}",
-                f"  Open Positions: {acct.get('open_positions', 0)}",
-                f"  Daily PnL: ${acct.get('pnl_daily', 0):+.2f}",
-                f"  Total PnL: ${acct.get('pnl_total', 0):+.2f}",
-                f"  Win Rate: {acct.get('win_rate', 0):.1%}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"┌─ {mode.upper()} ACCOUNT ──┐",
+                    f"  Balance: ${acct.get('balance', 0):.2f}",
+                    f"  Open Positions: {acct.get('open_positions', 0)}",
+                    f"  Daily PnL: ${acct.get('pnl_daily', 0):+.2f}",
+                    f"  Total PnL: ${acct.get('pnl_total', 0):+.2f}",
+                    f"  Win Rate: {acct.get('win_rate', 0):.1%}",
+                    "",
+                ]
+            )
 
         # Strategy health
         for name, sr in report.get("strategies", {}).items():
-            status_emoji = "🟢" if sr.get("status") == "healthy" else "🟡" if sr.get("status") == "warning" else "🔴"
+            status_emoji = (
+                "🟢"
+                if sr.get("status") == "healthy"
+                else "🟡" if sr.get("status") == "warning" else "🔴"
+            )
             lines.append(
                 f"{status_emoji} {name}: {sr.get('total_trades', 0)} trades | "
                 f"PnL ${sr.get('pnl', 0):+.2f} | "
@@ -413,13 +429,18 @@ class MonitorDaemon:
 
         # Warnings & Critical
         if report.get("warnings"):
-            lines.extend(["", "⚠️ WARNINGS:"] + [f"  • {w}" for w in report["warnings"]])
+            lines.extend(
+                ["", "⚠️ WARNINGS:"] + [f"  • {w}" for w in report["warnings"]]
+            )
         if report.get("critical"):
-            lines.extend(["", "🚨 CRITICAL:"] + [f"  • {c}" for c in report["critical"]])
+            lines.extend(
+                ["", "🚨 CRITICAL:"] + [f"  • {c}" for c in report["critical"]]
+            )
         if report.get("research", {}).get("suggestions"):
-            lines.extend(["", "💡 RESEARCH SUGGESTIONS:"] + [
-                f"  • {s}" for s in report["research"]["suggestions"][:3]
-            ])
+            lines.extend(
+                ["", "💡 RESEARCH SUGGESTIONS:"]
+                + [f"  • {s}" for s in report["research"]["suggestions"][:3]]
+            )
 
         await self.alert_manager.send_alert(
             title="📊 PolyEdge Monitor Report",

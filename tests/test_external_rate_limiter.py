@@ -1,4 +1,5 @@
 """Tests for ExternalRateLimiter with 429 handling and exponential backoff."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,12 +9,14 @@ from backend.core.circuit_breaker import CircuitBreaker
 from backend.core.errors import RateLimitError
 from backend.core.external_rate_limiter import ExternalRateLimiter
 
-
 # ============================================================================
 # Helper Functions
 # ============================================================================
 
-def create_mock_response(status_code: int, headers: dict | None = None, json_data: dict | None = None) -> Response:
+
+def create_mock_response(
+    status_code: int, headers: dict | None = None, json_data: dict | None = None
+) -> Response:
     """Create a mock httpx.Response with specified status and headers."""
     mock_response = MagicMock(spec=Response)
     mock_response.status_code = status_code
@@ -21,7 +24,7 @@ def create_mock_response(status_code: int, headers: dict | None = None, json_dat
     mock_response.json.return_value = json_data or {}
 
     async def read():
-        return b'{}'
+        return b"{}"
 
     mock_response.read = read
     return mock_response
@@ -31,13 +34,16 @@ def create_mock_response(status_code: int, headers: dict | None = None, json_dat
 # 429 Detection and Backoff Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_429_detection_triggers_backoff():
     """Test that 429 response triggers exponential backoff and retry."""
     limiter = ExternalRateLimiter(
         name="test",
         max_calls_per_minute=100,
-        circuit_breaker=CircuitBreaker("test_cb", failure_threshold=10, recovery_timeout=60.0)
+        circuit_breaker=CircuitBreaker(
+            "test_cb", failure_threshold=10, recovery_timeout=60.0
+        ),
     )
 
     call_count = 0
@@ -67,7 +73,9 @@ async def test_429_max_retries_exhausted():
     limiter = ExternalRateLimiter(
         name="test",
         max_calls_per_minute=100,
-        circuit_breaker=CircuitBreaker("test_max_cb", failure_threshold=10, recovery_timeout=60.0),
+        circuit_breaker=CircuitBreaker(
+            "test_max_cb", failure_threshold=10, recovery_timeout=60.0
+        ),
     )
 
     async def always_failing_func():
@@ -89,6 +97,7 @@ async def test_429_max_retries_exhausted():
 # Retry-After Header Parsing Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_retry_after_header_takes_precedence():
     """Test that Retry-After header takes precedence over exponential backoff."""
@@ -97,7 +106,9 @@ async def test_retry_after_header_takes_precedence():
         max_calls_per_minute=100,
         backoff_base=2.0,  # Exponential backoff would be 2s
         max_delay=60.0,
-        circuit_breaker=CircuitBreaker("test_retry_cb", failure_threshold=10, recovery_timeout=60.0),
+        circuit_breaker=CircuitBreaker(
+            "test_retry_cb", failure_threshold=10, recovery_timeout=60.0
+        ),
     )
 
     call_count = 0
@@ -135,7 +146,9 @@ async def test_invalid_retry_after_falls_back_to_exponential_backoff():
         max_calls_per_minute=100,
         backoff_base=1.0,  # Base 1.0s for predictable backoff
         max_delay=30.0,
-        circuit_breaker=CircuitBreaker("test_exp_cb", failure_threshold=10, recovery_timeout=60.0),
+        circuit_breaker=CircuitBreaker(
+            "test_exp_cb", failure_threshold=10, recovery_timeout=60.0
+        ),
     )
 
     call_count = 0
@@ -178,7 +191,9 @@ async def test_max_delay_cap():
         max_calls_per_minute=100,
         backoff_base=2.0,
         max_delay=5.0,  # Cap at 5 seconds
-        circuit_breaker=CircuitBreaker("test_cap_cb", failure_threshold=10, recovery_timeout=60.0),
+        circuit_breaker=CircuitBreaker(
+            "test_cap_cb", failure_threshold=10, recovery_timeout=60.0
+        ),
     )
 
     call_count = 0
@@ -212,6 +227,7 @@ async def test_max_delay_cap():
 # ============================================================================
 # Circuit Breaker Integration Tests
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_integration():
@@ -266,6 +282,7 @@ async def test_circuit_breaker_opens_after_failures():
 # Per-API Rate Limit Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_per_api_independent_limits():
     """Test that different APIs have independent rate limiters."""
@@ -293,6 +310,7 @@ async def test_per_api_independent_limits():
 # Decorator Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_rate_limited_decorator_async():
     """Test the @rate_limited decorator for async functions."""
@@ -313,6 +331,7 @@ async def test_rate_limited_decorator_async():
 # ============================================================================
 # Edge Cases
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_success_on_first_call():
@@ -344,6 +363,7 @@ async def test_non_rate_limit_error_propagates():
 # Token Bucket Rate Limiting Tests
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_token_bucket_refill():
     """Test that tokens refill over time."""
@@ -359,8 +379,8 @@ async def test_token_bucket_refill():
 
     # We can't easily test time-based refill without complex mocking,
     # so verify the algorithm structure exists
-    assert hasattr(limiter, '_tokens')
-    assert hasattr(limiter, '_last_update')
+    assert hasattr(limiter, "_tokens")
+    assert hasattr(limiter, "_last_update")
 
 
 @pytest.mark.asyncio
@@ -379,6 +399,7 @@ async def test_rate_limiter_returns_circuit_breaker_property():
 # ============================================================================
 # Async Context Manager Tests
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_async_context_manager():

@@ -24,16 +24,18 @@ class TestShadowValidationJob:
         mock_db.__enter__ = MagicMock(return_value=mock_db)
         mock_db.__exit__ = MagicMock(return_value=False)
 
-        with patch('backend.core.shadow_validation.SessionLocal', return_value=mock_db), \
-             patch('backend.core.shadow_validation.DBSessionShadowRunner') as MockRunner, \
-             patch('backend.core.event_bus.publish_event') as mock_publish:
+        with (
+            patch("backend.core.shadow_validation.SessionLocal", return_value=mock_db),
+            patch("backend.core.shadow_validation.DBSessionShadowRunner") as MockRunner,
+            patch("backend.core.event_bus.publish_event") as mock_publish,
+        ):
 
             MockRunner.return_value.evaluate_promotion_eligibility.return_value = {
-                'total_trades': 50,
-                'accuracy': 0.85,
-                'days_active': 7.0,
-                'eligible': True,
-                'reason': 'Meets all promotion criteria'
+                "total_trades": 50,
+                "accuracy": 0.85,
+                "days_active": 7.0,
+                "eligible": True,
+                "reason": "Meets all promotion criteria",
             }
 
             shadow_validation_job()
@@ -64,16 +66,18 @@ class TestShadowValidationJob:
         mock_db.__enter__ = MagicMock(return_value=mock_db)
         mock_db.__exit__ = MagicMock(return_value=False)
 
-        with patch('backend.core.shadow_validation.SessionLocal', return_value=mock_db), \
-             patch('backend.core.shadow_validation.DBSessionShadowRunner') as MockRunner, \
-             patch('backend.core.event_bus.publish_event') as _mock_publish2:
+        with (
+            patch("backend.core.shadow_validation.SessionLocal", return_value=mock_db),
+            patch("backend.core.shadow_validation.DBSessionShadowRunner") as MockRunner,
+            patch("backend.core.event_bus.publish_event") as _mock_publish2,
+        ):
 
             MockRunner.return_value.evaluate_promotion_eligibility.return_value = {
-                'total_trades': 10,
-                'accuracy': 0.35,
-                'days_active': 8.0,
-                'eligible': False,
-                'reason': 'Accuracy below 60% threshold'
+                "total_trades": 10,
+                "accuracy": 0.35,
+                "days_active": 8.0,
+                "eligible": False,
+                "reason": "Accuracy below 60% threshold",
             }
 
             shadow_validation_job()
@@ -86,8 +90,14 @@ class TestShadowValidationJob:
 
     def test_disabled_when_feature_flag_off(self):
         """Test that job is disabled when SHADOW_VALIDATE_ENABLED=False."""
-        with patch.object(__import__('backend.config', fromlist=['settings']).settings, 'SHADOW_VALIDATE_ENABLED', False), \
-             patch('backend.core.shadow_validation.logger') as mock_logger:
+        with (
+            patch.object(
+                __import__("backend.config", fromlist=["settings"]).settings,
+                "SHADOW_VALIDATE_ENABLED",
+                False,
+            ),
+            patch("backend.core.shadow_validation.logger") as mock_logger,
+        ):
             shadow_validation_job()
             mock_logger.info.assert_called_with("Shadow validation disabled by config")
 
@@ -98,8 +108,10 @@ class TestShadowValidationJob:
         mock_db.__enter__ = MagicMock(return_value=mock_db)
         mock_db.__exit__ = MagicMock(return_value=False)
 
-        with patch('backend.core.shadow_validation.SessionLocal', return_value=mock_db), \
-             patch('backend.core.shadow_validation.logger') as mock_logger:
+        with (
+            patch("backend.core.shadow_validation.SessionLocal", return_value=mock_db),
+            patch("backend.core.shadow_validation.logger") as mock_logger,
+        ):
             shadow_validation_job()
             mock_logger.info.assert_any_call("Found 0 genomes in SHADOW stage")
 
@@ -114,11 +126,15 @@ class TestShadowValidationJob:
         mock_db.__enter__ = MagicMock(return_value=mock_db)
         mock_db.__exit__ = MagicMock(return_value=False)
 
-        with patch('backend.core.shadow_validation.SessionLocal', return_value=mock_db), \
-             patch('backend.core.shadow_validation.DBSessionShadowRunner') as MockRunner, \
-             patch('backend.core.shadow_validation.logger') as mock_logger:
+        with (
+            patch("backend.core.shadow_validation.SessionLocal", return_value=mock_db),
+            patch("backend.core.shadow_validation.DBSessionShadowRunner") as MockRunner,
+            patch("backend.core.shadow_validation.logger") as mock_logger,
+        ):
 
             shadow_validation_job()
 
-            mock_logger.warning.assert_called_with("Genome test-genome-1003 has no stage_entered_at, skipping")
+            mock_logger.warning.assert_called_with(
+                "Genome test-genome-1003 has no stage_entered_at, skipping"
+            )
             MockRunner.return_value.evaluate_promotion_eligibility.assert_not_called()

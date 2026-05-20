@@ -18,14 +18,13 @@ from loguru import logger
 
 from backend.config import settings
 
-
 # ---------------------------------------------------------------------------
 # Defaults (overridable via settings / env)
 # ---------------------------------------------------------------------------
 
-_DEFAULT_PROFIT_TARGET_PCT: float = 0.03     # 3 % (must cover ~1% PM fee + 0.5% slippage)
-_DEFAULT_STOP_LOSS_PCT: float = 0.03         # 3 %
-_DEFAULT_MAX_HOLD_SECONDS: int = 300         # 5 min
+_DEFAULT_PROFIT_TARGET_PCT: float = 0.03  # 3 % (must cover ~1% PM fee + 0.5% slippage)
+_DEFAULT_STOP_LOSS_PCT: float = 0.03  # 3 %
+_DEFAULT_MAX_HOLD_SECONDS: int = 300  # 5 min
 
 
 def _get_auto_sell_config() -> Dict[str, float]:
@@ -110,9 +109,19 @@ class AutoSellManager:
         max_hold_seconds: Optional[int] = None,
     ) -> None:
         cfg = _get_auto_sell_config()
-        self.profit_target = profit_target_pct if profit_target_pct is not None else cfg["profit_target_pct"]
-        self.stop_loss = stop_loss_pct if stop_loss_pct is not None else cfg["stop_loss_pct"]
-        self.max_hold = max_hold_seconds if max_hold_seconds is not None else cfg["max_hold_seconds"]
+        self.profit_target = (
+            profit_target_pct
+            if profit_target_pct is not None
+            else cfg["profit_target_pct"]
+        )
+        self.stop_loss = (
+            stop_loss_pct if stop_loss_pct is not None else cfg["stop_loss_pct"]
+        )
+        self.max_hold = (
+            max_hold_seconds
+            if max_hold_seconds is not None
+            else cfg["max_hold_seconds"]
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -169,8 +178,13 @@ class AutoSellManager:
         logger.info(
             "[auto_sell] {} triggered for trade_id={} ticker={} entry={:.4f} "
             "current={:.4f} pnl={:.4f}% elapsed={:.0f}s",
-            trigger, trade_id, ticker, entry, current_price,
-            pnl_pct * 100, elapsed,
+            trigger,
+            trade_id,
+            ticker,
+            entry,
+            current_price,
+            pnl_pct * 100,
+            elapsed,
         )
 
         result = AutoSellResult(
@@ -195,13 +209,15 @@ class AutoSellManager:
                 result.order_id = order_id
                 logger.info(
                     "[auto_sell] Sell order placed: trade_id={} order_id={}",
-                    trade_id, order_id,
+                    trade_id,
+                    order_id,
                 )
             except Exception as exc:
                 result.error = str(exc)
                 logger.exception(
                     "[auto_sell] Sell order failed: trade_id={} error={}",
-                    trade_id, exc,
+                    trade_id,
+                    exc,
                 )
 
         return result
@@ -236,7 +252,8 @@ class AutoSellManager:
         if results:
             logger.info(
                 "[auto_sell] Scan complete: {} sells triggered from {} open positions",
-                len(results), len(trades),
+                len(results),
+                len(trades),
             )
 
         return results
@@ -317,7 +334,8 @@ async def auto_sell_monitor_job() -> None:
         if results:
             logger.info(
                 "[auto_sell_job] Completed: {} sells from {} positions",
-                len(results), len(trades),
+                len(results),
+                len(trades),
             )
 
     except Exception:

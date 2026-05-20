@@ -18,12 +18,12 @@ class NotificationManifest:
 class BaseNotificationProvider(ABC):
     @classmethod
     @abstractmethod
-    def manifest(cls) -> NotificationManifest:
-        ...
+    def manifest(cls) -> NotificationManifest: ...
 
     @abstractmethod
-    async def send(self, message: str, event_type: str, details: Optional[dict] = None) -> bool:
-        ...
+    async def send(
+        self, message: str, event_type: str, details: Optional[dict] = None
+    ) -> bool: ...
 
     async def health_check(self) -> bool:
         return True

@@ -1,4 +1,5 @@
 """Sandbox validation - 4-gate pipeline for strategy safety."""
+
 import ast
 import re
 
@@ -7,6 +8,7 @@ from backend.agi.sandbox.results import SandboxResult
 
 class GateCheck:
     """Result of a single gate check."""
+
     def __init__(self, name: str, passed: bool, message: str = ""):
         self.name = name
         self.passed = passed
@@ -23,10 +25,16 @@ class SandboxValidator:
     """
 
     FORBIDDEN_IMPORTS = {
-        "os", "sys", "subprocess", "socket",
-        "backend.models.database", "backend.db.utils",
-        "backend.data.polymarket_clob", "backend.data.kalshi_client",
-        "backend.core.auto_trader", "backend.core.autonomous_promoter",
+        "os",
+        "sys",
+        "subprocess",
+        "socket",
+        "backend.models.database",
+        "backend.db.utils",
+        "backend.data.polymarket_clob",
+        "backend.data.kalshi_client",
+        "backend.core.auto_trader",
+        "backend.core.autonomous_promoter",
     }
 
     DANGEROUS_FUNCTIONS = {"exec", "eval", "compile", "open", "input", "__import__"}
@@ -72,7 +80,9 @@ class SandboxValidator:
             result.errors.append(gate4.message)
 
         result.execution_time_ms = (time.time() - start) * 1000
-        result.status = "passed" if not result.gates_failed and not result.errors else "failed"
+        result.status = (
+            "passed" if not result.gates_failed and not result.errors else "failed"
+        )
         return result
 
     def _gate1_import_safety(self, code: str) -> GateCheck:
@@ -86,8 +96,9 @@ class SandboxValidator:
             for pattern in patterns:
                 if pattern in code:
                     return GateCheck(
-                        "gate1_import_safety", False,
-                        f"Forbidden import detected: {imp}"
+                        "gate1_import_safety",
+                        False,
+                        f"Forbidden import detected: {imp}",
                     )
         return GateCheck("gate1_import_safety", True)
 
@@ -100,25 +111,30 @@ class SandboxValidator:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name) and node.func.id in self.DANGEROUS_FUNCTIONS:
+                if (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id in self.DANGEROUS_FUNCTIONS
+                ):
                     return GateCheck(
-                        "gate2_ast_safety", False,
-                        f"Dangerous function call: {node.func.id}"
+                        "gate2_ast_safety",
+                        False,
+                        f"Dangerous function call: {node.func.id}",
                     )
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     if alias.name in self.FORBIDDEN_IMPORTS:
                         return GateCheck(
-                            "gate2_ast_safety", False,
-                            f"Forbidden import: {alias.name}"
+                            "gate2_ast_safety", False, f"Forbidden import: {alias.name}"
                         )
             if isinstance(node, ast.ImportFrom) and node.module:
                 for alias in node.names:
                     full = f"{node.module}.{alias.name}"
-                    if full in self.FORBIDDEN_IMPORTS or node.module in self.FORBIDDEN_IMPORTS:
+                    if (
+                        full in self.FORBIDDEN_IMPORTS
+                        or node.module in self.FORBIDDEN_IMPORTS
+                    ):
                         return GateCheck(
-                            "gate2_ast_safety", False,
-                            f"Forbidden import: {full}"
+                            "gate2_ast_safety", False, f"Forbidden import: {full}"
                         )
         return GateCheck("gate2_ast_safety", True)
 
@@ -126,16 +142,22 @@ class SandboxValidator:
         """Check for excessive resource usage patterns."""
         lines = code.split("\n")
         if len(lines) > 500:
-            return GateCheck("gate3_resource_limits", False, "Code exceeds 500 line limit")
+            return GateCheck(
+                "gate3_resource_limits", False, "Code exceeds 500 line limit"
+            )
 
         loops = sum(1 for line in lines if re.match(r"^\s*(for|while)\s", line))
         if loops > 10:
-            return GateCheck("gate3_resource_limits", False, f"Too many loops ({loops}), max 10")
+            return GateCheck(
+                "gate3_resource_limits", False, f"Too many loops ({loops}), max 10"
+            )
 
         return GateCheck("gate3_resource_limits", True)
 
     def _gate4_output_validation(self, code: str) -> GateCheck:
         """Validate that code produces expected output format."""
         if "return" not in code:
-            return GateCheck("gate4_output_validation", False, "No return statement found")
+            return GateCheck(
+                "gate4_output_validation", False, "No return statement found"
+            )
         return GateCheck("gate4_output_validation", True)

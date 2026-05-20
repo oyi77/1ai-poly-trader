@@ -4,13 +4,10 @@ from typing import List
 from sqlalchemy.orm import Session
 from backend.models.database import get_db
 from backend.api.auth import require_admin
-from backend.core.outcome_repository import (
-    get_recent_outcomes, record_param_change
-)
+from backend.core.outcome_repository import get_recent_outcomes, record_param_change
 from backend.core.trading_calibration import TradingCalibration
 from backend.core.thompson_sampler import ThompsonSampler
 from backend.core.strategy_health import StrategyHealthMonitor
-
 
 router = APIRouter(prefix="/learning", tags=["learning"])
 
@@ -73,9 +70,13 @@ async def get_strategy_health(strategy: str, db: Session = Depends(get_db)):
 @router.get("/health", response_model=List[StrategyHealthResponse])
 async def get_all_strategy_health(db: Session = Depends(get_db)):
     from backend.models.database import StrategyConfig
+
     configs = db.query(StrategyConfig).all()
     strategies = [c.strategy_name for c in configs] if configs else ["unknown"]
-    return [StrategyHealthResponse(**_health.assess(s, db, readonly=True)) for s in strategies]
+    return [
+        StrategyHealthResponse(**_health.assess(s, db, readonly=True))
+        for s in strategies
+    ]
 
 
 @router.get("/calibration/{strategy}", response_model=CalibrationCurveResponse)
@@ -113,6 +114,7 @@ async def get_calibration(strategy: str, db: Session = Depends(get_db)):
 @router.get("/allocations", response_model=List[AllocationResponse])
 async def get_allocations(db: Session = Depends(get_db)):
     from backend.models.database import StrategyConfig
+
     configs = db.query(StrategyConfig).filter(StrategyConfig.enabled).all()
     strategies = [c.strategy_name for c in configs] if configs else []
     if not strategies:
@@ -122,12 +124,14 @@ async def get_allocations(db: Session = Depends(get_db)):
     result = []
     for s in strategies:
         posterior = _ts._posteriors.get(s, (1.0, 1.0))
-        result.append(AllocationResponse(
-            strategy=s,
-            allocation=allocations.get(s, 0.0),
-            alpha=posterior[0],
-            beta=posterior[1],
-        ))
+        result.append(
+            AllocationResponse(
+                strategy=s,
+                allocation=allocations.get(s, 0.0),
+                alpha=posterior[0],
+                beta=posterior[1],
+            )
+        )
     return result
 
 

@@ -4,7 +4,14 @@ from loguru import logger
 from typing import Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query, Depends, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    Depends,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -45,7 +52,7 @@ async def get_activities(
     decision_type: Optional[str] = Query(None),
     days: Optional[int] = Query(None, ge=1),
     confidence_min: Optional[float] = Query(None, ge=0.0, le=1.0),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get activity logs with optional filtering.
@@ -68,6 +75,7 @@ async def get_activities(
 
         if days:
             from datetime import timedelta
+
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             query = query.filter(ActivityLog.timestamp >= cutoff)
 
@@ -80,22 +88,20 @@ async def get_activities(
 
         result = []
         for activity in activities:
-            result.append({
-                "id": activity.id,
-                "timestamp": activity.timestamp.isoformat(),
-                "strategy_name": activity.strategy_name,
-                "decision_type": activity.decision_type,
-                "data": activity.data,
-                "confidence_score": activity.confidence_score,
-                "mode": activity.mode,
-                "trading_mode": activity.mode
-            })
+            result.append(
+                {
+                    "id": activity.id,
+                    "timestamp": activity.timestamp.isoformat(),
+                    "strategy_name": activity.strategy_name,
+                    "decision_type": activity.decision_type,
+                    "data": activity.data,
+                    "confidence_score": activity.confidence_score,
+                    "mode": activity.mode,
+                    "trading_mode": activity.mode,
+                }
+            )
 
-        response = {
-            "activities": result,
-            "count": len(result),
-            "limit": limit
-        }
+        response = {"activities": result, "count": len(result), "limit": limit}
         db.rollback()
         return response
     except Exception as e:
@@ -104,16 +110,15 @@ async def get_activities(
 
 
 @router.get("/{activity_id}")
-async def get_activity_by_id(
-    activity_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_activity_by_id(activity_id: int, db: Session = Depends(get_db)):
     """Get a single activity log by ID."""
     try:
         activity = db.query(ActivityLog).filter(ActivityLog.id == activity_id).first()
 
         if not activity:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Activity {activity_id} not found"
+            )
 
         response = {
             "id": activity.id,
@@ -123,7 +128,7 @@ async def get_activity_by_id(
             "data": activity.data,
             "confidence_score": activity.confidence_score,
             "mode": activity.mode,
-            "trading_mode": activity.mode
+            "trading_mode": activity.mode,
         }
         db.rollback()
         return response
@@ -148,7 +153,7 @@ async def create_activity(
             data=request.data,
             confidence=request.confidence_score,
             mode=request.mode,
-            db=db
+            db=db,
         )
 
         if not activity_id:
@@ -164,7 +169,7 @@ async def create_activity(
             "data": activity.data,
             "confidence_score": activity.confidence_score,
             "mode": activity.mode,
-            "trading_mode": activity.mode
+            "trading_mode": activity.mode,
         }
 
         # End the request transaction before the awaited websocket broadcast so

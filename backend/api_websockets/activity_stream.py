@@ -29,12 +29,16 @@ async def broadcast_activity(activity_data: Dict[str, Any]):
     message = {
         "type": "activity_update",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        **activity_data
+        **activity_data,
     }
 
     tm = get_task_manager()
     if tm:
-        await tm.create_task(topic_manager.broadcast("activities", message), name="broadcast_activity")
+        await tm.create_task(
+            topic_manager.broadcast("activities", message), name="broadcast_activity"
+        )
     else:
         asyncio.create_task(topic_manager.broadcast("activities", message))
-    logger.debug(f"Queued activity broadcast: {activity_data.get('strategy_name')} - {activity_data.get('decision_type')}")
+    logger.debug(
+        f"Queued activity broadcast: {activity_data.get('strategy_name')} - {activity_data.get('decision_type')}"
+    )

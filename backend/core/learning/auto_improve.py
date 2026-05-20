@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 from loguru import logger
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -107,7 +108,9 @@ def _get_current_params(target_settings=None) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def check_rollback_needed(db: Session, target_settings=None, bigbrain=None, strategy: str = "__global__") -> bool:
+def check_rollback_needed(
+    db: Session, target_settings=None, bigbrain=None, strategy: str = "__global__"
+) -> bool:
     """Check whether the most recent param change for *strategy* should be rolled back.
 
     Pass ``strategy`` to scope the rollback check to a specific strategy.
@@ -289,7 +292,8 @@ async def auto_improve_job():
                 )
 
                 log_event(
-                    "success", f"Auto-improve: {confidence} confidence - {reasoning[:100]}"
+                    "success",
+                    f"Auto-improve: {confidence} confidence - {reasoning[:100]}",
                 )
 
                 conf_float = _confidence_to_float(confidence)
@@ -315,9 +319,13 @@ async def auto_improve_job():
                                     "previous_values": previous,
                                     "applied_values": clamped,
                                     "applied_at": datetime.now(timezone.utc),
-                                    "pre_change_win_rate": analysis.get("win_rate", 0.0),
+                                    "pre_change_win_rate": analysis.get(
+                                        "win_rate", 0.0
+                                    ),
                                     "pre_change_pnl": analysis.get("pnl", 0.0),
-                                    "trade_count_at_apply": analysis.get("total_trades", 0),
+                                    "trade_count_at_apply": analysis.get(
+                                        "total_trades", 0
+                                    ),
                                 }
                             logger.info(
                                 "Auto-improve applied %d param(s) (confidence=%.2f): %s",
@@ -380,9 +388,9 @@ async def _write_outcomes_to_brain(db: Session, bigbrain: BigBrainClient) -> Non
                 pnl=trade.pnl or 0.0,
                 edge=trade.edge_at_entry or 0.0,
                 confidence=getattr(trade, "confidence", 0.5),
-                timestamp=trade.settlement_time.isoformat()
-                if trade.settlement_time
-                else None,
+                timestamp=(
+                    trade.settlement_time.isoformat() if trade.settlement_time else None
+                ),
             )
     except Exception as e:
         logger.warning("Failed to write outcomes to brain: %s", e)

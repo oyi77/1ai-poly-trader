@@ -25,14 +25,15 @@ from backend.monitoring.agi_metrics import (
     record_evolution_cycle,
 )
 
-
 # ---------------------------------------------------------------------------
 # Data transfer objects
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PopulationStats:
     """Aggregate statistics for a population."""
+
     size: int = 0
     best_fitness: float = 0.0
     avg_fitness: float = 0.0
@@ -51,6 +52,7 @@ class Individual:
         fitness: Tuple of objective values (e.g., (sharpe, -drawdown)).
         metadata: Arbitrary metadata (archetype, strategy_name, etc.).
     """
+
     genome_id: str = field(default_factory=lambda: str(uuid4()))
     genes: list[float] = field(default_factory=list)
     fitness: tuple[float, ...] = ()
@@ -60,6 +62,7 @@ class Individual:
 # ---------------------------------------------------------------------------
 # Abstract base class
 # ---------------------------------------------------------------------------
+
 
 class EvolutionBackend(ABC):
     """Abstract evolution backend interface.
@@ -157,6 +160,7 @@ class EvolutionBackend(ABC):
 # DEAP backend
 # ---------------------------------------------------------------------------
 
+
 class DEAPEvolutionBackend(EvolutionBackend):
     """DEAP-based evolution backend using NSGA-II multi-objective optimization.
 
@@ -216,20 +220,31 @@ class DEAPEvolutionBackend(EvolutionBackend):
                 return [random.uniform(lo, hi) for lo, hi in self.gene_bounds]
             return [random.random() for _ in range(20)]  # default 20 genes
 
-        toolbox.register("individual", tools.initIterate, creator.Individual, _init_gene)
+        toolbox.register(
+            "individual", tools.initIterate, creator.Individual, _init_gene
+        )
         toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
         # Genetic operators
-        toolbox.register("mate", tools.cxSimulatedBinaryBounded,
-                         low=[b[0] for b in self.gene_bounds] if self.gene_bounds else [0.0] * 20,
-                         up=[b[1] for b in self.gene_bounds] if self.gene_bounds else [1.0] * 20,
-                         eta=20.0)
-        toolbox.register("mutate", tools.mutPolynomialBounded,
-                         low=[b[0] for b in self.gene_bounds] if self.gene_bounds else [0.0] * 20,
-                         up=[b[1] for b in self.gene_bounds] if self.gene_bounds else [1.0] * 20,
-                         eta=20.0, indpb=1.0 / max(1, len(self.gene_bounds) or 20))
+        toolbox.register(
+            "mate",
+            tools.cxSimulatedBinaryBounded,
+            low=[b[0] for b in self.gene_bounds] if self.gene_bounds else [0.0] * 20,
+            up=[b[1] for b in self.gene_bounds] if self.gene_bounds else [1.0] * 20,
+            eta=20.0,
+        )
+        toolbox.register(
+            "mutate",
+            tools.mutPolynomialBounded,
+            low=[b[0] for b in self.gene_bounds] if self.gene_bounds else [0.0] * 20,
+            up=[b[1] for b in self.gene_bounds] if self.gene_bounds else [1.0] * 20,
+            eta=20.0,
+            indpb=1.0 / max(1, len(self.gene_bounds) or 20),
+        )
         toolbox.register("select", tools.selNSGA2)
-        toolbox.register("select_tournament", tools.selTournament, tournsize=self.tournament_size)
+        toolbox.register(
+            "select_tournament", tools.selTournament, tournsize=self.tournament_size
+        )
 
         self._toolbox = toolbox
 
@@ -249,10 +264,10 @@ class DEAPEvolutionBackend(EvolutionBackend):
     def _deap_to_individual(self, deap_ind: Any) -> Individual:
         """Convert a DEAP individual back to our Individual."""
         return Individual(
-            genome_id=getattr(deap_ind, '_genome_id', str(uuid4())),
+            genome_id=getattr(deap_ind, "_genome_id", str(uuid4())),
             genes=list(deap_ind),
             fitness=tuple(deap_ind.fitness.values) if deap_ind.fitness.valid else (),
-            metadata=getattr(deap_ind, '_metadata', {}),
+            metadata=getattr(deap_ind, "_metadata", {}),
         )
 
     def evolve(
@@ -457,6 +472,7 @@ def _dominates(
 # Legacy backend (wraps existing genome system)
 # ---------------------------------------------------------------------------
 
+
 class LegacyGenomeBackend(EvolutionBackend):
     """Legacy evolution backend wrapping the existing mutation/crossover engines.
 
@@ -498,7 +514,11 @@ class LegacyGenomeBackend(EvolutionBackend):
 
             while len(offspring) < target:
                 # Pick two random elites for crossover
-                p1, p2 = random.sample(elites, 2) if len(elites) >= 2 else (elites[0], elites[0])
+                p1, p2 = (
+                    random.sample(elites, 2)
+                    if len(elites) >= 2
+                    else (elites[0], elites[0])
+                )
                 child_a, child_b = self.crossover(p1, p2)
                 child_a = self.mutate(child_a, self.mutation_rate)
                 offspring.append(child_a)
@@ -515,7 +535,7 @@ class LegacyGenomeBackend(EvolutionBackend):
                 key=lambda ind: ind.fitness[0] if ind.fitness else 0.0,
                 reverse=True,
             )
-            population = population[:len(sorted_pop)]
+            population = population[: len(sorted_pop)]
 
             logger.debug(
                 f"Legacy generation {gen + 1}/{n_gen}: "
@@ -646,6 +666,7 @@ class LegacyGenomeBackend(EvolutionBackend):
 # Factory
 # ---------------------------------------------------------------------------
 
+
 def create_evolution_backend(
     backend_name: str | None = None,
     **kwargs: Any,
@@ -664,22 +685,29 @@ def create_evolution_backend(
     """
     if backend_name is None:
         from backend.config import settings
+
         backend_name = getattr(settings, "EVOLUTION_BACKEND", "legacy")
 
     backend_name = backend_name.lower().strip()
 
     if backend_name == "deap":
         from backend.config import settings
+
         return DEAPEvolutionBackend(
-            population_size=kwargs.get("population_size", settings.DEAP_POPULATION_SIZE),
+            population_size=kwargs.get(
+                "population_size", settings.DEAP_POPULATION_SIZE
+            ),
             crossover_prob=kwargs.get("crossover_prob", settings.DEAP_CROSSOVER_PROB),
             mutation_prob=kwargs.get("mutation_prob", settings.DEAP_MUTATION_PROB),
-            tournament_size=kwargs.get("tournament_size", settings.DEAP_TOURNAMENT_SIZE),
+            tournament_size=kwargs.get(
+                "tournament_size", settings.DEAP_TOURNAMENT_SIZE
+            ),
             generations=kwargs.get("generations", settings.DEAP_GENERATIONS),
             gene_bounds=kwargs.get("gene_bounds"),
         )
     elif backend_name == "legacy":
         from backend.config import settings
+
         return LegacyGenomeBackend(
             mutation_rate=kwargs.get("mutation_rate", settings.AGI_MUTATION_RATE),
         )

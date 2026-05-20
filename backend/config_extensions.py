@@ -36,26 +36,34 @@ class ExtendedSettings(BaseSettings):
 
 extended_settings = ExtendedSettings()
 
-_PYDANTIC_INTERNAL = frozenset({
-    "model_fields", "model_computed_fields", "model_config",
-    "model_fields_set", "model_construct", "model_dump", "model_json_schema",
-    "model_validate", "model_post_init",
-})
+_PYDANTIC_INTERNAL = frozenset(
+    {
+        "model_fields",
+        "model_computed_fields",
+        "model_config",
+        "model_fields_set",
+        "model_construct",
+        "model_dump",
+        "model_json_schema",
+        "model_validate",
+        "model_post_init",
+    }
+)
 
 
 class UnifiedSettings:
     def __init__(self):
         for attr in dir(base_settings):
-            if attr.startswith('_') or attr in _PYDANTIC_INTERNAL:
+            if attr.startswith("_") or attr in _PYDANTIC_INTERNAL:
                 continue
             setattr(self, attr, getattr(base_settings, attr))
         for attr in dir(extended_settings):
-            if attr.startswith('_') or attr in _PYDANTIC_INTERNAL:
+            if attr.startswith("_") or attr in _PYDANTIC_INTERNAL:
                 continue
             setattr(self, attr, getattr(extended_settings, attr))
 
     def __getattr__(self, name):
-        if name.startswith('_') or name in _PYDANTIC_INTERNAL:
+        if name.startswith("_") or name in _PYDANTIC_INTERNAL:
             raise AttributeError(name)
         extended_val = getattr(extended_settings, name, None)
         if extended_val is not None:

@@ -127,9 +127,11 @@ def configure_logging(
         )
 
     # ── Inject correlation_id into every log record ─────────────────
-    logger.configure(patcher=lambda record: record["extra"].update(
-        correlation_id=correlation_id.get("")
-    ))
+    logger.configure(
+        patcher=lambda record: record["extra"].update(
+            correlation_id=correlation_id.get("")
+        )
+    )
 
     # ── File sink (optional) ──────────────────────────────────────
     if log_file:
@@ -148,6 +150,7 @@ def configure_logging(
 
     # ── Redis sink (optional) ─────────────────────────────────────
     from backend.config import settings
+
     if settings.REDIS_ENABLED and settings.REDIS_URL:
         try:
             import redis

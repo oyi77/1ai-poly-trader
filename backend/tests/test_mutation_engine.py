@@ -1,11 +1,22 @@
 from backend.domain.evolution.mutation_engine import (
-    mutate_genome, tweak_random_numeric_gene, swap_indicator,
-    shift_timeframe, reassign_risk_model, normalize
+    mutate_genome,
+    tweak_random_numeric_gene,
+    swap_indicator,
+    shift_timeframe,
+    reassign_risk_model,
+    normalize,
 )
 from backend.domain.genome.models import (
-    StrategyGenome, PerceptionChromosome, CognitionChromosome,
-    EntryLogic, EntryCondition, ExitLogic, MarketSelector,
-    ExecutionChromosome, RiskChromosome, MetaChromosome
+    StrategyGenome,
+    PerceptionChromosome,
+    CognitionChromosome,
+    EntryLogic,
+    EntryCondition,
+    ExitLogic,
+    MarketSelector,
+    ExecutionChromosome,
+    RiskChromosome,
+    MetaChromosome,
 )
 
 
@@ -24,26 +35,28 @@ def test_tweak_random_numeric_gene():
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0, weight=0.8)]
+            trigger_type="threshold_cross",
+            conditions=[
+                EntryCondition(indicator="rsi", operator=">", value=70.0, weight=0.8)
+            ],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target', profit_target_pct=0.1),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target", profit_target_pct=0.1),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome()
     meta = MetaChromosome()
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
     gene, new_value = tweak_random_numeric_gene(genome, sigma=0.1)
@@ -56,26 +69,26 @@ def test_swap_indicator():
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0)]
+            trigger_type="threshold_cross",
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target'),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target"),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome()
     meta = MetaChromosome()
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
     old, new = swap_indicator(genome, weighted_by_regime="trending")
@@ -88,26 +101,26 @@ def test_shift_timeframe():
     perception = PerceptionChromosome(timeframes=["5m", "15m"])
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0)]
+            trigger_type="threshold_cross",
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target'),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target"),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome()
     meta = MetaChromosome()
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
     old, new = shift_timeframe(genome, current_volatility=1.0)
@@ -120,31 +133,41 @@ def test_reassign_risk_model():
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0)]
+            trigger_type="threshold_cross",
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target'),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target"),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome(position_sizing_model="kelly_fraction")
     meta = MetaChromosome()
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
     old, new = reassign_risk_model(genome, drawdown_history=[0.1, 0.05])
-    assert old in ["kelly_fraction", "fixed_fraction", "volatility_targeted", "optimal_f"]
-    assert new in ["kelly_fraction", "fixed_fraction", "volatility_targeted", "optimal_f"]
+    assert old in [
+        "kelly_fraction",
+        "fixed_fraction",
+        "volatility_targeted",
+        "optimal_f",
+    ]
+    assert new in [
+        "kelly_fraction",
+        "fixed_fraction",
+        "volatility_targeted",
+        "optimal_f",
+    ]
     assert old != new
 
 
@@ -153,29 +176,29 @@ def test_mutate_genome_basic():
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0)]
+            trigger_type="threshold_cross",
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target', profit_target_pct=0.1),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target", profit_target_pct=0.1),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome()
     meta = MetaChromosome()
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
-    new_genome, mutations = mutate_genome(genome, 'neutral', 0.5)
+    new_genome, mutations = mutate_genome(genome, "neutral", 0.5)
 
     # Verify new genome properties
     assert new_genome.genome_id != genome.genome_id
@@ -190,30 +213,30 @@ def test_mutate_genome_high_fitness():
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0)]
+            trigger_type="threshold_cross",
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target'),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target"),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome()
     meta = MetaChromosome(mutation_rate=0.20)
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
     # High fitness should result in fewer mutations
-    new_genome, mutations = mutate_genome(genome, 'neutral', 0.9)
+    new_genome, mutations = mutate_genome(genome, "neutral", 0.9)
 
     assert new_genome.stage == "DRAFT"
     assert new_genome.lineage.creator == "mutation"
@@ -222,34 +245,35 @@ def test_mutate_genome_high_fitness():
 def test_mutate_genome_low_fitness():
     """Test mutation with low fitness score (higher mutation rate)."""
     import random
+
     random.seed(42)  # Fix seed for deterministic test
     perception = PerceptionChromosome()
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
-            trigger_type='threshold_cross',
-            conditions=[EntryCondition(indicator='rsi', operator='>', value=70.0)]
+            trigger_type="threshold_cross",
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
-        exit_logic=ExitLogic(trigger_type='profit_target'),
-        market_selector=MarketSelector()
+        exit_logic=ExitLogic(trigger_type="profit_target"),
+        market_selector=MarketSelector(),
     )
     execution = ExecutionChromosome()
     risk = RiskChromosome()
     meta = MetaChromosome(mutation_rate=0.10)
 
     genome = StrategyGenome(
-        strategy_name='test',
-        archetype='test',
+        strategy_name="test",
+        archetype="test",
         chromosomes={
-            'perception': perception,
-            'cognition': cognition,
-            'execution': execution,
-            'risk': risk,
-            'meta': meta
-        }
+            "perception": perception,
+            "cognition": cognition,
+            "execution": execution,
+            "risk": risk,
+            "meta": meta,
+        },
     )
 
     # Low fitness should result in more mutations
-    new_genome, mutations = mutate_genome(genome, 'neutral', 0.2)
+    new_genome, mutations = mutate_genome(genome, "neutral", 0.2)
 
     assert new_genome.stage == "DRAFT"
     assert new_genome.lineage.creator == "mutation"

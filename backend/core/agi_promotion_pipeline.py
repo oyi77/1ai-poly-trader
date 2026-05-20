@@ -3,6 +3,7 @@
 Key constraint from ADR-006: AGI-generated strategies CANNOT self-promote to live.
 Live promotion always requires manual_approval=True.
 """
+
 from datetime import datetime, timezone
 from typing import Optional
 from dataclasses import dataclass, field
@@ -70,7 +71,11 @@ class AGIPromotionPipeline:
             from_status="shadow",
             to_status="paper_eligible" if evaluation.meets_criteria else "shadow",
             success=evaluation.meets_criteria,
-            reason="Meets shadow→paper criteria" if evaluation.meets_criteria else "Does not meet criteria",
+            reason=(
+                "Meets shadow→paper criteria"
+                if evaluation.meets_criteria
+                else "Does not meet criteria"
+            ),
         )
 
     def promote_to_paper(self, experiment_id: str) -> PromotionResult:
@@ -85,7 +90,9 @@ class AGIPromotionPipeline:
         self._promotion_log.append(promotion)
         return promotion
 
-    def promote_to_live(self, experiment_id: str, manual_approval: bool = False) -> PromotionResult:
+    def promote_to_live(
+        self, experiment_id: str, manual_approval: bool = False
+    ) -> PromotionResult:
         if not manual_approval:
             return PromotionResult(
                 experiment_id=experiment_id,
@@ -100,12 +107,18 @@ class AGIPromotionPipeline:
             from_status="paper",
             to_status="live",
             success=result.promoted,
-            reason="Manually approved for live promotion" if result.promoted else result.message,
+            reason=(
+                "Manually approved for live promotion"
+                if result.promoted
+                else result.message
+            ),
         )
         self._promotion_log.append(promotion)
         return promotion
 
-    def retire_experiment(self, experiment_id: str, reason: str = "") -> PromotionResult:
+    def retire_experiment(
+        self, experiment_id: str, reason: str = ""
+    ) -> PromotionResult:
         self.runner.retire_experiment(experiment_id, reason)
         promotion = PromotionResult(
             experiment_id=experiment_id,
@@ -138,5 +151,7 @@ class AGIPromotionPipeline:
                 session.commit()
             return experiment
         except Exception:
-            logger.exception(f"AGIPromotionPipeline: failed to find experiment {experiment_id}")
+            logger.exception(
+                f"AGIPromotionPipeline: failed to find experiment {experiment_id}"
+            )
             return None

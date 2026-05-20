@@ -20,7 +20,9 @@ class DiscordProvider(BaseNotificationProvider):
             tags=["messaging", "alerts"],
         )
 
-    async def send(self, message: str, event_type: str, details: Optional[dict] = None) -> bool:
+    async def send(
+        self, message: str, event_type: str, details: Optional[dict] = None
+    ) -> bool:
         webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
         if not webhook_url:
             return False

@@ -33,20 +33,32 @@ async def get_dashboard_monitor(db: Session = Depends(_get_db)):
         strategies = []
         for cfg in configs:
             mode = (cfg.mode or "paper").lower()
-            gate_status = "live" if mode == "live" else "shadow" if mode == "shadow" else "fronttest" if cfg.enabled else "paper"
-            strategies.append({
-                "name": cfg.strategy_name,
-                "enabled": cfg.enabled,
-                "mode": mode,
-                "gate_status": gate_status,
-                "interval_seconds": cfg.interval_seconds or 60,
-            })
+            gate_status = (
+                "live"
+                if mode == "live"
+                else (
+                    "shadow"
+                    if mode == "shadow"
+                    else "fronttest" if cfg.enabled else "paper"
+                )
+            )
+            strategies.append(
+                {
+                    "name": cfg.strategy_name,
+                    "enabled": cfg.enabled,
+                    "mode": mode,
+                    "gate_status": gate_status,
+                    "interval_seconds": cfg.interval_seconds or 60,
+                }
+            )
 
         # Daily PnL by strategy
         daily_pnl_rows = (
             db.query(
                 Trade.strategy,
-                func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0).label("pnl"),
+                func.coalesce(
+                    func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0
+                ).label("pnl"),
                 func.count(Trade.id).label("trade_count"),
             )
             .filter(

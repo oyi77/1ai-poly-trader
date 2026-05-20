@@ -1,4 +1,5 @@
 """Tests for position_sizer — Kelly Criterion and position sizing."""
+
 import pytest
 
 from backend.core.risk.position_sizer import (

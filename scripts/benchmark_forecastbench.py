@@ -2,7 +2,6 @@
 
 from backend.models.database import SessionLocal, Trade
 
-
 BASELINES = {
     "human_superforecasters": 0.145,
     "gpt4o": 0.155,
@@ -30,7 +29,9 @@ def benchmark_from_trades(min_trades: int = 30):
             predictions.append((prob, outcome))
 
         if len(predictions) < min_trades:
-            print(f"Not enough settled trades ({len(predictions)}) for benchmark (min {min_trades})")
+            print(
+                f"Not enough settled trades ({len(predictions)}) for benchmark (min {min_trades})"
+            )
             return
 
         polyedge_brier = brier_score(predictions)

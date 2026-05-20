@@ -23,10 +23,10 @@ from backend.core.position_monitor import (
     SELL_SIGNAL_MIN_EDGE,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_trade(**overrides):
     """Create a mock Trade object with sensible defaults."""
@@ -45,12 +45,18 @@ def _make_trade(**overrides):
         "settled": False,
     }
     defaults.update(overrides)
-    return MagicMock(**{"get": lambda self, key, default=None: defaults.get(key, default), **defaults})
+    return MagicMock(
+        **{
+            "get": lambda self, key, default=None: defaults.get(key, default),
+            **defaults,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Profit-Take Tests
 # ---------------------------------------------------------------------------
+
 
 class TestProfitTakeTrigger:
     def test_profit_take_fires_when_prob_above_threshold(self):
@@ -121,6 +127,7 @@ class TestProfitTakeTrigger:
 # Stop-Loss Tests
 # ---------------------------------------------------------------------------
 
+
 class TestStopLossTrigger:
     def test_stop_loss_fires_on_large_drop(self):
         snapshot = OpenPositionSnapshot(
@@ -168,6 +175,7 @@ class TestStopLossTrigger:
 # ---------------------------------------------------------------------------
 # Time-Decay Tests
 # ---------------------------------------------------------------------------
+
 
 class TestTimeDecayTrigger:
     def test_time_decay_fires_near_settlement_with_marginal_edge(self):
@@ -242,6 +250,7 @@ class TestTimeDecayTrigger:
 # Routing Tests
 # ---------------------------------------------------------------------------
 
+
 class TestSellSignalRouting:
     @pytest.mark.asyncio
     async def test_sell_signals_route_through_execute_sell_signals(self):
@@ -263,7 +272,9 @@ class TestSellSignalRouting:
             ),
         ]
 
-        with patch("backend.core.strategy_executor.execute_decision", new_callable=AsyncMock) as mock_exec:
+        with patch(
+            "backend.core.strategy_executor.execute_decision", new_callable=AsyncMock
+        ) as mock_exec:
             mock_exec.return_value = {"order_id": "test-123"}
             results = await execute_sell_signals(signals)
 
@@ -292,7 +303,9 @@ class TestSellSignalRouting:
             ),
         ]
 
-        with patch("backend.core.strategy_executor.execute_decision", new_callable=AsyncMock) as mock_exec:
+        with patch(
+            "backend.core.strategy_executor.execute_decision", new_callable=AsyncMock
+        ) as mock_exec:
             results = await execute_sell_signals(signals, dry_run=True)
 
         mock_exec.assert_not_called()
@@ -303,6 +316,7 @@ class TestSellSignalRouting:
 # ---------------------------------------------------------------------------
 # SHADOW_MODE Compliance Tests
 # ---------------------------------------------------------------------------
+
 
 class TestShadowModeCompliance:
     def test_sell_signal_has_trading_mode(self):
@@ -346,7 +360,9 @@ class TestShadowModeCompliance:
             ),
         ]
 
-        with patch("backend.core.strategy_executor.execute_decision", new_callable=AsyncMock) as mock_exec:
+        with patch(
+            "backend.core.strategy_executor.execute_decision", new_callable=AsyncMock
+        ) as mock_exec:
             mock_exec.return_value = {"order_id": "test-123"}
             with patch("backend.core.position_monitor.settings") as mock_settings:
                 mock_settings.SHADOW_MODE = True
@@ -359,6 +375,7 @@ class TestShadowModeCompliance:
 # ---------------------------------------------------------------------------
 # Config Tests
 # ---------------------------------------------------------------------------
+
 
 class TestConfigSettings:
     def test_profit_take_threshold_default(self):

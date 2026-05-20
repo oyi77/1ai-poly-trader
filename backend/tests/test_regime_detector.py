@@ -1,4 +1,5 @@
 """Tests for RegimeDetector — regime classification, hysteresis, and event emission."""
+
 from unittest.mock import patch
 
 from backend.core.agi_types import MarketRegime, RegimeTransition
@@ -119,7 +120,9 @@ class TestHysteresis:
         detector = RegimeDetector(hysteresis=0.05)
         bull_result = detector.detect_regime(_bull_data())
         assert bull_result.regime == MarketRegime.BULL
-        near_bull = _sideways_data(sma_50=110.5, sma_200=110.0, atr_percentile=0.3, volume_trend=0.1)
+        near_bull = _sideways_data(
+            sma_50=110.5, sma_200=110.0, atr_percentile=0.3, volume_trend=0.1
+        )
         result = detector.detect_regime(near_bull)
         assert result.regime == MarketRegime.BULL
 

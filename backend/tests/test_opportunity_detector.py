@@ -15,10 +15,10 @@ from backend.strategies.opportunity_detector import (
     scan_for_opportunities,
 )
 
-
 # ---------------------------------------------------------------------------
 # resolve_market_odds
 # ---------------------------------------------------------------------------
+
 
 class TestResolveMarketOdds:
     def test_basic_resolution(self):
@@ -46,6 +46,7 @@ class TestResolveMarketOdds:
 # ---------------------------------------------------------------------------
 # Type 1 — Price discrepancy
 # ---------------------------------------------------------------------------
+
 
 class TestDetectPriceDiscrepancy:
     def test_discrepancy_detected(self):
@@ -89,6 +90,7 @@ class TestDetectPriceDiscrepancy:
 # Type 2 — Momentum
 # ---------------------------------------------------------------------------
 
+
 class TestDetectMomentum:
     def test_momentum_detected(self):
         """Price moved 8% in 1h -> opportunity."""
@@ -130,6 +132,7 @@ class TestDetectMomentum:
 # Type 3 — Liquidity gap
 # ---------------------------------------------------------------------------
 
+
 class TestDetectLiquidityGap:
     def test_gap_detected(self):
         """Spread=8c, volume=$5000 -> opportunity."""
@@ -162,6 +165,7 @@ class TestDetectLiquidityGap:
 # Type 4 — Event-driven (placeholder)
 # ---------------------------------------------------------------------------
 
+
 class TestDetectEventDriven:
     def test_always_returns_none(self):
         assert detect_event_driven({}) is None
@@ -172,11 +176,12 @@ class TestDetectEventDriven:
 # Type 5 — Emotional trading
 # ---------------------------------------------------------------------------
 
+
 class TestDetectEmotionalTrading:
     def test_spike_then_revert(self):
         """Price spikes 12% then reverts 60% of that move."""
         base = 0.50
-        spike = base * 1.12   # 0.56
+        spike = base * 1.12  # 0.56
         revert = spike - (spike - base) * 0.60  # 0.56 - 0.036 = 0.524
         prices = [base, spike, revert]
         timestamps = [1000.0, 1500.0, 2500.0]
@@ -209,15 +214,18 @@ class TestDetectEmotionalTrading:
 # Composite scanner
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_scan_empty_markets():
     result = await scan_for_opportunities([])
     assert result == []
 
+
 @pytest.mark.asyncio
 async def test_scan_none_markets():
     result = await scan_for_opportunities(None)
     assert result == []
+
 
 @pytest.mark.asyncio
 async def test_scan_finds_multiple_types():
@@ -236,6 +244,7 @@ async def test_scan_finds_multiple_types():
     types = {o.type for o in result}
     assert "price_discrepancy" in types
     assert "liquidity_gap" in types
+
 
 @pytest.mark.asyncio
 async def test_scan_sorted_by_expected_value():
@@ -258,6 +267,7 @@ async def test_scan_sorted_by_expected_value():
     assert len(result) >= 2
     for i in range(len(result) - 1):
         assert result[i].expected_value >= result[i + 1].expected_value
+
 
 @pytest.mark.asyncio
 async def test_scan_no_opportunities_clean_market():

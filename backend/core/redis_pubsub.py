@@ -29,6 +29,7 @@ class RedisPublisher:
         Returns:
             True if connected successfully, False otherwise
         """
+
         async def _connect():
             self.client = redis.from_url(
                 self.redis_url,
@@ -67,7 +68,9 @@ class RedisPublisher:
             channel = f"ws:{topic}"
             payload = json.dumps(message)
             await self.client.publish(channel, payload)
-            logger.debug(f"Published to Redis channel '{channel}': {len(payload)} bytes")
+            logger.debug(
+                f"Published to Redis channel '{channel}': {len(payload)} bytes"
+            )
             return True
 
         try:
@@ -108,6 +111,7 @@ class RedisSubscriber:
         Returns:
             True if connected successfully, False otherwise
         """
+
         async def _connect():
             self.client = redis.from_url(
                 self.redis_url,
@@ -130,7 +134,9 @@ class RedisSubscriber:
             self.connected = False
             return False
 
-    async def subscribe(self, topic: str, handler: Callable[[str, Dict[str, Any]], None]):
+    async def subscribe(
+        self, topic: str, handler: Callable[[str, Dict[str, Any]], None]
+    ):
         """Subscribe to a Redis channel with a message handler.
 
         Args:
@@ -184,7 +190,7 @@ class RedisSubscriber:
                     # Use get_message with timeout to allow periodic stop checks
                     message = await asyncio.wait_for(
                         self.pubsub.get_message(ignore_subscribe_messages=True),
-                        timeout=1.0
+                        timeout=1.0,
                     )
 
                     if message and message["type"] == "message":
@@ -195,7 +201,9 @@ class RedisSubscriber:
                         try:
                             payload = json.loads(data)
                         except json.JSONDecodeError as e:
-                            logger.error(f"Invalid JSON from Redis channel '{channel}': {e}")
+                            logger.error(
+                                f"Invalid JSON from Redis channel '{channel}': {e}"
+                            )
                             continue
 
                         # Call handler

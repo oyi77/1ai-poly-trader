@@ -70,7 +70,9 @@ STRATEGY_BODY: [Python code for run_cycle body, 4-space indented. Use 'ctx' for 
 
 
 class StrategyComposer:
-    async def compose_new_strategy(self, db: Optional[Session] = None) -> Optional[dict]:
+    async def compose_new_strategy(
+        self, db: Optional[Session] = None
+    ) -> Optional[dict]:
         """Analyze market data and generate a new strategy. Returns metadata dict or None."""
         _owned = db is None
         write_db = db or SessionLocal()
@@ -108,7 +110,9 @@ class StrategyComposer:
         perf_text = ""
         for name, s in strategy_perf.items():
             wr = s["wins"] / s["total"] if s["total"] > 0 else 0.0
-            perf_text += f"\n  {name}: {s['total']} trades, {wr:.0%} WR, ${s['pnl']:.2f} PnL"
+            perf_text += (
+                f"\n  {name}: {s['total']} trades, {wr:.0%} WR, ${s['pnl']:.2f} PnL"
+            )
 
         loss_patterns = []
         losses = [o for o in outcomes if o.result != "win"][-20:]
@@ -119,7 +123,19 @@ class StrategyComposer:
 
         categories = set(o.market_type for o in outcomes if o.market_type)
 
-        return MARKET_OBSERVATIONS_PROMPT.replace("{strategy_performance}", perf_text or "No data yet").replace("{market_categories}", "\n".join(f"  - {c}" for c in categories) or "crypto, politics, sports").replace("{loss_patterns}", "\n".join(loss_patterns[-10:]) or "No losses recorded yet")
+        return (
+            MARKET_OBSERVATIONS_PROMPT.replace(
+                "{strategy_performance}", perf_text or "No data yet"
+            )
+            .replace(
+                "{market_categories}",
+                "\n".join(f"  - {c}" for c in categories) or "crypto, politics, sports",
+            )
+            .replace(
+                "{loss_patterns}",
+                "\n".join(loss_patterns[-10:]) or "No losses recorded yet",
+            )
+        )
 
     async def _generate_with_claude(self, prompt: str) -> Optional[dict]:
         try:
@@ -147,14 +163,22 @@ class StrategyComposer:
 
         try:
             name = re.search(r"STRATEGY_NAME:\s*(.+)", response)
-            desc = re.search(r"DESCRIPTION:\s*(.+?)(?=\n[A-Z_]+:|$)", response, re.DOTALL)
+            desc = re.search(
+                r"DESCRIPTION:\s*(.+?)(?=\n[A-Z_]+:|$)", response, re.DOTALL
+            )
             cat = re.search(r"CATEGORY:\s*(.+)", response)
             params = re.search(r"DEFAULT_PARAMS:\s*(\{.+?\})", response, re.DOTALL)
-            filt = re.search(r"MARKET_FILTER:\s*(.+?)(?=\n[A-Z_]+:|$)", response, re.DOTALL)
-            body = re.search(r"STRATEGY_BODY:\s*(.+?)(?=\n[A-Z_]+:|$)", response, re.DOTALL)
+            filt = re.search(
+                r"MARKET_FILTER:\s*(.+?)(?=\n[A-Z_]+:|$)", response, re.DOTALL
+            )
+            body = re.search(
+                r"STRATEGY_BODY:\s*(.+?)(?=\n[A-Z_]+:|$)", response, re.DOTALL
+            )
 
             if not all([name, desc, cat, params, filt, body]):
-                logger.warning("[StrategyComposer] Failed to parse all fields from response")
+                logger.warning(
+                    "[StrategyComposer] Failed to parse all fields from response"
+                )
                 return None
 
             strategy_name = name.group(1).strip()
@@ -175,8 +199,13 @@ class StrategyComposer:
             code = code.replace("__STRATEGY_NAME__", strategy_name)
             code = code.replace("__DEFAULT_PARAMS__", repr(default_params))
             code = code.replace("__MARKET_FILTER__", market_filter)
-            code = code.replace("__MERGE_PARAMS__", "{**self.default_params, **(ctx.params or {})}")
-            code = code.replace("__STRATEGY_BODY__", textwrap.indent(body.group(1).strip(), "            "))
+            code = code.replace(
+                "__MERGE_PARAMS__", "{**self.default_params, **(ctx.params or {})}"
+            )
+            code = code.replace(
+                "__STRATEGY_BODY__",
+                textwrap.indent(body.group(1).strip(), "            "),
+            )
 
             return {
                 "strategy_name": strategy_name,
@@ -202,6 +231,7 @@ class StrategyComposer:
 
         # E-05: Validate LLM-generated code through SandboxValidator before writing to disk
         from backend.agi.sandbox.sandbox_validator import SandboxValidator
+
         validator = SandboxValidator()
         validation_result = validator.validate(code)
         if not validation_result.passed:
@@ -211,19 +241,29 @@ class StrategyComposer:
             )
             return None
 
-        existing = db.query(StrategyConfig).filter(
-            StrategyConfig.strategy_name == strategy_name
-        ).first()
+        existing = (
+            db.query(StrategyConfig)
+            .filter(StrategyConfig.strategy_name == strategy_name)
+            .first()
+        )
         if existing:
-            logger.info("[StrategyComposer] Strategy '%s' already exists, skipping", strategy_name)
+            logger.info(
+                "[StrategyComposer] Strategy '%s' already exists, skipping",
+                strategy_name,
+            )
             return None
 
         from backend.strategies.registry import STRATEGY_REGISTRY
+
         if strategy_name in STRATEGY_REGISTRY:
-            logger.info("[StrategyComposer] Strategy '%s' already registered", strategy_name)
+            logger.info(
+                "[StrategyComposer] Strategy '%s' already registered", strategy_name
+            )
             return None
 
-        strategies_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "strategies")
+        strategies_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "strategies"
+        )
         filepath = os.path.join(strategies_dir, f"{strategy_name}.py")
 
         if os.path.exists(filepath):
@@ -237,11 +277,13 @@ class StrategyComposer:
         try:
             import asyncio as _asyncio
             from backend.agi.sandbox.sandbox_manager import SandboxManager
+
             sandbox = SandboxManager()
             try:
                 _asyncio.get_running_loop()
                 # Already in async context — use thread pool to avoid deadlock
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     sandbox_result = pool.submit(
                         _asyncio.run, sandbox.execute_code(code)
@@ -258,7 +300,10 @@ class StrategyComposer:
                 os.remove(filepath)
                 return None
         except Exception as sandbox_err:
-            logger.error("[StrategyComposer] Sandbox execution error: %s, removing file", sandbox_err)
+            logger.error(
+                "[StrategyComposer] Sandbox execution error: %s, removing file",
+                sandbox_err,
+            )
             os.remove(filepath)
             return None
 
@@ -275,23 +320,29 @@ class StrategyComposer:
             return None
 
         if strategy_name not in STRATEGY_REGISTRY:
-            logger.error("[StrategyComposer] Strategy did not auto-register, removing file")
+            logger.error(
+                "[StrategyComposer] Strategy did not auto-register, removing file"
+            )
             os.remove(filepath)
             return None
 
         import json
-        db.add(StrategyConfig(
-            strategy_name=strategy_name,
-            enabled=True,
-            interval_seconds=300,
-            mode="shadow",
-            params=json.dumps(strategy["default_params"]),
-        ))
+
+        db.add(
+            StrategyConfig(
+                strategy_name=strategy_name,
+                enabled=True,
+                interval_seconds=300,
+                mode="shadow",
+                params=json.dumps(strategy["default_params"]),
+            )
+        )
         db.commit()
 
         logger.info(
             "[StrategyComposer] Created & registered '%s' in SHADOW mode at %s",
-            strategy_name, filepath,
+            strategy_name,
+            filepath,
         )
 
         return {

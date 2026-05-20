@@ -3,6 +3,7 @@
 Tracks trades in a dedicated SQLite table and provides rolling stats
 per asset, per hour-of-day, per price bucket, and edge-decay detection.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -11,7 +12,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
-
 
 _DB_PATH = Path("data/crypto_oracle_performance.db")
 _LOCK = threading.Lock()
@@ -40,6 +40,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 @dataclass
 class AssetStats:
     """Rolling statistics for a single asset."""
+
     win_rate: float
     avg_pnl: float
     trade_count: int
@@ -81,7 +82,11 @@ class CryptoOracleTracker:
         """Record a completed trade."""
         conn = self._ensure_conn()
         now = datetime.now(timezone.utc).isoformat()
-        wt = window_time.isoformat() if isinstance(window_time, datetime) else str(window_time)
+        wt = (
+            window_time.isoformat()
+            if isinstance(window_time, datetime)
+            else str(window_time)
+        )
         with _LOCK:
             conn.execute(
                 _INSERT_SQL,
@@ -147,7 +152,10 @@ class CryptoOracleTracker:
             ).fetchall()
 
         buckets: Dict[str, list[str]] = {
-            "40-45c": [], "45-50c": [], "50-55c": [], "55-60c": [],
+            "40-45c": [],
+            "45-50c": [],
+            "50-55c": [],
+            "55-60c": [],
         }
         for mid, result in rows:
             if 0.40 <= mid < 0.45:

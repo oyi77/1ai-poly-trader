@@ -9,8 +9,8 @@ Create Date: 2026-05-04
 from alembic import op
 import sqlalchemy as sa
 
-revision = '20260504_add_strategy_fk_constraints'
-down_revision = '20260504_data_cleanup_for_constraints'
+revision = "20260504_add_strategy_fk_constraints"
+down_revision = "20260504_data_cleanup_for_constraints"
 branch_labels = None
 depends_on = None
 
@@ -26,7 +26,12 @@ FK_CONSTRAINTS = [
     ("proposal_feedback", "strategy", "fk_proposal_feedback_strategy", "CASCADE"),
     ("evolution_lineage", "strategy_name", "fk_evolution_lineage_strategy", "CASCADE"),
     ("meta_learning", "strategy", "fk_meta_learning_strategy", "CASCADE"),
-    ("blocked_signal_counterfactual", "strategy", "fk_blocked_signal_strategy", "CASCADE"),
+    (
+        "blocked_signal_counterfactual",
+        "strategy",
+        "fk_blocked_signal_strategy",
+        "CASCADE",
+    ),
     ("activity_log", "strategy_name", "fk_activity_log_strategy", "SET NULL"),
     ("strategy_proposal", "strategy_name", "fk_strategy_proposal_strategy", "CASCADE"),
     ("calibration_records", "strategy", "fk_calibration_records_strategy", "CASCADE"),
@@ -38,9 +43,15 @@ def upgrade() -> None:
     conn = op.get_bind()
     conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
 
-    for name in conn.execute(sa.text(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp%'"
-    )).scalars().all():
+    for name in (
+        conn.execute(
+            sa.text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp%'"
+            )
+        )
+        .scalars()
+        .all()
+    ):
         conn.execute(sa.text(f'DROP TABLE IF EXISTS "{name}"'))
 
     insp = sa.inspect(conn)
@@ -53,9 +64,9 @@ def upgrade() -> None:
             try:
                 batch_op.create_foreign_key(
                     constraint_name,
-                    referent_table='strategy_config',
+                    referent_table="strategy_config",
                     local_cols=[column],
-                    remote_cols=['strategy_name'],
+                    remote_cols=["strategy_name"],
                     ondelete=on_delete,
                 )
             except Exception as e:
@@ -68,6 +79,6 @@ def downgrade() -> None:
     for table, column, constraint_name, on_delete in reversed(FK_CONSTRAINTS):
         with op.batch_alter_table(table, schema=None) as batch_op:
             try:
-                batch_op.drop_constraint(constraint_name, type_='foreignkey')
+                batch_op.drop_constraint(constraint_name, type_="foreignkey")
             except Exception as e:
                 print(f"Drop FK {constraint_name}: {e}")

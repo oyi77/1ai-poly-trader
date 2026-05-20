@@ -3,12 +3,15 @@
 Script to create historical test data for backtesting verification.
 Creates simulated settled trades with realistic outcomes.
 """
+
 import sys
-sys.path.insert(0, '.')
+
+sys.path.insert(0, ".")
 
 from datetime import datetime, timedelta
 from backend.models.database import SessionLocal, Trade, Signal
 import random
+
 
 def create_historical_test_data():
     """Create historical signals and settled trades for testing."""
@@ -20,7 +23,7 @@ def create_historical_test_data():
     base_time = datetime.now() - timedelta(days=7)
 
     for i in range(20):
-        signal_time = base_time + timedelta(hours=i*8)
+        signal_time = base_time + timedelta(hours=i * 8)
 
         # Create signal
         signal = Signal(
@@ -37,7 +40,7 @@ def create_historical_test_data():
             timestamp=signal_time,
             executed=True,
             actual_outcome="up" if i % 2 == 0 else "down",
-            outcome_correct=True
+            outcome_correct=True,
         )
         session.add(signal)
 
@@ -55,7 +58,7 @@ def create_historical_test_data():
             pnl=5.0 if win else -5.0,  # $5 win or $5 loss
             strategy="test_strategy",
             signal_source="backtest_test",
-            confidence=0.7
+            confidence=0.7,
         )
         session.add(trade)
 
@@ -69,6 +72,7 @@ def create_historical_test_data():
     print(f"Settled trades in DB: {trade_count}")
 
     session.close()
+
 
 if __name__ == "__main__":
     create_historical_test_data()

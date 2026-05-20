@@ -1,4 +1,5 @@
 """Generic plugin registry base classes and utilities."""
+
 import asyncio
 import importlib
 import logging
@@ -17,6 +18,7 @@ T_Plugin = TypeVar("T_Plugin")
 @dataclass
 class BaseManifest:
     """Base manifest dataclass for all plugin types."""
+
     name: str = ""
     version: str = "1.0.0"
     required_env_vars: List[str] = field(default_factory=list)
@@ -70,11 +72,10 @@ class PluginRegistry(Generic[T_Manifest, T_Plugin]):
 
         # Check required env vars
         from backend.core.plugin_errors import PluginEnvVarMissing
+
         missing = [v for v in manifest.required_env_vars if not os.environ.get(v)]
         if missing:
-            raise PluginEnvVarMissing(
-                f"Plugin '{name}' requires env vars: {missing}"
-            )
+            raise PluginEnvVarMissing(f"Plugin '{name}' requires env vars: {missing}")
 
         # Instantiate and store
         try:
@@ -90,6 +91,7 @@ class PluginRegistry(Generic[T_Manifest, T_Plugin]):
     def get(self, name: str) -> T_Plugin:
         """Get a plugin by name. Raises PluginNotFound if missing or disabled."""
         from backend.core.plugin_errors import PluginNotFound
+
         if name not in self._plugins:
             raise PluginNotFound(f"Plugin '{name}' not found in {self.name}")
         if not self._enabled.get(name, False):
@@ -110,6 +112,7 @@ class PluginRegistry(Generic[T_Manifest, T_Plugin]):
         """Enable or disable a plugin at runtime."""
         if name not in self._plugins:
             from backend.core.plugin_errors import PluginNotFound
+
             raise PluginNotFound(f"Plugin '{name}' not found")
         self._enabled[name] = enabled
         logger.info(f"Plugin '{name}' {'enabled' if enabled else 'disabled'}")

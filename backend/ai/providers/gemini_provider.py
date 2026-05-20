@@ -18,15 +18,21 @@ class GeminiProvider(BaseAIProvider):
             tags=["google", "mid-tier"],
         )
 
-    async def complete(self, prompt, system=None, max_tokens=1000, temperature=0.7, **kwargs):
+    async def complete(
+        self, prompt, system=None, max_tokens=1000, temperature=0.7, **kwargs
+    ):
         import httpx
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
                 params={"key": kwargs.get("api_key", "")},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": max_tokens,
+                    },
                 },
             )
             response.raise_for_status()

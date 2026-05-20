@@ -1,4 +1,5 @@
 """Integrate Becker prediction market dataset (Parquet) for backtesting."""
+
 import argparse
 import sqlite3
 import sys
@@ -50,7 +51,9 @@ def integrate(data_path: str, db_path: str = "tradingbot.db"):
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_hm_slug ON historical_markets(slug)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_ht_slug ON historical_trades(market_slug)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ht_slug ON historical_trades(market_slug)"
+    )
 
     total_rows = 0
     for pf in parquet_files:
@@ -82,7 +85,9 @@ def integrate(data_path: str, db_path: str = "tradingbot.db"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Integrate Becker dataset")
-    parser.add_argument("--data-path", required=True, help="Path to extracted Becker data")
+    parser.add_argument(
+        "--data-path", required=True, help="Path to extracted Becker data"
+    )
     parser.add_argument("--db-path", default="tradingbot.db")
     args = parser.parse_args()
     integrate(args.data_path, args.db_path)

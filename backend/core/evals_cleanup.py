@@ -2,6 +2,7 @@
 
 Removes eval report files older than EVALS_REPORT_MAX_AGE_DAYS (default 30).
 """
+
 import time
 from pathlib import Path
 
@@ -31,6 +32,8 @@ def evals_cleanup_job() -> None:
                 except OSError as e:
                     logger.debug(f"[evals_cleanup] Failed to remove {f.name}: {e}")
         if removed > 0:
-            logger.info(f"[evals_cleanup] Removed {removed} reports older than {max_age_days}d")
+            logger.info(
+                f"[evals_cleanup] Removed {removed} reports older than {max_age_days}d"
+            )
     except Exception as e:
         logger.opt(exception=True).error(f"[evals_cleanup] Job failed: {e}")

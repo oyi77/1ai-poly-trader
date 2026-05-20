@@ -3,6 +3,7 @@ Tests for Redis cache with circuit-breaker fallback.
 
 RQ-014: Redis cache with circuit-breaker fallback to SQLite
 """
+
 import os
 import tempfile
 import time
@@ -12,10 +13,10 @@ import pytest
 from backend.cache.redis_cache import CircuitBreaker, RedisCache
 from backend.job_queue.sqlite_cache import SQLiteCache
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_sqlite_cache(tmp_path=None) -> SQLiteCache:
     """Create a SQLiteCache backed by a temp file."""
@@ -30,6 +31,7 @@ def _make_sqlite_cache(tmp_path=None) -> SQLiteCache:
 def _redis_available() -> bool:
     """Return True if a local Redis server is reachable on 127.0.0.1:6379."""
     import socket
+
     try:
         s = socket.create_connection(("127.0.0.1", 6379), timeout=0.3)
         s.close()
@@ -41,6 +43,7 @@ def _redis_available() -> bool:
 # ---------------------------------------------------------------------------
 # CircuitBreaker tests (no Redis needed)
 # ---------------------------------------------------------------------------
+
 
 class TestCircuitBreaker:
     def test_starts_closed(self):
@@ -85,6 +88,7 @@ class TestCircuitBreaker:
 # SQLiteCache tests
 # ---------------------------------------------------------------------------
 
+
 class TestSQLiteCache:
     def test_set_and_get(self, tmp_path):
         cache = _make_sqlite_cache(tmp_path)
@@ -127,6 +131,7 @@ class TestSQLiteCache:
 # ---------------------------------------------------------------------------
 # RedisCache fallback test (no live Redis required)
 # ---------------------------------------------------------------------------
+
 
 class TestRedisCacheFallback:
     def test_redis_cache_falls_back_on_failure(self, tmp_path):
@@ -192,7 +197,10 @@ class TestRedisCacheFallback:
 # Live Redis tests (skipped if no server available)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skipif(not _redis_available(), reason="No live Redis server on 127.0.0.1:6379")
+
+@pytest.mark.skipif(
+    not _redis_available(), reason="No live Redis server on 127.0.0.1:6379"
+)
 class TestRedisCacheLive:
     def test_live_set_and_get(self, tmp_path):
         fallback = _make_sqlite_cache(tmp_path)

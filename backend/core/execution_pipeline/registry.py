@@ -3,6 +3,7 @@
 This module provides the ExecutionPipelineRegistry singleton that manages
 execution pipeline stages following the PluginRegistry pattern.
 """
+
 from typing import List, Optional
 
 from loguru import logger
@@ -15,7 +16,9 @@ from backend.core.plugin_registry import PluginRegistry
 from .base import BaseExecutionStage, ExecutionStageManifest
 
 
-class ExecutionPipelineRegistry(PluginRegistry[ExecutionStageManifest, BaseExecutionStage]):
+class ExecutionPipelineRegistry(
+    PluginRegistry[ExecutionStageManifest, BaseExecutionStage]
+):
     """Singleton registry for execution pipeline stages.
 
     Manages stages that validate, simulate, execute, record, and notify
@@ -102,7 +105,9 @@ class ExecutionPipelineRegistry(PluginRegistry[ExecutionStageManifest, BaseExecu
 
     def _get_stages_by_order(self) -> List[BaseExecutionStage]:
         """Get all enabled stages sorted by manifest.order."""
-        enabled = [(n, s) for n, s in self._plugins.items() if self._enabled.get(n, False)]
+        enabled = [
+            (n, s) for n, s in self._plugins.items() if self._enabled.get(n, False)
+        ]
         enabled.sort(key=lambda x: self._manifests[x[0]].order)
         return [s for _, s in enabled]
 

@@ -11,11 +11,11 @@ Revises: 1badad08bfb2
 Create Date: 2026-05-10 20:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
 
 revision: str = "9a8b7c6d5e4f"
 down_revision: Union[str, Sequence[str], None] = "1badad08bfb2"
@@ -27,13 +27,29 @@ def upgrade() -> None:
     # genome_registry: denormalized fitness columns + composite indexes
     with op.batch_alter_table("genome_registry") as batch_op:
         batch_op.add_column(sa.Column("fitness_score", sa.Float(), nullable=True))
-        batch_op.add_column(sa.Column("fitness_updated_at", sa.DateTime(), nullable=True))
-        batch_op.add_column(sa.Column("total_pnl", sa.Float(), nullable=True, server_default="0.0"))
-        batch_op.add_column(sa.Column("win_rate", sa.Float(), nullable=True, server_default="0.0"))
-        batch_op.add_column(sa.Column("sharpe_ratio", sa.Float(), nullable=True, server_default="0.0"))
-        batch_op.add_column(sa.Column("max_drawdown_pct", sa.Float(), nullable=True, server_default="0.0"))
-        batch_op.add_column(sa.Column("trade_count", sa.Integer(), nullable=True, server_default="0"))
-        batch_op.add_column(sa.Column("last_evaluated_at", sa.DateTime(), nullable=True))
+        batch_op.add_column(
+            sa.Column("fitness_updated_at", sa.DateTime(), nullable=True)
+        )
+        batch_op.add_column(
+            sa.Column("total_pnl", sa.Float(), nullable=True, server_default="0.0")
+        )
+        batch_op.add_column(
+            sa.Column("win_rate", sa.Float(), nullable=True, server_default="0.0")
+        )
+        batch_op.add_column(
+            sa.Column("sharpe_ratio", sa.Float(), nullable=True, server_default="0.0")
+        )
+        batch_op.add_column(
+            sa.Column(
+                "max_drawdown_pct", sa.Float(), nullable=True, server_default="0.0"
+            )
+        )
+        batch_op.add_column(
+            sa.Column("trade_count", sa.Integer(), nullable=True, server_default="0")
+        )
+        batch_op.add_column(
+            sa.Column("last_evaluated_at", sa.DateTime(), nullable=True)
+        )
         batch_op.create_index("idx_genome_stage_score", ["stage", "fitness_score"])
         batch_op.create_index("idx_genome_stage_winrate", ["stage", "win_rate"])
         batch_op.create_index("idx_genome_archetype_stage", ["archetype", "stage"])

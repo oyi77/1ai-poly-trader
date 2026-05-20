@@ -32,6 +32,7 @@ class NotificationRegistry:
     def reset(cls) -> None:
         """E-97: Thread-safe singleton reset — acquire lock before clearing state."""
         import threading
+
         with threading.Lock():
             if cls._instance is not None:
                 cls._instance._plugins.clear()
@@ -52,7 +53,9 @@ class NotificationRegistry:
         if not os.environ.get("SHADOW_MODE") and name != "webhook":
             missing = [v for v in manifest.required_env_vars if not os.environ.get(v)]
             if missing:
-                raise PluginEnvVarMissing(f"Notification plugin '{name}' requires env vars: {missing}")
+                raise PluginEnvVarMissing(
+                    f"Notification plugin '{name}' requires env vars: {missing}"
+                )
 
         try:
             instance = plugin_class()
@@ -86,7 +89,9 @@ class NotificationRegistry:
     def is_enabled(self, name: str) -> bool:
         return self._enabled.get(name, False)
 
-    async def broadcast(self, event_type: str, message: str, details: Optional[dict] = None) -> None:
+    async def broadcast(
+        self, event_type: str, message: str, details: Optional[dict] = None
+    ) -> None:
         for name in self.get_enabled():
             try:
                 provider = self._plugins[name]
@@ -94,7 +99,13 @@ class NotificationRegistry:
             except Exception as e:
                 logger.error(f"Failed to send notification via '{name}': {e}")
 
-    async def send_to(self, channel_name: str, event_type: str, message: str, details: Optional[dict] = None) -> bool:
+    async def send_to(
+        self,
+        channel_name: str,
+        event_type: str,
+        message: str,
+        details: Optional[dict] = None,
+    ) -> bool:
         if channel_name not in self._plugins:
             logger.error(f"Notification provider '{channel_name}' not found")
             return False
@@ -123,7 +134,9 @@ class NotificationRegistry:
                 results[name] = False
         return results
 
-    async def auto_discover(self, package_path: str = "backend.bot.notification.providers") -> None:
+    async def auto_discover(
+        self, package_path: str = "backend.bot.notification.providers"
+    ) -> None:
         package = importlib.import_module(package_path)
         for _, name, _ in pkgutil.iter_modules(package.__path__):
             try:

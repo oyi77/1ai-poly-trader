@@ -5,6 +5,7 @@ Analyses a LiveOrderBook to extract support/resistance levels,
 detect large (iceberg) orders, and emit warnings about thin liquidity
 or wide spreads.
 """
+
 from dataclasses import dataclass, field
 
 from backend.data.orderbook_ws import LiveOrderBook
@@ -20,7 +21,7 @@ class OrderBookAnalysis:
     bid_depth: float
     ask_depth: float
     imbalance: float  # -1 to 1 (positive = more bids)
-    support_levels: list = field(default_factory=list)    # significant bid prices
+    support_levels: list = field(default_factory=list)  # significant bid prices
     resistance_levels: list = field(default_factory=list)  # significant ask prices
     large_bids: list = field(default_factory=list)  # [{price, size}] iceberg detection
     large_asks: list = field(default_factory=list)

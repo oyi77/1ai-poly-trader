@@ -9,7 +9,6 @@ from sqlalchemy.orm import sessionmaker
 from backend.models.database import Base, ProviderCredential
 from backend.core.provider_config_store import ProviderConfigStore
 
-
 # ────────────────────────────────────── Fixtures ─────────────────────────────
 
 
@@ -22,7 +21,9 @@ def store() -> ProviderConfigStore:
 @pytest.fixture()
 def in_memory_db():
     """In-memory SQLite DB with the provider_credentials table."""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
@@ -33,7 +34,9 @@ def in_memory_db():
 @pytest.fixture()
 def empty_db():
     """In-memory SQLite DB WITHOUT provider_credentials table — simulates pre-migration."""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
     # Do NOT create tables — simulates state before alembic migration runs
     Session = sessionmaker(bind=engine)
     db = Session()
@@ -70,7 +73,9 @@ class TestProviderConfigStoreDB:
     """Test DB read/write operations."""
 
     def test_upsert_and_get(self, store, in_memory_db):
-        store.upsert(in_memory_db, "limitless", "api_url", "https://api.limitless.exchange")
+        store.upsert(
+            in_memory_db, "limitless", "api_url", "https://api.limitless.exchange"
+        )
         result = store.get("limitless", "api_url", "", db=in_memory_db)
         assert result == "https://api.limitless.exchange"
 
@@ -95,7 +100,9 @@ class TestProviderConfigStoreDB:
         assert result == "https://db.example.com"
 
     def test_delete_single_key(self, store, in_memory_db):
-        store.upsert(in_memory_db, "limitless", "api_url", "https://api.limitless.exchange")
+        store.upsert(
+            in_memory_db, "limitless", "api_url", "https://api.limitless.exchange"
+        )
         store.upsert(in_memory_db, "limitless", "wallet_address", "0xABC")
         n = store.delete(in_memory_db, "limitless", "wallet_address")
         assert n == 1
@@ -107,7 +114,11 @@ class TestProviderConfigStoreDB:
         store.upsert(in_memory_db, "sxbet", "wallet_address", "0xDEF")
         n = store.delete(in_memory_db, "sxbet")
         assert n == 2
-        rows = in_memory_db.query(ProviderCredential).filter_by(provider_name="sxbet").all()
+        rows = (
+            in_memory_db.query(ProviderCredential)
+            .filter_by(provider_name="sxbet")
+            .all()
+        )
         assert rows == []
 
     def test_secret_stored_encrypted(self, store, in_memory_db, monkeypatch):
@@ -117,7 +128,9 @@ class TestProviderConfigStoreDB:
         key = Fernet.generate_key().decode()
         monkeypatch.setenv("WALLET_FERNET_KEY", key)
 
-        store.upsert(in_memory_db, "sxbet", "private_key", "0xSECRET123", is_secret=True)
+        store.upsert(
+            in_memory_db, "sxbet", "private_key", "0xSECRET123", is_secret=True
+        )
 
         # Confirm raw DB value is encrypted (not the original secret)
         raw_row = (
@@ -132,11 +145,15 @@ class TestProviderConfigStoreDB:
         decrypted = store.get("sxbet", "private_key", "", db=in_memory_db)
         assert decrypted == "0xSECRET123"
 
-    def test_upsert_secret_raises_without_fernet_key(self, store, in_memory_db, monkeypatch):
+    def test_upsert_secret_raises_without_fernet_key(
+        self, store, in_memory_db, monkeypatch
+    ):
         """Trying to store a secret without WALLET_FERNET_KEY must raise ValueError."""
         monkeypatch.delenv("WALLET_FERNET_KEY", raising=False)
         with pytest.raises(ValueError, match="WALLET_FERNET_KEY"):
-            store.upsert(in_memory_db, "sxbet", "private_key", "0xSECRET", is_secret=True)
+            store.upsert(
+                in_memory_db, "sxbet", "private_key", "0xSECRET", is_secret=True
+            )
 
 
 class TestProviderInstantiation:
@@ -173,6 +190,4 @@ class TestProviderInstantiation:
 
         p = SXBetProvider()
         with pytest.raises(RuntimeError, match="does not support order placement"):
-            asyncio.run(
-                p.place_order("0xMARKET", "BUY", 10.0, 0.5, private_key="")
-            )
+            asyncio.run(p.place_order("0xMARKET", "BUY", 10.0, 0.5, private_key=""))

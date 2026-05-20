@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from backend.models.database import SessionLocal, StrategyProposal
 
 from loguru import logger
+
+
 def generate_forensics_proposals(
     lookback_hours: int = 168,
     min_losses: int = 5,
@@ -31,7 +33,9 @@ def generate_forensics_proposals(
             StrategyOutcome.settled_at >= since,
         )
         if strategy_filter:
-            outcome_query = outcome_query.filter(StrategyOutcome.strategy == strategy_filter)
+            outcome_query = outcome_query.filter(
+                StrategyOutcome.strategy == strategy_filter
+            )
         outcomes = outcome_query.all()
 
         by_strategy: dict[str, list] = {}
@@ -43,23 +47,27 @@ def generate_forensics_proposals(
                 continue
 
             total_loss = sum(abs(o.pnl or 0.0) for o in losses)
-            existing = db.query(StrategyProposal).filter(
-                StrategyProposal.strategy_name == strategy_name,
-                StrategyProposal.status == "pending",
-            ).first()
+            existing = (
+                db.query(StrategyProposal)
+                .filter(
+                    StrategyProposal.strategy_name == strategy_name,
+                    StrategyProposal.status == "pending",
+                )
+                .first()
+            )
             if existing:
                 continue
 
-            all_outcomes = db.query(StrategyOutcome).filter(
-                StrategyOutcome.strategy == strategy_name
-            ).all()
+            all_outcomes = (
+                db.query(StrategyOutcome)
+                .filter(StrategyOutcome.strategy == strategy_name)
+                .all()
+            )
             total_trades = len(all_outcomes)
             wins = sum(1 for o in all_outcomes if o.result == "win")
             win_rate = wins / total_trades if total_trades > 0 else 0.0
 
-            fundamentally_broken = (
-                total_trades >= 30 and win_rate == 0.0
-            )
+            fundamentally_broken = total_trades >= 30 and win_rate == 0.0
 
             # Strategies with any win rate (including 0%) are eligible for a new
             # experiment. Fundamentally broken strategies get a full parameter
@@ -136,10 +144,17 @@ def generate_forensics_proposals(
                     logger.info(
                         "[ForensicsIntegration] Auto-created DRAFT experiment for '%s' "
                         "(wr=%.1f%%, %d trades, overhaul=%s)",
-                        strategy_name, win_rate * 100, total_trades, overhaul_needed,
+                        strategy_name,
+                        win_rate * 100,
+                        total_trades,
+                        overhaul_needed,
                     )
                 except Exception as exp_err:
-                    logger.warning("[ForensicsIntegration] Experiment creation failed for '%s': %s", strategy_name, exp_err)
+                    logger.warning(
+                        "[ForensicsIntegration] Experiment creation failed for '%s': %s",
+                        strategy_name,
+                        exp_err,
+                    )
 
         if created_ids:
             db.commit()
@@ -154,7 +169,9 @@ def generate_forensics_proposals(
             try:
                 db.rollback()
             except Exception:
-                logger.exception("[ForensicsIntegration] Rollback failed after forensics error")
+                logger.exception(
+                    "[ForensicsIntegration] Rollback failed after forensics error"
+                )
         return created_ids
     finally:
         if _owned:
@@ -169,6 +186,7 @@ def _has_active_experiment(strategy_name: str, db: Session) -> bool:
     """
     from backend.models.kg_models import ExperimentRecord
     from backend.core.agi_types import ExperimentStatus
+
     # Only block if there is an experiment actively running through the pipeline
     active = [
         ExperimentStatus.DRAFT.value,
@@ -181,7 +199,10 @@ def _has_active_experiment(strategy_name: str, db: Session) -> bool:
     ]
     return (
         db.query(ExperimentRecord)
-        .filter(ExperimentRecord.strategy_name == strategy_name, ExperimentRecord.status.in_(active))
+        .filter(
+            ExperimentRecord.strategy_name == strategy_name,
+            ExperimentRecord.status.in_(active),
+        )
         .first()
         is not None
     )

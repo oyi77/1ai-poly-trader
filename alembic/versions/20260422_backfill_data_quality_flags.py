@@ -10,17 +10,15 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '20260422_backfill_data_quality_flags'
-down_revision = '20260315_task2_add_outcome_tables'
+revision = "20260422_backfill_data_quality_flags"
+down_revision = "20260315_task2_add_outcome_tables"
 branch_labels = None
 depends_on = None
 
+
 def upgrade():
-    op.add_column('trades', sa.Column(
-        'data_quality_flags',
-        sa.Text(),
-        nullable=True
-    ))
+    op.add_column("trades", sa.Column("data_quality_flags", sa.Text(), nullable=True))
+
 
 def downgrade():
-    op.drop_column('trades', 'data_quality_flags')
+    op.drop_column("trades", "data_quality_flags")

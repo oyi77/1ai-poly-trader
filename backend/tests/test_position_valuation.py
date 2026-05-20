@@ -26,7 +26,6 @@ from sqlalchemy.pool import StaticPool
 from backend.models.database import Base, Trade
 from backend.core.position_valuation import calculate_position_market_value
 
-
 # ---------------------------------------------------------------------------
 # In-memory SQLite fixture (per-test isolation)
 # ---------------------------------------------------------------------------
@@ -36,6 +35,7 @@ from backend.core.position_valuation import calculate_position_market_value
 def test_db():
     """Provide a fresh in-memory SQLite session for each test."""
     from backend.core import position_valuation
+
     position_valuation._ticker_price_cache.clear()
     position_valuation._ticker_price_cache_timestamps.clear()
 
@@ -203,9 +203,13 @@ async def test_cache_miss_different_ticker(test_db, mock_http_client):
         response.status_code = 200
         response.raise_for_status = MagicMock()
         if "BTC_UP_5M" in url:
-            response.json = MagicMock(return_value=[{"yes_price": 0.65, "no_price": 0.35}])
+            response.json = MagicMock(
+                return_value=[{"yes_price": 0.65, "no_price": 0.35}]
+            )
         elif "ETH_UP_1H" in url:
-            response.json = MagicMock(return_value=[{"yes_price": 0.55, "no_price": 0.45}])
+            response.json = MagicMock(
+                return_value=[{"yes_price": 0.55, "no_price": 0.45}]
+            )
         return response
 
     mock_http_client.get = AsyncMock(side_effect=mock_get)
@@ -214,7 +218,9 @@ async def test_cache_miss_different_ticker(test_db, mock_http_client):
 
     # Both tickers should be fetched
     assert result["telemetry"]["prices_fetched"] >= 1
-    total_prices = result["telemetry"]["prices_fetched"] + result["telemetry"]["prices_cached"]
+    total_prices = (
+        result["telemetry"]["prices_fetched"] + result["telemetry"]["prices_cached"]
+    )
     assert total_prices == 2
 
 
@@ -493,9 +499,13 @@ async def test_up_and_down_mixed_positions(test_db, mock_http_client):
         response.status_code = 200
         response.raise_for_status = MagicMock()
         if "BTC_UP_5M" in url:
-            response.json = MagicMock(return_value=[{"yes_price": 0.65, "no_price": 0.35}])
+            response.json = MagicMock(
+                return_value=[{"yes_price": 0.65, "no_price": 0.35}]
+            )
         elif "BTC_DOWN_5M" in url:
-            response.json = MagicMock(return_value=[{"yes_price": 0.65, "no_price": 0.35}])
+            response.json = MagicMock(
+                return_value=[{"yes_price": 0.65, "no_price": 0.35}]
+            )
         return response
 
     mock_http_client.get = AsyncMock(side_effect=mock_get)

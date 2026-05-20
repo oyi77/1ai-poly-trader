@@ -9,6 +9,8 @@ from typing import List
 from backend.ai.base import get_ai_client
 
 from loguru import logger
+
+
 @dataclass
 class SentimentResult:
     score: float  # -1.0 (very negative) .. 1.0 (very positive)
@@ -56,8 +58,10 @@ class SentimentAnalyzer:
             *[self.analyze(t) for t in texts], return_exceptions=True
         )
         return [
-            r
-            if isinstance(r, SentimentResult)
-            else SentimentResult(0.0, "neutral", 0.0)
+            (
+                r
+                if isinstance(r, SentimentResult)
+                else SentimentResult(0.0, "neutral", 0.0)
+            )
             for r in results
         ]

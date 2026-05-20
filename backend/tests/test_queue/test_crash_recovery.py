@@ -4,6 +4,7 @@ Tests for crash recovery via on-disk SQLite — RQ-010.
 Simulates a process restart by creating two separate AsyncSQLiteQueue instances
 that share the same on-disk database file.
 """
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -11,10 +12,10 @@ from sqlalchemy.orm import sessionmaker
 from backend.models.database import Base, JobQueue
 from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 
-
 # ---------------------------------------------------------------------------
 # Helper: build an engine + session factory for a given file path
 # ---------------------------------------------------------------------------
+
 
 def _make_engine_and_session(db_url: str):
     engine = create_engine(
@@ -30,6 +31,7 @@ def _make_engine_and_session(db_url: str):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_jobs_survive_simulated_crash(tmp_path, monkeypatch):
     """
@@ -43,6 +45,7 @@ async def test_jobs_survive_simulated_crash(tmp_path, monkeypatch):
 
     import backend.models.database as db_mod
     import backend.job_queue.sqlite_queue as sq_mod
+
     monkeypatch.setattr(db_mod, "SessionLocal", Session1)
     monkeypatch.setattr(sq_mod, "SessionLocal", Session1)
 
@@ -83,9 +86,9 @@ async def test_jobs_survive_simulated_crash(tmp_path, monkeypatch):
     # Verify all 10 are completed via direct DB query
     db = Session2()
     try:
-        completed_count = db.query(JobQueue).filter(
-            JobQueue.status == "completed"
-        ).count()
+        completed_count = (
+            db.query(JobQueue).filter(JobQueue.status == "completed").count()
+        )
         assert completed_count == 10, f"Expected 10 completed, got {completed_count}"
     finally:
         db.close()
@@ -107,6 +110,7 @@ async def test_jobs_processed_in_order_after_restart(tmp_path, monkeypatch):
 
     import backend.models.database as db_mod
     import backend.job_queue.sqlite_queue as sq_mod
+
     monkeypatch.setattr(db_mod, "SessionLocal", Session1)
     monkeypatch.setattr(sq_mod, "SessionLocal", Session1)
 
@@ -133,9 +137,12 @@ async def test_jobs_processed_in_order_after_restart(tmp_path, monkeypatch):
         assert job is not None
         priorities.append(job.priority)
 
-    assert priorities == ["critical", "high", "medium", "low"], (
-        f"Wrong priority order after restart: {priorities}"
-    )
+    assert priorities == [
+        "critical",
+        "high",
+        "medium",
+        "low",
+    ], f"Wrong priority order after restart: {priorities}"
 
     queue2.shutdown()
     engine2.dispose()

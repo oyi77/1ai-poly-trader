@@ -79,19 +79,22 @@ def install_systemd_service() -> bool:
 
         subprocess.run(
             ["sudo", "cp", str(SERVICE_FILE), str(target)],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         print_step("Systemd: copy service", "ok")
 
         subprocess.run(
             ["sudo", "systemctl", "daemon-reload"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         print_step("Systemd: daemon-reload", "ok")
 
         subprocess.run(
             ["sudo", "systemctl", "enable", service_name],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         print_step("Systemd: enable service", "ok", service_name)
 
@@ -100,7 +103,9 @@ def install_systemd_service() -> bool:
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if e.stderr else ""
         print_step("Systemd install", "err", stderr[:150])
-        print_step("Run manually", "info", f"sudo cp {SERVICE_FILE} /etc/systemd/system/")
+        print_step(
+            "Run manually", "info", f"sudo cp {SERVICE_FILE} /etc/systemd/system/"
+        )
         return False
 
     except FileNotFoundError:
@@ -135,15 +140,19 @@ def test_monitor_single_cycle() -> bool:
 
         accounts = report.get("accounts", {})
         for mode, acct in accounts.items():
-            print(f"  {mode}: ${acct.get('balance', 0):.2f} | "
-                  f"PnL ${acct.get('pnl_total', 0):+.2f}")
+            print(
+                f"  {mode}: ${acct.get('balance', 0):.2f} | "
+                f"PnL ${acct.get('pnl_total', 0):+.2f}"
+            )
 
         strategies = report.get("strategies", {})
         if strategies:
             print(f"  Strategies tracked: {len(strategies)}")
             for name, sr in list(strategies.items())[:5]:
-                print(f"    {name}: {sr.get('total_trades', 0)}t | "
-                      f"${sr.get('pnl', 0):+.2f}")
+                print(
+                    f"    {name}: {sr.get('total_trades', 0)}t | "
+                    f"${sr.get('pnl', 0):+.2f}"
+                )
             if len(strategies) > 5:
                 print(f"    ... and {len(strategies) - 5} more")
 
@@ -180,7 +189,7 @@ def add_agi_scheduler_job():
     print("      await d.run_once()")
     print()
     print("  # Then in backend/core/scheduling/scheduler.py start_scheduler():")
-    print('  scheduler.add_job(')
+    print("  scheduler.add_job(")
     print("      monitor_cycle_job,")
     print("      IntervalTrigger(minutes=5),")
     print('      id="monitor_cycle",')
@@ -219,8 +228,10 @@ def main():
     test_ok = test_monitor_single_cycle()
     if not test_ok:
         print("\n⚠️  Test had errors — check the log above.")
-        print("   The monitor may still work if the errors are expected "
-              "(e.g., empty DB).")
+        print(
+            "   The monitor may still work if the errors are expected "
+            "(e.g., empty DB)."
+        )
 
     # Step 6: Integration
     add_agi_scheduler_job()

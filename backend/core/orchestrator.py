@@ -7,10 +7,16 @@ from typing import Optional, Dict
 from cachetools import TTLCache
 
 from backend.config import settings
-from backend.data.polymarket_clob import PolymarketCLOB, clob_from_settings, clob_breaker
+from backend.data.polymarket_clob import (
+    PolymarketCLOB,
+    clob_from_settings,
+    clob_breaker,
+)
 from backend.core.risk_profiles import apply_profile, get_active_profile_name
 
 from loguru import logger
+
+
 class Orchestrator:
     """Top-level coordinator. Create one per process."""
 
@@ -111,11 +117,15 @@ class Orchestrator:
 
         # Single session for backfill + mode context setup (fixes USE-AFTER-CLOSE CORE-1)
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
             from backend.core.outcome_repository import backfill_missing_outcomes
+
             backfilled = backfill_missing_outcomes(db)
             if backfilled > 0:
-                logger.info(f"Backfilled {backfilled} missing strategy outcomes on startup")
+                logger.info(
+                    f"Backfilled {backfilled} missing strategy outcomes on startup"
+                )
             db.commit()
 
             self._copy_trader = None
@@ -132,9 +142,14 @@ class Orchestrator:
 
                 # Load StrategyConfig rows filtered by mode
                 strategy_configs = {}
-                configs = db.query(StrategyConfig).filter(
-                    (StrategyConfig.trading_mode == mode) | (StrategyConfig.trading_mode.is_(None))
-                ).all()
+                configs = (
+                    db.query(StrategyConfig)
+                    .filter(
+                        (StrategyConfig.trading_mode == mode)
+                        | (StrategyConfig.trading_mode.is_(None))
+                    )
+                    .all()
+                )
                 for config in configs:
                     strategy_configs[config.strategy_name] = config
 
@@ -143,20 +158,26 @@ class Orchestrator:
                     mode=mode,
                     clob_client=self._clob_clients[mode],
                     risk_manager=risk_manager,
-                    strategy_configs=strategy_configs
+                    strategy_configs=strategy_configs,
                 )
 
                 # Register context
                 register_context(mode, context)
-                logger.info(f"Registered ModeExecutionContext for mode: {mode} (client={'SET' if clob_client else 'NONE'})")
-                logger.info(f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies")
+                logger.info(
+                    f"Registered ModeExecutionContext for mode: {mode} (client={'SET' if clob_client else 'NONE'})"
+                )
+                logger.info(
+                    f"ModeExecutionContext registered for mode: {mode} with {len(strategy_configs)} strategies"
+                )
 
         self._patch_weather_job()
 
         from backend.core.scheduler import start_scheduler
 
         start_scheduler()
-        logger.info("[DEBUG] start_scheduler() completed, now registering AGI event handlers")
+        logger.info(
+            "[DEBUG] start_scheduler() completed, now registering AGI event handlers"
+        )
 
         from backend.core.agi_event_handlers import register_agi_event_handlers
 
@@ -178,7 +199,9 @@ class Orchestrator:
         #         )
         logger.info("Settlement WebSocket handler skipped for now.")
         self._phase2 = init_phase2_modules()
-        logger.info(f"[DEBUG] Phase 2 modules: {list(self._phase2.keys()) if self._phase2 else 'none'}")
+        logger.info(
+            f"[DEBUG] Phase 2 modules: {list(self._phase2.keys()) if self._phase2 else 'none'}"
+        )
         if self._phase2:
             logger.info(f"Phase 2 modules active: {list(self._phase2.keys())}")
 
@@ -448,6 +471,7 @@ async def main() -> None:
     """Run the orchestrator until interrupted."""
 
     from backend.core.log import configure_logging
+
     configure_logging()
 
     orchestrator = Orchestrator()
@@ -468,12 +492,20 @@ async def main() -> None:
     try:
         from backend.models.database import SystemSettings
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
-            mirofish_enabled = db.query(SystemSettings).filter(
-                SystemSettings.key == "mirofish_enabled"
-            ).first()
-            if mirofish_enabled and str(mirofish_enabled.value).lower() in ("true", "1", "yes"):
+            mirofish_enabled = (
+                db.query(SystemSettings)
+                .filter(SystemSettings.key == "mirofish_enabled")
+                .first()
+            )
+            if mirofish_enabled and str(mirofish_enabled.value).lower() in (
+                "true",
+                "1",
+                "yes",
+            ):
                 from backend.services.mirofish_service import get_mirofish_service
+
                 service = get_mirofish_service()
                 if not service.is_active():
                     service.start()

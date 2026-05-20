@@ -1,6 +1,6 @@
 """AGI graph definitions."""
-from backend.agi.graph_engine import GraphEngine, GraphDefinition
 
+from backend.agi.graph_engine import GraphEngine, GraphDefinition
 
 # Market Analysis Graph: Regime → Knowledge Graph → Goal Engine
 MARKET_ANALYSIS_GRAPH = GraphDefinition(

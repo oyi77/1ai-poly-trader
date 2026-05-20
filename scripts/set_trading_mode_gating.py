@@ -7,6 +7,7 @@ All other enabled strategies get trading_mode='paper' until they prove performan
 
 Run: python scripts/set_trading_mode_gating.py [--dry-run]
 """
+
 import sqlite3
 import sys
 from pathlib import Path
@@ -19,9 +20,9 @@ DEFAULT_MODE = "paper"
 
 # Strategies excluded from gating (not real strategies, already disabled, etc.)
 SKIP_STRATEGIES = {
-    "auto_trader",       # execution router, not a strategy
-    "wallet_import",     # utility, not a strategy
-    "unknown",           # artifact
+    "auto_trader",  # execution router, not a strategy
+    "wallet_import",  # utility, not a strategy
+    "unknown",  # artifact
 }
 
 
@@ -37,7 +38,9 @@ def main(dry_run: bool = False):
     cur = conn.cursor()
 
     # Get all enabled strategies
-    cur.execute("SELECT id, strategy_name, enabled, trading_mode FROM strategy_config ORDER BY id")
+    cur.execute(
+        "SELECT id, strategy_name, enabled, trading_mode FROM strategy_config ORDER BY id"
+    )
     rows = cur.fetchall()
 
     updates = []
@@ -57,8 +60,12 @@ def main(dry_run: bool = False):
         if current_mode != target_mode:
             updates.append((target_mode, row["id"], name, current_mode))
 
-    print(f"Found {len(rows)} total strategies, {sum(1 for r in rows if r['enabled'])} enabled")
-    print(f"{'[DRY RUN] ' if dry_run else ''}{len(updates)} strategies need trading_mode update:\n")
+    print(
+        f"Found {len(rows)} total strategies, {sum(1 for r in rows if r['enabled'])} enabled"
+    )
+    print(
+        f"{'[DRY RUN] ' if dry_run else ''}{len(updates)} strategies need trading_mode update:\n"
+    )
 
     for target_mode, sid, name, current in updates:
         current_display = current if current else "NULL"
@@ -86,9 +93,13 @@ def main(dry_run: bool = False):
 
     # Verify
     print("\n--- Verification ---")
-    cur.execute("SELECT strategy_name, enabled, trading_mode FROM strategy_config WHERE enabled = 1 ORDER BY strategy_name")
+    cur.execute(
+        "SELECT strategy_name, enabled, trading_mode FROM strategy_config WHERE enabled = 1 ORDER BY strategy_name"
+    )
     for row in cur.fetchall():
-        print(f"  {row['strategy_name']:25s}  enabled={row['enabled']}  trading_mode={row['trading_mode']}")
+        print(
+            f"  {row['strategy_name']:25s}  enabled={row['enabled']}  trading_mode={row['trading_mode']}"
+        )
 
     conn.close()
     print("\nDone.")

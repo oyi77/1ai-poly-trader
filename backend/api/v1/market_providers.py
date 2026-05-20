@@ -1,4 +1,5 @@
 """Market provider API router for PolyEdge plugin system."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -7,7 +8,8 @@ from loguru import logger
 from backend.api.auth import require_admin
 from backend.markets.provider_registry import market_registry
 from backend.core.plugin_errors import (
-    MarketProviderNotFound, MarketProviderHasOpenPositions,
+    MarketProviderNotFound,
+    MarketProviderHasOpenPositions,
 )
 
 router = APIRouter(tags=["Market Providers"])
@@ -97,7 +99,9 @@ async def get_provider_positions(
                     "avg_entry_price": str(p.avg_entry_price),
                     "venue": p.venue,
                     "current_price": str(p.current_price) if p.current_price else None,
-                    "unrealized_pnl": str(p.unrealized_pnl) if p.unrealized_pnl else None,
+                    "unrealized_pnl": (
+                        str(p.unrealized_pnl) if p.unrealized_pnl else None
+                    ),
                 }
                 for p in positions
             ]
@@ -141,7 +145,9 @@ async def search_markets(
     """Search markets on a specific provider."""
     try:
         provider = market_registry.get(name)
-        markets = await provider.search_markets(query=query, category=category, limit=limit)
+        markets = await provider.search_markets(
+            query=query, category=category, limit=limit
+        )
         return {"markets": markets}
     except MarketProviderNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -179,7 +185,9 @@ async def place_order(
             "client_order_id": result.client_order_id,
             "status": result.status.value,
             "filled_size": str(result.filled_size),
-            "filled_avg_price": str(result.filled_avg_price) if result.filled_avg_price else None,
+            "filled_avg_price": (
+                str(result.filled_avg_price) if result.filled_avg_price else None
+            ),
             "remaining_size": str(result.remaining_size),
             "fees_paid": str(result.fees_paid),
         }

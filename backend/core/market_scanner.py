@@ -12,6 +12,7 @@ import httpx
 from backend.config import settings
 
 from loguru import logger
+
 GAMMA_HOST = settings.GAMMA_API_URL
 _SCAN_SEMAPHORE = asyncio.Semaphore(5)  # max 5 concurrent Gamma requests
 
@@ -39,7 +40,9 @@ async def fetch_all_active_markets(
     results: list[MarketInfo] = []
     offset = 0
     page_size = max(1, int(getattr(settings, "SCANNER_PAGE_SIZE", 500)))
-    max_markets = int(limit if limit is not None else getattr(settings, "SCANNER_MAX_MARKETS", 10000))
+    max_markets = int(
+        limit if limit is not None else getattr(settings, "SCANNER_MAX_MARKETS", 10000)
+    )
     max_markets = max(1, max_markets)
     max_pages = max(1, math.ceil(max_markets / page_size))
 
@@ -73,7 +76,9 @@ async def fetch_all_active_markets(
                         try:
                             outcome_prices_raw = _json.loads(outcome_prices_raw)
                         except Exception:
-                            logger.exception("market_scanner: failed to parse outcomePrices JSON")
+                            logger.exception(
+                                "market_scanner: failed to parse outcomePrices JSON"
+                            )
                             outcome_prices_raw = []
 
                     if outcome_prices_raw:
@@ -149,14 +154,22 @@ async def fetch_short_duration_token_ids(
     channel requires outcome token IDs (`asset_ids`), not condition IDs.
     """
 
-    max_hours = max_hours_to_resolution if max_hours_to_resolution is not None else getattr(
-        settings, "SHORT_MARKET_MAX_HOURS_TO_RESOLUTION", 24.0
+    max_hours = (
+        max_hours_to_resolution
+        if max_hours_to_resolution is not None
+        else getattr(settings, "SHORT_MARKET_MAX_HOURS_TO_RESOLUTION", 24.0)
     )
-    min_vol = min_volume if min_volume is not None else getattr(
-        settings, "SHORT_MARKET_MIN_VOLUME", 100.0
+    min_vol = (
+        min_volume
+        if min_volume is not None
+        else getattr(settings, "SHORT_MARKET_MIN_VOLUME", 100.0)
     )
-    subscription_limit = int(limit or getattr(settings, "POLYMARKET_WS_SUBSCRIPTION_LIMIT", 200))
-    markets = await fetch_all_active_markets(limit=getattr(settings, "SCANNER_MAX_MARKETS", 10000))
+    subscription_limit = int(
+        limit or getattr(settings, "POLYMARKET_WS_SUBSCRIPTION_LIMIT", 200)
+    )
+    markets = await fetch_all_active_markets(
+        limit=getattr(settings, "SCANNER_MAX_MARKETS", 10000)
+    )
     now = datetime.now(timezone.utc)
     scored: list[tuple[float, list[str]]] = []
 
@@ -191,7 +204,9 @@ async def fetch_short_duration_token_ids(
             seen.add(token_id)
             tokens.append(token_id)
             if len(tokens) >= subscription_limit:
-                logger.info(f"market_scanner: selected {len(tokens)} short-duration WS token IDs")
+                logger.info(
+                    f"market_scanner: selected {len(tokens)} short-duration WS token IDs"
+                )
                 return tokens
     logger.info(f"market_scanner: selected {len(tokens)} short-duration WS token IDs")
     return tokens

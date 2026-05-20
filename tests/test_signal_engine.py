@@ -7,7 +7,6 @@ All tests use deterministic inputs with known expected outputs.
 
 from datetime import date
 
-
 # ============================================================================
 # Test EnsembleForecast probability methods
 # ============================================================================
@@ -177,9 +176,10 @@ class TestMETARCoordinates:
         from backend.data.weather import CITY_CONFIG
 
         for city_key, config in CITY_CONFIG.items():
-            assert config["unit"] in ("F", "C"), (
-                f"City {city_key} has invalid unit: {config['unit']}"
-            )
+            assert config["unit"] in (
+                "F",
+                "C",
+            ), f"City {city_key} has invalid unit: {config['unit']}"
 
     def test_us_cities_use_fahrenheit(self):
         """US cities (nyc, chicago, miami, etc.) must use Fahrenheit."""
@@ -250,9 +250,9 @@ class TestCalibration:
             sigma = cal_module.get_sigma("nyc", "gefs")
             # After 25 samples of exactly 3°F error, mean_error should be ~3
             # sigma (std of errors) should be ~0 since all errors are identical
-            assert sigma < 1.0, (
-                f"Sigma should be near 0 for constant errors, got {sigma:.3f}"
-            )
+            assert (
+                sigma < 1.0
+            ), f"Sigma should be near 0 for constant errors, got {sigma:.3f}"
 
         finally:
             cal_module._CALIBRATION_FILE = original_file
@@ -325,9 +325,9 @@ class TestEdgeCalculation:
             direction="up",
             bankroll=10000.0,
         )
-        assert size <= 1500.0, (
-            f"Kelly should be capped at 15% of $10000, got ${size:.2f}"
-        )
+        assert (
+            size <= 1500.0
+        ), f"Kelly should be capped at 15% of $10000, got ${size:.2f}"
 
     def test_kelly_size_zero_for_negative_edge(self):
         """Kelly returns 0 when edge is 0 or negative."""

@@ -15,6 +15,7 @@ from backend.core.event_bus import publish_event
 @dataclass
 class NecromancyReport:
     """Structured report from necromancy analysis."""
+
     date: datetime
     death_causes: Dict[str, int]  # Counter of death reasons
     high_risk_genes: List[Dict[str, Any]]  # Overrepresented in dead genomes
@@ -36,7 +37,9 @@ def load_legends(db) -> List[Dict[str, Any]]:
     return []
 
 
-def find_genes_overrepresented_in(genomes: List[Dict[str, Any]], threshold: float = 0.70) -> List[Dict[str, Any]]:
+def find_genes_overrepresented_in(
+    genomes: List[Dict[str, Any]], threshold: float = 0.70
+) -> List[Dict[str, Any]]:
     """Identify genes present in >threshold fraction of genomes.
 
     Simplified version: counts chromosome traits across genomes.
@@ -61,27 +64,29 @@ def find_genes_overrepresented_in(genomes: List[Dict[str, Any]], threshold: floa
     for gene, count in chromosome_counts.items():
         frequency = count / total
         if frequency >= threshold:
-            overrepresented.append({
-                "gene": gene,
-                "frequency": frequency,
-                "count": count,
-                "total": total
-            })
+            overrepresented.append(
+                {"gene": gene, "frequency": frequency, "count": count, "total": total}
+            )
 
     return sorted(overrepresented, key=lambda x: x["frequency"], reverse=True)
 
 
-def update_synthesis_priors(prefer: List[Dict[str, Any]], avoid: List[Dict[str, Any]], db) -> None:
+def update_synthesis_priors(
+    prefer: List[Dict[str, Any]], avoid: List[Dict[str, Any]], db
+) -> None:
     """Update genome synthesis weight table with new priors.
 
     In production, this updates the SynthesisPrior table.
     For now, publish event for Wave 10 implementation.
     """
-    publish_event("synthesis_priors_updated", {
-        "prefer": [g["gene"] for g in prefer],
-        "avoid": [g["gene"] for g in avoid],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
+    publish_event(
+        "synthesis_priors_updated",
+        {
+            "prefer": [g["gene"] for g in prefer],
+            "avoid": [g["gene"] for g in avoid],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 def generate_anti_patterns(dead_genomes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -102,13 +107,15 @@ def generate_anti_patterns(dead_genomes: List[Dict[str, Any]]) -> List[Dict[str,
     # Generate anti-patterns for top causes
     anti_patterns = []
     for cause, count in death_causes.most_common(3):
-        anti_patterns.append({
-            "pattern_name": f"anti_{cause}",
-            "trigger_condition": cause,
-            "action": "suppress",
-            "severity": "high" if count > 5 else "medium",
-            "count": count
-        })
+        anti_patterns.append(
+            {
+                "pattern_name": f"anti_{cause}",
+                "trigger_condition": cause,
+                "action": "suppress",
+                "severity": "high" if count > 5 else "medium",
+                "count": count,
+            }
+        )
 
     return anti_patterns
 
@@ -119,10 +126,10 @@ def inject_anti_patterns_into_risk_manager(new_rules: List[Dict[str, Any]]) -> N
     In production, this updates RiskManager rules.
     For now, publish event for Wave 10 implementation.
     """
-    publish_event("risk_manager_updated", {
-        "new_rules": new_rules,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
+    publish_event(
+        "risk_manager_updated",
+        {"new_rules": new_rules, "timestamp": datetime.now(timezone.utc).isoformat()},
+    )
 
 
 def save_to_knowledge_graph(report: NecromancyReport, db) -> None:
@@ -131,13 +138,16 @@ def save_to_knowledge_graph(report: NecromancyReport, db) -> None:
     KnowledgeGraph tables are created in Wave 10.
     For now, publish event as interface.
     """
-    publish_event("necromancy_report", {
-        "date": report.date.isoformat(),
-        "death_causes": report.death_causes,
-        "high_risk_genes": report.high_risk_genes,
-        "legend_genes": report.legend_genes,
-        "new_anti_patterns": report.new_anti_patterns
-    })
+    publish_event(
+        "necromancy_report",
+        {
+            "date": report.date.isoformat(),
+            "death_causes": report.death_causes,
+            "high_risk_genes": report.high_risk_genes,
+            "legend_genes": report.legend_genes,
+            "new_anti_patterns": report.new_anti_patterns,
+        },
+    )
 
 
 def run_necromancy_analysis(db) -> NecromancyReport:
@@ -182,7 +192,7 @@ def run_necromancy_analysis(db) -> NecromancyReport:
         death_causes=dict(death_causes),
         high_risk_genes=high_risk_genes,
         legend_genes=legend_genes,
-        new_anti_patterns=new_rules
+        new_anti_patterns=new_rules,
     )
 
     # Save to KnowledgeGraph (Wave 10)

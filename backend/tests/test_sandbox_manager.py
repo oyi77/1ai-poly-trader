@@ -7,6 +7,7 @@ class TestSandboxManager:
     def setup_method(self):
         # Import nodes to trigger @node_registry.plugin decorators and populate the registry
         import backend.agi.nodes  # noqa: F401
+
         self.manager = SandboxManager()
 
     @pytest.mark.asyncio
@@ -110,12 +111,15 @@ def analyze_market(data):
 """
         result = await self.manager.validate_strategy(code)
         assert result.status == "passed"
-        assert all(gate in result.gates_passed for gate in [
-            "gate1_import_safety",
-            "gate2_ast_safety",
-            "gate3_resource_limits",
-            "gate4_output_validation",
-        ])
+        assert all(
+            gate in result.gates_passed
+            for gate in [
+                "gate1_import_safety",
+                "gate2_ast_safety",
+                "gate3_resource_limits",
+                "gate4_output_validation",
+            ]
+        )
 
     @pytest.mark.asyncio
     async def test_validate_node_allows_safe_node(self):

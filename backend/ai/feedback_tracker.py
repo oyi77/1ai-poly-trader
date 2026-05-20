@@ -14,6 +14,7 @@ from backend.models.database import StrategyProposal, StrategyConfig, Trade
 from backend.models.outcome_tables import ProposalFeedback, ParamChange
 
 from loguru import logger
+
 MIN_TRADES_TO_MEASURE = 5
 ROLLBACK_WR_THRESHOLD = -0.05
 ROLLBACK_SHARPE_THRESHOLD = -1.0
@@ -26,6 +27,7 @@ def compute_sharpe(returns: list) -> float:
     where the ratio is undefined.
     """
     import statistics
+
     if len(returns) < 2:
         return 0.0
     mean_return = statistics.mean(returns)
@@ -41,22 +43,29 @@ def measure_recent_changes(db: Optional[Session] = None) -> dict:
     """Measure all recently applied proposals that haven't been measured yet."""
     from backend.db.utils import get_db_session
     from contextlib import nullcontext
+
     owns_db = db is None
     ctx = get_db_session() if owns_db else nullcontext(db)
     stats = {"measured": 0, "improved": 0, "worse": 0, "rolled_back": 0}
     with ctx as db:
         try:
             cutoff = datetime.now(timezone.utc) - timedelta(days=30)
-            proposals = db.query(StrategyProposal).filter(
-                StrategyProposal.admin_decision == "auto_approved",
-                StrategyProposal.executed_at.isnot(None),
-                StrategyProposal.executed_at >= cutoff,
-            ).all()
+            proposals = (
+                db.query(StrategyProposal)
+                .filter(
+                    StrategyProposal.admin_decision == "auto_approved",
+                    StrategyProposal.executed_at.isnot(None),
+                    StrategyProposal.executed_at >= cutoff,
+                )
+                .all()
+            )
 
             for proposal in proposals:
-                existing_fb = db.query(ProposalFeedback).filter(
-                    ProposalFeedback.proposal_id == proposal.id
-                ).first()
+                existing_fb = (
+                    db.query(ProposalFeedback)
+                    .filter(ProposalFeedback.proposal_id == proposal.id)
+                    .first()
+                )
                 if existing_fb and existing_fb.measured_at is not None:
                     continue
 
@@ -88,22 +97,38 @@ def _measure_proposal(proposal: StrategyProposal, db: Session) -> Optional[dict]
     if not applied_at:
         return None
 
-    pre_trades = db.query(Trade).filter(
-        Trade.strategy == strategy,
-        Trade.settled,
-        Trade.timestamp < applied_at,
-    ).order_by(Trade.timestamp.desc()).limit(50).all()
+    pre_trades = (
+        db.query(Trade)
+        .filter(
+            Trade.strategy == strategy,
+            Trade.settled,
+            Trade.timestamp < applied_at,
+        )
+        .order_by(Trade.timestamp.desc())
+        .limit(50)
+        .all()
+    )
 
-    post_trades = db.query(Trade).filter(
-        Trade.strategy == strategy,
-        Trade.settled,
-        Trade.timestamp >= applied_at,
-    ).order_by(Trade.timestamp.asc()).limit(50).all()
+    post_trades = (
+        db.query(Trade)
+        .filter(
+            Trade.strategy == strategy,
+            Trade.settled,
+            Trade.timestamp >= applied_at,
+        )
+        .order_by(Trade.timestamp.asc())
+        .limit(50)
+        .all()
+    )
 
     if len(post_trades) < MIN_TRADES_TO_MEASURE:
         return None
 
-    pre_wr = sum(1 for t in pre_trades if t.result == "win") / len(pre_trades) if pre_trades else 0.0
+    pre_wr = (
+        sum(1 for t in pre_trades if t.result == "win") / len(pre_trades)
+        if pre_trades
+        else 0.0
+    )
     post_wr = sum(1 for t in post_trades if t.result == "win") / len(post_trades)
     pre_pnl = sum(t.pnl or 0.0 for t in pre_trades)
     post_pnl = sum(t.pnl or 0.0 for t in post_trades)
@@ -111,6 +136,7 @@ def _measure_proposal(proposal: StrategyProposal, db: Session) -> Optional[dict]
     pre_pnls = [t.pnl or 0.0 for t in pre_trades]
     post_pnls = [t.pnl or 0.0 for t in post_trades]
     import statistics
+
     pre_stdev = statistics.stdev(pre_pnls) if len(pre_pnls) > 1 else 0.0
     post_stdev = statistics.stdev(post_pnls) if len(post_pnls) > 1 else 0.0
     pre_sharpe = statistics.mean(pre_pnls) / pre_stdev if pre_stdev > 0 else 0.0
@@ -121,9 +147,11 @@ def _measure_proposal(proposal: StrategyProposal, db: Session) -> Optional[dict]
     sharpe_improved = post_sharpe > pre_sharpe
     improved = sum([wr_improved, pnl_improved, sharpe_improved]) >= 2
 
-    fb = db.query(ProposalFeedback).filter(
-        ProposalFeedback.proposal_id == proposal.id
-    ).first()
+    fb = (
+        db.query(ProposalFeedback)
+        .filter(ProposalFeedback.proposal_id == proposal.id)
+        .first()
+    )
 
     if not fb:
         fb = ProposalFeedback(
@@ -144,20 +172,29 @@ def _measure_proposal(proposal: StrategyProposal, db: Session) -> Optional[dict]
     fb.measured_at = datetime.now(timezone.utc)
     fb.measurement_trades = len(post_trades)
 
-    should_rollback = (
-        (post_wr - pre_wr) < ROLLBACK_WR_THRESHOLD
-        or (post_sharpe - pre_sharpe) < ROLLBACK_SHARPE_THRESHOLD
-    )
+    should_rollback = (post_wr - pre_wr) < ROLLBACK_WR_THRESHOLD or (
+        post_sharpe - pre_sharpe
+    ) < ROLLBACK_SHARPE_THRESHOLD
 
     if improved:
         logger.info(
             "[FeedbackTracker] Proposal #%d IMPROVED %s: wr %.1f→%.1f, sharpe %.2f→%.2f",
-            proposal.id, strategy, pre_wr, post_wr, pre_sharpe, post_sharpe,
+            proposal.id,
+            strategy,
+            pre_wr,
+            post_wr,
+            pre_sharpe,
+            post_sharpe,
         )
     else:
         logger.warning(
             "[FeedbackTracker] Proposal #%d WORSENED %s: wr %.1f→%.1f, sharpe %.2f→%.2f",
-            proposal.id, strategy, pre_wr, post_wr, pre_sharpe, post_sharpe,
+            proposal.id,
+            strategy,
+            pre_wr,
+            post_wr,
+            pre_sharpe,
+            post_sharpe,
         )
 
     return {"improved": improved, "should_rollback": should_rollback}
@@ -165,7 +202,11 @@ def _measure_proposal(proposal: StrategyProposal, db: Session) -> Optional[dict]
 
 def _rollback_proposal(proposal: StrategyProposal, db: Session) -> None:
     strategy = proposal.strategy_name
-    config = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == strategy).first()
+    config = (
+        db.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == strategy)
+        .first()
+    )
     if not config or not proposal.change_details:
         return
 
@@ -175,26 +216,38 @@ def _rollback_proposal(proposal: StrategyProposal, db: Session) -> None:
 
     rolled_back = {}
     for key, val in proposal.change_details.items():
-        if key in current_params and isinstance(val, (int, float)) and not isinstance(val, bool):
+        if (
+            key in current_params
+            and isinstance(val, (int, float))
+            and not isinstance(val, bool)
+        ):
             rolled_back[key] = {"was": current_params[key], "removed": val}
             del current_params[key]
 
     if rolled_back:
-        config.params = json.dumps(current_params) if not isinstance(current_params, str) else current_params
+        config.params = (
+            json.dumps(current_params)
+            if not isinstance(current_params, str)
+            else current_params
+        )
         proposal.admin_decision = "rolled_back"
         proposal.status = "rolled_back"
 
-        db.add(ParamChange(
-            strategy=strategy,
-            param_name="rollback",
-            old_value=0,
-            new_value=0,
-            reasoning=f"Rolled back proposal #{proposal.id}: {list(rolled_back.keys())}",
-            applied_at=datetime.now(timezone.utc),
-            auto_applied=True,
-        ))
+        db.add(
+            ParamChange(
+                strategy=strategy,
+                param_name="rollback",
+                old_value=0,
+                new_value=0,
+                reasoning=f"Rolled back proposal #{proposal.id}: {list(rolled_back.keys())}",
+                applied_at=datetime.now(timezone.utc),
+                auto_applied=True,
+            )
+        )
 
         logger.warning(
             "[FeedbackTracker] ROLLED BACK proposal #%d for %s: removed %s",
-            proposal.id, strategy, list(rolled_back.keys()),
+            proposal.id,
+            strategy,
+            list(rolled_back.keys()),
         )

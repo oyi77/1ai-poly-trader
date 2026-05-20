@@ -1,4 +1,7 @@
-from backend.core.execution_pipeline.base import BaseExecutionStage, ExecutionStageManifest
+from backend.core.execution_pipeline.base import (
+    BaseExecutionStage,
+    ExecutionStageManifest,
+)
 from backend.core.execution_pipeline.registry import registry
 
 
@@ -11,7 +14,12 @@ class LiveExecuteStage(BaseExecutionStage):
             version="1.0.0",
             mode="live",
             order=2,
-            required_env_vars=["CLOB_API_URL", "CLOB_API_KEY", "CLOB_SECRET_KEY", "CLOB_PASSPHRASE"],
+            required_env_vars=[
+                "CLOB_API_URL",
+                "CLOB_API_KEY",
+                "CLOB_SECRET_KEY",
+                "CLOB_PASSPHRASE",
+            ],
             tags=["execution", "live", "clob"],
         )
 
@@ -27,6 +35,7 @@ class LiveExecuteStage(BaseExecutionStage):
             return {"status": "error", "reason": "No database session"}
 
         from backend.markets.provider_registry import market_registry
+
         platform = decision.get("platform", "polymarket")
         market_ticker = decision.get("market_ticker", "")
 
@@ -120,6 +129,7 @@ class LiveExecuteStage(BaseExecutionStage):
     def health_check(self):
         try:
             from backend.markets.provider_registry import market_registry
+
             polymarket = market_registry.get("polymarket")
             if polymarket:
                 if not polymarket.health_check():

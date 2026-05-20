@@ -3,9 +3,9 @@
 Marked with @pytest.mark.live so it's skipped in CI without network/API access.
 Run explicitly with: pytest backend/tests/test_crypto_oracle_live.py -v -m live
 """
+
 import pytest
 import httpx
-
 
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 

@@ -14,7 +14,6 @@ from backend.core.risk.risk_manager import (
     EdgeFilterError,
 )
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -22,6 +21,7 @@ from backend.core.risk.risk_manager import (
 
 class MockSettings:
     """Minimal settings mock for RiskManager."""
+
     TRADING_MODE = "paper"
     INITIAL_BANKROLL = 2000.0
     MAX_POSITION_FRACTION = 0.25
@@ -270,15 +270,21 @@ class TestCheckDrawdown:
         state.paper_initial_bankroll = 2000.0
 
         call_count = [0]
+
         def mock_query(*args, **kwargs):
             mock_q = MagicMock()
             # For BotState query
-            if args and hasattr(args[0], '__name__') and 'BotState' in str(args[0]):
+            if args and hasattr(args[0], "__name__") and "BotState" in str(args[0]):
                 mock_q.filter_by.return_value.first.return_value = state
                 return mock_q
             # For Trade PnL sum queries — first call=daily, second=weekly
             mock_q.filter.return_value = mock_q
-            mock_q.scalar = MagicMock(side_effect=lambda: (call_count.__setitem__(0, call_count[0]+1), daily_pnl if call_count[0] <= 1 else weekly_pnl)[1])
+            mock_q.scalar = MagicMock(
+                side_effect=lambda: (
+                    call_count.__setitem__(0, call_count[0] + 1),
+                    daily_pnl if call_count[0] <= 1 else weekly_pnl,
+                )[1]
+            )
             return mock_q
 
         db.query.side_effect = mock_query
@@ -405,14 +411,14 @@ class TestFailSafeBehavior:
     def test_strategy_drawdown_db_error_returns_none(self):
         """DB error during strategy drawdown -> returns None (fail-safe)."""
         rm = make_rm()
-        with patch.object(rm, '_check_strategy_drawdown', return_value=None):
+        with patch.object(rm, "_check_strategy_drawdown", return_value=None):
             result = rm._check_strategy_drawdown("test_strat", MagicMock(), "paper")
         assert result is None
 
     def test_strategy_drawdown_normal_returns_float(self):
         """Normal strategy drawdown returns a float PnL value."""
         rm = make_rm()
-        with patch.object(rm, '_check_strategy_drawdown', return_value=-50.0):
+        with patch.object(rm, "_check_strategy_drawdown", return_value=-50.0):
             result = rm._check_strategy_drawdown("test_strat", MagicMock(), "paper")
         assert result == -50.0
 

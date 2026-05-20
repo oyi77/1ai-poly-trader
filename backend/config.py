@@ -10,6 +10,7 @@ from loguru import logger
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(override=True)
 except ImportError:
     pass
@@ -30,6 +31,7 @@ DB_PATH = os.path.join(ROOT_DIR, "tradingbot.db")
 # - risk: Trading risk configuration
 # - polling:Interval settings for jobs and tasks
 # ============================================================================
+
 
 @dataclass
 class ConfigRegistry:
@@ -56,11 +58,19 @@ class ConfigRegistry:
             elif f.default_factory is not MISSING:
                 all_fields[f.name] = f.default_factory()
             else:
-                all_fields[f.name] = f.type() if f.type in (dict, list, set, str, int, float, bool) else None
+                all_fields[f.name] = (
+                    f.type()
+                    if f.type in (dict, list, set, str, int, float, bool)
+                    else None
+                )
 
         # Then collect plain class annotations (non-dataclass-field defaults)
         for name, value in self.__class__.__dict__.items():
-            if name.startswith('_') or callable(value) or isinstance(value, (staticmethod, classmethod, property, Field)):
+            if (
+                name.startswith("_")
+                or callable(value)
+                or isinstance(value, (staticmethod, classmethod, property, Field))
+            ):
                 continue
             if name not in all_fields:
                 all_fields[name] = value
@@ -69,7 +79,7 @@ class ConfigRegistry:
             env_val = os.environ.get(name)
             if env_val is not None:
                 if isinstance(default, bool):
-                    setattr(self, name, env_val.lower() in ('true', '1', 'yes'))
+                    setattr(self, name, env_val.lower() in ("true", "1", "yes"))
                 elif isinstance(default, int):
                     setattr(self, name, int(env_val))
                 elif isinstance(default, float):
@@ -77,6 +87,7 @@ class ConfigRegistry:
                 elif isinstance(default, (dict, list)):
                     try:
                         import ast
+
                         setattr(self, name, ast.literal_eval(env_val))
                     except Exception:
                         setattr(self, name, default)
@@ -100,7 +111,9 @@ class ConfigRegistry:
     POLYMARKET_WS_CLOB_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     POLYMARKET_WS_USER_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
     POLYMARKET_WS_RTDS_URL: str = "wss://ws-live-data.polymarket.com"
-    POLYMARKET_WS_WHALE_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+    POLYMARKET_WS_WHALE_URL: str = (
+        "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+    )
     POLYMARKET_WS_ORDERBOOK_URL: str = "wss://ws.polymarket.com/orderbook"
 
     # Kalshi API
@@ -112,30 +125,47 @@ class ConfigRegistry:
     # Each provider is a dict with url, ws_url, enabled, priority, and kwargs.
     # To add a new provider, just add an entry here. The MarketProviderRegistry
     # will auto-discover and register any provider with a matching manifest.
-    MARKET_PROVIDERS: dict = field(default_factory=lambda: {
-        "polymarket": {
-            "enabled": True,
-            "priority": 1,
-            "api_url": os.getenv("POLYMARKET_API_URL", "https://clob.polymarket.com"),
-            "gamma_url": os.getenv("GAMMA_API_URL", "https://gamma-api.polymarket.com"),
-            "data_url": os.getenv("DATA_API_URL", "https://data-api.polymarket.com"),
-            "ws_url": os.getenv("POLYMARKET_WS_URL", "wss://ws-subscriptions-clob.polymarket.com/ws/market"),
-            "min_order_usd": 5.0,
-        },
-        "kalshi": {
-            "enabled": True,
-            "priority": 2,
-            "api_url": os.getenv("KALSHI_API_URL", "https://api.elections.kalshi.com/trade-api/v2"),
-            "min_order_usd": 10.0,
-        },
-    })
+    MARKET_PROVIDERS: dict = field(
+        default_factory=lambda: {
+            "polymarket": {
+                "enabled": True,
+                "priority": 1,
+                "api_url": os.getenv(
+                    "POLYMARKET_API_URL", "https://clob.polymarket.com"
+                ),
+                "gamma_url": os.getenv(
+                    "GAMMA_API_URL", "https://gamma-api.polymarket.com"
+                ),
+                "data_url": os.getenv(
+                    "DATA_API_URL", "https://data-api.polymarket.com"
+                ),
+                "ws_url": os.getenv(
+                    "POLYMARKET_WS_URL",
+                    "wss://ws-subscriptions-clob.polymarket.com/ws/market",
+                ),
+                "min_order_usd": 5.0,
+            },
+            "kalshi": {
+                "enabled": True,
+                "priority": 2,
+                "api_url": os.getenv(
+                    "KALSHI_API_URL", "https://api.elections.kalshi.com/trade-api/v2"
+                ),
+                "min_order_usd": 10.0,
+            },
+        }
+    )
 
     # Default venue for order placement when strategy doesn't specify one
     DEFAULT_VENUE: str = "polymarket"
 
     # Provider fallback behavior
-    PROVIDER_FALLBACK_ENABLED: bool = os.getenv("PROVIDER_FALLBACK_ENABLED", "true").lower() == "true"
-    PROVIDER_FALLBACK_ORDER: list[str] = field(default_factory=lambda: ["polymarket", "kalshi"])
+    PROVIDER_FALLBACK_ENABLED: bool = (
+        os.getenv("PROVIDER_FALLBACK_ENABLED", "true").lower() == "true"
+    )
+    PROVIDER_FALLBACK_ORDER: list[str] = field(
+        default_factory=lambda: ["polymarket", "kalshi"]
+    )
 
     # Crypto exchange APIs
     BINANCE_API_URL: str = "https://api.binance.com/api/v3"
@@ -172,7 +202,9 @@ class ConfigRegistry:
     BRAIN_API_URL: str = "http://localhost:9099"
 
     # Goldsky GraphQL API (Polymarket historical order data)
-    GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
+    GOLDSKY_API_URL: str = (
+        "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
+    )
 
     # API_BASE_URL - FastAPI server URL (constructed from API_HOST and API_PORT)
     API_HOST: str = "localhost"
@@ -180,55 +212,67 @@ class ConfigRegistry:
     API_BASE_URL: str = "http://localhost:8005"
 
     # RSS Feed URLs (comma-separated)
-    RSS_FEED_URLS: str = "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
+    RSS_FEED_URLS: str = (
+        "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
+    )
 
     # --------------------------------------------------------------------------
     # RATE_LIMITS - Rate limit settings for API services
     # --------------------------------------------------------------------------
-    RATE_LIMIT_GAMMA: int = 100  #requests per minute
+    RATE_LIMIT_GAMMA: int = 100  # requests per minute
     RATE_LIMIT_KALSHI: int = 30
     RATE_LIMIT_CRYPTO: int = 60
-    RATE_LIMIT_BACKOFF_BASE: float = 2.0  #base multiplier for exponential backoff
-    RATE_LIMIT_MAX_DELAY: float = 60.0  #maximum delay between retries
+    RATE_LIMIT_BACKOFF_BASE: float = 2.0  # base multiplier for exponential backoff
+    RATE_LIMIT_MAX_DELAY: float = 60.0  # maximum delay between retries
     # Circuit breaker thresholds (configurable per service)
-    CB_FAILURE_THRESHOLD: int = 5  #failures before opening circuit
-    CB_RECOVERY_TIMEOUT: float = 60.0  #seconds before attempting recovery
-    CB_HALF_OPEN_MAX: int = 1  #max concurrent probes in half-open state
+    CB_FAILURE_THRESHOLD: int = 5  # failures before opening circuit
+    CB_RECOVERY_TIMEOUT: float = 60.0  # seconds before attempting recovery
+    CB_HALF_OPEN_MAX: int = 1  # max concurrent probes in half-open state
 
     # --------------------------------------------------------------------------
     # STRATEGY_PARAMS - Strategy-specific thresholds and limits
     # --------------------------------------------------------------------------
     # Trading parameters
-    MIN_DEBATE_EDGE: float = 0.04  #debate threshold
-    MIN_EDGE_THRESHOLD: float = 0.03  #minimum edge for signals
-    MAX_ENTRY_PRICE: float = 0.80  #maximum entry price
-    MAX_TRADES_PER_WINDOW: int = 20  #trades per scheduling window
-    MAX_TRADES_PER_SCAN: int = 10  #trades per scan cycle
-    AUTO_TRADER_BATCH_SIZE: int = 100  #batch size for auto-trader
-    MAX_TOTAL_PENDING_TRADES: int = 50  #max pending trades
-    STALE_TRADE_HOURS: int = 48  #hours before trade considered stale
+    MIN_DEBATE_EDGE: float = 0.04  # debate threshold
+    MIN_EDGE_THRESHOLD: float = 0.03  # minimum edge for signals
+    MAX_ENTRY_PRICE: float = 0.80  # maximum entry price
+    MAX_TRADES_PER_WINDOW: int = 20  # trades per scheduling window
+    MAX_TRADES_PER_SCAN: int = 10  # trades per scan cycle
+    AUTO_TRADER_BATCH_SIZE: int = 100  # batch size for auto-trader
+    MAX_TOTAL_PENDING_TRADES: int = 50  # max pending trades
+    STALE_TRADE_HOURS: int = 48  # hours before trade considered stale
 
     # Position sizing
-    KELLY_FRACTION: float = 0.30  #Kelly fraction (0.30 = 30% Kelly)
-    MAX_POSITION_FRACTION: float = 0.08  #max position as % of bankroll
-    MAX_TOTAL_EXPOSURE_FRACTION: float = 0.70  #max total exposure
-    CORRELATION_MULTIPLIER: float = 1.0  # same-category exposure multiplier (1.0=no inflation)
-    MAX_CORRELATED_EXPOSURE_PCT: float = 0.50  # max correlation-adjusted exposure % of bankroll
-    MAX_TRADE_SIZE: float = 100.0  #max single trade size in USD
-    MIN_ORDER_USDC: float = 5.0  #minimum order size (live)
-    PAPER_MIN_ORDER_USDC: float = 5.0  #minimum order size (paper — matches live to prevent hallucination)
+    KELLY_FRACTION: float = 0.30  # Kelly fraction (0.30 = 30% Kelly)
+    MAX_POSITION_FRACTION: float = 0.08  # max position as % of bankroll
+    MAX_TOTAL_EXPOSURE_FRACTION: float = 0.70  # max total exposure
+    CORRELATION_MULTIPLIER: float = (
+        1.0  # same-category exposure multiplier (1.0=no inflation)
+    )
+    MAX_CORRELATED_EXPOSURE_PCT: float = (
+        0.50  # max correlation-adjusted exposure % of bankroll
+    )
+    MAX_TRADE_SIZE: float = 100.0  # max single trade size in USD
+    MIN_ORDER_USDC: float = 5.0  # minimum order size (live)
+    PAPER_MIN_ORDER_USDC: float = (
+        5.0  # minimum order size (paper — matches live to prevent hallucination)
+    )
 
     # Confidence and signal weights
-    AUTO_APPROVE_MIN_CONFIDENCE: float = float(os.getenv("AUTO_APPROVE_MIN_CONFIDENCE", "0.5"))
-    PAPER_AUTO_APPROVE_MIN_CONFIDENCE: float = float(os.getenv("PAPER_AUTO_APPROVE_MIN_CONFIDENCE", "0.5"))
-    AI_SIGNAL_WEIGHT: float = 0.30  #AI weight in ensemble (max 0.50)
-    LONGSHOT_NO_BIAS_WEIGHT: float = 0.10  #bias weight for longshot markets
+    AUTO_APPROVE_MIN_CONFIDENCE: float = float(
+        os.getenv("AUTO_APPROVE_MIN_CONFIDENCE", "0.5")
+    )
+    PAPER_AUTO_APPROVE_MIN_CONFIDENCE: float = float(
+        os.getenv("PAPER_AUTO_APPROVE_MIN_CONFIDENCE", "0.5")
+    )
+    AI_SIGNAL_WEIGHT: float = 0.30  # AI weight in ensemble (max 0.50)
+    LONGSHOT_NO_BIAS_WEIGHT: float = 0.10  # bias weight for longshot markets
 
     # Longshot Bias Strategy
-    LONGSHOT_BIAS_MAX_PRICE: float = 0.30  #only trade below 30c
-    LONGSHOT_BIAS_MIN_EV: float = 0.05  #minimum expected value
-    LONGSHOT_BIAS_MAX_POSITION_USD: float = 20.0  #max position in USD
-    LONGSHOT_BIAS_ENABLED: bool = False  #start disabled
+    LONGSHOT_BIAS_MAX_PRICE: float = 0.30  # only trade below 30c
+    LONGSHOT_BIAS_MIN_EV: float = 0.05  # minimum expected value
+    LONGSHOT_BIAS_MAX_POSITION_USD: float = 20.0  # max position in USD
+    LONGSHOT_BIAS_ENABLED: bool = False  # start disabled
 
     # Indicator weights (must sum to ~1.0)
     WEIGHT_RSI: float = 0.20
@@ -238,38 +282,40 @@ class ConfigRegistry:
     WEIGHT_MARKET_SKEW: float = 0.10
 
     # Volume filters
-    MIN_MARKET_VOLUME: float = 100.0  #minimum market volume
-    MIN_WHALE_TRADE_USD: float = 1000.0  #minimum whale trade size
+    MIN_MARKET_VOLUME: float = 100.0  # minimum market volume
+    MIN_WHALE_TRADE_USD: float = 1000.0  # minimum whale trade size
 
     # Risk management
-    DAILY_LOSS_LIMIT: float = 5.0  #maximum daily loss
-    DAILY_LOSS_LIMIT_PCT: float = 0.10  #daily loss % (overrides flat limit)
-    SLIPPAGE_TOLERANCE: float = 0.02  #max slippage (2%)
-    DAILY_DRAWDOWN_LIMIT_PCT: float = 0.10  #max daily drawdown
-    WEEKLY_DRAWDOWN_LIMIT_PCT: float = 0.20  #max weekly drawdown
-    DAILY_LOSS_FLOOR_PCT: float = -0.10  #daily loss floor (auto-pause)
-    WEEKLY_LOSS_FLOOR_PCT: float = -0.20  #weekly loss floor (revert to paper)
-    MAX_STRATEGY_DRAWDOWN_PCT: float = 0.15  #per-strategy max drawdown (% of allocation)
-    VOLATILITY_SIZE_SCALE: bool = True  #reduce size in high volatility
-    COOLDOWN_CONSECUTIVE_LOSSES: int = 3  #losses before cooldown
-    COOLDOWN_MINUTES: int = 60  #strategy cooldown after consecutive losses
-    MAX_CONCENTRATION_PCT: float = 0.30  #max exposure to single event (% of bankroll)
-    DISK_USAGE_ALERT_PCT: float = 0.90  #disk usage alert threshold
+    DAILY_LOSS_LIMIT: float = 5.0  # maximum daily loss
+    DAILY_LOSS_LIMIT_PCT: float = 0.10  # daily loss % (overrides flat limit)
+    SLIPPAGE_TOLERANCE: float = 0.02  # max slippage (2%)
+    DAILY_DRAWDOWN_LIMIT_PCT: float = 0.10  # max daily drawdown
+    WEEKLY_DRAWDOWN_LIMIT_PCT: float = 0.20  # max weekly drawdown
+    DAILY_LOSS_FLOOR_PCT: float = -0.10  # daily loss floor (auto-pause)
+    WEEKLY_LOSS_FLOOR_PCT: float = -0.20  # weekly loss floor (revert to paper)
+    MAX_STRATEGY_DRAWDOWN_PCT: float = (
+        0.15  # per-strategy max drawdown (% of allocation)
+    )
+    VOLATILITY_SIZE_SCALE: bool = True  # reduce size in high volatility
+    COOLDOWN_CONSECUTIVE_LOSSES: int = 3  # losses before cooldown
+    COOLDOWN_MINUTES: int = 60  # strategy cooldown after consecutive losses
+    MAX_CONCENTRATION_PCT: float = 0.30  # max exposure to single event (% of bankroll)
+    DISK_USAGE_ALERT_PCT: float = 0.90  # disk usage alert threshold
 
     # HFT parameters
     HFT_ENABLED: bool = True
-    HFT_POSITION_SIZE_PCT: float = 0.25  #position size as % of bankroll
-    HFT_MAX_POSITION_USD: float = 1000.0  #max position in USD
-    SAFE_TUNER_MAX_CHANGE_PCT: float = 0.10  #max parameter drift per tuning
+    HFT_POSITION_SIZE_PCT: float = 0.25  # position size as % of bankroll
+    HFT_MAX_POSITION_USD: float = 1000.0  # max position in USD
+    SAFE_TUNER_MAX_CHANGE_PCT: float = 0.10  # max parameter drift per tuning
     SAFE_TUNER_MIN_TRADES_FOR_TUNING: int = 20
     SAFE_TUNER_REVERT_SIGMA_THRESHOLD: float = 2.0
-    PAPER_SLIPPAGE_BPS: float = 20.0  #paper slippage in basis points
-    PAPER_MIN_SLIPPAGE_BPS: float = 5.0  #minimum slippage (0.05%)
+    PAPER_SLIPPAGE_BPS: float = 20.0  # paper slippage in basis points
+    PAPER_MIN_SLIPPAGE_BPS: float = 5.0  # minimum slippage (0.05%)
     HFT_MAX_SLIPPAGE_BPS: float = 20.0
-    PAPER_RANDOM_SLIPPAGE: bool = True  #add random jitter to slippage
-    PAPER_SIZE_IMPACT_FACTOR: float = 0.5  #logarithmic size impact on slippage
-    PAPER_CLOB_FEE_RATE: float = 0.02  #Polymarket fee rate (2%)
-    PAPER_MIN_DEPTH_USD: float = 100.0  #reject if orderbook depth below this
+    PAPER_RANDOM_SLIPPAGE: bool = True  # add random jitter to slippage
+    PAPER_SIZE_IMPACT_FACTOR: float = 0.5  # logarithmic size impact on slippage
+    PAPER_CLOB_FEE_RATE: float = 0.02  # Polymarket fee rate (2%)
+    PAPER_MIN_DEPTH_USD: float = 100.0  # reject if orderbook depth below this
 
     # Weather parameters
     WEATHER_ENABLED: bool = True
@@ -278,7 +324,9 @@ class ConfigRegistry:
     WEATHER_MIN_EDGE_THRESHOLD: float = 0.05
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 10.0
-    WEATHER_CITIES: str = "nyc,chicago,miami,dallas,seattle,atlanta,los_angeles,denver,london,seoul,tokyo"
+    WEATHER_CITIES: str = (
+        "nyc,chicago,miami,dallas,seattle,atlanta,los_angeles,denver,london,seoul,tokyo"
+    )
     WEATHER_KELLY_FRACTION: float = 0.15
     WEATHER_MAX_BANKROLL_FRACTION: float = 0.05
 
@@ -301,7 +349,7 @@ class ConfigRegistry:
     ORDER_EXECUTOR_MIN_WHALE_SIZE: float = 100.0
     ORDER_EXECUTOR_MIN_DAYS_TO_RESOLUTION: int = 7
 
-    #Line movement detector
+    # Line movement detector
     LINE_MOVE_BASE_CONFIDENCE: float = 0.5
     LINE_MOVE_HUGE_THRESHOLD: float = 15.0
     LINE_MOVE_HUGE_BOOST: float = 0.2
@@ -430,7 +478,9 @@ class ConfigRegistry:
     BTC_ORACLE_ORACLE_IMPLIED_SCALE: float = 0.10
 
     # Crypto Oracle (multi-asset generalization of BTC Oracle)
-    CRYPTO_ORACLE_ASSETS: str = "bitcoin,ethereum,solana"  # comma-separated CoinGecko IDs
+    CRYPTO_ORACLE_ASSETS: str = (
+        "bitcoin,ethereum,solana"  # comma-separated CoinGecko IDs
+    )
     CRYPTO_ORACLE_MIN_EDGE: float = 0.05
     CRYPTO_ORACLE_MAX_MINUTES_TO_RESOLUTION: float = 10.0
     CRYPTO_ORACLE_INTERVAL_SECONDS: int = 15
@@ -439,20 +489,30 @@ class ConfigRegistry:
     CRYPTO_ORACLE_EDGE_SCALE_THRESHOLD: float = 0.05
     CRYPTO_ORACLE_ORACLE_IMPLIED_BASE: float = 0.50
     CRYPTO_ORACLE_ORACLE_IMPLIED_SCALE: float = 0.30
-    CRYPTO_ORACLE_MIN_PRICE_BUCKET: float = 0.35  # reject trades below 35c (negative EV territory)
-    CRYPTO_ORACLE_MAX_PRICE_BUCKET: float = 0.65  # reject trades above 65c (negative EV territory)
+    CRYPTO_ORACLE_MIN_PRICE_BUCKET: float = (
+        0.35  # reject trades below 35c (negative EV territory)
+    )
+    CRYPTO_ORACLE_MAX_PRICE_BUCKET: float = (
+        0.65  # reject trades above 65c (negative EV territory)
+    )
 
     # Crypto Oracle — dynamic allocation & time-of-day optimization
     CRYPTO_ORACLE_TRACKER_ENABLED: bool = True
     CRYPTO_ORACLE_DYNAMIC_ALLOCATION: bool = True
-    CRYPTO_ORACLE_TIME_WEIGHTS: dict = field(default_factory=lambda: {"peak": 1.0, "normal": 0.5, "off_peak": 0.25})
-    CRYPTO_ORACLE_PEAK_HOURS: list = field(default_factory=lambda: [17, 18])  # UTC hours
-    CRYPTO_ORACLE_NORMAL_HOURS: list = field(default_factory=lambda: [13, 14, 15, 16, 19, 20, 21])
+    CRYPTO_ORACLE_TIME_WEIGHTS: dict = field(
+        default_factory=lambda: {"peak": 1.0, "normal": 0.5, "off_peak": 0.25}
+    )
+    CRYPTO_ORACLE_PEAK_HOURS: list = field(
+        default_factory=lambda: [17, 18]
+    )  # UTC hours
+    CRYPTO_ORACLE_NORMAL_HOURS: list = field(
+        default_factory=lambda: [13, 14, 15, 16, 19, 20, 21]
+    )
 
     # Time filters
-    MIN_TIME_REMAINING: int = 60  #min time remaining in seconds
-    MAX_TIME_REMAINING: int = 1800  #max time remaining in seconds
-    MAX_TIME_EXECUTION_MS: int = 500  #max execution time in ms
+    MIN_TIME_REMAINING: int = 60  # min time remaining in seconds
+    MAX_TIME_REMAINING: int = 1800  # max time remaining in seconds
+    MAX_TIME_EXECUTION_MS: int = 500  # max execution time in ms
 
     # --------------------------------------------------------------------------
     # SYSTEM - Deployment and runtime settings
@@ -480,7 +540,10 @@ class ConfigRegistry:
             issues.append("DATABASE_URL is required")
             return issues
 
-        if self.DATABASE_URL.startswith("mysql://") and "+pymysql" not in self.DATABASE_URL:
+        if (
+            self.DATABASE_URL.startswith("mysql://")
+            and "+pymysql" not in self.DATABASE_URL
+        ):
             logger.warning(
                 "MySQL DATABASE_URL detected without '+pymysql'. "
                 "Consider using 'mysql+pymysql://...' for better compatibility."
@@ -517,8 +580,10 @@ class ConfigRegistry:
     ADMIN_API_KEY: Optional[str] = None
 
     # Port and hosting
-    PORT: int = 8100  #backend API port
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://polyedge.aitradepulse.com,http://polyedge.aitradepulse.com"
+    PORT: int = 8100  # backend API port
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://polyedge.aitradepulse.com,http://polyedge.aitradepulse.com"
+    )
 
     # Trading modes
     ACTIVE_MODES: str = "paper"
@@ -557,8 +622,12 @@ class ConfigRegistry:
 
     # Daily loss monitoring
     DAILY_LOSS_LIMIT_ENABLED: bool = True
-    DRAWDOWN_BREAKER_ENABLED_PER_MODE: Dict[str, bool] = field(default_factory=lambda: {"paper": False, "testnet": True, "live": True})
-    DAILY_LOSS_LIMIT_ENABLED_PER_MODE: Dict[str, bool] = field(default_factory=lambda: {"paper": False, "testnet": True, "live": True})
+    DRAWDOWN_BREAKER_ENABLED_PER_MODE: Dict[str, bool] = field(
+        default_factory=lambda: {"paper": False, "testnet": True, "live": True}
+    )
+    DAILY_LOSS_LIMIT_ENABLED_PER_MODE: Dict[str, bool] = field(
+        default_factory=lambda: {"paper": False, "testnet": True, "live": True}
+    )
 
     # Risk limits per mode
     RISK_MAX_DAILY_LOSS_PCT: float = 0.10
@@ -603,10 +672,12 @@ class ConfigRegistry:
     # --------------------------------------------------------------------------
     # AUTO-SELL — Pre-settlement profit-taking
     # --------------------------------------------------------------------------
-    AUTO_SELL_PROFIT_TARGET_PCT: float = 0.03    # 3% profit target (must cover ~1% PM fee + 0.5% slippage)
-    AUTO_SELL_STOP_LOSS_PCT: float = 0.03        # 3% stop-loss
-    AUTO_SELL_MAX_HOLD_SECONDS: int = 300         # 5 min max hold
-    AUTO_SELL_INTERVAL_SECONDS: int = 30          # Check every 30s
+    AUTO_SELL_PROFIT_TARGET_PCT: float = (
+        0.03  # 3% profit target (must cover ~1% PM fee + 0.5% slippage)
+    )
+    AUTO_SELL_STOP_LOSS_PCT: float = 0.03  # 3% stop-loss
+    AUTO_SELL_MAX_HOLD_SECONDS: int = 300  # 5 min max hold
+    AUTO_SELL_INTERVAL_SECONDS: int = 30  # Check every 30s
 
     # --------------------------------------------------------------------------
     # POLLING - Interval settings for jobs and tasks
@@ -643,7 +714,7 @@ class ConfigRegistry:
     AGI_MUTATION_INTERVAL_HOURS: int = 6
     AGI_CROSSOVER_INTERVAL_HOURS: int = 24
     MUTATION_CYCLE_INTERVAL_HOURS: int = 6
-    CROSSOVER_CYCLE_INTERVAL_HOURS: int = 168  #weekly
+    CROSSOVER_CYCLE_INTERVAL_HOURS: int = 168  # weekly
     NECROMANCY_INTERVAL_DAYS: int = 7
 
     # --------------------------------------------------------------------------
@@ -876,14 +947,16 @@ class ConfigRegistry:
     # CATEGORY_CONFIDENCE - Category-specific confidence multipliers
     # --------------------------------------------------------------------------
     CATEGORY_CONFIDENCE_ENABLED: bool = True
-    CATEGORY_CONFIDENCE_MULTIPLIER: Dict[str, float] = field(default_factory=lambda: {
-        "finance": 0.85,
-        "politics": 0.95,
-        "sports": 1.10,
-        "crypto": 1.10,
-        "weather": 1.15,
-        "entertainment": 1.15,
-    })
+    CATEGORY_CONFIDENCE_MULTIPLIER: Dict[str, float] = field(
+        default_factory=lambda: {
+            "finance": 0.85,
+            "politics": 0.95,
+            "sports": 1.10,
+            "crypto": 1.10,
+            "weather": 1.15,
+            "entertainment": 1.15,
+        }
+    )
 
     # --------------------------------------------------------------------------
     # EV_FILTERS - Expected value and longshot bias filters
@@ -893,15 +966,17 @@ class ConfigRegistry:
     LONGSHOT_NO_BOOST_PRICE: float = 0.30  # Boost NO trades below this price
 
     # Category-specific minimum edge requirements (by efficiency)
-    CATEGORY_MIN_EDGE: Dict[str, float] = field(default_factory=lambda: {
-        "finance": 0.05,        # Nearly efficient — high bar
-        "politics": 0.03,       # Moderate
-        "sports": 0.02,         # Good target
-        "crypto": 0.02,         # Good target
-        "entertainment": 0.01,  # Highest edge opportunity
-        "weather": 0.02,        # Good target
-        "uncategorized": 0.03,  # Default
-    })
+    CATEGORY_MIN_EDGE: Dict[str, float] = field(
+        default_factory=lambda: {
+            "finance": 0.05,  # Nearly efficient — high bar
+            "politics": 0.03,  # Moderate
+            "sports": 0.02,  # Good target
+            "crypto": 0.02,  # Good target
+            "entertainment": 0.01,  # Highest edge opportunity
+            "weather": 0.02,  # Good target
+            "uncategorized": 0.03,  # Default
+        }
+    )
 
     # --------------------------------------------------------------------------
     # ARBITRAGE - Arbitrage detection parameters
@@ -924,7 +999,9 @@ class ConfigRegistry:
     # NEWS - News feed settings
     # --------------------------------------------------------------------------
     NEWS_FEED_ENABLED: bool = False
-    RSS_FEEDS: str = "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
+    RSS_FEEDS: str = (
+        "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
+    )
 
     # --------------------------------------------------------------------------
     # DATA_AGGREGATOR - Data freshness settings
@@ -1010,7 +1087,7 @@ class ConfigRegistry:
         ]
 
         for url in api_urls:
-            if url and not url.startswith(('http://', 'https://', 'wss://', 'ws://')):
+            if url and not url.startswith(("http://", "https://", "wss://", "ws://")):
                 issues.append(f"Invalid URL format: {url}")
 
         # Check rate limits are positive
@@ -1033,53 +1110,73 @@ class ConfigRegistry:
 
         # Check percentages are in valid range (0-1)
         risky_floats = [
-            ('KELLY_FRACTION', self.KELLY_FRACTION, 0.0, 0.5),
-            ('MAX_POSITION_FRACTION', self.MAX_POSITION_FRACTION, 0.0, 1.0),
-            ('MAX_TOTAL_EXPOSURE_FRACTION', self.MAX_TOTAL_EXPOSURE_FRACTION, 0.0, 1.0),
-            ('SLIPPAGE_TOLERANCE', self.SLIPPAGE_TOLERANCE, 0.0, 0.1),
-            ('DAILY_DRAWDOWN_LIMIT_PCT', self.DAILY_DRAWDOWN_LIMIT_PCT, 0.0, 0.5),
-            ('WEEKLY_DRAWDOWN_LIMIT_PCT', self.WEEKLY_DRAWDOWN_LIMIT_PCT, 0.0, 0.5),
-            ('DAILY_LOSS_FLOOR_PCT', self.DAILY_LOSS_FLOOR_PCT, -0.5, 0.0),
-            ('WEEKLY_LOSS_FLOOR_PCT', self.WEEKLY_LOSS_FLOOR_PCT, -0.5, 0.0),
-            ('AI_SIGNAL_WEIGHT', self.AI_SIGNAL_WEIGHT, 0.0, 0.5),
-            ('HFT_POSITION_SIZE_PCT', self.HFT_POSITION_SIZE_PCT, 0.01, 0.25),
-            ('WEATHER_MAX_BANKROLL_FRACTION', self.WEATHER_MAX_BANKROLL_FRACTION, 0.0, 1.0),
-            ('HFT_ARB_MIN_PROFIT', self.HFT_ARB_MIN_PROFIT, 0.0, 1.0),
-            ('HFT_WHALE_MIN_SCORE', self.HFT_WHALE_MIN_SCORE, 0.0, 1.0),
-            ('HFT_EXECUTION_AUTO_EXECUTE_MIN_CONFIDENCE', self.HFT_EXECUTION_AUTO_EXECUTE_MIN_CONFIDENCE, 0.0, 1.0),
+            ("KELLY_FRACTION", self.KELLY_FRACTION, 0.0, 0.5),
+            ("MAX_POSITION_FRACTION", self.MAX_POSITION_FRACTION, 0.0, 1.0),
+            ("MAX_TOTAL_EXPOSURE_FRACTION", self.MAX_TOTAL_EXPOSURE_FRACTION, 0.0, 1.0),
+            ("SLIPPAGE_TOLERANCE", self.SLIPPAGE_TOLERANCE, 0.0, 0.1),
+            ("DAILY_DRAWDOWN_LIMIT_PCT", self.DAILY_DRAWDOWN_LIMIT_PCT, 0.0, 0.5),
+            ("WEEKLY_DRAWDOWN_LIMIT_PCT", self.WEEKLY_DRAWDOWN_LIMIT_PCT, 0.0, 0.5),
+            ("DAILY_LOSS_FLOOR_PCT", self.DAILY_LOSS_FLOOR_PCT, -0.5, 0.0),
+            ("WEEKLY_LOSS_FLOOR_PCT", self.WEEKLY_LOSS_FLOOR_PCT, -0.5, 0.0),
+            ("AI_SIGNAL_WEIGHT", self.AI_SIGNAL_WEIGHT, 0.0, 0.5),
+            ("HFT_POSITION_SIZE_PCT", self.HFT_POSITION_SIZE_PCT, 0.01, 0.25),
+            (
+                "WEATHER_MAX_BANKROLL_FRACTION",
+                self.WEATHER_MAX_BANKROLL_FRACTION,
+                0.0,
+                1.0,
+            ),
+            ("HFT_ARB_MIN_PROFIT", self.HFT_ARB_MIN_PROFIT, 0.0, 1.0),
+            ("HFT_WHALE_MIN_SCORE", self.HFT_WHALE_MIN_SCORE, 0.0, 1.0),
+            (
+                "HFT_EXECUTION_AUTO_EXECUTE_MIN_CONFIDENCE",
+                self.HFT_EXECUTION_AUTO_EXECUTE_MIN_CONFIDENCE,
+                0.0,
+                1.0,
+            ),
         ]
 
         for name, value, min_val, max_val in risky_floats:
             if not (min_val <= value <= max_val):
-                issues.append(f"{name} must be between {min_val} and {max_val}, got {value}")
+                issues.append(
+                    f"{name} must be between {min_val} and {max_val}, got {value}"
+                )
 
         # Check integer ranges
         risky_ints = [
-            ('HFT_MAX_POSITION_USD', self.HFT_MAX_POSITION_USD, 100, 100000),
-            ('MAX_TRADES_PER_WINDOW', self.MAX_TRADES_PER_WINDOW, 1, 1000),
-            ('MAX_TRADES_PER_SCAN', self.MAX_TRADES_PER_SCAN, 1, 1000),
-            ('AUTO_TRADER_BATCH_SIZE', self.AUTO_TRADER_BATCH_SIZE, 1, 1000),
-            ('MAX_TOTAL_PENDING_TRADES', self.MAX_TOTAL_PENDING_TRADES, 1, 1000),
-            ('STALE_TRADE_HOURS', self.STALE_TRADE_HOURS, 1, 720),
-            ('SCANNER_PAGE_SIZE', self.SCANNER_PAGE_SIZE, 100, 1000),
-            ('SCANNER_SEMAPHORE_LIMIT', self.SCANNER_SEMAPHORE_LIMIT, 10, 100),
-            ('SCANNER_MAX_MARKETS', self.SCANNER_MAX_MARKETS, 1000, 100000),
-            ('MIN_TIME_REMAINING', self.MIN_TIME_REMAINING, 1, 3600),
-            ('MAX_TIME_REMAINING', self.MAX_TIME_REMAINING, 60, 7200),
+            ("HFT_MAX_POSITION_USD", self.HFT_MAX_POSITION_USD, 100, 100000),
+            ("MAX_TRADES_PER_WINDOW", self.MAX_TRADES_PER_WINDOW, 1, 1000),
+            ("MAX_TRADES_PER_SCAN", self.MAX_TRADES_PER_SCAN, 1, 1000),
+            ("AUTO_TRADER_BATCH_SIZE", self.AUTO_TRADER_BATCH_SIZE, 1, 1000),
+            ("MAX_TOTAL_PENDING_TRADES", self.MAX_TOTAL_PENDING_TRADES, 1, 1000),
+            ("STALE_TRADE_HOURS", self.STALE_TRADE_HOURS, 1, 720),
+            ("SCANNER_PAGE_SIZE", self.SCANNER_PAGE_SIZE, 100, 1000),
+            ("SCANNER_SEMAPHORE_LIMIT", self.SCANNER_SEMAPHORE_LIMIT, 10, 100),
+            ("SCANNER_MAX_MARKETS", self.SCANNER_MAX_MARKETS, 1000, 100000),
+            ("MIN_TIME_REMAINING", self.MIN_TIME_REMAINING, 1, 3600),
+            ("MAX_TIME_REMAINING", self.MAX_TIME_REMAINING, 60, 7200),
         ]
 
         for name, value, min_val, max_val in risky_ints:
             if not (min_val <= value <= max_val):
-                issues.append(f"{name} must be between {min_val} and {max_val}, got {value}")
+                issues.append(
+                    f"{name} must be between {min_val} and {max_val}, got {value}"
+                )
 
         # Check scan intervals are reasonable
         if self.SCAN_INTERVAL_SECONDS < 5:
-            issues.append(f"SCAN_INTERVAL_SECONDS too aggressive: {self.SCAN_INTERVAL_SECONDS}s (min: 5s)")
+            issues.append(
+                f"SCAN_INTERVAL_SECONDS too aggressive: {self.SCAN_INTERVAL_SECONDS}s (min: 5s)"
+            )
         if self.SETTLEMENT_INTERVAL_SECONDS < 30:
-            issues.append(f"SETTLEMENT_INTERVAL_SECONDS too aggressive: {self.SETTLEMENT_INTERVAL_SECONDS}s (min: 30s)")
+            issues.append(
+                f"SETTLEMENT_INTERVAL_SECONDS too aggressive: {self.SETTLEMENT_INTERVAL_SECONDS}s (min: 30s)"
+            )
 
         if not self.WALLET_FERNET_KEY:
-            issues.append("WALLET_FERNET_KEY is empty — wallet encryption disabled: private keys stored in plaintext. This is safe for dev/paper-only but NOT for live production trading.")
+            issues.append(
+                "WALLET_FERNET_KEY is empty — wallet encryption disabled: private keys stored in plaintext. This is safe for dev/paper-only but NOT for live production trading."
+            )
 
         # Check HFT parameters
         if self.HFT_SCANNER_CIRCUIT_BREAKER_THRESHOLD < 1:
@@ -1089,61 +1186,83 @@ class ConfigRegistry:
 
         # Check AGI thresholds
         if self.REGISTRY_MIN_WIN_RATE < 0 or self.REGISTRY_MIN_WIN_RATE > 1:
-            issues.append(f"REGISTRY_MIN_WIN_RATE must be 0-1, got {self.REGISTRY_MIN_WIN_RATE}")
+            issues.append(
+                f"REGISTRY_MIN_WIN_RATE must be 0-1, got {self.REGISTRY_MIN_WIN_RATE}"
+            )
         if self.REGISTRY_MIN_ROI < -1:
-            issues.append(f"REGISTRY_MIN_ROI must be >= -1, got {self.REGISTRY_MIN_ROI}")
+            issues.append(
+                f"REGISTRY_MIN_ROI must be >= -1, got {self.REGISTRY_MIN_ROI}"
+            )
 
         # Check intervals are positive
         positive_ints = [
-            ('SCAN_INTERVAL_SECONDS', self.SCAN_INTERVAL_SECONDS),
-            ('SETTLEMENT_INTERVAL_SECONDS', self.SETTLEMENT_INTERVAL_SECONDS),
-            ('AGI_PROMOTION_INTERVAL_HOURS', self.AGI_PROMOTION_INTERVAL_HOURS),
-            ('AGI_HEALTH_CHECK_INTERVAL_MINUTES', self.AGI_HEALTH_CHECK_INTERVAL_MINUTES),
-            ('JOB_TIMEOUT_SECONDS', self.JOB_TIMEOUT_SECONDS),
-            ('MAX_CONCURRENT_JOBS', self.MAX_CONCURRENT_JOBS),
-            ('DB_EXECUTOR_MAX_WORKERS', self.DB_EXECUTOR_MAX_WORKERS),
-            ('AGI_CALIBRATION_CHECK_INTERVAL_HOURS', self.AGI_CALIBRATION_CHECK_INTERVAL_HOURS),
-            ('AUTO_IMPROVE_INTERVAL_DAYS', self.AUTO_IMPROVE_INTERVAL_DAYS),
-            ('SELF_REVIEW_INTERVAL_DAYS', self.SELF_REVIEW_INTERVAL_DAYS),
-            ('RESEARCH_PIPELINE_INTERVAL_HOURS', self.RESEARCH_PIPELINE_INTERVAL_HOURS),
-            ('AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS', self.AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS),
-            ('HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS', self.HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS),
-            ('ARBITRAGE_SCAN_INTERVAL_SECONDS', self.ARBITRAGE_SCAN_INTERVAL_SECONDS),
-            ('NEWS_FEED_INTERVAL_SECONDS', self.NEWS_FEED_INTERVAL_SECONDS),
-            ('AGI_MUTATION_INTERVAL_HOURS', self.AGI_MUTATION_INTERVAL_HOURS),
-            ('AGI_CROSSOVER_INTERVAL_HOURS', self.AGI_CROSSOVER_INTERVAL_HOURS),
-            ('MUTATION_CYCLE_INTERVAL_HOURS', self.MUTATION_CYCLE_INTERVAL_HOURS),
-            ('CROSSOVER_CYCLE_INTERVAL_HOURS', self.CROSSOVER_CYCLE_INTERVAL_HOURS),
-            ('NECROMANCY_INTERVAL_DAYS', self.NECROMANCY_INTERVAL_DAYS),
-            ('AGI_REHAB_COOLDOWN_DAYS', self.AGI_REHAB_COOLDOWN_DAYS),
-            ('AGI_REHAB_MIN_TRADES', self.AGI_REHAB_MIN_TRADES),
-            ('AGI_PROMOTER_SHADOW_MIN_TRADES', self.AGI_PROMOTER_SHADOW_MIN_TRADES),
-            ('AGI_PROMOTER_SHADOW_MIN_DAYS', self.AGI_PROMOTER_SHADOW_MIN_DAYS),
-            ('AGI_PROMOTER_PAPER_MIN_TRADES', self.AGI_PROMOTER_PAPER_MIN_TRADES),
-            ('AGI_PROMOTER_PAPER_MIN_DAYS', self.AGI_PROMOTER_PAPER_MIN_DAYS),
-            ('AGI_FRONTTEST_DAYS', self.AGI_FRONTTEST_DAYS),
-            ('AGI_FRONTTEST_MIN_TRADES', self.AGI_FRONTTEST_MIN_TRADES),
-            ('AGI_MAX_IMPROVEMENT_ATTEMPTS', self.AGI_MAX_IMPROVEMENT_ATTEMPTS),
-            ('AGI_DEMOTION_RETRY_LIMIT', self.AGI_DEMOTION_RETRY_LIMIT),
-            ('AGI_LIVE_TRIAL_DAYS', self.AGI_LIVE_TRIAL_DAYS),
-            ('AGI_LIVE_TRIAL_MIN_TRADES', self.AGI_LIVE_TRIAL_MIN_TRADES),
-            ('AGI_REHAB_LITE_COOLDOWN_HOURS', self.AGI_REHAB_LITE_COOLDOWN_HOURS),
-            ('AGI_REHAB_LITE_RE_DISABLE_HOURS', self.AGI_REHAB_LITE_RE_DISABLE_HOURS),
-            ('AGI_AUTO_DISABLE_MIN_TRADES', self.AGI_AUTO_DISABLE_MIN_TRADES),
-            ('CACHE_TTL_SECONDS', self.CACHE_TTL_SECONDS),
-            ('DB_BACKUP_INTERVAL_HOURS', self.DB_BACKUP_INTERVAL_HOURS),
-            ('DB_BACKUP_RETENTION_DAYS', self.DB_BACKUP_RETENTION_DAYS),
-            ('HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS', self.HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS),
-            ('AGI_HEALTH_ORPHAN_MAX_AGE_DAYS', self.AGI_HEALTH_ORPHAN_MAX_AGE_DAYS),
-            ('MAX_TOPUPS', self.MAX_TOPUPS),
-            ('DEBATE_CYCLE_TIMEOUT', self.DEBATE_CYCLE_TIMEOUT),
-            ('ACTIVITY_DB_TRANSACTION_TIMEOUT', self.ACTIVITY_DB_TRANSACTION_TIMEOUT),
-            ('WEBSOCKET_ACTIVITY_LATENCY_SLA', self.WEBSOCKET_ACTIVITY_LATENCY_SLA),
-            ('PAPER_MIN_ORDER_USDC', self.PAPER_MIN_ORDER_USDC),
-            ('MIN_ORDER_USDC', self.MIN_ORDER_USDC),
-            ('SCANNER_MIN_EDGE', int(self.SCANNER_MIN_EDGE * 100)),
-            ('SCANNER_STALE_THRESHOLD_SECONDS', int(self.SCANNER_STALE_THRESHOLD_SECONDS * 10)),
-            ('SCANNER_MAX_MARKETS', self.SCANNER_MAX_MARKETS),
+            ("SCAN_INTERVAL_SECONDS", self.SCAN_INTERVAL_SECONDS),
+            ("SETTLEMENT_INTERVAL_SECONDS", self.SETTLEMENT_INTERVAL_SECONDS),
+            ("AGI_PROMOTION_INTERVAL_HOURS", self.AGI_PROMOTION_INTERVAL_HOURS),
+            (
+                "AGI_HEALTH_CHECK_INTERVAL_MINUTES",
+                self.AGI_HEALTH_CHECK_INTERVAL_MINUTES,
+            ),
+            ("JOB_TIMEOUT_SECONDS", self.JOB_TIMEOUT_SECONDS),
+            ("MAX_CONCURRENT_JOBS", self.MAX_CONCURRENT_JOBS),
+            ("DB_EXECUTOR_MAX_WORKERS", self.DB_EXECUTOR_MAX_WORKERS),
+            (
+                "AGI_CALIBRATION_CHECK_INTERVAL_HOURS",
+                self.AGI_CALIBRATION_CHECK_INTERVAL_HOURS,
+            ),
+            ("AUTO_IMPROVE_INTERVAL_DAYS", self.AUTO_IMPROVE_INTERVAL_DAYS),
+            ("SELF_REVIEW_INTERVAL_DAYS", self.SELF_REVIEW_INTERVAL_DAYS),
+            ("RESEARCH_PIPELINE_INTERVAL_HOURS", self.RESEARCH_PIPELINE_INTERVAL_HOURS),
+            (
+                "AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS",
+                self.AGI_IMPROVEMENT_CYCLE_INTERVAL_HOURS,
+            ),
+            (
+                "HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS",
+                self.HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS,
+            ),
+            ("ARBITRAGE_SCAN_INTERVAL_SECONDS", self.ARBITRAGE_SCAN_INTERVAL_SECONDS),
+            ("NEWS_FEED_INTERVAL_SECONDS", self.NEWS_FEED_INTERVAL_SECONDS),
+            ("AGI_MUTATION_INTERVAL_HOURS", self.AGI_MUTATION_INTERVAL_HOURS),
+            ("AGI_CROSSOVER_INTERVAL_HOURS", self.AGI_CROSSOVER_INTERVAL_HOURS),
+            ("MUTATION_CYCLE_INTERVAL_HOURS", self.MUTATION_CYCLE_INTERVAL_HOURS),
+            ("CROSSOVER_CYCLE_INTERVAL_HOURS", self.CROSSOVER_CYCLE_INTERVAL_HOURS),
+            ("NECROMANCY_INTERVAL_DAYS", self.NECROMANCY_INTERVAL_DAYS),
+            ("AGI_REHAB_COOLDOWN_DAYS", self.AGI_REHAB_COOLDOWN_DAYS),
+            ("AGI_REHAB_MIN_TRADES", self.AGI_REHAB_MIN_TRADES),
+            ("AGI_PROMOTER_SHADOW_MIN_TRADES", self.AGI_PROMOTER_SHADOW_MIN_TRADES),
+            ("AGI_PROMOTER_SHADOW_MIN_DAYS", self.AGI_PROMOTER_SHADOW_MIN_DAYS),
+            ("AGI_PROMOTER_PAPER_MIN_TRADES", self.AGI_PROMOTER_PAPER_MIN_TRADES),
+            ("AGI_PROMOTER_PAPER_MIN_DAYS", self.AGI_PROMOTER_PAPER_MIN_DAYS),
+            ("AGI_FRONTTEST_DAYS", self.AGI_FRONTTEST_DAYS),
+            ("AGI_FRONTTEST_MIN_TRADES", self.AGI_FRONTTEST_MIN_TRADES),
+            ("AGI_MAX_IMPROVEMENT_ATTEMPTS", self.AGI_MAX_IMPROVEMENT_ATTEMPTS),
+            ("AGI_DEMOTION_RETRY_LIMIT", self.AGI_DEMOTION_RETRY_LIMIT),
+            ("AGI_LIVE_TRIAL_DAYS", self.AGI_LIVE_TRIAL_DAYS),
+            ("AGI_LIVE_TRIAL_MIN_TRADES", self.AGI_LIVE_TRIAL_MIN_TRADES),
+            ("AGI_REHAB_LITE_COOLDOWN_HOURS", self.AGI_REHAB_LITE_COOLDOWN_HOURS),
+            ("AGI_REHAB_LITE_RE_DISABLE_HOURS", self.AGI_REHAB_LITE_RE_DISABLE_HOURS),
+            ("AGI_AUTO_DISABLE_MIN_TRADES", self.AGI_AUTO_DISABLE_MIN_TRADES),
+            ("CACHE_TTL_SECONDS", self.CACHE_TTL_SECONDS),
+            ("DB_BACKUP_INTERVAL_HOURS", self.DB_BACKUP_INTERVAL_HOURS),
+            ("DB_BACKUP_RETENTION_DAYS", self.DB_BACKUP_RETENTION_DAYS),
+            (
+                "HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS",
+                self.HISTORICAL_DATA_COLLECTOR_INTERVAL_HOURS,
+            ),
+            ("AGI_HEALTH_ORPHAN_MAX_AGE_DAYS", self.AGI_HEALTH_ORPHAN_MAX_AGE_DAYS),
+            ("MAX_TOPUPS", self.MAX_TOPUPS),
+            ("DEBATE_CYCLE_TIMEOUT", self.DEBATE_CYCLE_TIMEOUT),
+            ("ACTIVITY_DB_TRANSACTION_TIMEOUT", self.ACTIVITY_DB_TRANSACTION_TIMEOUT),
+            ("WEBSOCKET_ACTIVITY_LATENCY_SLA", self.WEBSOCKET_ACTIVITY_LATENCY_SLA),
+            ("PAPER_MIN_ORDER_USDC", self.PAPER_MIN_ORDER_USDC),
+            ("MIN_ORDER_USDC", self.MIN_ORDER_USDC),
+            ("SCANNER_MIN_EDGE", int(self.SCANNER_MIN_EDGE * 100)),
+            (
+                "SCANNER_STALE_THRESHOLD_SECONDS",
+                int(self.SCANNER_STALE_THRESHOLD_SECONDS * 10),
+            ),
+            ("SCANNER_MAX_MARKETS", self.SCANNER_MAX_MARKETS),
         ]
 
         for name, value in positive_ints:
@@ -1152,17 +1271,17 @@ class ConfigRegistry:
 
         # Check timeouts are positive
         positive_floats = [
-            ('RATE_LIMIT_BACKOFF_BASE', self.RATE_LIMIT_BACKOFF_BASE),
-            ('RATE_LIMIT_MAX_DELAY', self.RATE_LIMIT_MAX_DELAY),
-            ('DEBATE_TIMEOUT_SECONDS', self.DEBATE_TIMEOUT_SECONDS),
-            ('MIROFISH_API_TIMEOUT', self.MIROFISH_API_TIMEOUT),
-            ('MIN_DEBATE_EDGE', self.MIN_DEBATE_EDGE),
-            ('MIN_EDGE_THRESHOLD', self.MIN_EDGE_THRESHOLD),
-            ('MAX_ENTRY_PRICE', self.MAX_ENTRY_PRICE),
-            ('KELLY_FRACTION', self.KELLY_FRACTION),
-            ('DAILY_LOSS_LIMIT', self.DAILY_LOSS_LIMIT),
-            ('MAX_TRADE_SIZE', self.MAX_TRADE_SIZE),
-            ('INITIAL_BANKROLL', self.INITIAL_BANKROLL),
+            ("RATE_LIMIT_BACKOFF_BASE", self.RATE_LIMIT_BACKOFF_BASE),
+            ("RATE_LIMIT_MAX_DELAY", self.RATE_LIMIT_MAX_DELAY),
+            ("DEBATE_TIMEOUT_SECONDS", self.DEBATE_TIMEOUT_SECONDS),
+            ("MIROFISH_API_TIMEOUT", self.MIROFISH_API_TIMEOUT),
+            ("MIN_DEBATE_EDGE", self.MIN_DEBATE_EDGE),
+            ("MIN_EDGE_THRESHOLD", self.MIN_EDGE_THRESHOLD),
+            ("MAX_ENTRY_PRICE", self.MAX_ENTRY_PRICE),
+            ("KELLY_FRACTION", self.KELLY_FRACTION),
+            ("DAILY_LOSS_LIMIT", self.DAILY_LOSS_LIMIT),
+            ("MAX_TRADE_SIZE", self.MAX_TRADE_SIZE),
+            ("INITIAL_BANKROLL", self.INITIAL_BANKROLL),
         ]
 
         for name, value in positive_floats:
@@ -1302,10 +1421,14 @@ class Settings(BaseSettings):
     POLYGON_AMOY_CHAIN_ID: int = 80002
 
     INITIAL_BANKROLL: float = 100.0
-    KELLY_FRACTION: float = 0.30  # 30% Kelly - more aggressive (winners used bigger positions)
+    KELLY_FRACTION: float = (
+        0.30  # 30% Kelly - more aggressive (winners used bigger positions)
+    )
 
     # BTC 5-min specific settings
-    SCAN_INTERVAL_SECONDS: int = 120  # Scan every 2 min (was 10s — reduced to avoid Polymarket 429)
+    SCAN_INTERVAL_SECONDS: int = (
+        120  # Scan every 2 min (was 10s — reduced to avoid Polymarket 429)
+    )
     SETTLEMENT_INTERVAL_SECONDS: int = 120  # Check settlements every 2 min
     BTC_PRICE_SOURCE: str = "coinbase"
     MIN_EDGE_THRESHOLD: float = (
@@ -1329,7 +1452,9 @@ class Settings(BaseSettings):
 
     # Risk management — tuned for $100 bankroll
     DAILY_LOSS_LIMIT: float = 5.0
-    DAILY_LOSS_LIMIT_PCT: float = 0.10  # Percentage of bankroll for daily loss limit (overrides flat DAILY_LOSS_LIMIT when set)
+    DAILY_LOSS_LIMIT_PCT: float = (
+        0.10  # Percentage of bankroll for daily loss limit (overrides flat DAILY_LOSS_LIMIT when set)
+    )
     LONGSHOT_NO_BIAS_WEIGHT: float = 0.10
     HFT_ENABLED: bool = True
     CATEGORY_CONFIDENCE_ENABLED: bool = True
@@ -1353,9 +1478,13 @@ class Settings(BaseSettings):
         "weather": 0.02,
         "uncategorized": 0.03,
     }
-    MAX_TRADE_SIZE: float = 100.0  # Global absolute ceiling on any single trade size (USD)
+    MAX_TRADE_SIZE: float = (
+        100.0  # Global absolute ceiling on any single trade size (USD)
+    )
     MIN_ORDER_USDC: float = 5.0  # Polymarket minimum order size (live mode)
-    PAPER_MIN_ORDER_USDC: float = 5.0  # Simulated minimum (matches live to prevent hallucination)
+    PAPER_MIN_ORDER_USDC: float = (
+        5.0  # Simulated minimum (matches live to prevent hallucination)
+    )
     MIN_TIME_REMAINING: int = 60  # Don't trade windows closing in < 60s
     MAX_TIME_REMAINING: int = 1800  # Trade windows up to 30min out
 
@@ -1373,25 +1502,32 @@ class Settings(BaseSettings):
     HFT_POSITION_SIZE_PCT: float = 0.25
     HFT_MAX_POSITION_USD: float = 1000.0
 
-    @field_validator('HFT_POSITION_SIZE_PCT')
+    @field_validator("HFT_POSITION_SIZE_PCT")
     @classmethod
     def validate_hft_position_size_pct(cls, v):
         if not (0.01 <= v <= 0.25):
-            raise ValueError(f"HFT_POSITION_SIZE_PCT must be between 0.01 and 0.25 (inclusive), got {v}")
+            raise ValueError(
+                f"HFT_POSITION_SIZE_PCT must be between 0.01 and 0.25 (inclusive), got {v}"
+            )
         return v
 
-    @field_validator('HFT_MAX_POSITION_USD')
+    @field_validator("HFT_MAX_POSITION_USD")
     @classmethod
     def validate_hft_max_position_usd(cls, v):
         if not (100 <= v <= 100000):
-            raise ValueError(f"HFT_MAX_POSITION_USD must be between 100 and 100000 (inclusive), got {v}")
+            raise ValueError(
+                f"HFT_MAX_POSITION_USD must be between 100 and 100000 (inclusive), got {v}"
+            )
         return v
-
 
     # Parameter tuning safeguards (safe_param_tuner)
     SAFE_TUNER_MAX_CHANGE_PCT: float = 0.10  # Max 10% parameter drift per tuning cycle
-    SAFE_TUNER_MIN_TRADES_FOR_TUNING: int = 20  # Require at least 20 trades before tuning
-    SAFE_TUNER_REVERT_SIGMA_THRESHOLD: float = 2.0  # Degrade >2σ triggers parameter revert
+    SAFE_TUNER_MIN_TRADES_FOR_TUNING: int = (
+        20  # Require at least 20 trades before tuning
+    )
+    SAFE_TUNER_REVERT_SIGMA_THRESHOLD: float = (
+        2.0  # Degrade >2σ triggers parameter revert
+    )
     WEATHER_ENABLED: bool = True
     WEATHER_SCAN_INTERVAL_SECONDS: int = 60  # 1 min
     WEATHER_SETTLEMENT_INTERVAL_SECONDS: int = 1800  # 30 min
@@ -1407,7 +1543,9 @@ class Settings(BaseSettings):
 
     # Admin API security
     ADMIN_API_KEY: Optional[str] = None
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://polyedge.aitradepulse.com,http://polyedge.aitradepulse.com"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://polyedge.aitradepulse.com,http://polyedge.aitradepulse.com"
+    )
 
     # Telegram bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None
@@ -1431,7 +1569,9 @@ class Settings(BaseSettings):
     SHORT_MARKET_MIN_VOLUME: float = 100.0
 
     # Job Queue Settings
-    JOB_WORKER_ENABLED: bool = True  # Required for trading — enables APScheduler strategy cycles
+    JOB_WORKER_ENABLED: bool = (
+        True  # Required for trading — enables APScheduler strategy cycles
+    )
     JOB_QUEUE_URL: str = "sqlite:///./job_queue.db"  # or "redis://localhost:6379"
     JOB_TIMEOUT_SECONDS: int = 300  # 5 minutes
     MAX_CONCURRENT_JOBS: int = 1
@@ -1452,7 +1592,9 @@ class Settings(BaseSettings):
     WEEKLY_LOSS_FLOOR_PCT: float = (
         -0.20  # Revert to PAPER mode for 7 days if weekly PnL < -20% of bankroll
     )
-    MAX_STRATEGY_DRAWDOWN_PCT: float = 0.15  # Per-strategy max drawdown (% of allocation)
+    MAX_STRATEGY_DRAWDOWN_PCT: float = (
+        0.15  # Per-strategy max drawdown (% of allocation)
+    )
     VOLATILITY_SIZE_SCALE: bool = True  # Reduce size in high volatility
     COOLDOWN_CONSECUTIVE_LOSSES: int = 3  # Losses before cooldown
     COOLDOWN_MINUTES: int = 60  # Strategy cooldown after consecutive losses
@@ -1496,22 +1638,32 @@ class Settings(BaseSettings):
     RESEARCH_PIPELINE_INTERVAL_HOURS: int = 4  # Run every 4 hours
 
     # AGI Autonomy Controls (full automatic operation)
-    USE_EVENT_BUS_HANDLERS: bool = True  # Enable reactive event-driven AGI handlers (scheduler jobs become heartbeat fallback)
-    AGI_AUTO_PROMOTE: bool = False  # Allow paper→live without human approval (default: off for safety)
+    USE_EVENT_BUS_HANDLERS: bool = (
+        True  # Enable reactive event-driven AGI handlers (scheduler jobs become heartbeat fallback)
+    )
+    AGI_AUTO_PROMOTE: bool = (
+        False  # Allow paper→live without human approval (default: off for safety)
+    )
     AGI_AUTO_ENABLE: bool = False  # Auto-enable strategies upon promotion to live
-    AGI_PROMOTION_INTERVAL_HOURS: int = 6  # How often to evaluate experiments for promotion
+    AGI_PROMOTION_INTERVAL_HOURS: int = (
+        6  # How often to evaluate experiments for promotion
+    )
     AGI_STRATEGY_HEALTH_ENABLED: bool = True  # Auto-disable underperforming strategies
 
     REGISTRY_MIN_WIN_RATE: float = 0.30
     REGISTRY_MIN_ROI: float = -0.30
-    AGI_BANKROLL_ALLOCATION_ENABLED: bool = False  # Auto-reallocate capital by strategy rank
+    AGI_BANKROLL_ALLOCATION_ENABLED: bool = (
+        False  # Auto-reallocate capital by strategy rank
+    )
     AGI_BANKROLL_ALLOCATION_INTERVAL_DAYS: int = 1  # Rebalance frequency
     REGIME_ROUTING_ENABLED: bool = True  # Enable regime-adjusted confidence thresholds
     ENABLE_PAIR_COST_ARB: bool = True  # Enable pair cost arbitrage monitoring
     MIN_ARB_SPREAD: float = 0.005  # Minimum arbitrage spread (0.5%) to trigger
     TAKER_FEE_RATE: float = 0.02  # Polymarket taker fee rate (2%)
     SHADOW_VALIDATE_ENABLED: bool = True  # Validate shadow genomes every 5 minutes
-    SHADOW_USES_REAL_SIGNALS: bool = True  # Shadow experiments use real trade data, never fabricate
+    SHADOW_USES_REAL_SIGNALS: bool = (
+        True  # Shadow experiments use real trade data, never fabricate
+    )
 
     AGI_HEALTH_CHECK_ENABLED: bool = True
     AGI_HEALTH_CHECK_INTERVAL_MINUTES: int = 15
@@ -1529,7 +1681,9 @@ class Settings(BaseSettings):
 
     # Paper trading slippage simulation (defaults = disabled for backward compatibility)
     PAPER_SLIPPAGE_BPS: float = 20.0  # Base slippage in basis points (20 = 0.2%)
-    PAPER_MIN_SLIPPAGE_BPS: float = 5.0  # Minimum slippage even for small orders (0.05%)
+    PAPER_MIN_SLIPPAGE_BPS: float = (
+        5.0  # Minimum slippage even for small orders (0.05%)
+    )
     HFT_MAX_SLIPPAGE_BPS: float = 20.0
     PAPER_RANDOM_SLIPPAGE: bool = True  # Add random ±20% jitter to slippage
 
@@ -1563,10 +1717,10 @@ class Settings(BaseSettings):
     AGI_REHAB_WIN_RATE_THRESHOLD: float = 0.50
     AGI_REHAB_ALLOCATION_PCT: float = 0.25  # graduated rehab starting allocation
     # Lite rehabilitation (T7): lighter path for auto-disabled strategies
-    AGI_REHAB_LITE_COOLDOWN_HOURS: int = 1       # re-enable after 1h in paper mode
-    AGI_REHAB_LITE_RE_DISABLE_HOURS: int = 4      # re-disable for 4h if still bad
+    AGI_REHAB_LITE_COOLDOWN_HOURS: int = 1  # re-enable after 1h in paper mode
+    AGI_REHAB_LITE_RE_DISABLE_HOURS: int = 4  # re-disable for 4h if still bad
     AGI_REHAB_LITE_WIN_RATE_THRESHOLD: float = 0.30  # keep enabled if WR >= 30%
-    AGI_AUTO_DISABLE_MIN_TRADES: int = 10          # exempt strategies with <10 trades
+    AGI_AUTO_DISABLE_MIN_TRADES: int = 10  # exempt strategies with <10 trades
 
     # G-09: Strategy performance decay detection
     PERFORMANCE_DECAY_THRESHOLD: float = 0.20  # 20% win rate drop triggers warning
@@ -1578,23 +1732,31 @@ class Settings(BaseSettings):
 
     # LIVE_TRIAL phase configuration (AGI-2)
     LIVE_TRIAL_ENABLED: bool = True
-    LIVE_TRIAL_BANKROLL_PCT: float = 0.01   # fraction of bankroll during live trial
-    LIVE_TRIAL_DURATION_DAYS: int = 7       # minimum trial period before full promotion
-    LIVE_TRIAL_DEGRADATION_THRESHOLD: float = 0.80  # live perf must be >= paper perf * this
+    LIVE_TRIAL_BANKROLL_PCT: float = 0.01  # fraction of bankroll during live trial
+    LIVE_TRIAL_DURATION_DAYS: int = 7  # minimum trial period before full promotion
+    LIVE_TRIAL_DEGRADATION_THRESHOLD: float = (
+        0.80  # live perf must be >= paper perf * this
+    )
     AGI_LIVE_TRIAL_BANKROLL_PCT: float = 0.01  # legacy alias — kept for compatibility
     AGI_LIVE_TRIAL_DAYS: int = 7  # minimum trial period before full promotion
     AGI_LIVE_TRIAL_MIN_TRADES: int = 10
-    AGI_DEMOTION_RETRY_LIMIT: int = 3  # max improvement cycles before permanent retirement
+    AGI_DEMOTION_RETRY_LIMIT: int = (
+        3  # max improvement cycles before permanent retirement
+    )
     # Demotion → improvement loop (AGI-3)
-    AGI_MAX_IMPROVEMENT_ATTEMPTS: int = 3   # max improvement cycles before RETIRED
+    AGI_MAX_IMPROVEMENT_ATTEMPTS: int = 3  # max improvement cycles before RETIRED
     # LLM strategy synthesis (AGI-4)
     AGI_SYNTHESIS_DAILY_BUDGET: float = 2.00  # max USD/day for LLM synthesis calls
     # Forensics overhaul for broken strategies (AGI-7)
     AGI_BROKEN_STRATEGY_OVERHAUL_ENABLED: bool = True
     # Calibration drift detection (AI-3)
-    AGI_BRIER_DRIFT_THRESHOLD: float = 0.25   # Brier score above this triggers retrain
-    AGI_CALIBRATION_MIN_SAMPLES: int = 30     # min settled trades before checking calibration
-    AGI_CALIBRATION_CHECK_INTERVAL_HOURS: int = 6  # how often to run calibration check job
+    AGI_BRIER_DRIFT_THRESHOLD: float = 0.25  # Brier score above this triggers retrain
+    AGI_CALIBRATION_MIN_SAMPLES: int = (
+        30  # min settled trades before checking calibration
+    )
+    AGI_CALIBRATION_CHECK_INTERVAL_HOURS: int = (
+        6  # how often to run calibration check job
+    )
     AGI_FRONTTEST_MIN_WIN_RATE: float = 0.40
     AGI_PROMOTER_SHADOW_MIN_TRADES: int = 100
     AGI_PROMOTER_SHADOW_MIN_DAYS: int = 7
@@ -1625,7 +1787,9 @@ class Settings(BaseSettings):
     # Cache Settings
     CACHE_URL: str = "sqlite:///./cache.db"  # or "redis://localhost:6379/0"
     CACHE_TTL_SECONDS: int = 300  # 5 minutes
-    DASHBOARD_CACHE_TTL_SECONDS: float = 2.0  # Coalesce expensive dashboard polling bursts
+    DASHBOARD_CACHE_TTL_SECONDS: float = (
+        2.0  # Coalesce expensive dashboard polling bursts
+    )
 
     # Redis Pub/Sub for WebSocket (multi-instance support)
     REDIS_URL: str = "redis://localhost:6379"
@@ -1664,7 +1828,9 @@ class Settings(BaseSettings):
     BRAIN_API_URL: str = "http://localhost:9099"
 
     # RSS News Feeds (comma-separated URLs)
-    RSS_FEED_URLS: str = "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
+    RSS_FEED_URLS: str = (
+        "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
+    )
 
     # Arb / probability arb thresholds
     ARB_MIN_PROFIT: float = 0.02
@@ -1693,7 +1859,9 @@ class Settings(BaseSettings):
     SCANNER_MIN_EDGE: float = 0.05
     SCANNER_STALE_THRESHOLD_SECONDS: float = 5.0
     SCANNER_MAX_MARKETS: int = 10000
-    MARKET_UNIVERSE_CACHE_TTL_SECONDS: int = int(os.getenv("MARKET_UNIVERSE_CACHE_TTL_SECONDS", "300"))
+    MARKET_UNIVERSE_CACHE_TTL_SECONDS: int = int(
+        os.getenv("MARKET_UNIVERSE_CACHE_TTL_SECONDS", "300")
+    )
 
     # Order executor thresholds (Phase 3: stricter copy-trade filtering)
     ORDER_EXECUTOR_MIN_WHALE_SIZE: float = 100.0
@@ -1737,7 +1905,9 @@ class Settings(BaseSettings):
     BINANCE_KLINES_URL: str = "https://api.binance.com/api/v3/klines"
     OPEN_METEO_ARCHIVE_URL: str = "https://archive-api.open-meteo.com/v1/archive"
     KALSHI_API_URL: str = "https://api.elections.kalshi.com/trade-api/v2"
-    GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
+    GOLDSKY_API_URL: str = (
+        "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
+    )
     RESEARCH_RSS_FEEDS: str = (
         "https://feeds.bbci.co.uk/news/rss.xml,"
         "https://feeds.reuters.com/reuters/businessNews,"
@@ -1749,7 +1919,9 @@ class Settings(BaseSettings):
     POLYMARKET_WS_CLOB_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     POLYMARKET_WS_USER_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
     POLYMARKET_WS_RTDS_URL: str = "wss://ws-live-data.polymarket.com"
-    POLYMARKET_WS_WHALE_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+    POLYMARKET_WS_WHALE_URL: str = (
+        "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+    )
     POLYMARKET_WS_ORDERBOOK_URL: str = "wss://ws.polymarket.com/orderbook"
     QUICKNODE_RPC_URL: str = "https://rpc-mainnet.matic.quiknode.pro"
     OPEN_METEO_ENSEMBLE_URL: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
@@ -1790,7 +1962,9 @@ class Settings(BaseSettings):
 
     @property
     def TRADING_MODE(self) -> str:
-        first = self.ACTIVE_MODES.split(",")[0].strip() if self.ACTIVE_MODES else "paper"
+        first = (
+            self.ACTIVE_MODES.split(",")[0].strip() if self.ACTIVE_MODES else "paper"
+        )
         return first if first in ("paper", "testnet", "live") else "paper"
 
     @property
@@ -1805,29 +1979,37 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _validate_trading_params(self) -> "Settings":
         if not (0.0 < self.WEEKLY_DRAWDOWN_LIMIT_PCT <= 1.0):
-            raise ValueError(f"WEEKLY_DRAWDOWN_LIMIT_PCT must be in (0.0, 1.0], got {self.WEEKLY_DRAWDOWN_LIMIT_PCT}")
+            raise ValueError(
+                f"WEEKLY_DRAWDOWN_LIMIT_PCT must be in (0.0, 1.0], got {self.WEEKLY_DRAWDOWN_LIMIT_PCT}"
+            )
         return self
 
-    @field_validator('AI_SIGNAL_WEIGHT')
+    @field_validator("AI_SIGNAL_WEIGHT")
     @classmethod
     def validate_ai_signal_weight(cls, v):
         if not (0.0 <= v <= 0.5):
-            raise ValueError(f"AI_SIGNAL_WEIGHT must be between 0.0 and 0.5 (inclusive), got {v}")
+            raise ValueError(
+                f"AI_SIGNAL_WEIGHT must be between 0.0 and 0.5 (inclusive), got {v}"
+            )
         return v
 
-    @field_validator('KELLY_FRACTION')
+    @field_validator("KELLY_FRACTION")
     @classmethod
     def validate_kelly_fraction(cls, v):
         if not (0.0 <= v <= 0.5):
-            raise ValueError(f"KELLY_FRACTION must be between 0.0 and 0.5 (inclusive), got {v}. "
-                             f"Values above 0.5 (half-Kelly) are highly aggressive and unsafe for automated trading.")
+            raise ValueError(
+                f"KELLY_FRACTION must be between 0.0 and 0.5 (inclusive), got {v}. "
+                f"Values above 0.5 (half-Kelly) are highly aggressive and unsafe for automated trading."
+            )
         return v
 
-    @field_validator('DAILY_DRAWDOWN_LIMIT_PCT')
+    @field_validator("DAILY_DRAWDOWN_LIMIT_PCT")
     @classmethod
     def validate_daily_drawdown_limit_pct(cls, v):
         if not (0.0 <= v <= 0.5):
-            raise ValueError(f"DAILY_DRAWDOWN_LIMIT_PCT must be between 0.0 and 0.5 (inclusive), got {v}")
+            raise ValueError(
+                f"DAILY_DRAWDOWN_LIMIT_PCT must be between 0.0 and 0.5 (inclusive), got {v}"
+            )
         return v
 
     @model_validator(mode="after")
@@ -1863,6 +2045,7 @@ class Settings(BaseSettings):
 # Global settings instance - provides access to all config via dataclass
 settings = ConfigRegistry()
 
+
 # Startup validation - fail fast if config is invalid
 def _validate_startup():
     issues = settings.validate()
@@ -1872,6 +2055,7 @@ def _validate_startup():
             print(f"  - {issue}")
         raise ValueError(f"Configuration validation failed: {issues[:3]}")
     print("PolyEdge Configuration Loaded Successfully")
+
 
 _validate_startup()
 
@@ -1898,6 +2082,8 @@ if __name__ == "__main__":
     print("PolyEdge Configuration Loaded Successfully")
     print(f"  Trading mode: {settings.TRADING_MODE}")
     print(f"  Bankroll: ${settings.INITIAL_BANKROLL:.2f}")
-    print(f"  API endpoints configured: {len([k for k in dir(settings) if k.endswith('_URL') and not k.startswith('_')])}")
+    print(
+        f"  API endpoints configured: {len([k for k in dir(settings) if k.endswith('_URL') and not k.startswith('_')])}"
+    )
     print(f"  Jobs enabled: {settings.JOB_WORKER_ENABLED}")
     print(f"  AGI autonomy: {settings.AGI_AUTO_PROMOTE}")

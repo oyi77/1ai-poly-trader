@@ -9,6 +9,7 @@ In-memory SQLite with StaticPool shares one connection across threads causing
 "bad parameter" errors; with NullPool each new connection gets an empty DB.
 Using a temp file avoids both problems — threads share the same on-disk file.
 """
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -17,10 +18,10 @@ from sqlalchemy.pool import NullPool
 from backend.models.database import Base, JobQueue
 from backend.job_queue.sqlite_queue import AsyncSQLiteQueue
 
-
 # ---------------------------------------------------------------------------
 # Fixture: isolated on-disk temp DB + monkeypatched SessionLocal
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def queue(monkeypatch, tmp_path):
@@ -37,8 +38,10 @@ def queue(monkeypatch, tmp_path):
 
     # Redirect the module-level SessionLocal used inside AsyncSQLiteQueue
     import backend.models.database as db_mod
+
     monkeypatch.setattr(db_mod, "SessionLocal", TestSession)
     import backend.job_queue.sqlite_queue as sq_mod
+
     monkeypatch.setattr(sq_mod, "SessionLocal", TestSession)
 
     q = AsyncSQLiteQueue()
@@ -50,6 +53,7 @@ def queue(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_enqueue_creates_job_record(queue):
@@ -93,20 +97,16 @@ async def test_dequeue_priority_order(queue):
 @pytest.mark.asyncio
 async def test_idempotency_constraint(queue):
     q, Session = queue
-    id1 = await q.enqueue(
-        "market_scan", {"ticker": "BTC"}, idempotency_key="scan-001"
-    )
-    id2 = await q.enqueue(
-        "market_scan", {"ticker": "BTC"}, idempotency_key="scan-001"
-    )
+    id1 = await q.enqueue("market_scan", {"ticker": "BTC"}, idempotency_key="scan-001")
+    id2 = await q.enqueue("market_scan", {"ticker": "BTC"}, idempotency_key="scan-001")
 
     assert id1 == id2
 
     db = Session()
     try:
-        count = db.query(JobQueue).filter(
-            JobQueue.idempotency_key == "scan-001"
-        ).count()
+        count = (
+            db.query(JobQueue).filter(JobQueue.idempotency_key == "scan-001").count()
+        )
         assert count == 1
     finally:
         db.close()

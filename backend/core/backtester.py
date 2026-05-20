@@ -1,4 +1,5 @@
 """Backtesting engine — simulate strategy execution against historical market data."""
+
 import statistics
 from dataclasses import dataclass
 from datetime import datetime, date
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 from backend.models.database import Trade, Signal, SessionLocal
 
 from loguru import logger
+
+
 @dataclass
 class BacktestConfig:
     strategy_name: str
@@ -397,8 +400,10 @@ class BacktestEngine:
         # Profit Factor: gross wins / abs(gross losses)
         gross_wins = sum(t.pnl for t in wins)
         gross_losses = abs(sum(t.pnl for t in losses)) if losses else 0.0
-        profit_factor = gross_wins / gross_losses if gross_losses > 0 else (
-            float('inf') if gross_wins > 0 else 0.0
+        profit_factor = (
+            gross_wins / gross_losses
+            if gross_losses > 0
+            else (float("inf") if gross_wins > 0 else 0.0)
         )
 
         return {
@@ -434,10 +439,14 @@ class BacktestEngine:
         try:
             from backend.models.historical_data import MarketOutcome
 
-            query = db.query(MarketOutcome).filter(
-                MarketOutcome.resolution_time >= self.config.start_date,
-                MarketOutcome.resolution_time <= self.config.end_date,
-            ).order_by(MarketOutcome.resolution_time.asc())
+            query = (
+                db.query(MarketOutcome)
+                .filter(
+                    MarketOutcome.resolution_time >= self.config.start_date,
+                    MarketOutcome.resolution_time <= self.config.end_date,
+                )
+                .order_by(MarketOutcome.resolution_time.asc())
+            )
 
             outcomes = query.all()
             if not outcomes:
@@ -496,9 +505,8 @@ class BacktestEngine:
                 if (total_exposure + size) / bankroll > self.config.max_total_exposure:
                     continue
 
-                won = (
-                    (direction == "up" and outcome.outcome in ("Yes", "up"))
-                    or (direction == "down" and outcome.outcome in ("No", "down"))
+                won = (direction == "up" and outcome.outcome in ("Yes", "up")) or (
+                    direction == "down" and outcome.outcome in ("No", "down")
                 )
                 pnl = ((size / entry_price) - size) if won else -size
                 pnl = round(pnl - self.config.slippage, 4)
@@ -521,10 +529,12 @@ class BacktestEngine:
                     total_exposure = max(0.0, total_exposure - size)
                     daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
 
-                equity_curve.append({
-                    "timestamp": resolution_dt.isoformat(),
-                    "bankroll": round(bankroll, 4),
-                })
+                equity_curve.append(
+                    {
+                        "timestamp": resolution_dt.isoformat(),
+                        "bankroll": round(bankroll, 4),
+                    }
+                )
 
             metrics = self._calculate_metrics(
                 bt_trades, equity_curve, self.config.initial_bankroll
@@ -573,11 +583,17 @@ class BacktestEngine:
         if not candle:
             return "up", 0.5, 0.0
 
-        momentum = (candle.close - candle.open) / candle.open if candle.open > 0 else 0.0
+        momentum = (
+            (candle.close - candle.open) / candle.open if candle.open > 0 else 0.0
+        )
         direction = "up" if momentum > 0 else "down"
         model_prob = 0.50 + min(abs(momentum) * 5.0, 0.10)
 
-        entry = outcome.final_price if direction == "up" else (1.0 - (outcome.final_price or 0.5))
+        entry = (
+            outcome.final_price
+            if direction == "up"
+            else (1.0 - (outcome.final_price or 0.5))
+        )
         entry = max(0.01, min(0.99, entry or 0.5))
         edge = abs(model_prob - entry)
 
@@ -610,9 +626,13 @@ class BacktestEngine:
             kelly = float(param_overrides.get("kelly_fraction", cfg.kelly_fraction))
             max_size = float(param_overrides.get("max_trade_size", cfg.max_trade_size))
             slippage = float(param_overrides.get("slippage", cfg.slippage))
-            max_pos_frac = float(param_overrides.get("max_position_fraction", cfg.max_position_fraction))
+            max_pos_frac = float(
+                param_overrides.get("max_position_fraction", cfg.max_position_fraction)
+            )
             min_edge = float(param_overrides.get("min_edge", 0.0))
-            daily_limit = float(param_overrides.get("daily_loss_limit", cfg.daily_loss_limit))
+            daily_limit = float(
+                param_overrides.get("daily_loss_limit", cfg.daily_loss_limit)
+            )
 
             trades = (
                 db.query(Trade)
@@ -638,7 +658,11 @@ class BacktestEngine:
                 if day_loss <= -daily_limit:
                     continue
 
-                edge = trade.edge_at_entry if hasattr(trade, "edge_at_entry") and trade.edge_at_entry else 0.1
+                edge = (
+                    trade.edge_at_entry
+                    if hasattr(trade, "edge_at_entry") and trade.edge_at_entry
+                    else 0.1
+                )
                 if edge < min_edge:
                     continue
 
@@ -647,7 +671,9 @@ class BacktestEngine:
                 if size <= 0:
                     continue
 
-                if (total_exposure + size) / max(bankroll, 1.0) > cfg.max_total_exposure:
+                if (total_exposure + size) / max(
+                    bankroll, 1.0
+                ) > cfg.max_total_exposure:
                     continue
 
                 entry_price = trade.entry_price or 0.5
@@ -657,9 +683,17 @@ class BacktestEngine:
                 if settlement_value is not None:
                     bt_dir = trade.direction
                     if bt_dir in ("up", "yes"):
-                        pnl = ((size / entry_price) - size) if settlement_value == 1.0 else -size
+                        pnl = (
+                            ((size / entry_price) - size)
+                            if settlement_value == 1.0
+                            else -size
+                        )
                     else:
-                        pnl = ((size / entry_price) - size) if settlement_value == 0.0 else -size
+                        pnl = (
+                            ((size / entry_price) - size)
+                            if settlement_value == 0.0
+                            else -size
+                        )
                 elif trade.pnl is not None:
                     orig_size = trade.size or size
                     scale = size / orig_size if orig_size > 0 else 1.0
@@ -668,17 +702,19 @@ class BacktestEngine:
                 if pnl is not None:
                     pnl = round(pnl - slippage, 4)
 
-                bt_trades.append(BacktestTrade(
-                    timestamp=trade.timestamp,
-                    market_ticker=trade.market_ticker,
-                    direction=trade.direction or "up",
-                    entry_price=entry_price,
-                    size=size,
-                    edge=edge,
-                    settlement_value=settlement_value,
-                    pnl=pnl,
-                    settled=True,
-                ))
+                bt_trades.append(
+                    BacktestTrade(
+                        timestamp=trade.timestamp,
+                        market_ticker=trade.market_ticker,
+                        direction=trade.direction or "up",
+                        entry_price=entry_price,
+                        size=size,
+                        edge=edge,
+                        settlement_value=settlement_value,
+                        pnl=pnl,
+                        settled=True,
+                    )
+                )
 
                 if pnl is not None:
                     bankroll += pnl
@@ -687,13 +723,19 @@ class BacktestEngine:
                 else:
                     total_exposure += size
 
-                equity_curve.append({
-                    "timestamp": trade.timestamp.isoformat(),
-                    "bankroll": round(bankroll, 4),
-                })
+                equity_curve.append(
+                    {
+                        "timestamp": trade.timestamp.isoformat(),
+                        "bankroll": round(bankroll, 4),
+                    }
+                )
 
-            metrics = self._calculate_metrics(bt_trades, equity_curve, cfg.initial_bankroll)
-            return BacktestResult(config=cfg, trades=bt_trades, equity_curve=equity_curve, **metrics)
+            metrics = self._calculate_metrics(
+                bt_trades, equity_curve, cfg.initial_bankroll
+            )
+            return BacktestResult(
+                config=cfg, trades=bt_trades, equity_curve=equity_curve, **metrics
+            )
         finally:
             if _owned:
                 db.close()

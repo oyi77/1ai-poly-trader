@@ -10,6 +10,8 @@ from backend.models.database import SessionLocal
 from backend.config import settings
 
 from loguru import logger
+
+
 class HistoricalDataCollector:
     """Collects and stores historical market data from live feeds."""
 
@@ -23,7 +25,10 @@ class HistoricalDataCollector:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
             latest = (
                 db.query(HistoricalCandle.timestamp)
-                .filter(HistoricalCandle.source == "binance", HistoricalCandle.symbol == "BTCUSDT")
+                .filter(
+                    HistoricalCandle.source == "binance",
+                    HistoricalCandle.symbol == "BTCUSDT",
+                )
                 .order_by(HistoricalCandle.timestamp.desc())
                 .first()
             )
@@ -64,7 +69,9 @@ class HistoricalDataCollector:
                 try:
                     db.rollback()
                 except Exception:
-                    logger.exception("[HistoricalDataCollector] Rollback failed after BTC candle collection error")
+                    logger.exception(
+                        "[HistoricalDataCollector] Rollback failed after BTC candle collection error"
+                    )
             return 0
         finally:
             if _owned:
@@ -107,7 +114,9 @@ class HistoricalDataCollector:
                 try:
                     db.rollback()
                 except Exception:
-                    logger.exception("[HistoricalDataCollector] Rollback failed after market outcome collection error")
+                    logger.exception(
+                        "[HistoricalDataCollector] Rollback failed after market outcome collection error"
+                    )
             return 0
         finally:
             if _owned:
@@ -156,7 +165,9 @@ class HistoricalDataCollector:
                 try:
                     db.rollback()
                 except Exception:
-                    logger.exception("[HistoricalDataCollector] Rollback failed after weather snapshot collection error")
+                    logger.exception(
+                        "[HistoricalDataCollector] Rollback failed after weather snapshot collection error"
+                    )
             return 0
         finally:
             if _owned:
@@ -204,17 +215,19 @@ class HistoricalDataCollector:
                         break
 
                     for k in data:
-                        all_candles.append({
-                            "timestamp": datetime.fromtimestamp(
-                                k[0] / 1000, tz=timezone.utc
-                            ),
-                            "open": float(k[1]),
-                            "high": float(k[2]),
-                            "low": float(k[3]),
-                            "close": float(k[4]),
-                            "volume": float(k[5]),
-                            "interval": "1m",
-                        })
+                        all_candles.append(
+                            {
+                                "timestamp": datetime.fromtimestamp(
+                                    k[0] / 1000, tz=timezone.utc
+                                ),
+                                "open": float(k[1]),
+                                "high": float(k[2]),
+                                "low": float(k[3]),
+                                "close": float(k[4]),
+                                "volume": float(k[5]),
+                                "interval": "1m",
+                            }
+                        )
 
                     last_ts = data[-1][0] + 60_000
                     if last_ts >= end_ms:

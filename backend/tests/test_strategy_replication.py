@@ -19,7 +19,6 @@ from backend.strategies.replication import (
     replicate_strategy,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers — synthetic position builders
 # ---------------------------------------------------------------------------
@@ -103,6 +102,7 @@ class TestProfitableSource:
     async def test_replicate_profitable_ready_for_live(self, monkeypatch):
         positions = _make_positions(100, pnl=12.0, total_bought=80.0)
         import backend.strategies.replication as _mod
+
         _orig = _mod.get_all_closed_positions
         _mod.get_all_closed_positions = AsyncMock(return_value=positions)
         try:
@@ -120,6 +120,7 @@ class TestLosingSource:
     async def test_losing_wallet_low_confidence(self, monkeypatch):
         positions = _make_positions(40, pnl=-3.0)
         import backend.strategies.replication as _mod
+
         _orig = _mod.get_all_closed_positions
         _mod.get_all_closed_positions = AsyncMock(return_value=positions)
         try:

@@ -97,7 +97,9 @@ class TestCrossFeatureActivityToDecision:
         # Verify full workflow
         activities = db.query(ActivityLog).filter_by(strategy_name="weather_emos").all()
         decisions = db.query(DecisionLog).filter_by(strategy="weather_emos").all()
-        proposals = db.query(StrategyProposal).filter_by(strategy_name="weather_emos").all()
+        proposals = (
+            db.query(StrategyProposal).filter_by(strategy_name="weather_emos").all()
+        )
 
         assert len(activities) == 1
         assert len(decisions) == 1
@@ -124,11 +126,13 @@ class TestCrossFeatureActivityToDecision:
             market_ticker="polymarket-btc-100k",
             decision="BUY",
             confidence=0.82,
-            signal_data=json.dumps({
-                "mirofish_prediction": 0.75,
-                "mirofish_confidence": 0.82,
-                "reasoning": "Debate engine consensus: 75% probability"
-            }),
+            signal_data=json.dumps(
+                {
+                    "mirofish_prediction": 0.75,
+                    "mirofish_confidence": 0.82,
+                    "reasoning": "Debate engine consensus: 75% probability",
+                }
+            ),
             reason="MiroFish signal above threshold",
         )
         db.add(decision)
@@ -184,7 +188,9 @@ class TestCrossFeatureProposalExecution:
         db.commit()
 
         # Verify update
-        updated_config = db.query(StrategyConfig).filter_by(strategy_name="btc_momentum").first()
+        updated_config = (
+            db.query(StrategyConfig).filter_by(strategy_name="btc_momentum").first()
+        )
         params = json.loads(updated_config.params)
 
         assert params["rsi_threshold"] == 65
@@ -221,11 +227,13 @@ class TestCrossFeatureProposalExecution:
         db.commit()
 
         # Measure negative impact
-        proposal.impact_measured = json.dumps({
-            "accuracy_change": -3.2,
-            "signal_count_change": -12,
-            "recommendation": "rollback"
-        })
+        proposal.impact_measured = json.dumps(
+            {
+                "accuracy_change": -3.2,
+                "signal_count_change": -12,
+                "recommendation": "rollback",
+            }
+        )
         db.commit()
 
         # Rollback to original params
@@ -233,7 +241,9 @@ class TestCrossFeatureProposalExecution:
         db.commit()
 
         # Verify rollback
-        rolled_back_config = db.query(StrategyConfig).filter_by(strategy_name="weather_emos").first()
+        rolled_back_config = (
+            db.query(StrategyConfig).filter_by(strategy_name="weather_emos").first()
+        )
         params = json.loads(rolled_back_config.params)
 
         assert params["ensemble_size"] == 31
@@ -277,7 +287,9 @@ class TestCrossFeatureStatsCorrelation:
         db.commit()
 
         # Query activities
-        all_activities = db.query(ActivityLog).filter_by(strategy_name="btc_momentum").all()
+        all_activities = (
+            db.query(ActivityLog).filter_by(strategy_name="btc_momentum").all()
+        )
         entry_activities = db.query(ActivityLog).filter_by(decision_type="entry").all()
 
         assert len(all_activities) == 3
@@ -449,7 +461,9 @@ class TestCrossFeatureConcurrency:
         db.commit()
 
         # Verify final state
-        final_config = db.query(StrategyConfig).filter_by(strategy_name="btc_momentum").first()
+        final_config = (
+            db.query(StrategyConfig).filter_by(strategy_name="btc_momentum").first()
+        )
         params = json.loads(final_config.params)
         assert params["rsi_threshold"] == 68
 

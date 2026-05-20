@@ -11,6 +11,8 @@ from starlette.responses import JSONResponse
 from backend.config import settings
 
 from loguru import logger
+
+
 class TimeoutMiddleware(BaseHTTPMiddleware):
     """Middleware to enforce request timeouts on all API endpoints."""
 
@@ -19,8 +21,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
         try:
             response = await asyncio.wait_for(
-                call_next(request),
-                timeout=settings.API_REQUEST_TIMEOUT
+                call_next(request), timeout=settings.API_REQUEST_TIMEOUT
             )
             return response
 
@@ -33,6 +34,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             )
 
             from backend.monitoring.metrics import increment_timeouts
+
             increment_timeouts(timeout_type="api")
 
             return JSONResponse(
@@ -41,6 +43,6 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
                     "error": "Gateway Timeout",
                     "message": f"Request exceeded timeout of {settings.API_REQUEST_TIMEOUT} seconds",
                     "timeout_seconds": settings.API_REQUEST_TIMEOUT,
-                    "elapsed_seconds": round(elapsed, 2)
-                }
+                    "elapsed_seconds": round(elapsed, 2),
+                },
             )

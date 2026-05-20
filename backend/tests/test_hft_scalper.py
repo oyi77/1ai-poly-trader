@@ -1,4 +1,5 @@
 """Tests for HFT Momentum Scalper Strategy."""
+
 import time
 from collections import deque
 from unittest.mock import AsyncMock, MagicMock
@@ -11,10 +12,10 @@ from backend.strategies.hft_scalper import (
 )
 from backend.strategies.base import MarketInfo, StrategyContext
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def strategy():
@@ -32,11 +33,15 @@ def mock_ctx():
     ctx.mode = "paper"
     ctx.clob.get_markets = AsyncMock(return_value=[])
     ctx.clob.get_usdc_balance = AsyncMock(return_value=1000.0)
-    ctx.clob.place_limit_order = AsyncMock(return_value=MagicMock(success=True, order_id="order_1"))
+    ctx.clob.place_limit_order = AsyncMock(
+        return_value=MagicMock(success=True, order_id="order_1")
+    )
     return ctx
 
 
-def _make_market(ticker="tok_1", volume=5000, liquidity=2000, best_bid=0.48, best_ask=0.52):
+def _make_market(
+    ticker="tok_1", volume=5000, liquidity=2000, best_bid=0.48, best_ask=0.52
+):
     return MarketInfo(
         ticker=ticker,
         slug=f"slug-{ticker}",
@@ -44,7 +49,11 @@ def _make_market(ticker="tok_1", volume=5000, liquidity=2000, best_bid=0.48, bes
         end_date=None,
         volume=volume,
         liquidity=liquidity,
-        metadata={"bestBid": best_bid, "bestAsk": best_ask, "midpoint": (best_bid + best_ask) / 2},
+        metadata={
+            "bestBid": best_bid,
+            "bestAsk": best_ask,
+            "midpoint": (best_bid + best_ask) / 2,
+        },
     )
 
 
@@ -59,6 +68,7 @@ def _seed_price_history(strategy, ticker, prices, start=None):
 # ---------------------------------------------------------------------------
 # Momentum detection
 # ---------------------------------------------------------------------------
+
 
 class TestDetectMomentum:
     def test_positive_momentum_detected(self, strategy):
@@ -98,11 +108,13 @@ class TestDetectMomentum:
     def test_stale_ticks_filtered(self, strategy):
         """Ticks outside lookback window are ignored."""
         old_time = time.time() - 60  # 60s ago, beyond 30s lookback
-        prices = deque([
-            (old_time, 0.50),
-            (old_time + 1, 0.505),
-            (old_time + 2, 0.512),
-        ])
+        prices = deque(
+            [
+                (old_time, 0.50),
+                (old_time + 1, 0.505),
+                (old_time + 2, 0.512),
+            ]
+        )
         direction, move = strategy.detect_momentum(prices, strategy.default_params)
         assert direction is None
 
@@ -110,6 +122,7 @@ class TestDetectMomentum:
 # ---------------------------------------------------------------------------
 # Exit conditions
 # ---------------------------------------------------------------------------
+
 
 class TestCheckExit:
     def _make_position(self, direction="BUY_YES", entry_price=0.50, opened_at=None):
@@ -173,6 +186,7 @@ class TestCheckExit:
 # Position management
 # ---------------------------------------------------------------------------
 
+
 class TestPositionManagement:
     def test_close_position_updates_state(self, strategy):
         """Closing a position removes from open, adds to closed, sets cooldown."""
@@ -215,6 +229,7 @@ class TestPositionManagement:
 # ---------------------------------------------------------------------------
 # Risk controls
 # ---------------------------------------------------------------------------
+
 
 class TestRiskGates:
     def test_max_concurrent_positions(self, strategy):
@@ -291,6 +306,7 @@ class TestRiskGates:
 # Kelly sizing
 # ---------------------------------------------------------------------------
 
+
 class TestKellySizing:
     def test_insufficient_data_uses_conservative_size(self, strategy):
         """With < 5 closed trades, returns conservative fixed size."""
@@ -303,9 +319,15 @@ class TestKellySizing:
         # Seed losing history
         for _ in range(10):
             p = ScalpPosition(
-                position_id="", market_id="", ticker="",
-                direction="BUY_YES", entry_price=0.50, size_usd=50,
-                opened_at=0, pnl_pct=-0.01, pnl_usd=-0.50,
+                position_id="",
+                market_id="",
+                ticker="",
+                direction="BUY_YES",
+                entry_price=0.50,
+                size_usd=50,
+                opened_at=0,
+                pnl_pct=-0.01,
+                pnl_usd=-0.50,
             )
             strategy._closed_positions.append(p)
 
@@ -315,9 +337,15 @@ class TestKellySizing:
         strategy._closed_positions.clear()
         for _ in range(10):
             p = ScalpPosition(
-                position_id="", market_id="", ticker="",
-                direction="BUY_YES", entry_price=0.50, size_usd=50,
-                opened_at=0, pnl_pct=0.01, pnl_usd=0.50,
+                position_id="",
+                market_id="",
+                ticker="",
+                direction="BUY_YES",
+                entry_price=0.50,
+                size_usd=50,
+                opened_at=0,
+                pnl_pct=0.01,
+                pnl_usd=0.50,
             )
             strategy._closed_positions.append(p)
 
@@ -329,9 +357,15 @@ class TestKellySizing:
         strategy._closed_positions.clear()
         for _ in range(20):
             p = ScalpPosition(
-                position_id="", market_id="", ticker="",
-                direction="BUY_YES", entry_price=0.50, size_usd=50,
-                opened_at=0, pnl_pct=0.05, pnl_usd=2.50,
+                position_id="",
+                market_id="",
+                ticker="",
+                direction="BUY_YES",
+                entry_price=0.50,
+                size_usd=50,
+                opened_at=0,
+                pnl_pct=0.05,
+                pnl_usd=2.50,
             )
             strategy._closed_positions.append(p)
 
@@ -342,6 +376,7 @@ class TestKellySizing:
 # ---------------------------------------------------------------------------
 # Strategy stats
 # ---------------------------------------------------------------------------
+
 
 class TestStats:
     def test_get_stats_empty(self, strategy):
@@ -355,9 +390,15 @@ class TestStats:
         """Stats reflect closed and open positions."""
         strategy._closed_positions.append(
             ScalpPosition(
-                position_id="", market_id="", ticker="",
-                direction="BUY_YES", entry_price=0.50, size_usd=50,
-                opened_at=0, pnl_pct=0.01, pnl_usd=0.50,
+                position_id="",
+                market_id="",
+                ticker="",
+                direction="BUY_YES",
+                entry_price=0.50,
+                size_usd=50,
+                opened_at=0,
+                pnl_pct=0.01,
+                pnl_usd=0.50,
             )
         )
         strategy._open_positions["tok_1"] = MagicMock()
@@ -371,6 +412,7 @@ class TestStats:
 # ---------------------------------------------------------------------------
 # Full cycle integration
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 class TestRunCycle:

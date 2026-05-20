@@ -6,6 +6,7 @@ working ``LogisticRegression`` baseline. The full ensemble (LSTM + XGBoost
 end-to-end pipeline (collect → engineer → train → evaluate → serve) is
 exercisable today and the swap to a heavier model is a contained change.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,6 +21,7 @@ from backend.ai.training.data_collector import TrainingExample
 from backend.ai.training.feature_engineering import FEATURE_ORDER, FeatureEngineer
 
 from loguru import logger
+
 DEFAULT_MODEL_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "models", "baseline.pkl"
 )
@@ -38,16 +40,16 @@ class TrainResult:
 class ModelTrainer:
     """Trains a logistic-regression baseline on labelled TrainingExamples."""
 
-    def __init__(self, model_path: Optional[str] = None, metadata_extra: Optional[dict] = None):
+    def __init__(
+        self, model_path: Optional[str] = None, metadata_extra: Optional[dict] = None
+    ):
         self.model_path = model_path or DEFAULT_MODEL_PATH
         self.fe = FeatureEngineer()
         self._metadata_extra = metadata_extra or {}
 
     def train(self, examples: List[TrainingExample]) -> TrainResult:
         if len(examples) < 8:
-            raise ValueError(
-                f"need at least 8 training examples, got {len(examples)}"
-            )
+            raise ValueError(f"need at least 8 training examples, got {len(examples)}")
 
         X = np.array([self.fe.to_vector(ex.features) for ex in examples], dtype=float)
         y = np.array([ex.label for ex in examples], dtype=float)

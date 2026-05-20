@@ -4,6 +4,7 @@ Revision ID: a1b2c3d4misc0
 Revises: f993aa61ad7d
 Create Date: 2026-05-19 00:00:00.000000
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -14,7 +15,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("experiment_records", sa.Column("misc_data", sa.JSON(), nullable=True))
+    op.add_column(
+        "experiment_records", sa.Column("misc_data", sa.JSON(), nullable=True)
+    )
 
 
 def downgrade() -> None:

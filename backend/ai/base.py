@@ -1,4 +1,5 @@
 """Base classes and types for AI integration."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from enum import Enum
 
 class AIProvider(str, Enum):
     """Supported AI providers."""
+
     CLAUDE = "claude"
     GROQ = "groq"
 
@@ -15,6 +17,7 @@ class AIProvider(str, Enum):
 @dataclass
 class AIAnalysis:
     """Result of AI analysis on a market or signal."""
+
     reasoning: str
     confidence: float  # 0-1
     recommendation: Optional[str] = None
@@ -37,13 +40,14 @@ class AIAnalysis:
             "provider": self.provider,
             "latency_ms": self.latency_ms,
             "tokens_used": self.tokens_used,
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
         }
 
 
 @dataclass
 class AnomalyReport:
     """Report of detected market anomaly."""
+
     market_ticker: str
     anomaly_type: str  # "price_spike", "volume_anomaly", "spread_unusual"
     severity: str  # "low", "medium", "high"
@@ -55,6 +59,7 @@ class AnomalyReport:
 @dataclass
 class TradeRecommendation:
     """AI-generated trade recommendation."""
+
     signal_ticker: str
     should_trade: bool
     recommended_size: Optional[float] = None
@@ -69,26 +74,21 @@ class BaseAIClient(ABC):
 
     @abstractmethod
     async def analyze_signal(
-        self,
-        signal_data: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        self, signal_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None
     ) -> AIAnalysis:
         """Analyze a trading signal and provide reasoning."""
         pass
 
     @abstractmethod
     async def classify_market(
-        self,
-        title: str,
-        description: str = ""
+        self, title: str, description: str = ""
     ) -> tuple[str, float]:
         """Classify a market into a category."""
         pass
 
     @abstractmethod
     async def detect_anomalies(
-        self,
-        markets: List[Dict[str, Any]]
+        self, markets: List[Dict[str, Any]]
     ) -> List[AnomalyReport]:
         """Detect anomalies in market data."""
         pass
@@ -97,14 +97,18 @@ class BaseAIClient(ABC):
 def get_ai_client() -> "BaseAIClient":
     """Return the configured AI client based on settings."""
     from backend.config import settings
+
     provider = settings.AI_PROVIDER.lower()
     if provider == "groq":
         from backend.ai.groq import GroqClassifier
+
         return GroqClassifier(api_key=settings.GROQ_API_KEY, model=settings.GROQ_MODEL)
     raise ValueError(f"Unsupported AI provider: {provider}")
 
 
-def create_signal_prompt(signal_data: Dict[str, Any], context: Dict[str, Any] = None) -> str:
+def create_signal_prompt(
+    signal_data: Dict[str, Any], context: Dict[str, Any] = None
+) -> str:
     """Create a prompt for signal analysis."""
     prompt = f"""Analyze this prediction market trading signal:
 
@@ -121,16 +125,16 @@ Direction: {signal_data.get('direction', 'Unknown').upper()}
 """
 
     if context:
-        if 'weather_data' in context:
-            wd = context['weather_data']
+        if "weather_data" in context:
+            wd = context["weather_data"]
             prompt += f"""
 Weather Context:
 - High Temperature Forecast: {wd.get('high_temp', 'N/A')}°F
 - Ensemble Agreement: {wd.get('confidence', 0):.0%}
 - Number of Models: {wd.get('ensemble_count', 'N/A')}
 """
-        if 'crypto_data' in context:
-            cd = context['crypto_data']
+        if "crypto_data" in context:
+            cd = context["crypto_data"]
             prompt += f"""
 Crypto Context:
 - Current Price: ${cd.get('current_price', 'N/A'):,.2f}

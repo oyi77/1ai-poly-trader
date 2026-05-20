@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from collections import defaultdict
 
+
 @dataclass
 class Milestone:
     milestone_id: str
@@ -12,6 +13,7 @@ class Milestone:
     status: str = "pending"
     completed_at: Optional[datetime] = None
 
+
 @dataclass
 class ResourceConflict:
     conflict_id: str
@@ -20,6 +22,7 @@ class ResourceConflict:
     requested: float
     budget: float
     goals_involved: List[str]
+
 
 @dataclass
 class LongTermPlan:
@@ -31,6 +34,7 @@ class LongTermPlan:
     gpu_monthly_budget: float = 180.0
     llm_monthly_budget: float = 10000.0
     bankroll_reserve: float = 0.0
+
 
 class LongTermPlanner:
     def __init__(
@@ -83,7 +87,8 @@ class LongTermPlanner:
                             g["goal_id"]
                             for g in goals
                             if week >= g.get("start_week", 1)
-                            and week < g.get("start_week", 1) + g.get("duration_weeks", 4)
+                            and week
+                            < g.get("start_week", 1) + g.get("duration_weeks", 4)
                             and resource_type in g.get("resource_needs", {})
                         ],
                     )
@@ -130,9 +135,9 @@ class LongTermPlanner:
                     "week": m.week,
                     "resource_requirements": m.resource_requirements,
                     "status": m.status,
-                    "completed_at": m.completed_at.isoformat()
-                    if m.completed_at
-                    else None,
+                    "completed_at": (
+                        m.completed_at.isoformat() if m.completed_at else None
+                    ),
                 }
                 for m in self._current_plan.milestones
             ],
@@ -164,9 +169,11 @@ class LongTermPlanner:
                 week=m["week"],
                 resource_requirements=m["resource_requirements"],
                 status=m.get("status", "pending"),
-                completed_at=datetime.fromisoformat(m["completed_at"])
-                if m.get("completed_at")
-                else None,
+                completed_at=(
+                    datetime.fromisoformat(m["completed_at"])
+                    if m.get("completed_at")
+                    else None
+                ),
             )
             for m in data.get("milestones", [])
         ]

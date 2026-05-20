@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.bot.telegram_bot import PolyEdgeBot
 
 from loguru import logger
+
 _bot: Optional["PolyEdgeBot"] = None
 
 

@@ -8,6 +8,7 @@ bankroll cap. Reports P&L, drawdown, and per-window statistics.
 Usage:
     python scripts/backtest_window_sizing.py [--bankroll 10000] [--csv poly-history.csv]
 """
+
 import argparse
 import csv
 import re
@@ -16,9 +17,9 @@ from datetime import datetime, timezone
 
 # ── Constants ──────────────────────────────────────────────────────
 WINDOW_MAX_BANKROLL_PCT = 0.05  # 5% cap per window
-KELLY_FLOOR_TRADES = 3          # min trades before using historical win rate
-DEFAULT_WIN_RATE = 0.50         # assume coin-flip when insufficient data
-DEFAULT_ODDS = 1.0              # even-money odds
+KELLY_FLOOR_TRADES = 3  # min trades before using historical win rate
+DEFAULT_WIN_RATE = 0.50  # assume coin-flip when insufficient data
+DEFAULT_ODDS = 1.0  # even-money odds
 
 
 def classify_btc_window(market_name: str) -> bool:
@@ -52,8 +53,12 @@ def kelly_size(win_rate: float, bankroll: float, odds: float = DEFAULT_ODDS) -> 
 
 def main():
     parser = argparse.ArgumentParser(description="Backtest Kelly window sizing")
-    parser.add_argument("--bankroll", type=float, default=10000.0, help="Starting bankroll")
-    parser.add_argument("--csv", type=str, default="poly-history.csv", help="Path to trade CSV")
+    parser.add_argument(
+        "--bankroll", type=float, default=10000.0, help="Starting bankroll"
+    )
+    parser.add_argument(
+        "--csv", type=str, default="poly-history.csv", help="Path to trade CSV"
+    )
     args = parser.parse_args()
 
     # ── Load data ──────────────────────────────────────────────────
@@ -69,13 +74,15 @@ def main():
         ts = datetime.fromtimestamp(int(row["timestamp"]), tz=timezone.utc)
         usdc = float(row["usdcAmount"])
         action = row["action"]
-        btc_trades.append({
-            "ts": ts,
-            "window": window_key_from_ts(ts),
-            "usdc": usdc,
-            "action": action,
-            "market": row["marketName"],
-        })
+        btc_trades.append(
+            {
+                "ts": ts,
+                "window": window_key_from_ts(ts),
+                "usdc": usdc,
+                "action": action,
+                "market": row["marketName"],
+            }
+        )
 
     btc_trades.sort(key=lambda t: t["ts"])
     print(f"Loaded {len(btc_trades)} BTC 5-min window trades from {args.csv}")
@@ -141,20 +148,24 @@ def main():
         window_exposure[wkey] += actual_size
 
         # Record sizing decision
-        sizing_log.append({
-            "window": wkey,
-            "kelly_size": kelly,
-            "actual_size": actual_size,
-            "cap": cap,
-            "exposure": window_exposure[wkey],
-            "win_rate": stats["win_rate"],
-        })
+        sizing_log.append(
+            {
+                "window": wkey,
+                "kelly_size": kelly,
+                "actual_size": actual_size,
+                "cap": cap,
+                "exposure": window_exposure[wkey],
+                "win_rate": stats["win_rate"],
+            }
+        )
 
     # ── Report ─────────────────────────────────────────────────────
     print("=" * 70)
     print("PER-WINDOW KELLY SIZING RESULTS")
     print("=" * 70)
-    print(f"{'Window':<10} {'Trades':>7} {'Volume':>12} {'WinRate':>8} {'Kelly$':>10} {'Cap$':>10} {'Exposure$':>10}")
+    print(
+        f"{'Window':<10} {'Trades':>7} {'Volume':>12} {'WinRate':>8} {'Kelly$':>10} {'Cap$':>10} {'Exposure$':>10}"
+    )
     print("-" * 70)
 
     for wkey in sorted(window_stats.keys()):
@@ -162,8 +173,10 @@ def main():
         ksize = kelly_size(stats["win_rate"], args.bankroll)
         cap = args.bankroll * WINDOW_MAX_BANKROLL_PCT
         exp = window_exposure.get(wkey, 0.0)
-        print(f"{wkey:<10} {stats['trades']:>7} {stats['volume']:>12.2f} "
-              f"{stats['win_rate']:>7.1%} {ksize:>10.2f} {cap:>10.2f} {exp:>10.2f}")
+        print(
+            f"{wkey:<10} {stats['trades']:>7} {stats['volume']:>12.2f} "
+            f"{stats['win_rate']:>7.1%} {ksize:>10.2f} {cap:>10.2f} {exp:>10.2f}"
+        )
 
     print()
     print("=" * 70)
@@ -172,7 +185,9 @@ def main():
 
     total_window_volume = sum(s["volume"] for s in window_stats.values())
     total_capped_volume = sum(window_exposure.values())
-    avg_kelly = sum(kelly_size(s["win_rate"], args.bankroll) for s in window_stats.values()) / max(1, len(window_stats))
+    avg_kelly = sum(
+        kelly_size(s["win_rate"], args.bankroll) for s in window_stats.values()
+    ) / max(1, len(window_stats))
     cap = args.bankroll * WINDOW_MAX_BANKROLL_PCT
 
     print(f"Unique 5-min windows:     {len(window_stats)}")
@@ -180,17 +195,25 @@ def main():
     print(f"Volume under Kelly cap:   ${total_capped_volume:,.2f}")
     print(f"Per-window cap (5%):      ${cap:,.2f}")
     print(f"Avg Kelly size:           ${avg_kelly:,.2f}")
-    print(f"Max single-window volume: ${max(s['volume'] for s in window_stats.values()):,.2f}")
+    print(
+        f"Max single-window volume: ${max(s['volume'] for s in window_stats.values()):,.2f}"
+    )
 
     # Show which windows hit the cap
-    capped = [(w, window_exposure[w]) for w in window_exposure if window_exposure[w] >= cap - 0.01]
+    capped = [
+        (w, window_exposure[w])
+        for w in window_exposure
+        if window_exposure[w] >= cap - 0.01
+    ]
     if capped:
         print(f"\nWindows hitting 5% cap:   {len(capped)}")
         for w, exp in sorted(capped):
             print(f"  {w}: ${exp:,.2f}")
 
     # ── Savings analysis ───────────────────────────────────────────
-    uncapped_total = sum(min(s["volume"], args.bankroll * 0.25) for s in window_stats.values())
+    uncapped_total = sum(
+        min(s["volume"], args.bankroll * 0.25) for s in window_stats.values()
+    )
     print(f"\nWithout window cap:       ${uncapped_total:,.2f} max exposure")
     print(f"With 5% window cap:       ${total_capped_volume:,.2f} max exposure")
     if uncapped_total > 0:

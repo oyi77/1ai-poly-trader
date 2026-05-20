@@ -15,7 +15,6 @@ from backend.ai.market_analyzer import (
 )
 from backend.research.models import ResearchItem
 
-
 # ---------------------------------------------------------------------------
 # _parse_ai_response tests
 # ---------------------------------------------------------------------------

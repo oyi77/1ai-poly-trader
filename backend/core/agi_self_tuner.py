@@ -21,17 +21,16 @@ from backend.config import settings
 from backend.core.event_bus import publish_event
 from backend.monitoring.agi_metrics import record_pipeline_error
 
-
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 MIN_TRADES_FOR_TUNING = 15
-WIN_RATE_FLOOR = 0.40       # below this after 10+ trades -> attempt tuning
-WIN_RATE_CEILING = 0.60     # above this after 20+ trades -> consider loosening
-MAX_PARAM_CHANGE_PCT = 0.30 # hard cap on any single parameter change
-ROLLBACK_WINDOW = 10        # trades to monitor after a change
-ROLLBACK_DEGRADATION = 0.15 # >15% win rate drop triggers revert
+WIN_RATE_FLOOR = 0.40  # below this after 10+ trades -> attempt tuning
+WIN_RATE_CEILING = 0.60  # above this after 20+ trades -> consider loosening
+MAX_PARAM_CHANGE_PCT = 0.30  # hard cap on any single parameter change
+ROLLBACK_WINDOW = 10  # trades to monitor after a change
+ROLLBACK_DEGRADATION = 0.15  # >15% win rate drop triggers revert
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +51,7 @@ def get_agi_self_tuner() -> "AGISelfTuner":
 # ---------------------------------------------------------------------------
 # AGISelfTuner
 # ---------------------------------------------------------------------------
+
 
 class AGISelfTuner:
     """Orchestrates self-tuning across all AGI components.
@@ -94,7 +94,10 @@ class AGISelfTuner:
             self._check_rollback(strategy_name, outcome)
 
             # Check if this strategy warrants tuning
-            from backend.core.strategy_performance_tracker import get_performance_tracker
+            from backend.core.strategy_performance_tracker import (
+                get_performance_tracker,
+            )
+
             tracker = get_performance_tracker()
 
             if not tracker.should_tune(strategy_name):
@@ -179,24 +182,23 @@ class AGISelfTuner:
                     }
 
                     # Store decision in CognitiveCore
-                    self._store_tuning_decision(
-                        strategy_name, direction, changes, perf
-                    )
+                    self._store_tuning_decision(strategy_name, direction, changes, perf)
 
-                    publish_event("agi_self_tune", {
-                        "strategy_name": strategy_name,
-                        "direction": direction,
-                        "changes": changes,
-                        "win_rate": perf.win_rate,
-                        "trade_count": perf.total_trades,
-                    })
+                    publish_event(
+                        "agi_self_tune",
+                        {
+                            "strategy_name": strategy_name,
+                            "direction": direction,
+                            "changes": changes,
+                            "win_rate": perf.win_rate,
+                            "trade_count": perf.total_trades,
+                        },
+                    )
 
                 return changes
         except Exception:
             record_pipeline_error("agi_self_tuner")
-            logger.exception(
-                f"[AGISelfTuner] Tuning failed for {strategy_name}"
-            )
+            logger.exception(f"[AGISelfTuner] Tuning failed for {strategy_name}")
             return {}
 
     # ------------------------------------------------------------------
@@ -247,16 +249,16 @@ class AGISelfTuner:
                         if changes:
                             tuned_count += 1
                 except Exception:
-                    logger.exception(
-                        f"[AGISelfTuner] Error reviewing {strategy_name}"
-                    )
+                    logger.exception(f"[AGISelfTuner] Error reviewing {strategy_name}")
 
             if tuned_count > 0:
                 logger.info(
                     f"[AGISelfTuner] Periodic review complete: tuned {tuned_count} strategies"
                 )
             else:
-                logger.debug("[AGISelfTuner] Periodic review complete: no tuning needed")
+                logger.debug(
+                    "[AGISelfTuner] Periodic review complete: no tuning needed"
+                )
 
         except Exception:
             record_pipeline_error("agi_self_tuner")
@@ -292,7 +294,9 @@ class AGISelfTuner:
             return  # not enough data yet
 
         # Check degradation
-        if pre_win_rate > 0 and perf.win_rate < pre_win_rate * (1.0 - ROLLBACK_DEGRADATION):
+        if pre_win_rate > 0 and perf.win_rate < pre_win_rate * (
+            1.0 - ROLLBACK_DEGRADATION
+        ):
             logger.warning(
                 f"[AGISelfTuner] Performance degraded for {strategy_name}: "
                 f"{pre_win_rate:.2f} -> {perf.win_rate:.2f}. Reverting."
@@ -305,15 +309,16 @@ class AGISelfTuner:
                         self._store_rollback_decision(
                             strategy_name, pre_win_rate, perf.win_rate
                         )
-                        publish_event("agi_self_tune_rollback", {
-                            "strategy_name": strategy_name,
-                            "pre_win_rate": pre_win_rate,
-                            "post_win_rate": perf.win_rate,
-                        })
+                        publish_event(
+                            "agi_self_tune_rollback",
+                            {
+                                "strategy_name": strategy_name,
+                                "pre_win_rate": pre_win_rate,
+                                "post_win_rate": perf.win_rate,
+                            },
+                        )
             except Exception:
-                logger.exception(
-                    f"[AGISelfTuner] Rollback failed for {strategy_name}"
-                )
+                logger.exception(f"[AGISelfTuner] Rollback failed for {strategy_name}")
 
         # Clear pending state regardless
         del self._pending_rollbacks[strategy_name]
@@ -353,7 +358,9 @@ class AGISelfTuner:
                 importance=0.7,
             )
         except Exception:
-            logger.debug("[AGISelfTuner] Failed to store tuning decision in CognitiveCore")
+            logger.debug(
+                "[AGISelfTuner] Failed to store tuning decision in CognitiveCore"
+            )
 
     def _store_rollback_decision(
         self,
@@ -383,4 +390,6 @@ class AGISelfTuner:
                 importance=0.8,
             )
         except Exception:
-            logger.debug("[AGISelfTuner] Failed to store rollback decision in CognitiveCore")
+            logger.debug(
+                "[AGISelfTuner] Failed to store rollback decision in CognitiveCore"
+            )

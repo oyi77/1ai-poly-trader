@@ -10,7 +10,13 @@ from backend.models.kg_models import Base, DecisionAuditLog
 
 
 class DiagnosisResult:
-    def __init__(self, error_type: str, recoverable: bool, suggestion: str, context: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        error_type: str,
+        recoverable: bool,
+        suggestion: str,
+        context: dict[str, Any] | None = None,
+    ):
         self.error_type = error_type
         self.recoverable = recoverable
         self.suggestion = suggestion
@@ -28,9 +34,12 @@ class SelfDebugger:
     @property
     def MAX_RECOVERY_ATTEMPTS(self):
         from backend.config import settings
+
         return settings.SELF_DEBUGGER_MAX_RECOVERY_ATTEMPTS
 
-    def __init__(self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"):
+    def __init__(
+        self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"
+    ):
         self._recovery_attempts: dict[str, int] = {}
         if session is not None:
             self._session = session
@@ -45,7 +54,9 @@ class SelfDebugger:
         if self._owns_session:
             self._session.close()
 
-    def diagnose_error(self, error: Exception, context: dict[str, Any] | None = None) -> DiagnosisResult:
+    def diagnose_error(
+        self, error: Exception, context: dict[str, Any] | None = None
+    ) -> DiagnosisResult:
         error_type = type(error).__name__
         error_msg = str(error).lower()
 
@@ -101,16 +112,22 @@ class SelfDebugger:
 
     def attempt_recovery(self, diagnosis: DiagnosisResult) -> RecoveryResult:
         error_key = diagnosis.error_type
-        self._recovery_attempts[error_key] = self._recovery_attempts.get(error_key, 0) + 1
+        self._recovery_attempts[error_key] = (
+            self._recovery_attempts.get(error_key, 0) + 1
+        )
         attempts = self._recovery_attempts[error_key]
 
         if attempts > self.MAX_RECOVERY_ATTEMPTS:
             self._report_escalation(diagnosis, "Max recovery attempts exceeded")
-            return RecoveryResult(success=False, action_taken="escalated_to_human", attempts=attempts)
+            return RecoveryResult(
+                success=False, action_taken="escalated_to_human", attempts=attempts
+            )
 
         if not diagnosis.recoverable:
             self._report_escalation(diagnosis, "Unrecoverable error")
-            return RecoveryResult(success=False, action_taken="escalated_to_human", attempts=attempts)
+            return RecoveryResult(
+                success=False, action_taken="escalated_to_human", attempts=attempts
+            )
 
         audit = DecisionAuditLog(
             timestamp=datetime.now(timezone.utc),
@@ -124,7 +141,9 @@ class SelfDebugger:
         self._session.add(audit)
         self._session.commit()
 
-        return RecoveryResult(success=True, action_taken=diagnosis.suggestion, attempts=attempts)
+        return RecoveryResult(
+            success=True, action_taken=diagnosis.suggestion, attempts=attempts
+        )
 
     def report_unrecoverable(self, error: Exception, diagnosis: DiagnosisResult):
         audit = DecisionAuditLog(

@@ -21,6 +21,8 @@ def _get_router() -> _LLMRouter:
 
 
 from loguru import logger  # noqa: E402
+
+
 @dataclass
 class AIAnalysis:
     probability: float

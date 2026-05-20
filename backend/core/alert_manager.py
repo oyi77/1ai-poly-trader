@@ -1,4 +1,5 @@
 """Alert manager for detecting and reporting critical conditions."""
+
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from collections import deque
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 from backend.models.database import Alert, AlertConfig
 
 from loguru import logger
+
+
 class AlertManager:
     """Manages alert detection and logging for critical conditions."""
 
@@ -32,7 +35,9 @@ class AlertManager:
         ]
 
         for alert_type, enabled, threshold, unit, severity in defaults:
-            existing = self.db.query(AlertConfig).filter_by(alert_type=alert_type).first()
+            existing = (
+                self.db.query(AlertConfig).filter_by(alert_type=alert_type).first()
+            )
             if not existing:
                 config = AlertConfig(
                     alert_type=alert_type,
@@ -49,9 +54,13 @@ class AlertManager:
             logger.warning(f"Failed to initialize alert config: {e}")
             self.db.rollback()
 
-    def check_negative_balance(self, wallet_id: str, balance: float, mode: str) -> Optional[Alert]:
+    def check_negative_balance(
+        self, wallet_id: str, balance: float, mode: str
+    ) -> Optional[Alert]:
         """Check for negative balance condition."""
-        config = self.db.query(AlertConfig).filter_by(alert_type="NEGATIVE_BALANCE").first()
+        config = (
+            self.db.query(AlertConfig).filter_by(alert_type="NEGATIVE_BALANCE").first()
+        )
         if not config or not config.enabled:
             return None
 
@@ -70,14 +79,14 @@ class AlertManager:
         return None
 
     def check_position_discrepancy(
-        self,
-        position_id: str,
-        db_value: float,
-        blockchain_value: float,
-        mode: str
+        self, position_id: str, db_value: float, blockchain_value: float, mode: str
     ) -> Optional[Alert]:
         """Check for position discrepancy between DB and blockchain."""
-        config = self.db.query(AlertConfig).filter_by(alert_type="POSITION_DISCREPANCY").first()
+        config = (
+            self.db.query(AlertConfig)
+            .filter_by(alert_type="POSITION_DISCREPANCY")
+            .first()
+        )
         if not config or not config.enabled:
             return None
 
@@ -85,7 +94,9 @@ class AlertManager:
             return None
 
         threshold = config.threshold_value or 0.05
-        discrepancy = abs(db_value - blockchain_value) / max(db_value, blockchain_value, 1.0)
+        discrepancy = abs(db_value - blockchain_value) / max(
+            db_value, blockchain_value, 1.0
+        )
 
         if discrepancy > threshold:
             message = (
@@ -105,9 +116,13 @@ class AlertManager:
 
         return None
 
-    def check_failed_settlement(self, trade_id: int, reason: str, mode: str) -> Optional[Alert]:
+    def check_failed_settlement(
+        self, trade_id: int, reason: str, mode: str
+    ) -> Optional[Alert]:
         """Check for failed settlement."""
-        config = self.db.query(AlertConfig).filter_by(alert_type="FAILED_SETTLEMENT").first()
+        config = (
+            self.db.query(AlertConfig).filter_by(alert_type="FAILED_SETTLEMENT").first()
+        )
         if not config or not config.enabled:
             return None
 
@@ -128,15 +143,21 @@ class AlertManager:
         expected_price: float,
         actual_price: float,
         position_value: float,
-        mode: str
+        mode: str,
     ) -> Optional[Alert]:
         """Check for high slippage on order execution."""
-        config = self.db.query(AlertConfig).filter_by(alert_type="HIGH_SLIPPAGE").first()
+        config = (
+            self.db.query(AlertConfig).filter_by(alert_type="HIGH_SLIPPAGE").first()
+        )
         if not config or not config.enabled:
             return None
 
         threshold = config.threshold_value or 0.01
-        slippage = abs(expected_price - actual_price) / expected_price if expected_price > 0 else 0
+        slippage = (
+            abs(expected_price - actual_price) / expected_price
+            if expected_price > 0
+            else 0
+        )
         slippage_value = slippage * position_value
 
         if slippage > threshold:
@@ -206,7 +227,9 @@ class AlertManager:
 
     def check_circuit_breaker(self, breaker_name: str, state: str) -> Optional[Alert]:
         """Check if circuit breaker has opened."""
-        config = self.db.query(AlertConfig).filter_by(alert_type="CIRCUIT_BREAKER").first()
+        config = (
+            self.db.query(AlertConfig).filter_by(alert_type="CIRCUIT_BREAKER").first()
+        )
         if not config or not config.enabled:
             return None
 
@@ -240,8 +263,7 @@ class AlertManager:
         threshold = config.threshold_value or 10.0
 
         recent_errors = [
-            ts for ts in self._error_window
-            if (now - ts).total_seconds() < 60
+            ts for ts in self._error_window if (now - ts).total_seconds() < 60
         ]
         error_count = len(recent_errors)
 
@@ -309,9 +331,13 @@ class AlertManager:
 
         return None
 
-    def check_connection_pool(self, pool_size: int, active_connections: int) -> Optional[Alert]:
+    def check_connection_pool(
+        self, pool_size: int, active_connections: int
+    ) -> Optional[Alert]:
         """Check if database connection pool is exhausted."""
-        config = self.db.query(AlertConfig).filter_by(alert_type="CONNECTION_POOL").first()
+        config = (
+            self.db.query(AlertConfig).filter_by(alert_type="CONNECTION_POOL").first()
+        )
         if not config or not config.enabled:
             return None
 
@@ -352,7 +378,7 @@ class AlertManager:
         limit: int = 100,
         alert_type: Optional[str] = None,
         severity: Optional[str] = None,
-        resolved: Optional[bool] = None
+        resolved: Optional[bool] = None,
     ) -> List[Dict[str, Any]]:
         """Get recent alerts from database."""
         query = self.db.query(Alert)
@@ -376,7 +402,9 @@ class AlertManager:
                 "entity_id": alert.entity_id,
                 "message": alert.message,
                 "resolved": alert.resolved,
-                "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None
+                "resolved_at": (
+                    alert.resolved_at.isoformat() if alert.resolved_at else None
+                ),
             }
             for alert in alerts
         ]
@@ -386,20 +414,14 @@ class AlertManager:
         from sqlalchemy import func
 
         type_counts = (
-            self.db.query(
-                Alert.alert_type,
-                func.count(Alert.id).label("count")
-            )
+            self.db.query(Alert.alert_type, func.count(Alert.id).label("count"))
             .filter(Alert.resolved.is_(False))
             .group_by(Alert.alert_type)
             .all()
         )
 
         severity_counts = (
-            self.db.query(
-                Alert.severity,
-                func.count(Alert.id).label("count")
-            )
+            self.db.query(Alert.severity, func.count(Alert.id).label("count"))
             .filter(Alert.resolved.is_(False))
             .group_by(Alert.severity)
             .all()
@@ -408,7 +430,7 @@ class AlertManager:
         return {
             "by_type": {row.alert_type: row.count for row in type_counts},
             "by_severity": {row.severity: row.count for row in severity_counts},
-            "total_unresolved": sum(row.count for row in severity_counts)
+            "total_unresolved": sum(row.count for row in severity_counts),
         }
 
 
@@ -420,10 +442,11 @@ def get_system_metrics() -> Dict[str, Any]:
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
 
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage("/")
         disk_percent_free = (disk.free / disk.total) * 100
 
         from backend.models.database import engine
+
         pool = engine.pool
         pool_size = pool.size()
         active_connections = pool.checkedout()
@@ -432,7 +455,7 @@ def get_system_metrics() -> Dict[str, Any]:
             "memory_percent": memory_percent,
             "disk_percent_free": disk_percent_free,
             "pool_size": pool_size,
-            "active_connections": active_connections
+            "active_connections": active_connections,
         }
     except Exception as e:
         logger.error(f"Failed to get system metrics: {e}")
@@ -440,5 +463,5 @@ def get_system_metrics() -> Dict[str, Any]:
             "memory_percent": 0.0,
             "disk_percent_free": 100.0,
             "pool_size": 20,
-            "active_connections": 0
+            "active_connections": 0,
         }

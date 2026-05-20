@@ -42,13 +42,20 @@ class StrategyEvolver:
             for strategy_name, stats in strategies.items():
                 if self._has_active_experiment(strategy_name, db):
                     continue
-                is_broken = stats.get("win_rate", 1.0) <= FUNDAMENTALLY_BROKEN_WIN_RATE and stats.get("total", 0) >= FUNDAMENTALLY_BROKEN_MIN_TRADES
+                is_broken = (
+                    stats.get("win_rate", 1.0) <= FUNDAMENTALLY_BROKEN_WIN_RATE
+                    and stats.get("total", 0) >= FUNDAMENTALLY_BROKEN_MIN_TRADES
+                )
 
                 best_parent = self._find_best_retired_parent(strategy_name, db)
                 if best_parent:
-                    variants = self._crossover_variants(strategy_name, db, best_parent, is_broken)
+                    variants = self._crossover_variants(
+                        strategy_name, db, best_parent, is_broken
+                    )
                 else:
-                    variants = self._generate_variants(strategy_name, db, aggressive=is_broken)
+                    variants = self._generate_variants(
+                        strategy_name, db, aggressive=is_broken
+                    )
 
                 for variant in variants:
                     clean = {k: v for k, v in variant.items() if not k.startswith("_")}
@@ -64,8 +71,18 @@ class StrategyEvolver:
                     created.append(exp.id)
 
                     parent_id = best_parent.id if best_parent else None
-                    self._record_lineage(db, strategy_name, parent_id, exp.id, "perturbation", clean, stats.get("win_rate", 0.0))
-                    self._create_proposal_for_variant(db, strategy_name, clean, exp.id, is_broken)
+                    self._record_lineage(
+                        db,
+                        strategy_name,
+                        parent_id,
+                        exp.id,
+                        "perturbation",
+                        clean,
+                        stats.get("win_rate", 0.0),
+                    )
+                    self._create_proposal_for_variant(
+                        db, strategy_name, clean, exp.id, is_broken
+                    )
 
             if created:
                 db.commit()
@@ -81,40 +98,55 @@ class StrategyEvolver:
                 try:
                     db.rollback()
                 except Exception as rollback_err:
-                    logger.error("[StrategyEvolver] Failed to rollback: %s", rollback_err)
+                    logger.error(
+                        "[StrategyEvolver] Failed to rollback: %s", rollback_err
+                    )
             return created
         finally:
             if _owned:
                 db.close()
 
     def _create_proposal_for_variant(
-        self, db: Session, strategy_name: str, params: dict, experiment_id: int, is_broken: bool
+        self,
+        db: Session,
+        strategy_name: str,
+        params: dict,
+        experiment_id: int,
+        is_broken: bool,
     ) -> None:
         """Create a StrategyProposal for the variant so it passes through forward simulation gate."""
         from backend.models.database import StrategyProposal
 
-        existing = db.query(StrategyProposal).filter(
-            StrategyProposal.strategy_name == strategy_name,
-            StrategyProposal.status == "pending",
-            StrategyProposal.auto_promotable,
-        ).count()
+        existing = (
+            db.query(StrategyProposal)
+            .filter(
+                StrategyProposal.strategy_name == strategy_name,
+                StrategyProposal.status == "pending",
+                StrategyProposal.auto_promotable,
+            )
+            .count()
+        )
 
         if existing >= 5:
             return
 
-        db.add(StrategyProposal(
-            strategy_name=strategy_name,
-            change_details=params,
-            expected_impact=f"Evolver variant from experiment #{experiment_id}" + (" (priority: broken strategy)" if is_broken else ""),
-            admin_decision="pending",
-            status="pending",
-            auto_promotable=True,
-            backtest_passed=False,
-            created_at=datetime.now(timezone.utc),
-        ))
+        db.add(
+            StrategyProposal(
+                strategy_name=strategy_name,
+                change_details=params,
+                expected_impact=f"Evolver variant from experiment #{experiment_id}"
+                + (" (priority: broken strategy)" if is_broken else ""),
+                admin_decision="pending",
+                status="pending",
+                auto_promotable=True,
+                backtest_passed=False,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
 
     def _find_evolvable_strategies(self, db: Session) -> dict:
         from sqlalchemy import func
+
         rows = (
             db.query(
                 StrategyOutcome.strategy,
@@ -131,15 +163,22 @@ class StrategyEvolver:
                 continue
             outcomes = (
                 db.query(StrategyOutcome)
-                .filter(StrategyOutcome.strategy == name, StrategyOutcome.trading_mode == "live")
+                .filter(
+                    StrategyOutcome.strategy == name,
+                    StrategyOutcome.trading_mode == "live",
+                )
                 .all()
             )
             wins = sum(1 for o in outcomes if o.result == "win")
             wr = wins / total if total > 0 else 0.0
-            if total >= FUNDAMENTALLY_BROKEN_MIN_TRADES and wr <= FUNDAMENTALLY_BROKEN_WIN_RATE:
+            if (
+                total >= FUNDAMENTALLY_BROKEN_MIN_TRADES
+                and wr <= FUNDAMENTALLY_BROKEN_WIN_RATE
+            ):
                 logger.info(
                     "[StrategyEvolver] Priority evolve for '%s' — fundamentally broken (%d trades, 0%% WR)",
-                    name, total,
+                    name,
+                    total,
                 )
                 result[name] = {"total": total, "wins": wins, "win_rate": wr}
                 continue
@@ -163,7 +202,9 @@ class StrategyEvolver:
             is not None
         )
 
-    def _generate_variants(self, strategy_name: str, db: Session, aggressive: bool = False) -> list[dict]:
+    def _generate_variants(
+        self, strategy_name: str, db: Session, aggressive: bool = False
+    ) -> list[dict]:
         config = (
             db.query(StrategyConfig)
             .filter(StrategyConfig.strategy_name == strategy_name)
@@ -172,11 +213,16 @@ class StrategyEvolver:
         base_params = {}
         if config and config.params:
             try:
-                base_params = json.loads(config.params) if isinstance(config.params, str) else config.params
+                base_params = (
+                    json.loads(config.params)
+                    if isinstance(config.params, str)
+                    else config.params
+                )
             except (json.JSONDecodeError, TypeError):
                 base_params = {}
 
         from backend.strategies.registry import STRATEGY_REGISTRY
+
         strategy_cls = STRATEGY_REGISTRY.get(strategy_name)
         if strategy_cls and hasattr(strategy_cls, "default_params"):
             for k, v in strategy_cls.default_params.items():
@@ -195,11 +241,15 @@ class StrategyEvolver:
                     new_val = max(lo, min(hi, current + perturbation))
                     if isinstance(variant[param_key], int):
                         new_val = int(round(new_val))
-                    variant[param_key] = round(new_val, 4) if isinstance(new_val, float) else new_val
+                    variant[param_key] = (
+                        round(new_val, 4) if isinstance(new_val, float) else new_val
+                    )
             variants.append(variant)
         return variants
 
-    def _find_best_retired_parent(self, strategy_name: str, db: Session) -> Optional[object]:
+    def _find_best_retired_parent(
+        self, strategy_name: str, db: Session
+    ) -> Optional[object]:
         return (
             db.query(ExperimentRecord)
             .filter(
@@ -212,7 +262,11 @@ class StrategyEvolver:
         )
 
     def _crossover_variants(
-        self, strategy_name: str, db: Session, parent: ExperimentRecord, aggressive: bool
+        self,
+        strategy_name: str,
+        db: Session,
+        parent: ExperimentRecord,
+        aggressive: bool,
     ) -> list[dict]:
         parent_params = parent.strategy_composition or {}
         if isinstance(parent_params, str):
@@ -229,11 +283,16 @@ class StrategyEvolver:
         current_params = {}
         if config and config.params:
             try:
-                current_params = json.loads(config.params) if isinstance(config.params, str) else config.params
+                current_params = (
+                    json.loads(config.params)
+                    if isinstance(config.params, str)
+                    else config.params
+                )
             except (json.JSONDecodeError, TypeError):
                 current_params = {}
 
         from backend.ai.meta_learner import MetaLearner
+
         biases = MetaLearner().get_biases(strategy_name, db=db)
 
         variants = []
@@ -264,11 +323,17 @@ class StrategyEvolver:
                         direction = 1.0 if bias["direction"] == "up" else -1.0
                         magnitude = PARAM_PERTURBATION * bias["confidence"] * direction
                     else:
-                        magnitude = PARAM_PERTURBATION * (3.0 if aggressive else 1.0) * random.choice([-1, 1])
+                        magnitude = (
+                            PARAM_PERTURBATION
+                            * (3.0 if aggressive else 1.0)
+                            * random.choice([-1, 1])
+                        )
                     new_val = max(lo, min(hi, current + current * magnitude))
                     if isinstance(variant[param_key], int):
                         new_val = int(round(new_val))
-                    variant[param_key] = round(new_val, 4) if isinstance(new_val, float) else new_val
+                    variant[param_key] = (
+                        round(new_val, 4) if isinstance(new_val, float) else new_val
+                    )
 
             variant["_evolver_generation"] = i + 1
             variant["_evolver_parent"] = parent.id
@@ -276,41 +341,57 @@ class StrategyEvolver:
         return variants
 
     def _record_lineage(
-        self, db: Session, strategy_name: str, parent_id: Optional[int],
-        child_id: int, mutation_type: str, params_diff: dict, fitness: float
+        self,
+        db: Session,
+        strategy_name: str,
+        parent_id: Optional[int],
+        child_id: int,
+        mutation_type: str,
+        params_diff: dict,
+        fitness: float,
     ) -> None:
         from backend.models.outcome_tables import EvolutionLineage
 
         parent_gen = 0
         if parent_id:
-            parent_lin = db.query(EvolutionLineage).filter(
-                EvolutionLineage.child_experiment_id == parent_id
-            ).first()
+            parent_lin = (
+                db.query(EvolutionLineage)
+                .filter(EvolutionLineage.child_experiment_id == parent_id)
+                .first()
+            )
             parent_gen = (parent_lin.generation or 0) if parent_lin else 0
 
-        db.add(EvolutionLineage(
-            parent_experiment_id=parent_id,
-            child_experiment_id=child_id,
-            strategy_name=strategy_name,
-            generation=parent_gen + 1,
-            mutation_type=mutation_type,
-            child_fitness=fitness,
-            params_diff=params_diff,
-        ))
+        db.add(
+            EvolutionLineage(
+                parent_experiment_id=parent_id,
+                child_experiment_id=child_id,
+                strategy_name=strategy_name,
+                generation=parent_gen + 1,
+                mutation_type=mutation_type,
+                child_fitness=fitness,
+                params_diff=params_diff,
+            )
+        )
 
     def _record_lineage_for_promoted(self, db: Session) -> None:
         from backend.models.outcome_tables import EvolutionLineage
 
-        promoted = db.query(ExperimentRecord).filter(
-            ExperimentRecord.status == ExperimentStatus.LIVE_PROMOTED.value,
-        ).all()
+        promoted = (
+            db.query(ExperimentRecord)
+            .filter(
+                ExperimentRecord.status == ExperimentStatus.LIVE_PROMOTED.value,
+            )
+            .all()
+        )
         if not promoted:
             return
 
         exp_ids = [exp.id for exp in promoted]
-        lineages = db.query(EvolutionLineage).filter(
-            EvolutionLineage.child_experiment_id.in_(exp_ids)
-        ).all()
+        lineages = (
+            db.query(EvolutionLineage)
+            .filter(EvolutionLineage.child_experiment_id.in_(exp_ids))
+            .all()
+        )
         lineage_map = {lin.child_experiment_id: lin for lin in lineages}
 
         for exp in promoted:

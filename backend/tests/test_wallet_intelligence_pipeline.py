@@ -14,7 +14,6 @@ from backend.core.wallet_intelligence_pipeline import (
     run_pipeline,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -107,7 +106,9 @@ def _fingerprint(
         confidence: float = 0.0
         is_replicable: bool = False
 
-    return FakeFP(strategy_type=strategy_type, confidence=confidence, is_replicable=replicable)
+    return FakeFP(
+        strategy_type=strategy_type, confidence=confidence, is_replicable=replicable
+    )
 
 
 def _replication(

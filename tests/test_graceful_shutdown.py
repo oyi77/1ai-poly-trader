@@ -8,6 +8,7 @@ under different load levels (1, 10, 100 active requests).
 Usage:
     python tests/test_graceful_shutdown.py
 """
+
 import asyncio
 import httpx
 import signal
@@ -26,7 +27,7 @@ SHUTDOWN_TIMEOUT = 30.0
 
 class ShutdownTestResult:
     """Results from a single shutdown test run."""
-    
+
     def __init__(self, load_level: int):
         self.load_level = load_level
         self.active_requests_completed = 0
@@ -36,17 +37,17 @@ class ShutdownTestResult:
         self.shutdown_time = 0.0
         self.exit_code: Optional[int] = None
         self.errors: List[str] = []
-        
+
     def success(self) -> bool:
         """Check if test passed all criteria."""
         return (
-            self.active_requests_failed == 0 and
-            self.ws_connections_failed == 0 and
-            self.exit_code == 0 and
-            self.shutdown_time < SHUTDOWN_TIMEOUT and
-            len(self.errors) == 0
+            self.active_requests_failed == 0
+            and self.ws_connections_failed == 0
+            and self.exit_code == 0
+            and self.shutdown_time < SHUTDOWN_TIMEOUT
+            and len(self.errors) == 0
         )
-    
+
     def __str__(self) -> str:
         status = "✅ PASS" if self.success() else "❌ FAIL"
         return f"""
@@ -66,10 +67,7 @@ async def make_long_request(client: httpx.AsyncClient, duration: float = 5.0) ->
     """Make a long-running request that should complete during shutdown."""
     try:
         # Use health endpoint with artificial delay
-        response = await client.get(
-            f"{BACKEND_URL}/api/health",
-            timeout=duration + 5.0
-        )
+        response = await client.get(f"{BACKEND_URL}/api/health", timeout=duration + 5.0)
         return response.status_code == 200
     except Exception as e:
         print(f"Request failed: {e}")
@@ -93,25 +91,27 @@ async def connect_websocket(url: str, duration: float = 10.0) -> bool:
         return False
 
 
-async def generate_load(num_requests: int, num_websockets: int) -> tuple[List[asyncio.Task], List[asyncio.Task]]:
+async def generate_load(
+    num_requests: int, num_websockets: int
+) -> tuple[List[asyncio.Task], List[asyncio.Task]]:
     """Generate active load (HTTP requests + WebSocket connections)."""
     client = httpx.AsyncClient()
-    
+
     # Create HTTP request tasks
     http_tasks = [
         asyncio.create_task(make_long_request(client, duration=10.0))
         for _ in range(num_requests)
     ]
-    
+
     # Create WebSocket connection tasks
     ws_tasks = [
         asyncio.create_task(connect_websocket(WS_URL, duration=15.0))
         for _ in range(num_websockets)
     ]
-    
+
     # Give connections time to establish
     await asyncio.sleep(1.0)
-    
+
     return http_tasks, ws_tasks
 
 
@@ -122,9 +122,9 @@ def start_backend() -> subprocess.Popen:
         ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
-    
+
     # Wait for server to be ready
     max_wait = 30
     for i in range(max_wait):
@@ -135,7 +135,7 @@ def start_backend() -> subprocess.Popen:
                 return proc
         except Exception:
             time.sleep(1)
-    
+
     raise RuntimeError("Backend failed to start within 30s")
 
 
@@ -149,30 +149,32 @@ async def run_shutdown_test(load_level: int) -> ShutdownTestResult:
     """Run a single shutdown test with specified load level."""
     result = ShutdownTestResult(load_level)
     proc = None
-    
+
     try:
         # Start backend
         proc = start_backend()
-        
+
         # Generate load
         num_ws = max(1, load_level // 2)  # Half as many WebSocket connections
-        print(f"\nGenerating load: {load_level} HTTP requests, {num_ws} WebSocket connections...")
+        print(
+            f"\nGenerating load: {load_level} HTTP requests, {num_ws} WebSocket connections..."
+        )
         http_tasks, ws_tasks = await generate_load(load_level, num_ws)
-        
+
         # Wait a bit to ensure requests are in-flight
         await asyncio.sleep(2.0)
-        
+
         # Send SIGTERM
         shutdown_start = time.time()
         send_sigterm(proc)
-        
+
         # Wait for tasks to complete
         print("Waiting for active requests to complete...")
         http_results = await asyncio.gather(*http_tasks, return_exceptions=True)
-        
+
         print("Waiting for WebSocket connections to close...")
         ws_results = await asyncio.gather(*ws_tasks, return_exceptions=True)
-        
+
         # Wait for process to exit
         print("Waiting for process to exit...")
         try:
@@ -182,9 +184,9 @@ async def run_shutdown_test(load_level: int) -> ShutdownTestResult:
             result.errors.append(f"Process did not exit within {SHUTDOWN_TIMEOUT}s")
             proc.kill()
             result.exit_code = -1
-        
+
         result.shutdown_time = time.time() - shutdown_start
-        
+
         # Count results
         for r in http_results:
             if isinstance(r, Exception):
@@ -194,7 +196,7 @@ async def run_shutdown_test(load_level: int) -> ShutdownTestResult:
                 result.active_requests_completed += 1
             else:
                 result.active_requests_failed += 1
-        
+
         for r in ws_results:
             if isinstance(r, Exception):
                 result.ws_connections_failed += 1
@@ -203,12 +205,12 @@ async def run_shutdown_test(load_level: int) -> ShutdownTestResult:
                 result.ws_connections_closed += 1
             else:
                 result.ws_connections_failed += 1
-        
+
     except Exception as e:
         result.errors.append(f"Test exception: {e}")
         if proc:
             proc.kill()
-    
+
     return result
 
 
@@ -221,37 +223,39 @@ async def main():
     print(f"Backend URL: {BACKEND_URL}")
     print(f"Shutdown timeout: {SHUTDOWN_TIMEOUT}s")
     print()
-    
+
     # Test with different load levels
     load_levels = [1, 10, 100]
     results = []
-    
+
     for load in load_levels:
         print(f"\n{'=' * 70}")
         print(f"TEST: Load level = {load} active requests")
         print(f"{'=' * 70}")
-        
+
         result = await run_shutdown_test(load)
         results.append(result)
-        
+
         print(result)
-        
+
         # Wait between tests
         if load != load_levels[-1]:
             print("Waiting 5s before next test...")
             await asyncio.sleep(5.0)
-    
+
     # Summary
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    
+
     all_passed = all(r.success() for r in results)
-    
+
     for result in results:
         status = "✅ PASS" if result.success() else "❌ FAIL"
-        print(f"{status} - Load {result.load_level}: {result.shutdown_time:.2f}s, exit code {result.exit_code}")
-    
+        print(
+            f"{status} - Load {result.load_level}: {result.shutdown_time:.2f}s, exit code {result.exit_code}"
+        )
+
     print()
     if all_passed:
         print("✅ ALL TESTS PASSED")

@@ -48,7 +48,10 @@ def run():
 """
         result = self.validator.validate(code)
         assert not result.passed
-        assert "gate1_import_safety" in result.gates_failed or "gate2_ast_safety" in result.gates_failed
+        assert (
+            "gate1_import_safety" in result.gates_failed
+            or "gate2_ast_safety" in result.gates_failed
+        )
 
     def test_exec_rejected(self):
         code = """

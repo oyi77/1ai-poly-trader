@@ -17,11 +17,7 @@ async def force_resettle_expired():
     """Re-settle all expired trades by unmarking them and running settlement again."""
     db = SessionLocal()
     try:
-        expired = (
-            db.query(Trade)
-            .filter(Trade.result == "expired", Trade.settled)
-            .all()
-        )
+        expired = db.query(Trade).filter(Trade.result == "expired", Trade.settled).all()
 
         print(f"Found {len(expired)} expired trades")
         print("=" * 80)

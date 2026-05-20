@@ -33,7 +33,9 @@ class StrategyProposal:
     reasoning: str
     confidence: float  # 0.0-1.0
     priority: str  # "high", "medium", "low"
-    estimated_improvement: Optional[float] = None  # Expected % improvement in win rate or PnL
+    estimated_improvement: Optional[float] = (
+        None  # Expected % improvement in win rate or PnL
+    )
 
 
 class ProposalGenerator:
@@ -45,7 +47,9 @@ class ProposalGenerator:
         self.trade_analyzer = TradeAnalyzer()
         self.claude_analyzer = ClaudeAnalyzer()
 
-    async def generate_proposal(self, recent_trades: List[Trade]) -> Optional[StrategyProposal]:
+    async def generate_proposal(
+        self, recent_trades: List[Trade]
+    ) -> Optional[StrategyProposal]:
         """Generate a strategy improvement proposal from recent trades.
 
         Args:
@@ -77,7 +81,7 @@ class ProposalGenerator:
             trade_analysis=trade_analysis,
             strategy_configs=strategy_configs,
             performance_metrics=performance_metrics,
-            recent_trades=recent_trades
+            recent_trades=recent_trades,
         )
 
         if not proposal:
@@ -101,20 +105,23 @@ class ProposalGenerator:
             Dictionary mapping strategy names to their current configurations
         """
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
-                from backend.models.database import StrategyConfig
-                configs = db.query(StrategyConfig).all()
+            from backend.models.database import StrategyConfig
 
-                result = {}
-                for config in configs:
-                    import json
-                    result[config.strategy_name] = {
-                        "enabled": config.enabled,
-                        "interval_seconds": config.interval_seconds,
-                        "params": json.loads(config.params) if config.params else {}
-                    }
+            configs = db.query(StrategyConfig).all()
 
-                return result
+            result = {}
+            for config in configs:
+                import json
+
+                result[config.strategy_name] = {
+                    "enabled": config.enabled,
+                    "interval_seconds": config.interval_seconds,
+                    "params": json.loads(config.params) if config.params else {},
+                }
+
+            return result
 
     def _calculate_performance_metrics(self, trades: List[Trade]) -> Dict[str, Any]:
         """Calculate performance metrics from trades.
@@ -148,7 +155,7 @@ class ProposalGenerator:
                 strategy_performance[trade.strategy] = {
                     "trades": 0,
                     "wins": 0,
-                    "pnl": 0.0
+                    "pnl": 0.0,
                 }
 
             strategy_performance[trade.strategy]["trades"] += 1
@@ -159,7 +166,9 @@ class ProposalGenerator:
 
         # Calculate win rates per strategy
         for strategy, perf in strategy_performance.items():
-            perf["win_rate"] = perf["wins"] / perf["trades"] if perf["trades"] > 0 else 0.0
+            perf["win_rate"] = (
+                perf["wins"] / perf["trades"] if perf["trades"] > 0 else 0.0
+            )
 
         return {
             "total_trades": total_trades,
@@ -168,7 +177,7 @@ class ProposalGenerator:
             "win_rate": win_rate,
             "total_pnl": total_pnl,
             "avg_pnl": avg_pnl,
-            "strategy_performance": strategy_performance
+            "strategy_performance": strategy_performance,
         }
 
     async def _generate_proposal_with_claude(
@@ -176,7 +185,7 @@ class ProposalGenerator:
         trade_analysis: Dict[str, Any],
         strategy_configs: Dict[str, Any],
         performance_metrics: Dict[str, Any],
-        recent_trades: List[Trade]
+        recent_trades: List[Trade],
     ) -> Optional[StrategyProposal]:
         """Use Claude API to generate improvement proposal.
 
@@ -194,7 +203,7 @@ class ProposalGenerator:
             trade_analysis=trade_analysis,
             strategy_configs=strategy_configs,
             performance_metrics=performance_metrics,
-            recent_trades=recent_trades
+            recent_trades=recent_trades,
         )
 
         try:
@@ -204,7 +213,7 @@ class ProposalGenerator:
             message = await client.messages.create(
                 model=settings.ANTHROPIC_MODEL,
                 max_tokens=1000,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             response_text = message.content[0].text
@@ -223,7 +232,7 @@ class ProposalGenerator:
         trade_analysis: Dict[str, Any],
         strategy_configs: Dict[str, Any],
         performance_metrics: Dict[str, Any],
-        recent_trades: List[Trade]
+        recent_trades: List[Trade],
     ) -> str:
         """Build prompt for Claude API.
 
@@ -238,7 +247,9 @@ class ProposalGenerator:
         """
         # Format strategy performance
         strategy_perf_text = ""
-        for strategy, perf in performance_metrics.get("strategy_performance", {}).items():
+        for strategy, perf in performance_metrics.get(
+            "strategy_performance", {}
+        ).items():
             strategy_perf_text += f"\n- {strategy}: {perf['trades']} trades, {perf['win_rate']:.1%} win rate, ${perf['pnl']:.2f} PnL"
 
         # Format common factors
@@ -296,6 +307,7 @@ Be specific and actionable. Do not suggest vague improvements."""
         result = []
         for strategy, config in configs.items():
             import json
+
             params_str = json.dumps(config.get("params", {}))
             result.append(
                 f"- {strategy}: enabled={config.get('enabled')}, "
@@ -304,9 +316,7 @@ Be specific and actionable. Do not suggest vague improvements."""
         return "\n".join(result)
 
     def _parse_claude_response(
-        self,
-        response_text: str,
-        performance_metrics: Dict[str, Any]
+        self, response_text: str, performance_metrics: Dict[str, Any]
     ) -> Optional[StrategyProposal]:
         """Parse Claude's response into a StrategyProposal object.
 
@@ -324,15 +334,33 @@ Be specific and actionable. Do not suggest vague improvements."""
             # Extract fields using regex
             strategy_match = re.search(r"STRATEGY:\s*(.+)", response_text)
             change_type_match = re.search(r"CHANGE_TYPE:\s*(.+)", response_text)
-            change_details_match = re.search(r"CHANGE_DETAILS:\s*(\{.+?\})", response_text, re.DOTALL)
-            expected_impact_match = re.search(r"EXPECTED_IMPACT:\s*(.+?)(?=\n[A-Z]+:|$)", response_text, re.DOTALL)
-            reasoning_match = re.search(r"REASONING:\s*(.+?)(?=\n[A-Z]+:|$)", response_text, re.DOTALL)
+            change_details_match = re.search(
+                r"CHANGE_DETAILS:\s*(\{.+?\})", response_text, re.DOTALL
+            )
+            expected_impact_match = re.search(
+                r"EXPECTED_IMPACT:\s*(.+?)(?=\n[A-Z]+:|$)", response_text, re.DOTALL
+            )
+            reasoning_match = re.search(
+                r"REASONING:\s*(.+?)(?=\n[A-Z]+:|$)", response_text, re.DOTALL
+            )
             confidence_match = re.search(r"CONFIDENCE:\s*([\d.]+)", response_text)
             priority_match = re.search(r"PRIORITY:\s*(.+)", response_text)
-            improvement_match = re.search(r"ESTIMATED_IMPROVEMENT:\s*([\d.]+)", response_text)
+            improvement_match = re.search(
+                r"ESTIMATED_IMPROVEMENT:\s*([\d.]+)", response_text
+            )
 
-            if not all([strategy_match, change_type_match, change_details_match, expected_impact_match, reasoning_match]):
-                self.logger.error("Failed to parse required fields from Claude response")
+            if not all(
+                [
+                    strategy_match,
+                    change_type_match,
+                    change_details_match,
+                    expected_impact_match,
+                    reasoning_match,
+                ]
+            ):
+                self.logger.error(
+                    "Failed to parse required fields from Claude response"
+                )
                 return None
 
             strategy_name = strategy_match.group(1).strip()
@@ -342,19 +370,29 @@ Be specific and actionable. Do not suggest vague improvements."""
             reasoning = reasoning_match.group(1).strip()
             confidence = float(confidence_match.group(1)) if confidence_match else 0.7
             priority = priority_match.group(1).strip() if priority_match else "medium"
-            estimated_improvement = float(improvement_match.group(1)) if improvement_match else None
+            estimated_improvement = (
+                float(improvement_match.group(1)) if improvement_match else None
+            )
 
             # Parse JSON change details
             try:
                 change_details = json.loads(change_details_str)
             except json.JSONDecodeError:
-                self.logger.error(f"Failed to parse change_details JSON: {change_details_str}")
+                self.logger.error(
+                    f"Failed to parse change_details JSON: {change_details_str}"
+                )
                 return None
 
             # Validate change_type
-            valid_change_types = ["parameter_adjustment", "threshold_change", "new_feature"]
+            valid_change_types = [
+                "parameter_adjustment",
+                "threshold_change",
+                "new_feature",
+            ]
             if change_type not in valid_change_types:
-                self.logger.warning(f"Invalid change_type '{change_type}', defaulting to 'parameter_adjustment'")
+                self.logger.warning(
+                    f"Invalid change_type '{change_type}', defaulting to 'parameter_adjustment'"
+                )
                 change_type = "parameter_adjustment"
 
             # Validate priority
@@ -373,7 +411,7 @@ Be specific and actionable. Do not suggest vague improvements."""
                 reasoning=reasoning,
                 confidence=confidence,
                 priority=priority,
-                estimated_improvement=estimated_improvement
+                estimated_improvement=estimated_improvement,
             )
 
         except Exception as e:
@@ -392,27 +430,29 @@ Be specific and actionable. Do not suggest vague improvements."""
         """
         try:
             from backend.db.utils import get_db_session
+
             with get_db_session() as db:
-                    from backend.models.database import StrategyProposal as DBProposal
+                from backend.models.database import StrategyProposal as DBProposal
 
-                    db_proposal = DBProposal(
-                        strategy_name=proposal.strategy_name,
-                        change_details=proposal.change_details,
-                        expected_impact=proposal.expected_impact,
-                        admin_decision="pending",
-                        status="pending",
-                        auto_promotable=proposal.change_type in ("parameter_adjustment", "threshold_change"),
-                        created_at=datetime.now(timezone.utc)
-                    )
+                db_proposal = DBProposal(
+                    strategy_name=proposal.strategy_name,
+                    change_details=proposal.change_details,
+                    expected_impact=proposal.expected_impact,
+                    admin_decision="pending",
+                    status="pending",
+                    auto_promotable=proposal.change_type
+                    in ("parameter_adjustment", "threshold_change"),
+                    created_at=datetime.now(timezone.utc),
+                )
 
-                    db.add(db_proposal)
-                    db.commit()
-                    db.refresh(db_proposal)
+                db.add(db_proposal)
+                db.commit()
+                db.refresh(db_proposal)
 
-                    proposal_id = db_proposal.id
-                    self.logger.info(f"Stored proposal ID {proposal_id} in database")
+                proposal_id = db_proposal.id
+                self.logger.info(f"Stored proposal ID {proposal_id} in database")
 
-                    return proposal_id
+                return proposal_id
         except Exception as e:
             try:
                 db.rollback()
@@ -428,26 +468,36 @@ Be specific and actionable. Do not suggest vague improvements."""
             List of proposal dictionaries
         """
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
-                from backend.models.database import StrategyProposal as DBProposal
+            from backend.models.database import StrategyProposal as DBProposal
 
-                proposals = db.query(DBProposal).filter(
-                    DBProposal.admin_decision == "pending"
-                ).order_by(DBProposal.created_at.desc()).all()
+            proposals = (
+                db.query(DBProposal)
+                .filter(DBProposal.admin_decision == "pending")
+                .order_by(DBProposal.created_at.desc())
+                .all()
+            )
 
-                result = []
-                for p in proposals:
-                    result.append({
+            result = []
+            for p in proposals:
+                result.append(
+                    {
                         "id": p.id,
                         "strategy_name": p.strategy_name,
                         "change_details": p.change_details,
                         "expected_impact": p.expected_impact,
                         "admin_decision": p.admin_decision,
-                        "created_at": p.created_at.isoformat() if p.created_at else None,
-                        "executed_at": p.executed_at.isoformat() if p.executed_at else None
-                    })
+                        "created_at": (
+                            p.created_at.isoformat() if p.created_at else None
+                        ),
+                        "executed_at": (
+                            p.executed_at.isoformat() if p.executed_at else None
+                        ),
+                    }
+                )
 
-                return result
+            return result
 
     def approve_proposal(
         self,
@@ -467,29 +517,36 @@ Be specific and actionable. Do not suggest vague improvements."""
         """
         try:
             from backend.db.utils import get_db_session
+
             with get_db_session() as db:
-                    from backend.models.database import StrategyProposal as DBProposal
+                from backend.models.database import StrategyProposal as DBProposal
 
-                    proposal = db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
+                proposal = (
+                    db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
+                )
 
-                    if not proposal:
-                        self.logger.error(f"Proposal {proposal_id} not found")
-                        return False
+                if not proposal:
+                    self.logger.error(f"Proposal {proposal_id} not found")
+                    return False
 
-                    if proposal.admin_decision != "pending":
-                        self.logger.warning(f"Proposal {proposal_id} already {proposal.admin_decision}")
-                        return False
+                if proposal.admin_decision != "pending":
+                    self.logger.warning(
+                        f"Proposal {proposal_id} already {proposal.admin_decision}"
+                    )
+                    return False
 
-                    proposal.admin_decision = "approved"
-                    proposal.admin_user_id = admin_user_id
-                    proposal.admin_decision_reason = reason
-                    proposal.executed_at = datetime.now(timezone.utc)
+                proposal.admin_decision = "approved"
+                proposal.admin_user_id = admin_user_id
+                proposal.admin_decision_reason = reason
+                proposal.executed_at = datetime.now(timezone.utc)
 
-                    db.commit()
+                db.commit()
 
-                    self.logger.info(f"Proposal {proposal_id} approved by {admin_user_id}: {reason}")
+                self.logger.info(
+                    f"Proposal {proposal_id} approved by {admin_user_id}: {reason}"
+                )
 
-                    return True
+                return True
         except Exception as e:
             db.rollback()
             self.logger.error(f"Failed to approve proposal {proposal_id}: {e}")
@@ -513,28 +570,35 @@ Be specific and actionable. Do not suggest vague improvements."""
         """
         try:
             from backend.db.utils import get_db_session
+
             with get_db_session() as db:
-                    from backend.models.database import StrategyProposal as DBProposal
+                from backend.models.database import StrategyProposal as DBProposal
 
-                    proposal = db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
+                proposal = (
+                    db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
+                )
 
-                    if not proposal:
-                        self.logger.error(f"Proposal {proposal_id} not found")
-                        return False
+                if not proposal:
+                    self.logger.error(f"Proposal {proposal_id} not found")
+                    return False
 
-                    if proposal.admin_decision != "pending":
-                        self.logger.warning(f"Proposal {proposal_id} already {proposal.admin_decision}")
-                        return False
+                if proposal.admin_decision != "pending":
+                    self.logger.warning(
+                        f"Proposal {proposal_id} already {proposal.admin_decision}"
+                    )
+                    return False
 
-                    proposal.admin_decision = "rejected"
-                    proposal.admin_user_id = admin_user_id
-                    proposal.admin_decision_reason = reason
+                proposal.admin_decision = "rejected"
+                proposal.admin_user_id = admin_user_id
+                proposal.admin_decision_reason = reason
 
-                    db.commit()
+                db.commit()
 
-                    self.logger.info(f"Proposal {proposal_id} rejected by {admin_user_id}: {reason}")
+                self.logger.info(
+                    f"Proposal {proposal_id} rejected by {admin_user_id}: {reason}"
+                )
 
-                    return True
+                return True
         except Exception as e:
             db.rollback()
             self.logger.error(f"Failed to reject proposal {proposal_id}: {e}")
@@ -550,14 +614,22 @@ def auto_promote_eligible_proposals():
     3. Apply params with adaptive deviation limit (wider for broken strategies)
     """
     try:
-        from backend.models.database import StrategyProposal as DBProposal, StrategyConfig
+        from backend.models.database import (
+            StrategyProposal as DBProposal,
+            StrategyConfig,
+        )
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
-            eligible = db.query(DBProposal).filter(
-                DBProposal.admin_decision == "pending",
-                DBProposal.auto_promotable,
-                not DBProposal.backtest_passed,
-            ).all()
+            eligible = (
+                db.query(DBProposal)
+                .filter(
+                    DBProposal.admin_decision == "pending",
+                    DBProposal.auto_promotable,
+                    not DBProposal.backtest_passed,
+                )
+                .all()
+            )
 
             for proposal in eligible:
                 try:
@@ -570,47 +642,73 @@ def auto_promote_eligible_proposals():
                     logger.error("Backtest failed for proposal %s: %s", proposal.id, e)
                     db.rollback()
 
-            promotable = db.query(DBProposal).filter(
-                DBProposal.admin_decision == "pending",
-                DBProposal.auto_promotable,
-                DBProposal.backtest_passed,
-            ).all()
+            promotable = (
+                db.query(DBProposal)
+                .filter(
+                    DBProposal.admin_decision == "pending",
+                    DBProposal.auto_promotable,
+                    DBProposal.backtest_passed,
+                )
+                .all()
+            )
             for proposal in promotable:
                 try:
-                    config = db.query(StrategyConfig).filter(
-                        StrategyConfig.strategy_name == proposal.strategy_name
-                    ).first()
+                    config = (
+                        db.query(StrategyConfig)
+                        .filter(StrategyConfig.strategy_name == proposal.strategy_name)
+                        .first()
+                    )
                     if config and proposal.change_details:
                         current_params = config.params or {}
                         if isinstance(current_params, str):
                             import json as _json
+
                             current_params = _json.loads(current_params)
 
                         baseline_wr = _get_baseline_win_rate(db, proposal.strategy_name)
-                        max_deviation = 0.50 if baseline_wr < 0.20 else 0.30 if baseline_wr < 0.40 else 0.20
+                        max_deviation = (
+                            0.50
+                            if baseline_wr < 0.20
+                            else 0.30 if baseline_wr < 0.40 else 0.20
+                        )
 
                         applied = False
                         for key, val in proposal.change_details.items():
-                            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                            if isinstance(val, (int, float)) and not isinstance(
+                                val, bool
+                            ):
                                 current_val = float(current_params.get(key, val))
-                                deviation = abs(val - current_val) / max(abs(current_val), 1e-9)
+                                deviation = abs(val - current_val) / max(
+                                    abs(current_val), 1e-9
+                                )
                                 if deviation <= max_deviation:
                                     current_params[key] = val
                                     applied = True
                                 else:
-                                    clamped = current_val * (1 + max_deviation * (1 if val > current_val else -1))
+                                    clamped = current_val * (
+                                        1
+                                        + max_deviation
+                                        * (1 if val > current_val else -1)
+                                    )
                                     current_params[key] = round(clamped, 6)
                                     applied = True
 
                         if applied:
                             import json as _json
-                            config.params = _json.dumps(current_params) if not isinstance(current_params, str) else current_params
+
+                            config.params = (
+                                _json.dumps(current_params)
+                                if not isinstance(current_params, str)
+                                else current_params
+                            )
                             proposal.status = "auto_approved"
                             proposal.admin_decision = "auto_approved"
                             proposal.executed_at = datetime.now(timezone.utc)
                             db.commit()
                 except (AttributeError, KeyError, ValueError) as e:
-                    logger.error("Auto-promote failed for proposal %s: %s", proposal.id, e)
+                    logger.error(
+                        "Auto-promote failed for proposal %s: %s", proposal.id, e
+                    )
                     db.rollback()
     except Exception as e:
         logger.error(f"auto_promote_eligible_proposals failed: {e}", exc_info=True)
@@ -619,13 +717,18 @@ def auto_promote_eligible_proposals():
 def _get_baseline_win_rate(db, strategy_name: str) -> float:
     from backend.models.database import Trade
     from sqlalchemy.sql import func
-    stats = db.query(
-        func.count(Trade.id).label("cnt"),
-        func.count(Trade.id).filter(Trade.result == "win").label("wins"),
-    ).filter(
-        Trade.strategy == strategy_name,
-        Trade.settled,
-    ).first()
+
+    stats = (
+        db.query(
+            func.count(Trade.id).label("cnt"),
+            func.count(Trade.id).filter(Trade.result == "win").label("wins"),
+        )
+        .filter(
+            Trade.strategy == strategy_name,
+            Trade.settled,
+        )
+        .first()
+    )
     cnt = stats.cnt or 0
     return (stats.wins or 0) / cnt if cnt > 0 else 0.0
 
@@ -669,10 +772,19 @@ def _run_backtest_for_proposal(db, proposal) -> dict:
         )
 
         if len(settled_trades) < 3:
-            return {"sharpe": 0.0, "win_rate": 0.0, "passed": False, "reason": "insufficient_data"}
+            return {
+                "sharpe": 0.0,
+                "win_rate": 0.0,
+                "passed": False,
+                "reason": "insufficient_data",
+            }
 
         kelly_fraction = float(proposed_params.get("kelly_fraction", 0.0625))
-        min_edge = float(proposed_params.get("min_edge", proposed_params.get("min_edge_threshold", 0.02)))
+        min_edge = float(
+            proposed_params.get(
+                "min_edge", proposed_params.get("min_edge_threshold", 0.02)
+            )
+        )
         max_size = float(proposed_params.get("max_trade_size", 10.0))
         slippage_buffer = float(proposed_params.get("slippage_buffer", 1.0))
 
@@ -683,12 +795,16 @@ def _run_backtest_for_proposal(db, proposal) -> dict:
         for trade in settled_trades:
             baseline_pnls.append(trade.pnl or 0.0)
 
-            edge = trade.edge_at_entry if hasattr(trade, 'edge_at_entry') and trade.edge_at_entry else 0.1
+            edge = (
+                trade.edge_at_entry
+                if hasattr(trade, "edge_at_entry") and trade.edge_at_entry
+                else 0.1
+            )
             if edge < min_edge:
                 simulated_pnls.append(0.0)
                 continue
 
-            original_size = trade.size if hasattr(trade, 'size') and trade.size else 5.0
+            original_size = trade.size if hasattr(trade, "size") and trade.size else 5.0
             proposed_size = min(bankroll * kelly_fraction * edge, max_size)
             proposed_size = max(proposed_size, 1.0)
 

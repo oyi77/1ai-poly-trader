@@ -30,7 +30,7 @@ def create_test_trade(
     edge_at_entry=0.15,
     strategy="test_strategy",
     direction="up",
-    **kwargs
+    **kwargs,
 ):
     if settlement_value is not None and entry_price is not None:
         if direction == "up":
@@ -48,7 +48,9 @@ def create_test_trade(
         size=size,
         timestamp=kwargs.get("timestamp", datetime.now(timezone.utc)),
         settled=settlement_value is not None,
-        settlement_time=datetime.now(timezone.utc) if settlement_value is not None else None,
+        settlement_time=(
+            datetime.now(timezone.utc) if settlement_value is not None else None
+        ),
         settlement_value=settlement_value,
         result=result,
         model_probability=0.65,
@@ -74,7 +76,7 @@ def test_analyze_profitable_trade(analyzer, db_session):
         size=100.0,
         confidence=0.85,
         edge_at_entry=0.20,
-        direction="up"
+        direction="up",
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -98,7 +100,7 @@ def test_analyze_unprofitable_trade(analyzer, db_session):
         size=100.0,
         confidence=0.40,
         edge_at_entry=0.03,
-        direction="up"
+        direction="up",
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -121,7 +123,7 @@ def test_analyze_neutral_trade(analyzer, db_session):
         size=100.0,
         confidence=0.60,
         edge_at_entry=0.10,
-        direction="up"
+        direction="up",
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -138,10 +140,7 @@ def test_analyze_nonexistent_trade(analyzer):
 
 def test_analyze_trade_missing_entry_price(analyzer, db_session):
     trade = create_test_trade(
-        db_session,
-        entry_price=None,
-        settlement_value=1.0,
-        size=100.0
+        db_session, entry_price=None, settlement_value=1.0, size=100.0
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -150,10 +149,7 @@ def test_analyze_trade_missing_entry_price(analyzer, db_session):
 
 def test_analyze_trade_zero_quantity(analyzer, db_session):
     trade = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=0.0
+        db_session, entry_price=0.50, settlement_value=1.0, size=0.0
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -166,10 +162,7 @@ def test_analyze_trade_zero_quantity(analyzer, db_session):
 
 def test_analyze_trade_null_quantity(analyzer, db_session):
     trade = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=None
+        db_session, entry_price=0.50, settlement_value=1.0, size=None
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -186,10 +179,7 @@ def test_analyze_trade_history_empty_list(analyzer):
 
 def test_analyze_trade_history_single_trade(analyzer, db_session):
     trade = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=100.0
+        db_session, entry_price=0.50, settlement_value=1.0, size=100.0
     )
 
     result = analyzer.analyze_trade_history([trade])
@@ -211,7 +201,7 @@ def test_analyze_trade_history_all_losing_trades(analyzer, db_session):
             size=100.0,
             confidence=0.30,
             edge_at_entry=0.02,
-            direction="up"
+            direction="up",
         )
         for _ in range(3)
     ]
@@ -235,7 +225,7 @@ def test_analyze_trade_history_mixed_trades(analyzer, db_session):
         settlement_value=1.0,
         size=100.0,
         confidence=0.85,
-        direction="up"
+        direction="up",
     )
 
     losing_trade = create_test_trade(
@@ -244,7 +234,7 @@ def test_analyze_trade_history_mixed_trades(analyzer, db_session):
         settlement_value=0.0,
         size=100.0,
         confidence=0.40,
-        direction="up"
+        direction="up",
     )
 
     neutral_trade = create_test_trade(
@@ -253,7 +243,7 @@ def test_analyze_trade_history_mixed_trades(analyzer, db_session):
         settlement_value=0.50,
         size=100.0,
         confidence=0.60,
-        direction="up"
+        direction="up",
     )
 
     trades = [winning_trade, losing_trade, neutral_trade]
@@ -269,19 +259,13 @@ def test_analyze_trade_history_mixed_trades(analyzer, db_session):
 def test_analyze_trade_history_with_outlier(analyzer, db_session):
     normal_trades = [
         create_test_trade(
-            db_session,
-            entry_price=0.50,
-            settlement_value=0.51,
-            size=100.0
+            db_session, entry_price=0.50, settlement_value=0.51, size=100.0
         )
         for _ in range(5)
     ]
 
     outlier_trade = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=1000.0
+        db_session, entry_price=0.50, settlement_value=1.0, size=1000.0
     )
 
     trades = normal_trades + [outlier_trade]
@@ -300,7 +284,7 @@ def test_analyze_trade_history_identical_timestamps(analyzer, db_session):
             entry_price=0.50,
             settlement_value=0.55,
             size=100.0,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
         for _ in range(3)
     ]
@@ -313,24 +297,15 @@ def test_analyze_trade_history_identical_timestamps(analyzer, db_session):
 
 def test_analyze_trade_history_skip_invalid_trades(analyzer, db_session):
     valid_trade = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=100.0
+        db_session, entry_price=0.50, settlement_value=1.0, size=100.0
     )
 
     invalid_trade_no_entry = create_test_trade(
-        db_session,
-        entry_price=None,
-        settlement_value=1.0,
-        size=100.0
+        db_session, entry_price=None, settlement_value=1.0, size=100.0
     )
 
     invalid_trade_zero_size = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=0.0
+        db_session, entry_price=0.50, settlement_value=1.0, size=0.0
     )
 
     trades = [valid_trade, invalid_trade_no_entry, invalid_trade_zero_size]
@@ -342,11 +317,7 @@ def test_analyze_trade_history_skip_invalid_trades(analyzer, db_session):
 
 def test_analyze_trade_with_stored_pnl(analyzer, db_session):
     trade = create_test_trade(
-        db_session,
-        entry_price=0.50,
-        settlement_value=1.0,
-        size=100.0,
-        pnl=15.0
+        db_session, entry_price=0.50, settlement_value=1.0, size=100.0, pnl=15.0
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -362,7 +333,7 @@ def test_analyze_trade_with_slippage(analyzer, db_session):
         size=100.0,
         slippage=0.05,
         confidence=0.40,
-        direction="up"
+        direction="up",
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -378,7 +349,7 @@ def test_analyze_trade_with_high_fees(analyzer, db_session):
         size=100.0,
         fee=50.0,
         confidence=0.40,
-        direction="up"
+        direction="up",
     )
 
     result = analyzer.analyze_trade(trade.id)
@@ -438,7 +409,7 @@ def test_analyze_trade_history_common_win_factors(analyzer, db_session):
             confidence=0.85,
             edge_at_entry=0.20,
             strategy="momentum",
-            direction="up"
+            direction="up",
         )
         for _ in range(5)
     ]
@@ -457,7 +428,7 @@ def test_edge_score_calculation(analyzer, db_session):
             settlement_value=1.0,
             size=100.0,
             edge_at_entry=0.80,
-            direction="up"
+            direction="up",
         ),
         create_test_trade(
             db_session,
@@ -465,7 +436,7 @@ def test_edge_score_calculation(analyzer, db_session):
             settlement_value=1.0,
             size=100.0,
             edge_at_entry=0.60,
-            direction="up"
+            direction="up",
         ),
     ]
 

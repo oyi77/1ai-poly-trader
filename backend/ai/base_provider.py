@@ -1,4 +1,5 @@
 """Abstract base class and manifest for AI provider plugins."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -7,6 +8,7 @@ from typing import List, Optional
 @dataclass
 class ProviderManifest:
     """Declarative metadata for an AI provider plugin."""
+
     name: str
     display_name: str
     version: str

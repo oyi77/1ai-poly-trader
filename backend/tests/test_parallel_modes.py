@@ -230,6 +230,7 @@ class TestModeIsolation:
         )
         from backend.core.risk_manager import RiskManager
         from backend.tests.test_strategy_executor import _reload_executor
+
         _reload_executor()
         from backend.core.strategy_executor import execute_decision
 
@@ -277,9 +278,7 @@ class TestModeIsolation:
             assert live_state.bankroll == 1000.0  # Unchanged
 
             # Verify trade tagged with correct mode
-            trade = (
-                db.query(Trade).filter_by(market_ticker="paper-market-001").first()
-            )
+            trade = db.query(Trade).filter_by(market_ticker="paper-market-001").first()
             assert trade is not None
             assert trade.trading_mode == "paper"
 
@@ -302,6 +301,7 @@ class TestConcurrentExecution:
         )
         from backend.core.risk_manager import RiskManager
         from backend.tests.test_strategy_executor import _reload_executor
+
         _reload_executor()
         from backend.core.strategy_executor import execute_decision
         import asyncio
@@ -314,7 +314,9 @@ class TestConcurrentExecution:
             mock_result.order_id = f"order-{mode}-concurrent-123"
             mock_result.fill_price = 0.55
             mock_result.filled_size = None
-            mock_clob.__aenter__.return_value.place_limit_order.return_value = mock_result
+            mock_clob.__aenter__.return_value.place_limit_order.return_value = (
+                mock_result
+            )
 
             register_context(
                 mode,
@@ -398,6 +400,7 @@ class TestDatabaseIntegrity:
         )
         from backend.core.risk_manager import RiskManager
         from backend.tests.test_strategy_executor import _reload_executor
+
         _reload_executor()
         from backend.core.strategy_executor import execute_decision
 
@@ -408,7 +411,9 @@ class TestDatabaseIntegrity:
             mock_result.order_id = f"order-{mode}-integrity-456"
             mock_result.fill_price = 0.55
             mock_result.filled_size = None
-            mock_clob.__aenter__.return_value.place_limit_order.return_value = mock_result
+            mock_clob.__aenter__.return_value.place_limit_order.return_value = (
+                mock_result
+            )
 
             register_context(
                 mode,
@@ -442,15 +447,9 @@ class TestDatabaseIntegrity:
 
             # Verify each mode has exactly 1 trade
             db = _TestSession()
-            paper_trades = (
-                db.query(Trade).filter_by(trading_mode="paper").count()
-            )
-            testnet_trades = (
-                db.query(Trade).filter_by(trading_mode="testnet").count()
-            )
-            live_trades = (
-                db.query(Trade).filter_by(trading_mode="live").count()
-            )
+            paper_trades = db.query(Trade).filter_by(trading_mode="paper").count()
+            testnet_trades = db.query(Trade).filter_by(trading_mode="testnet").count()
+            live_trades = db.query(Trade).filter_by(trading_mode="live").count()
 
             assert paper_trades == 1
             assert testnet_trades == 1
@@ -495,6 +494,7 @@ class TestModeSpecificRiskLimits:
         )
         from backend.core.risk_manager import RiskManager
         from backend.tests.test_strategy_executor import _reload_executor
+
         _reload_executor()
         from backend.core.strategy_executor import execute_decision
 
@@ -506,7 +506,9 @@ class TestModeSpecificRiskLimits:
             mock_result.order_id = f"order-{mode}-789"
             mock_result.fill_price = 0.55
             mock_result.filled_size = None
-            mock_clob.__aenter__.return_value.place_limit_order.return_value = mock_result
+            mock_clob.__aenter__.return_value.place_limit_order.return_value = (
+                mock_result
+            )
 
             register_context(
                 mode,
@@ -569,19 +571,13 @@ class TestModeSpecificRiskLimits:
                 "reasoning": "live risk test",
                 "token_id": "token-live-789",
             }
-            live_result = await execute_decision(
-                live_decision, "test_strategy", "live"
-            )
+            live_result = await execute_decision(live_decision, "test_strategy", "live")
             assert live_result is not None  # Should succeed
 
             # Verify paper and live trades are independent
             db = _TestSession()
-            paper_trades = (
-                db.query(Trade).filter_by(trading_mode="paper").count()
-            )
-            live_trades = (
-                db.query(Trade).filter_by(trading_mode="live").count()
-            )
+            paper_trades = db.query(Trade).filter_by(trading_mode="paper").count()
+            live_trades = db.query(Trade).filter_by(trading_mode="live").count()
 
             assert paper_trades >= 1  # At least 1 paper trade
             assert live_trades == 1  # Exactly 1 live trade
@@ -602,9 +598,7 @@ class TestStrategyConfigLoading:
         # Query paper-specific configs
         paper_configs = (
             db.query(StrategyConfig)
-            .filter(
-                (StrategyConfig.mode == "paper") | (StrategyConfig.mode.is_(None))
-            )
+            .filter((StrategyConfig.mode == "paper") | (StrategyConfig.mode.is_(None)))
             .all()
         )
         paper_names = [c.strategy_name for c in paper_configs]
@@ -630,9 +624,7 @@ class TestStrategyConfigLoading:
         # Query live-specific configs
         live_configs = (
             db.query(StrategyConfig)
-            .filter(
-                (StrategyConfig.mode == "live") | (StrategyConfig.mode.is_(None))
-            )
+            .filter((StrategyConfig.mode == "live") | (StrategyConfig.mode.is_(None)))
             .all()
         )
         live_names = [c.strategy_name for c in live_configs]

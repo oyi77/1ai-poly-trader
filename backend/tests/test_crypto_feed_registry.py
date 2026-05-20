@@ -1,4 +1,5 @@
 """Test suite for crypto exchange feed registry."""
+
 import pytest
 
 from backend.data.crypto_feeds.base import BaseExchangeFeed, ExchangeFeedManifest
@@ -120,8 +121,12 @@ def test_get_fallback_chain_ordered_by_health():
                 required_env_vars=[],
                 tags=["test"],
             )
-        async def get_btc_price(self): return 100.0
-        async def get_klines(self, symbol, interval, limit): return []
+
+        async def get_btc_price(self):
+            return 100.0
+
+        async def get_klines(self, symbol, interval, limit):
+            return []
 
     class Healthy2Feed(BaseExchangeFeed):
         @classmethod
@@ -136,8 +141,12 @@ def test_get_fallback_chain_ordered_by_health():
                 required_env_vars=[],
                 tags=["test"],
             )
-        async def get_btc_price(self): return 200.0
-        async def get_klines(self, symbol, interval, limit): return []
+
+        async def get_btc_price(self):
+            return 200.0
+
+        async def get_klines(self, symbol, interval, limit):
+            return []
 
     class UnhealthyFeed(BaseExchangeFeed):
         @classmethod
@@ -152,8 +161,12 @@ def test_get_fallback_chain_ordered_by_health():
                 required_env_vars=[],
                 tags=["test"],
             )
-        async def get_btc_price(self): raise Exception("down")
-        async def get_klines(self, symbol, interval, limit): return []
+
+        async def get_btc_price(self):
+            raise Exception("down")
+
+        async def get_klines(self, symbol, interval, limit):
+            return []
 
     registry = ExchangeFeedRegistry("test_registry")
     registry.register(Healthy1Feed)
@@ -184,6 +197,7 @@ def test_health_check():
     registry = ExchangeFeedRegistry("test_registry")
     registry.register(MockFeed)
     import asyncio
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -215,8 +229,12 @@ def test_reset_registry():
                 required_env_vars=[],
                 tags=["test"],
             )
-        async def get_btc_price(self): return 100.0
-        async def get_klines(self, symbol, interval, limit): return []
+
+        async def get_btc_price(self):
+            return 100.0
+
+        async def get_klines(self, symbol, interval, limit):
+            return []
 
     registry = ExchangeFeedRegistry("test_registry")
     registry.register(TestFeed)

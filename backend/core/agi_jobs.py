@@ -1,7 +1,10 @@
 """Scheduled job wrappers for AGI-loop components (self-review, research)."""
+
 from sqlalchemy import distinct
 
 from loguru import logger
+
+
 def _get_active_market_queries() -> list[str]:
     """Extract market topic queries from recent trades and signals."""
     try:
@@ -139,7 +142,9 @@ async def historical_data_collection_job() -> None:
 
         results = await historical_data_collector.run_collection_cycle()
         total = sum(results.values())
-        log_event("success", f"Historical data collection: {total} new rows — {results}")
+        log_event(
+            "success", f"Historical data collection: {total} new rows — {results}"
+        )
     except Exception as exc:
         logger.exception("historical_data_collection_job failed: %s", exc)
         log_event("error", f"Historical data collection failed: {exc}")
@@ -179,15 +184,19 @@ async def fronttest_validation_job() -> None:
             with SessionLocal() as db:
                 try:
                     for r in passed:
-                        proposal = db.query(StrategyProposal).filter(
-                            StrategyProposal.id == r["proposal_id"]
-                        ).first()
+                        proposal = (
+                            db.query(StrategyProposal)
+                            .filter(StrategyProposal.id == r["proposal_id"])
+                            .first()
+                        )
                         if proposal and getattr(settings, "AGI_AUTO_PROMOTE", False):
                             proposal.admin_decision = "approved"
                             logger.info(
                                 "[fronttest] Auto-approved proposal %d for '%s' (wr=%.1f%%, %d trades)",
-                                r["proposal_id"], r["strategy"],
-                                r.get("win_rate", 0) * 100, r.get("trade_count", 0),
+                                r["proposal_id"],
+                                r["strategy"],
+                                r.get("win_rate", 0) * 100,
+                                r.get("trade_count", 0),
                             )
                     db.commit()
                 except Exception as e:
@@ -234,7 +243,10 @@ async def model_calibration_check_job() -> None:
             )
 
         if len(recent_trades) < min_samples:
-            log_event("info", f"Calibration check skipped: only {len(recent_trades)} samples (need {min_samples})")
+            log_event(
+                "info",
+                f"Calibration check skipped: only {len(recent_trades)} samples (need {min_samples})",
+            )
             return
 
         predictions = [
@@ -250,16 +262,21 @@ async def model_calibration_check_job() -> None:
         if brier > brier_threshold:
             logger.warning(
                 "[calibration_check] Brier score %.4f exceeds threshold %.4f — triggering retrain",
-                brier, brier_threshold,
+                brier,
+                brier_threshold,
             )
             from backend.core.retrain_trigger import check_and_trigger_retraining
+
             retrain_result = await check_and_trigger_retraining()
             log_event(
                 "warning" if retrain_result.get("status") != "ok" else "success",
                 f"Calibration drift detected (Brier={brier:.4f}): retrain → {retrain_result.get('status')}",
             )
         else:
-            log_event("success", f"Calibration OK: Brier={brier:.4f} (threshold={brier_threshold})")
+            log_event(
+                "success",
+                f"Calibration OK: Brier={brier:.4f} (threshold={brier_threshold})",
+            )
 
     except Exception as exc:
         logger.exception("model_calibration_check_job failed: %s", exc)

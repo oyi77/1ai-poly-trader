@@ -45,7 +45,11 @@ class InternalMirrorSource(CopySource):
             already_mirrored = (
                 self._db.query(CopyTraderEntry)
                 .filter(
-                    CopyTraderEntry.wallet == trade.wallet_address if hasattr(trade, "wallet_address") else "",
+                    (
+                        CopyTraderEntry.wallet == trade.wallet_address
+                        if hasattr(trade, "wallet_address")
+                        else ""
+                    ),
                     CopyTraderEntry.condition_id == trade.condition_id,
                     CopyTraderEntry.side == trade.side,
                 )
@@ -54,7 +58,11 @@ class InternalMirrorSource(CopySource):
             if already_mirrored:
                 continue
 
-            ctx = self._db.query(TradeContext).filter(TradeContext.trade_id == trade.id).first()
+            ctx = (
+                self._db.query(TradeContext)
+                .filter(TradeContext.trade_id == trade.id)
+                .first()
+            )
             confidence = ctx.confidence if ctx and ctx.confidence is not None else 0.5
 
             signals.append(

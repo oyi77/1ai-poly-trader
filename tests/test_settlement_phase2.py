@@ -18,7 +18,6 @@ from backend.core.settlement.settlement_helpers import (
     fetch_resolution_for_trade,
 )
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -47,7 +46,9 @@ def make_trade(**kwargs):
     t.settlement_time = kwargs.get("settlement_time", None)
     t.settlement_source = kwargs.get("settlement_source", None)
     t.market_end_date = kwargs.get("market_end_date", None)
-    t.timestamp = kwargs.get("timestamp", datetime.now(timezone.utc) - timedelta(hours=2))
+    t.timestamp = kwargs.get(
+        "timestamp", datetime.now(timezone.utc) - timedelta(hours=2)
+    )
     t.strategy = kwargs.get("strategy", "test_strategy")
     t.fee = kwargs.get("fee", 0.0)
     t.signal_data = kwargs.get("signal_data", None)
@@ -287,7 +288,9 @@ class TestGracePeriod:
         # Record first detection 7 hours ago (past default 6h grace)
         settlement_mod._closed_unresolved_grace[trade.id] = now - timedelta(hours=7)
 
-        grace_elapsed = (now - settlement_mod._closed_unresolved_grace[trade.id]).total_seconds()
+        grace_elapsed = (
+            now - settlement_mod._closed_unresolved_grace[trade.id]
+        ).total_seconds()
         unresolved_grace_hours = 6
 
         assert grace_elapsed >= unresolved_grace_hours * 3600
@@ -415,7 +418,11 @@ class TestCalculatePnlEdgeCases:
     def test_filled_size_used_over_size(self):
         """When filled_size is set, it should be used instead of size."""
         trade = make_trade(
-            direction="up", entry_price=0.50, size=200.0, filled_size=100.0, fill_price=0.50
+            direction="up",
+            entry_price=0.50,
+            size=200.0,
+            filled_size=100.0,
+            fill_price=0.50,
         )
         pnl = calculate_pnl(trade, 1.0)
         # Should use filled_size=100, not size=200

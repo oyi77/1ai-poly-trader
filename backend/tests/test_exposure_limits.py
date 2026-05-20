@@ -1,11 +1,16 @@
 """Tests for exposure_limits — pre-trade validation checklist."""
 
-
-from backend.core.risk.exposure_limits import PortfolioState, TradeConfig, validate_trade
+from backend.core.risk.exposure_limits import (
+    PortfolioState,
+    TradeConfig,
+    validate_trade,
+)
 
 
 def _trade(size: float = 20.0, **kwargs) -> TradeConfig:
-    defaults = dict(market_id="m1", category="politics", size_usd=size, side="BUY", outcome="YES")
+    defaults = dict(
+        market_id="m1", category="politics", size_usd=size, side="BUY", outcome="YES"
+    )
     defaults.update(kwargs)
     return TradeConfig(**defaults)
 
@@ -30,7 +35,9 @@ def test_insufficient_capital():
 
 # 3. Max open positions
 def test_max_open_positions():
-    ok, reason = validate_trade(_trade(20), _portfolio(free_capital=100, open_positions=5, max_open_positions=5))
+    ok, reason = validate_trade(
+        _trade(20), _portfolio(free_capital=100, open_positions=5, max_open_positions=5)
+    )
     assert ok is False
     assert "Max open positions" in reason
 
@@ -67,20 +74,26 @@ def test_daily_loss_limit():
 
 # 7. Outside trading hours
 def test_outside_trading_hours():
-    ok, reason = validate_trade(_trade(20), _portfolio(free_capital=100, trading_hours_allowed=False))
+    ok, reason = validate_trade(
+        _trade(20), _portfolio(free_capital=100, trading_hours_allowed=False)
+    )
     assert ok is False
     assert "trading hours" in reason
 
 
 # 8. Position too small
 def test_position_too_small():
-    ok, reason = validate_trade(_trade(2), _portfolio(free_capital=100, min_position_usd=5))
+    ok, reason = validate_trade(
+        _trade(2), _portfolio(free_capital=100, min_position_usd=5)
+    )
     assert ok is False
     assert "too small" in reason
 
 
 # 9. Position too large
 def test_position_too_large():
-    ok, reason = validate_trade(_trade(100), _portfolio(free_capital=200, max_position_usd=50))
+    ok, reason = validate_trade(
+        _trade(100), _portfolio(free_capital=200, max_position_usd=50)
+    )
     assert ok is False
     assert "too large" in reason

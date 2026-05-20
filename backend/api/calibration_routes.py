@@ -105,9 +105,7 @@ def get_calibration(db: Session = Depends(get_db)) -> CalibrationResponse:
             continue
 
         implied = (
-            float(market_price_at_entry)
-            if market_price_at_entry is not None
-            else price
+            float(market_price_at_entry) if market_price_at_entry is not None else price
         )
 
         stats = bucket_stats[bucket]

@@ -7,6 +7,8 @@ from typing import Optional
 from backend.strategies.types_hft import HFTSignal
 
 from loguru import logger
+
+
 class SignalGenerator:
     """
     HFT signal generator that deduplicates and validates signals.
@@ -38,7 +40,9 @@ class SignalGenerator:
         Returns None if duplicate (within dedup window) or invalid.
         """
         if not self._validate_confidence(confidence):
-            logger.debug(f"[signal_gen] Invalid confidence {confidence} for {market_id}")
+            logger.debug(
+                f"[signal_gen] Invalid confidence {confidence} for {market_id}"
+            )
             return None
 
         if not self._validate_edge(edge):
@@ -102,7 +106,9 @@ class SignalGenerator:
     def purge_stale(self) -> int:
         """Remove stale entries from dedup cache. Returns count removed."""
         now = time.time()
-        stale_keys = [k for k, t in self._seen.items() if (now - t) > self._dedup_window * 10]
+        stale_keys = [
+            k for k, t in self._seen.items() if (now - t) > self._dedup_window * 10
+        ]
         for k in stale_keys:
             self._seen.pop(k, None)
         return len(stale_keys)

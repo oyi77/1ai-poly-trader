@@ -11,11 +11,13 @@ from backend.models.database import get_db, PerformanceMetric
 from backend.api.auth import require_admin
 from backend.monitoring.performance_tracker import get_performance_tracker
 from loguru import logger
+
 router = APIRouter(tags=["metrics"])
 
 
 class MetricsSummary(BaseModel):
     """Performance metrics summary response."""
+
     request_duration: Dict[str, float]
     db_query_time: Dict[str, float]
     websocket_latency: Dict[str, float]
@@ -25,6 +27,7 @@ class MetricsSummary(BaseModel):
 
 class HistoricalMetrics(BaseModel):
     """Historical metrics response."""
+
     metric_type: str
     period_hours: int
     data_points: int
@@ -33,8 +36,7 @@ class HistoricalMetrics(BaseModel):
 
 @router.get("", response_model=MetricsSummary)
 async def get_system_metrics(
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     """
     Get current system performance metrics.
@@ -54,16 +56,18 @@ async def get_system_metrics(
         db_query_time=summary["db_query_time"],
         websocket_latency=summary["websocket_latency"],
         system=summary["system"],
-        timestamp=datetime.now(timezone.utc).isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
 
 @router.get("/history", response_model=HistoricalMetrics)
 async def get_historical_metrics(
-    metric_type: str = Query("request", description="Metric type: request, db_query, websocket, system"),
+    metric_type: str = Query(
+        "request", description="Metric type: request, db_query, websocket, system"
+    ),
     hours: int = Query(24, ge=1, le=168, description="Hours of history (1-168)"),
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    _: None = Depends(require_admin),
 ):
     """
     Get historical performance metrics.
@@ -79,16 +83,21 @@ async def get_historical_metrics(
     try:
         if metric_type == "request":
             # Aggregate request metrics
-            results = db.query(
-                func.avg(PerformanceMetric.duration_ms).label("avg_ms"),
-                func.min(PerformanceMetric.duration_ms).label("min_ms"),
-                func.max(PerformanceMetric.duration_ms).label("max_ms"),
-                func.count(PerformanceMetric.id).label("count"),
-                PerformanceMetric.endpoint
-            ).filter(
-                PerformanceMetric.metric_type == "request",
-                PerformanceMetric.timestamp >= cutoff
-            ).group_by(PerformanceMetric.endpoint).all()
+            results = (
+                db.query(
+                    func.avg(PerformanceMetric.duration_ms).label("avg_ms"),
+                    func.min(PerformanceMetric.duration_ms).label("min_ms"),
+                    func.max(PerformanceMetric.duration_ms).label("max_ms"),
+                    func.count(PerformanceMetric.id).label("count"),
+                    PerformanceMetric.endpoint,
+                )
+                .filter(
+                    PerformanceMetric.metric_type == "request",
+                    PerformanceMetric.timestamp >= cutoff,
+                )
+                .group_by(PerformanceMetric.endpoint)
+                .all()
+            )
 
             metrics = {
                 "endpoints": [
@@ -97,7 +106,7 @@ async def get_historical_metrics(
                         "avg_ms": round(r.avg_ms, 2) if r.avg_ms else 0,
                         "min_ms": round(r.min_ms, 2) if r.min_ms else 0,
                         "max_ms": round(r.max_ms, 2) if r.max_ms else 0,
-                        "count": r.count
+                        "count": r.count,
                     }
                     for r in results
                 ]
@@ -105,16 +114,21 @@ async def get_historical_metrics(
 
         elif metric_type == "db_query":
             # Aggregate DB query metrics
-            results = db.query(
-                func.avg(PerformanceMetric.query_duration_ms).label("avg_ms"),
-                func.min(PerformanceMetric.query_duration_ms).label("min_ms"),
-                func.max(PerformanceMetric.query_duration_ms).label("max_ms"),
-                func.count(PerformanceMetric.id).label("count"),
-                PerformanceMetric.query_type
-            ).filter(
-                PerformanceMetric.metric_type == "db_query",
-                PerformanceMetric.timestamp >= cutoff
-            ).group_by(PerformanceMetric.query_type).all()
+            results = (
+                db.query(
+                    func.avg(PerformanceMetric.query_duration_ms).label("avg_ms"),
+                    func.min(PerformanceMetric.query_duration_ms).label("min_ms"),
+                    func.max(PerformanceMetric.query_duration_ms).label("max_ms"),
+                    func.count(PerformanceMetric.id).label("count"),
+                    PerformanceMetric.query_type,
+                )
+                .filter(
+                    PerformanceMetric.metric_type == "db_query",
+                    PerformanceMetric.timestamp >= cutoff,
+                )
+                .group_by(PerformanceMetric.query_type)
+                .all()
+            )
 
             metrics = {
                 "query_types": [
@@ -123,7 +137,7 @@ async def get_historical_metrics(
                         "avg_ms": round(r.avg_ms, 2) if r.avg_ms else 0,
                         "min_ms": round(r.min_ms, 2) if r.min_ms else 0,
                         "max_ms": round(r.max_ms, 2) if r.max_ms else 0,
-                        "count": r.count
+                        "count": r.count,
                     }
                     for r in results
                 ]
@@ -131,16 +145,21 @@ async def get_historical_metrics(
 
         elif metric_type == "websocket":
             # Aggregate WebSocket metrics
-            results = db.query(
-                func.avg(PerformanceMetric.ws_latency_ms).label("avg_ms"),
-                func.min(PerformanceMetric.ws_latency_ms).label("min_ms"),
-                func.max(PerformanceMetric.ws_latency_ms).label("max_ms"),
-                func.count(PerformanceMetric.id).label("count"),
-                PerformanceMetric.ws_message_type
-            ).filter(
-                PerformanceMetric.metric_type == "websocket",
-                PerformanceMetric.timestamp >= cutoff
-            ).group_by(PerformanceMetric.ws_message_type).all()
+            results = (
+                db.query(
+                    func.avg(PerformanceMetric.ws_latency_ms).label("avg_ms"),
+                    func.min(PerformanceMetric.ws_latency_ms).label("min_ms"),
+                    func.max(PerformanceMetric.ws_latency_ms).label("max_ms"),
+                    func.count(PerformanceMetric.id).label("count"),
+                    PerformanceMetric.ws_message_type,
+                )
+                .filter(
+                    PerformanceMetric.metric_type == "websocket",
+                    PerformanceMetric.timestamp >= cutoff,
+                )
+                .group_by(PerformanceMetric.ws_message_type)
+                .all()
+            )
 
             metrics = {
                 "message_types": [
@@ -149,7 +168,7 @@ async def get_historical_metrics(
                         "avg_ms": round(r.avg_ms, 2) if r.avg_ms else 0,
                         "min_ms": round(r.min_ms, 2) if r.min_ms else 0,
                         "max_ms": round(r.max_ms, 2) if r.max_ms else 0,
-                        "count": r.count
+                        "count": r.count,
                     }
                     for r in results
                 ]
@@ -157,23 +176,33 @@ async def get_historical_metrics(
 
         elif metric_type == "system":
             # Get system resource metrics over time
-            results = db.query(
-                PerformanceMetric.timestamp,
-                PerformanceMetric.memory_usage_mb,
-                PerformanceMetric.memory_percent,
-                PerformanceMetric.cpu_percent
-            ).filter(
-                PerformanceMetric.metric_type == "system",
-                PerformanceMetric.timestamp >= cutoff
-            ).order_by(PerformanceMetric.timestamp.desc()).limit(100).all()
+            results = (
+                db.query(
+                    PerformanceMetric.timestamp,
+                    PerformanceMetric.memory_usage_mb,
+                    PerformanceMetric.memory_percent,
+                    PerformanceMetric.cpu_percent,
+                )
+                .filter(
+                    PerformanceMetric.metric_type == "system",
+                    PerformanceMetric.timestamp >= cutoff,
+                )
+                .order_by(PerformanceMetric.timestamp.desc())
+                .limit(100)
+                .all()
+            )
 
             metrics = {
                 "samples": [
                     {
                         "timestamp": r.timestamp.isoformat(),
-                        "memory_mb": round(r.memory_usage_mb, 2) if r.memory_usage_mb else 0,
-                        "memory_percent": round(r.memory_percent, 2) if r.memory_percent else 0,
-                        "cpu_percent": round(r.cpu_percent, 2) if r.cpu_percent else 0
+                        "memory_mb": (
+                            round(r.memory_usage_mb, 2) if r.memory_usage_mb else 0
+                        ),
+                        "memory_percent": (
+                            round(r.memory_percent, 2) if r.memory_percent else 0
+                        ),
+                        "cpu_percent": round(r.cpu_percent, 2) if r.cpu_percent else 0,
                     }
                     for r in results
                 ]
@@ -181,13 +210,21 @@ async def get_historical_metrics(
         else:
             metrics = {"error": f"Unknown metric type: {metric_type}"}
 
-        data_points = len(metrics.get("endpoints", metrics.get("query_types", metrics.get("message_types", metrics.get("samples", [])))))
+        data_points = len(
+            metrics.get(
+                "endpoints",
+                metrics.get(
+                    "query_types",
+                    metrics.get("message_types", metrics.get("samples", [])),
+                ),
+            )
+        )
 
         return HistoricalMetrics(
             metric_type=metric_type,
             period_hours=hours,
             data_points=data_points,
-            metrics=metrics
+            metrics=metrics,
         )
 
     except Exception as e:
@@ -196,7 +233,7 @@ async def get_historical_metrics(
             metric_type=metric_type,
             period_hours=hours,
             data_points=0,
-            metrics={"error": str(e)}
+            metrics={"error": str(e)},
         )
 
 
@@ -204,7 +241,7 @@ async def get_historical_metrics(
 async def cleanup_old_metrics(
     days: int = Query(30, ge=1, le=365, description="Delete metrics older than N days"),
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    _: None = Depends(require_admin),
 ):
     """
     Manually trigger cleanup of old performance metrics.
@@ -215,8 +252,4 @@ async def cleanup_old_metrics(
     tracker = get_performance_tracker()
     deleted = tracker.cleanup_old_metrics(db, days=days)
 
-    return {
-        "status": "ok",
-        "deleted_count": deleted,
-        "days": days
-    }
+    return {"status": "ok", "deleted_count": deleted, "days": days}

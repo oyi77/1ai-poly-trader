@@ -1,4 +1,5 @@
 """Strategy synthesizer AGI node - wraps existing synthesizer."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -27,7 +28,9 @@ class StrategySynthesizerNode(BaseAGINode):
 
         try:
             synthesizer = StrategySynthesizer()
-            result = await synthesizer.synthesize(regime=regime, market_data=market_data)
+            result = await synthesizer.synthesize(
+                regime=regime, market_data=market_data
+            )
             return state.evolve(data={"synthesized_strategy": result})
         except Exception as e:
             return state.with_error(self.manifest().name, e)

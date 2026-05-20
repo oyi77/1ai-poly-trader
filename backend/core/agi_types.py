@@ -3,6 +3,7 @@
 Pure types module. No runtime logic, no imports from other core modules.
 All dataclasses support to_dict() / from_dict() for JSON serialization.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
@@ -32,8 +33,8 @@ class ExperimentStatus(Enum):
     BACKTEST = "backtest"
     SHADOW = "shadow"
     PAPER = "paper"
-    LIVE_TRIAL = "live_trial"       # temporary live trial with capped bankroll
-    LIVE_PROMOTED = "live_promoted" # permanent live with full allocation
+    LIVE_TRIAL = "live_trial"  # temporary live trial with capped bankroll
+    LIVE_PROMOTED = "live_promoted"  # permanent live with full allocation
     LIVE_FAILED = "live_failed"
     REVIEW = "review"
     RETIRED = "retired"

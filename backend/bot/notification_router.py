@@ -113,6 +113,7 @@ class NotificationRouter:
 
     async def _send_discord(self, webhook_url: str, message: str) -> None:
         """POST message to a Discord webhook URL."""
+
         async def _post_discord() -> None:
             payload = {"content": message}
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -124,7 +125,7 @@ class NotificationRouter:
         except CircuitOpenError:
             logger.warning("Discord webhook circuit open, skipping notification")
         except Exception as exc:
-                logger.error("Discord webhook failed: %s", redact_sensitive(str(exc)))
+            logger.error("Discord webhook failed: %s", redact_sensitive(str(exc)))
 
     async def _send_email(self, config: dict, message: str) -> None:
         """Email notifications are intentionally de-scoped.

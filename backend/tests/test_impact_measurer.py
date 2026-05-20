@@ -38,7 +38,7 @@ def sample_trades_before():
             model_probability=0.65,
             market_price_at_entry=0.60,
             edge_at_entry=0.05,
-            trading_mode="paper"
+            trading_mode="paper",
         )
         trades.append(trade)
 
@@ -66,7 +66,7 @@ def sample_trades_after():
             model_probability=0.70,
             market_price_at_entry=0.60,
             edge_at_entry=0.10,
-            trading_mode="paper"
+            trading_mode="paper",
         )
         trades.append(trade)
 
@@ -88,9 +88,7 @@ class TestImpactMeasurer:
         trades_before = sample_trades_after[:10]
 
         impact = measurer.measure_proposal_impact(
-            proposal_id=1,
-            trades_before=trades_before,
-            trades_after=sample_trades_after
+            proposal_id=1, trades_before=trades_before, trades_after=sample_trades_after
         )
 
         assert impact is None
@@ -101,9 +99,7 @@ class TestImpactMeasurer:
         trades_after = sample_trades_before[:10]
 
         impact = measurer.measure_proposal_impact(
-            proposal_id=1,
-            trades_before=sample_trades_before,
-            trades_after=trades_after
+            proposal_id=1, trades_before=sample_trades_before, trades_after=trades_after
         )
 
         assert impact is None
@@ -113,32 +109,34 @@ class TestImpactMeasurer:
         measurer = ImpactMeasurer()
         metrics = measurer._calculate_metrics([])
 
-        assert metrics['sharpe_ratio'] == 0.0
-        assert metrics['win_rate'] == 0.0
-        assert metrics['avg_pnl'] == 0.0
-        assert metrics['avg_edge'] == 0.0
-        assert metrics['total_pnl'] == 0.0
+        assert metrics["sharpe_ratio"] == 0.0
+        assert metrics["win_rate"] == 0.0
+        assert metrics["avg_pnl"] == 0.0
+        assert metrics["avg_edge"] == 0.0
+        assert metrics["total_pnl"] == 0.0
 
     def test_calculate_metrics_valid_trades(self, sample_trades_before):
         """Test metrics calculation with valid trades."""
         measurer = ImpactMeasurer()
         metrics = measurer._calculate_metrics(sample_trades_before)
 
-        assert metrics['sharpe_ratio'] != 0.0
-        assert 0.0 <= metrics['win_rate'] <= 1.0
-        assert metrics['avg_pnl'] != 0.0
-        assert metrics['avg_edge'] > 0.0
-        assert metrics['total_pnl'] != 0.0
+        assert metrics["sharpe_ratio"] != 0.0
+        assert 0.0 <= metrics["win_rate"] <= 1.0
+        assert metrics["avg_pnl"] != 0.0
+        assert metrics["avg_edge"] > 0.0
+        assert metrics["total_pnl"] != 0.0
 
-    def test_measure_proposal_impact_positive(self, sample_trades_before, sample_trades_after):
+    def test_measure_proposal_impact_positive(
+        self, sample_trades_before, sample_trades_after
+    ):
         """Test impact measurement with positive improvement."""
         measurer = ImpactMeasurer()
 
-        with patch.object(measurer, '_store_impact'):
+        with patch.object(measurer, "_store_impact"):
             impact = measurer.measure_proposal_impact(
                 proposal_id=1,
                 trades_before=sample_trades_before,
-                trades_after=sample_trades_after
+                trades_after=sample_trades_after,
             )
 
         assert impact is not None
@@ -171,15 +169,15 @@ class TestImpactMeasurer:
                 model_probability=0.55,
                 market_price_at_entry=0.60,
                 edge_at_entry=0.02,
-                trading_mode="paper"
+                trading_mode="paper",
             )
             trades_after_worse.append(trade)
 
-        with patch.object(measurer, '_store_impact'):
+        with patch.object(measurer, "_store_impact"):
             impact = measurer.measure_proposal_impact(
                 proposal_id=2,
                 trades_before=sample_trades_before,
-                trades_after=trades_after_worse
+                trades_after=trades_after_worse,
             )
 
         assert impact is not None
@@ -192,10 +190,7 @@ class TestImpactMeasurer:
         measurer = ImpactMeasurer()
 
         score = measurer._calculate_impact_score(
-            sharpe_delta=0.5,
-            win_rate_delta=0.1,
-            avg_pnl_delta=5.0,
-            edge_delta=0.05
+            sharpe_delta=0.5, win_rate_delta=0.1, avg_pnl_delta=5.0, edge_delta=0.05
         )
 
         assert 0 <= score <= 100
@@ -206,10 +201,7 @@ class TestImpactMeasurer:
         measurer = ImpactMeasurer()
 
         score = measurer._calculate_impact_score(
-            sharpe_delta=-0.5,
-            win_rate_delta=-0.2,
-            avg_pnl_delta=-10.0,
-            edge_delta=-0.1
+            sharpe_delta=-0.5, win_rate_delta=-0.2, avg_pnl_delta=-10.0, edge_delta=-0.1
         )
 
         assert 0 <= score <= 100
@@ -246,7 +238,7 @@ class TestRollbackManager:
             strategy_name="test_strategy",
             enabled=True,
             interval_seconds=300,
-            params='{"threshold": 0.7}'
+            params='{"threshold": 0.7}',
         )
         db_session.add(config)
 
@@ -254,7 +246,7 @@ class TestRollbackManager:
             strategy_name="test_strategy",
             change_details={},
             expected_impact="Test impact",
-            admin_decision="pending"
+            admin_decision="pending",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -264,8 +256,11 @@ class TestRollbackManager:
         assert success is True
 
         db_session.refresh(proposal)
-        assert 'config_snapshot' in proposal.change_details
-        assert proposal.change_details['config_snapshot']['strategy_name'] == "test_strategy"
+        assert "config_snapshot" in proposal.change_details
+        assert (
+            proposal.change_details["config_snapshot"]["strategy_name"]
+            == "test_strategy"
+        )
 
         db_session.delete(proposal)
         db_session.delete(config)
@@ -279,7 +274,7 @@ class TestRollbackManager:
             strategy_name="nonexistent",
             change_details={},
             expected_impact="Test",
-            admin_decision="pending"
+            admin_decision="pending",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -299,27 +294,27 @@ class TestRollbackManager:
             strategy_name="rollback_test",
             enabled=True,
             interval_seconds=300,
-            params='{"threshold": 0.8}'
+            params='{"threshold": 0.8}',
         )
         db_session.add(config)
 
         proposal = StrategyProposal(
             strategy_name="rollback_test",
             change_details={
-                'config_snapshot': {
-                    'strategy_name': 'rollback_test',
-                    'config_snapshot': {
-                        'enabled': True,
-                        'interval_seconds': 300,
-                        'params': '{"threshold": 0.7}',
-                        'mode': None
+                "config_snapshot": {
+                    "strategy_name": "rollback_test",
+                    "config_snapshot": {
+                        "enabled": True,
+                        "interval_seconds": 300,
+                        "params": '{"threshold": 0.7}',
+                        "mode": None,
                     },
-                    'snapshot_at': datetime.now(timezone.utc).isoformat(),
-                    'proposal_id': 1
+                    "snapshot_at": datetime.now(timezone.utc).isoformat(),
+                    "proposal_id": 1,
                 }
             },
             expected_impact="Test rollback",
-            admin_decision="approved"
+            admin_decision="approved",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -333,11 +328,12 @@ class TestRollbackManager:
 
         db_session.refresh(config)
         import json
-        assert json.loads(config.params)['threshold'] == 0.7
+
+        assert json.loads(config.params)["threshold"] == 0.7
 
         db_session.refresh(proposal)
         assert proposal.admin_decision == "rolled_back"
-        assert 'rollback_history' in proposal.change_details
+        assert "rollback_history" in proposal.change_details
 
         db_session.delete(proposal)
         db_session.delete(config)
@@ -351,7 +347,7 @@ class TestRollbackManager:
             strategy_name="test",
             change_details={},
             expected_impact="Test",
-            admin_decision="pending"
+            admin_decision="pending",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -370,13 +366,10 @@ class TestRollbackManager:
         proposal = StrategyProposal(
             strategy_name="test",
             change_details={
-                'config_snapshot': {
-                    'strategy_name': 'test',
-                    'config_snapshot': {}
-                }
+                "config_snapshot": {"strategy_name": "test", "config_snapshot": {}}
             },
             expected_impact="Test",
-            admin_decision="approved"
+            admin_decision="approved",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -396,7 +389,7 @@ class TestRollbackManager:
             strategy_name="test",
             change_details={},
             expected_impact="Test",
-            admin_decision="approved"
+            admin_decision="approved",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -415,15 +408,15 @@ class TestRollbackManager:
         proposal = StrategyProposal(
             strategy_name="test",
             change_details={
-                'rollback_history': [
+                "rollback_history": [
                     {
-                        'rolled_back_at': datetime.now(timezone.utc).isoformat(),
-                        'strategy_name': 'test'
+                        "rolled_back_at": datetime.now(timezone.utc).isoformat(),
+                        "strategy_name": "test",
                     }
                 ]
             },
             expected_impact="Test",
-            admin_decision="rolled_back"
+            admin_decision="rolled_back",
         )
         db_session.add(proposal)
         db_session.commit()
@@ -432,7 +425,7 @@ class TestRollbackManager:
 
         assert history is not None
         assert len(history) == 1
-        assert history[0]['strategy_name'] == 'test'
+        assert history[0]["strategy_name"] == "test"
 
         db_session.delete(proposal)
         db_session.commit()

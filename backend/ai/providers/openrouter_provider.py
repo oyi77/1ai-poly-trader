@@ -18,8 +18,11 @@ class OpenRouterProvider(BaseAIProvider):
             tags=["aggregator", "multi-model"],
         )
 
-    async def complete(self, prompt, system=None, max_tokens=1000, temperature=0.7, **kwargs):
+    async def complete(
+        self, prompt, system=None, max_tokens=1000, temperature=0.7, **kwargs
+    ):
         import httpx
+
         model = kwargs.get("model", "openai/gpt-4o-mini")
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(

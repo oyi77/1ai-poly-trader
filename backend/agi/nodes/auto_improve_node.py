@@ -1,4 +1,5 @@
 """Auto-improve AGI node - wraps existing auto-improve system."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -26,7 +27,9 @@ class AutoImproveNode(BaseAGINode):
         performance_data = state.get("performance_data", {})
 
         if not strategy_key:
-            return state.with_error(self.manifest().name, ValueError("No strategy_key provided"))
+            return state.with_error(
+                self.manifest().name, ValueError("No strategy_key provided")
+            )
 
         try:
             improver = AutoImprove()

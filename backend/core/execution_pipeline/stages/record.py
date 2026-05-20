@@ -1,4 +1,7 @@
-from backend.core.execution_pipeline.base import BaseExecutionStage, ExecutionStageManifest
+from backend.core.execution_pipeline.base import (
+    BaseExecutionStage,
+    ExecutionStageManifest,
+)
 from backend.core.execution_pipeline.registry import registry
 
 
@@ -25,13 +28,19 @@ class RecordStage(BaseExecutionStage):
 
         if state:
             if mode == "paper" and hasattr(state, "paper_bankroll"):
-                state.paper_bankroll = (state.paper_bankroll or 0.0) - float(decision.get("size", 0.0))
+                state.paper_bankroll = (state.paper_bankroll or 0.0) - float(
+                    decision.get("size", 0.0)
+                )
                 state.paper_trades = (state.paper_trades or 0) + 1
             elif mode == "testnet" and hasattr(state, "testnet_bankroll"):
-                state.testnet_bankroll = (state.testnet_bankroll or 0.0) - float(decision.get("size", 0.0))
+                state.testnet_bankroll = (state.testnet_bankroll or 0.0) - float(
+                    decision.get("size", 0.0)
+                )
                 state.testnet_trades = (state.testnet_trades or 0) + 1
             elif mode == "live" and hasattr(state, "bankroll"):
-                state.bankroll = (state.bankroll or 0.0) - float(decision.get("size", 0.0))
+                state.bankroll = (state.bankroll or 0.0) - float(
+                    decision.get("size", 0.0)
+                )
                 state.total_trades = (state.total_trades or 0) + 1
 
         return {"status": "recorded", "state_updated": True}

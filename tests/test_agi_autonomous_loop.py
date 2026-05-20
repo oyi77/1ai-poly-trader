@@ -45,7 +45,13 @@ _engine = create_engine(
 _TestSession = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
 from backend.models import database as _db_mod  # noqa: E402
-from backend.models.database import Base, BotState, Trade, Signal, SettlementEvent  # noqa: E402
+from backend.models.database import (
+    Base,
+    BotState,
+    Trade,
+    Signal,
+    SettlementEvent,
+)  # noqa: E402
 
 _db_mod.engine = _engine
 _db_mod.SessionLocal = _TestSession
@@ -266,14 +272,14 @@ async def test_full_autonomous_cycle():
 
         # Verify scanner produced decisions
         assert cycle_result is not None, "Scanner should return a CycleResult"
-        assert len(cycle_result.decisions) > 0, (
-            "Scanner should produce at least one decision"
-        )
+        assert (
+            len(cycle_result.decisions) > 0
+        ), "Scanner should produce at least one decision"
 
         decision = cycle_result.decisions[0]
-        assert "market_ticker" in decision or "slug" in decision, (
-            "Decision should have market identifier"
-        )
+        assert (
+            "market_ticker" in decision or "slug" in decision
+        ), "Decision should have market identifier"
 
         # ── Stage 2: Debate (already exercised via _run_debate_gate mock) ─
         # Verify the debate result influenced the decision
@@ -349,9 +355,9 @@ async def test_full_autonomous_cycle():
         trade = db.query(Trade).filter(Trade.id == trade_id).first()
         assert trade is not None, "Trade should be persisted in DB"
         assert trade.settled is False, "Trade should not yet be settled"
-        assert trade.direction == decision.get("direction"), (
-            "Trade direction should match decision"
-        )
+        assert trade.direction == decision.get(
+            "direction"
+        ), "Trade direction should match decision"
         assert trade.strategy == "general_market_scanner"
 
         state = db.query(BotState).first()
@@ -427,9 +433,9 @@ async def test_full_autonomous_cycle():
         )
         assert strategy_breakdown is not None, "Should have strategy factor"
         scanner_group = strategy_breakdown.groups.get("general_market_scanner")
-        assert scanner_group is not None, (
-            "Should have general_market_scanner group in strategy breakdown"
-        )
+        assert (
+            scanner_group is not None
+        ), "Should have general_market_scanner group in strategy breakdown"
         assert scanner_group["wins"] >= 1, "Should count our winning trade"
         assert scanner_group["win_rate"] > 0, "Win rate should be positive"
 
@@ -516,9 +522,9 @@ async def test_full_autonomous_cycle():
         )
 
         # Verify _last_param_change was set for future rollback evaluation
-        assert auto_improve_mod._last_param_change, (
-            "auto_improve should record _last_param_change for rollback tracking"
-        )
+        assert (
+            auto_improve_mod._last_param_change
+        ), "auto_improve should record _last_param_change for rollback tracking"
 
         # ── Final verification: full pipeline data integrity ──────────
         # Confirm the trade flowed through all stages
@@ -679,9 +685,9 @@ async def test_autonomous_cycle_losing_trade():
         scanner_group = strategy_br.groups.get("general_market_scanner")
         assert scanner_group is not None
         assert scanner_group["losses"] >= 1
-        assert scanner_group["win_rate"] == 0.0, (
-            "Win rate should be 0% with only losses"
-        )
+        assert (
+            scanner_group["win_rate"] == 0.0
+        ), "Win rate should be 0% with only losses"
 
         # Postmortems should be generated for the loss cluster
         postmortems = await reviewer.generate_postmortems(db=db)
@@ -690,4 +696,3 @@ async def test_autonomous_cycle_losing_trade():
 
     finally:
         db.close()
-

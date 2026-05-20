@@ -123,7 +123,9 @@ class SignalAggregator:
                     all_signals.extend(signals)
                 except Exception as e:
                     # Log error but continue with other generators
-                    logger.error(f"Error in signal generator {generator.get_name()}: {e}")
+                    logger.error(
+                        f"Error in signal generator {generator.get_name()}: {e}"
+                    )
         return all_signals
 
     def get_generator(self, name: str) -> Optional[BaseSignalGenerator]:

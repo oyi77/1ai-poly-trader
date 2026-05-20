@@ -49,10 +49,7 @@ class ImpactMeasurer:
         self.logger = logger
 
     def measure_proposal_impact(
-        self,
-        proposal_id: int,
-        trades_before: List[Trade],
-        trades_after: List[Trade]
+        self, proposal_id: int, trades_before: List[Trade], trades_after: List[Trade]
     ) -> Optional[ProposalImpact]:
         """Measure the impact of a proposal by comparing before/after metrics.
 
@@ -91,17 +88,17 @@ class ImpactMeasurer:
         metrics_after = self._calculate_metrics(trades_after)
 
         # Calculate deltas
-        sharpe_delta = metrics_after['sharpe_ratio'] - metrics_before['sharpe_ratio']
-        win_rate_delta = metrics_after['win_rate'] - metrics_before['win_rate']
-        avg_pnl_delta = metrics_after['avg_pnl'] - metrics_before['avg_pnl']
-        edge_delta = metrics_after['avg_edge'] - metrics_before['avg_edge']
+        sharpe_delta = metrics_after["sharpe_ratio"] - metrics_before["sharpe_ratio"]
+        win_rate_delta = metrics_after["win_rate"] - metrics_before["win_rate"]
+        avg_pnl_delta = metrics_after["avg_pnl"] - metrics_before["avg_pnl"]
+        edge_delta = metrics_after["avg_edge"] - metrics_before["avg_edge"]
 
         # Calculate composite impact score (0-100)
         impact_score = self._calculate_impact_score(
             sharpe_delta=sharpe_delta,
             win_rate_delta=win_rate_delta,
             avg_pnl_delta=avg_pnl_delta,
-            edge_delta=edge_delta
+            edge_delta=edge_delta,
         )
 
         impact = ProposalImpact(
@@ -113,7 +110,7 @@ class ImpactMeasurer:
             total_trades_before=len(trades_before),
             total_trades_after=len(trades_after),
             measured_at=datetime.now(timezone.utc),
-            impact_score=impact_score
+            impact_score=impact_score,
         )
 
         # Store impact in database
@@ -139,11 +136,11 @@ class ImpactMeasurer:
         """
         if not trades:
             return {
-                'sharpe_ratio': 0.0,
-                'win_rate': 0.0,
-                'avg_pnl': 0.0,
-                'avg_edge': 0.0,
-                'total_pnl': 0.0
+                "sharpe_ratio": 0.0,
+                "win_rate": 0.0,
+                "avg_pnl": 0.0,
+                "avg_edge": 0.0,
+                "total_pnl": 0.0,
             }
 
         # Filter settled trades only
@@ -152,11 +149,11 @@ class ImpactMeasurer:
         if not settled_trades:
             self.logger.warning("No settled trades found for metrics calculation")
             return {
-                'sharpe_ratio': 0.0,
-                'win_rate': 0.0,
-                'avg_pnl': 0.0,
-                'avg_edge': 0.0,
-                'total_pnl': 0.0
+                "sharpe_ratio": 0.0,
+                "win_rate": 0.0,
+                "avg_pnl": 0.0,
+                "avg_edge": 0.0,
+                "total_pnl": 0.0,
             }
 
         # Calculate PnL metrics
@@ -164,13 +161,13 @@ class ImpactMeasurer:
         avg_pnl = np.mean(pnls)
         std_pnl = np.std(pnls) if len(pnls) > 1 else 0.0
 
-# Calculate Sharpe ratio (annualized based on trading days)
+        # Calculate Sharpe ratio (annualized based on trading days)
         # If we had bankroll info: sharpe = (avg_return / std_return) * sqrt(252)
         # Fallback to dollar Sharpe ratio but with proper annualization
         sharpe_ratio = (avg_pnl / std_pnl * np.sqrt(252)) if std_pnl > 0 else 0.0
 
         # Calculate win rate
-        wins = sum(1 for t in settled_trades if t.result == 'win')
+        wins = sum(1 for t in settled_trades if t.result == "win")
         win_rate = wins / len(settled_trades) if settled_trades else 0.0
 
         # Calculate average edge
@@ -181,11 +178,11 @@ class ImpactMeasurer:
         total_pnl = sum(pnls)
 
         return {
-            'sharpe_ratio': sharpe_ratio,
-            'win_rate': win_rate,
-            'avg_pnl': avg_pnl,
-            'avg_edge': avg_edge,
-            'total_pnl': total_pnl
+            "sharpe_ratio": sharpe_ratio,
+            "win_rate": win_rate,
+            "avg_pnl": avg_pnl,
+            "avg_edge": avg_edge,
+            "total_pnl": total_pnl,
         }
 
     def _calculate_impact_score(
@@ -193,7 +190,7 @@ class ImpactMeasurer:
         sharpe_delta: float,
         win_rate_delta: float,
         avg_pnl_delta: float,
-        edge_delta: float
+        edge_delta: float,
     ) -> float:
         """Calculate composite impact score (0-100).
 
@@ -227,10 +224,10 @@ class ImpactMeasurer:
 
         # Weighted average
         impact_score = (
-            sharpe_score * 0.30 +
-            win_rate_score * 0.30 +
-            pnl_score * 0.25 +
-            edge_score * 0.15
+            sharpe_score * 0.30
+            + win_rate_score * 0.30
+            + pnl_score * 0.25
+            + edge_score * 0.15
         )
 
         return impact_score
@@ -239,7 +236,7 @@ class ImpactMeasurer:
         self,
         impact: ProposalImpact,
         metrics_before: Dict[str, float],
-        metrics_after: Dict[str, float]
+        metrics_after: Dict[str, float],
     ) -> None:
         """Store impact measurement in database.
 
@@ -253,31 +250,37 @@ class ImpactMeasurer:
         try:
             with get_db_session() as db:
                 # Update the StrategyProposal record with impact data
-                proposal = db.query(StrategyProposal).filter(
-                    StrategyProposal.id == impact.proposal_id
-                ).first()
+                proposal = (
+                    db.query(StrategyProposal)
+                    .filter(StrategyProposal.id == impact.proposal_id)
+                    .first()
+                )
 
                 if not proposal:
-                    self.logger.error(f"Proposal {impact.proposal_id} not found in database")
+                    self.logger.error(
+                        f"Proposal {impact.proposal_id} not found in database"
+                    )
                     return
 
                 # Store impact as JSON
                 impact_data = {
-                    'sharpe_ratio_delta': impact.sharpe_ratio_delta,
-                    'win_rate_delta': impact.win_rate_delta,
-                    'avg_pnl_delta': impact.avg_pnl_delta,
-                    'edge_improvement': impact.edge_improvement,
-                    'total_trades_before': impact.total_trades_before,
-                    'total_trades_after': impact.total_trades_after,
-                    'measured_at': impact.measured_at.isoformat(),
-                    'impact_score': impact.impact_score,
-                    'metrics_before': metrics_before,
-                    'metrics_after': metrics_after
+                    "sharpe_ratio_delta": impact.sharpe_ratio_delta,
+                    "win_rate_delta": impact.win_rate_delta,
+                    "avg_pnl_delta": impact.avg_pnl_delta,
+                    "edge_improvement": impact.edge_improvement,
+                    "total_trades_before": impact.total_trades_before,
+                    "total_trades_after": impact.total_trades_after,
+                    "measured_at": impact.measured_at.isoformat(),
+                    "impact_score": impact.impact_score,
+                    "metrics_before": metrics_before,
+                    "metrics_after": metrics_after,
                 }
 
                 proposal.impact_measured = impact_data
 
-                self.logger.info(f"Stored impact measurement for proposal {impact.proposal_id}")
+                self.logger.info(
+                    f"Stored impact measurement for proposal {impact.proposal_id}"
+                )
         except Exception as e:
             self.logger.error(f"Failed to store impact: {e}")
 
@@ -294,9 +297,11 @@ class ImpactMeasurer:
 
         try:
             with get_db_session() as db:
-                proposal = db.query(StrategyProposal).filter(
-                    StrategyProposal.id == proposal_id
-                ).first()
+                proposal = (
+                    db.query(StrategyProposal)
+                    .filter(StrategyProposal.id == proposal_id)
+                    .first()
+                )
 
                 if not proposal or not proposal.impact_measured:
                     return None

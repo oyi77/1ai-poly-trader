@@ -94,9 +94,12 @@ async def execute(signal):
     @pytest.mark.asyncio
     async def test_validate_node_with_live_data_rejection(self):
         """Test rejection of nodes requiring live data in sandbox."""
-        state = {"market": "BTC-USD", "timestamp": datetime.now(timezone.utc).timestamp()}
+        state = {
+            "market": "BTC-USD",
+            "timestamp": datetime.now(timezone.utc).timestamp(),
+        }
 
-        with patch.object(node_registry, 'get') as mock_get:
+        with patch.object(node_registry, "get") as mock_get:
             mock_node = MagicMock()
             mock_node.manifest.return_value = MagicMock(requires_live_data=True)
             mock_get.return_value = mock_node

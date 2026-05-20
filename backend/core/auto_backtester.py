@@ -4,6 +4,7 @@ Triggers backtesting when new HuggingFace dataset data is downloaded
 or new market data becomes available. Compares current strategy
 performance vs historical baseline and alerts on degradation.
 """
+
 from __future__ import annotations
 
 import os
@@ -21,6 +22,7 @@ DEFAULT_BACKTEST_STATE_PATH = os.path.join(
 @dataclass
 class BacktestSnapshot:
     """A snapshot of strategy performance from a backtest run."""
+
     timestamp: float
     strategy_name: str
     win_rate: float
@@ -34,6 +36,7 @@ class BacktestSnapshot:
 @dataclass
 class DegradationAlert:
     """Alert when backtest shows performance degradation."""
+
     strategy_name: str
     metric: str
     current_value: float
@@ -62,6 +65,7 @@ class AutoBacktester:
     def _load_state(self) -> None:
         """Load persisted backtest state."""
         import json
+
         if not os.path.exists(self.state_path):
             return
         try:
@@ -78,6 +82,7 @@ class AutoBacktester:
     def _save_state(self) -> None:
         """Persist backtest state to disk."""
         import json
+
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
         data = {
             "baselines": {
@@ -144,15 +149,21 @@ class AutoBacktester:
             from backend.models.database import Trade, StrategyConfig
 
             with get_db_session() as db:
-                strategies = db.query(StrategyConfig).filter(
-                    StrategyConfig.enabled.is_(True)
-                ).all()
+                strategies = (
+                    db.query(StrategyConfig)
+                    .filter(StrategyConfig.enabled.is_(True))
+                    .all()
+                )
 
                 for strat in strategies:
-                    trades = db.query(Trade).filter(
-                        Trade.strategy_name == strat.name,
-                        Trade.settled.is_(True),
-                    ).all()
+                    trades = (
+                        db.query(Trade)
+                        .filter(
+                            Trade.strategy_name == strat.name,
+                            Trade.settled.is_(True),
+                        )
+                        .all()
+                    )
 
                     if len(trades) < self.min_trades:
                         continue

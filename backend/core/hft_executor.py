@@ -10,9 +10,15 @@ from backend.config import settings
 from backend.strategies.types_hft import HFTSignal, HFTExecution
 from backend.core.risk_manager_hft import HRiskManager
 from backend.core.slippage import calculate_slippage
-from backend.monitoring.hft_metrics import record_execution, record_circuit_open, hft_latency_ms
+from backend.monitoring.hft_metrics import (
+    record_execution,
+    record_circuit_open,
+    hft_latency_ms,
+)
 
 from loguru import logger
+
+
 class HFTExecutor:
     """
     HFT Strategy Executor — auto-executes HFT signals with <50ms target.
@@ -30,12 +36,16 @@ class HFTExecutor:
         self._main_breaker = main_breaker
         self._clob = clob
         self._risk = HRiskManager()
-        self._executions: deque[HFTExecution] = deque(maxlen=self._MAX_EXECUTION_HISTORY)
+        self._executions: deque[HFTExecution] = deque(
+            maxlen=self._MAX_EXECUTION_HISTORY
+        )
         self._failure_count = 0
         self._failure_threshold = 10
         self._circuit_open = False
 
-    async def execute(self, signal: HFTSignal, size: float, bankroll: float) -> HFTExecution:
+    async def execute(
+        self, signal: HFTSignal, size: float, bankroll: float
+    ) -> HFTExecution:
         """Execute a single HFT signal."""
         risk = None
         # Define start timing assumptions
@@ -70,7 +80,7 @@ class HFTExecutor:
                         signal_id=signal.signal_id,
                         status="cancelled",
                         error="Duplicate open position on same market",
-                        timestamp=start
+                        timestamp=start,
                     )
                     return execution
         except Exception as e:
@@ -79,18 +89,24 @@ class HFTExecutor:
 
         # Circuit breaker check
         if self._circuit_open or self._main_breaker.is_open():
-            record_execution(strategy="hft", side="BUY", status="cancelled", latency_s=0.0)
+            record_execution(
+                strategy="hft", side="BUY", status="cancelled", latency_s=0.0
+            )
             execution = HFTExecution(
                 execution_id=exec_id,
                 signal_id=signal.signal_id,
                 status="cancelled",
                 error="Circuit breaker open",
-                timestamp=start
+                timestamp=start,
             )
             return execution
 
-
-            record_execution(strategy="hft", side="BUY", status="rejected", latency_s=(time.monotonic() - start))
+            record_execution(
+                strategy="hft",
+                side="BUY",
+                status="rejected",
+                latency_s=(time.monotonic() - start),
+            )
             execution = HFTExecution(
                 execution_id=exec_id,
                 signal_id=signal.signal_id,
@@ -101,7 +117,9 @@ class HFTExecutor:
                 status="rejected",
                 error=risk.get("reason", "Unspecified"),
             )
-            logger.warning(f"[hft_executor] Trade rejected: {risk.get('reason', 'Unknown')}")
+            logger.warning(
+                f"[hft_executor] Trade rejected: {risk.get('reason', 'Unknown')}"
+            )
             return execution
 
         # Calculate permissible trade risk before execution
@@ -109,15 +127,26 @@ class HFTExecutor:
         size = risk["size"]
         side = "BUY" if signal.signal_type in ("arb", "prob_arb", "whale") else "SELL"
 
-        book = signal.metadata.get("orderbook") if isinstance(signal.metadata, dict) else None
+        book = (
+            signal.metadata.get("orderbook")
+            if isinstance(signal.metadata, dict)
+            else None
+        )
         if book is not None:
             est = calculate_slippage(book, side, size)
             mid = getattr(book, "mid_price", 0.0) or 0.0
-            slippage_bps = abs(est.slippage) * 10000.0 if mid > 0 else abs(est.slippage) * 10000.0
+            slippage_bps = (
+                abs(est.slippage) * 10000.0 if mid > 0 else abs(est.slippage) * 10000.0
+            )
             if slippage_bps > settings.HFT_MAX_SLIPPAGE_BPS:
                 latency_ms = (time.monotonic() - start) * 1000
                 hft_latency_ms.observe(latency_ms)
-                record_execution(strategy="hft", side=side, status="rejected", latency_s=(time.monotonic() - start))
+                record_execution(
+                    strategy="hft",
+                    side=side,
+                    status="rejected",
+                    latency_s=(time.monotonic() - start),
+                )
                 execution = HFTExecution(
                     execution_id=exec_id,
                     signal_id=signal.signal_id,
@@ -128,7 +157,9 @@ class HFTExecutor:
                     status="rejected",
                     error=f"slippage {slippage_bps:.1f}bps exceeds limit",
                 )
-                logger.warning(f"[hft_executor] Signal rejected: slippage {slippage_bps:.1f}bps exceeds {settings.HFT_MAX_SLIPPAGE_BPS}bps limit")
+                logger.warning(
+                    f"[hft_executor] Signal rejected: slippage {slippage_bps:.1f}bps exceeds {settings.HFT_MAX_SLIPPAGE_BPS}bps limit"
+                )
                 return execution
 
         try:
@@ -152,17 +183,29 @@ class HFTExecutor:
             self._risk.record_position(signal.market_id, size)
             self._executions.append(execution)
             self._failure_count = 0
-            record_execution(strategy="hft", side=side, status="filled", latency_s=(time.monotonic() - start))
+            record_execution(
+                strategy="hft",
+                side=side,
+                status="filled",
+                latency_s=(time.monotonic() - start),
+            )
             return execution
 
         except Exception as exc:
-            logger.exception(f"[hft_executor] Order execution failed for signal {signal.signal_id}")
+            logger.exception(
+                f"[hft_executor] Order execution failed for signal {signal.signal_id}"
+            )
             self._failure_count += 1
             if self._failure_count >= self._failure_threshold:
                 self._circuit_open = True
                 record_circuit_open(name="hft_executor", reason="failure_threshold")
                 logger.error("[hft_executor] Circuit breaker OPEN")
-            record_execution(strategy="hft", side=side, status="failed", latency_s=(time.monotonic() - start))
+            record_execution(
+                strategy="hft",
+                side=side,
+                status="failed",
+                latency_s=(time.monotonic() - start),
+            )
 
             return HFTExecution(
                 execution_id=exec_id,
@@ -175,7 +218,9 @@ class HFTExecutor:
                 error=str(exc),
             )
 
-    async def _place_order(self, signal: HFTSignal, side: str, size: float) -> Optional[str]:
+    async def _place_order(
+        self, signal: HFTSignal, side: str, size: float
+    ) -> Optional[str]:
         """Place order with retry."""
         if self._clob is None:
             raise ValueError("CLOB instance not initialized")
@@ -193,9 +238,11 @@ class HFTExecutor:
                 )
                 return getattr(result, "order_id", None)
             except Exception:
-                logger.exception(f"[hft_executor] Order placement attempt {attempt+1}/3 failed for signal {signal.signal_id}")
+                logger.exception(
+                    f"[hft_executor] Order placement attempt {attempt+1}/3 failed for signal {signal.signal_id}"
+                )
                 if attempt < 2:
-                    wait = 0.01 * (2 ** attempt)
+                    wait = 0.01 * (2**attempt)
                     await asyncio.sleep(wait)
                 else:
                     raise
@@ -203,6 +250,7 @@ class HFTExecutor:
     async def _monitor_fill(self, order_id: str, market_id: str) -> None:
         """Monitor WebSocket for fill confirmation."""
         from backend.core.event_bus import event_bus
+
         fill_event = asyncio.Event()
         fill_data: dict = {}
 
@@ -216,7 +264,9 @@ class HFTExecutor:
             await asyncio.wait_for(fill_event.wait(), timeout=30.0)
             # Fill received — update execution price if fill_price available
             if fill_data.get("fill_price"):
-                logger.info(f"[hft_executor] Order {order_id} filled at {fill_data['fill_price']}")
+                logger.info(
+                    f"[hft_executor] Order {order_id} filled at {fill_data['fill_price']}"
+                )
         except asyncio.TimeoutError:
             logger.warning(f"[hft_executor] Fill timeout for order {order_id}")
         except Exception as exc:
@@ -224,7 +274,9 @@ class HFTExecutor:
         finally:
             event_bus.unsubscribe_handler("order_update", handler)
 
-    async def execute_batch(self, signals: list[HFTSignal], bankroll: float) -> list[HFTExecution]:
+    async def execute_batch(
+        self, signals: list[HFTSignal], bankroll: float
+    ) -> list[HFTExecution]:
         """Execute multiple signals concurrently."""
         per_signal_pct = getattr(settings, "HFT_POSITION_SIZE_PCT", 0.25)
         per_signal_size = bankroll * per_signal_pct

@@ -23,6 +23,7 @@ from loguru import logger
 @dataclass
 class HealthEvent:
     """An event recorded by the self-healing watchdog."""
+
     event_id: str
     event_type: str  # "error", "performance", "crash", "recovery"
     module: str
@@ -35,9 +36,10 @@ class HealthEvent:
 @dataclass
 class RecoveryAction:
     """An automatic recovery action taken."""
+
     action_id: str
-    action_type: str      # "restart", "rollback", "disable", "scale", "alert"
-    target: str           # What was acted upon
+    action_type: str  # "restart", "rollback", "disable", "scale", "alert"
+    target: str  # What was acted upon
     reason: str
     success: bool
     duration_ms: float = 0.0
@@ -85,33 +87,56 @@ class SelfHealingWatchdog:
             try:
                 data = json.loads(self._history_file.read_text())
                 self._events = [HealthEvent(**e) for e in data.get("events", [])]
-                self._recovery_actions = [RecoveryAction(**a) for a in data.get("actions", [])]
+                self._recovery_actions = [
+                    RecoveryAction(**a) for a in data.get("actions", [])
+                ]
             except (json.JSONDecodeError, TypeError):
                 pass
 
     def _save(self) -> None:
-        self._history_file.write_text(json.dumps({
-            "events": [{
-                "event_id": e.event_id, "event_type": e.event_type,
-                "module": e.module, "severity": e.severity,
-                "message": e.message, "details": e.details,
-                "timestamp": e.timestamp,
-            } for e in self._events[-500:]],
-            "actions": [{
-                "action_id": a.action_id, "action_type": a.action_type,
-                "target": a.target, "reason": a.reason,
-                "success": a.success, "duration_ms": a.duration_ms,
-                "timestamp": a.timestamp,
-            } for a in self._recovery_actions[-100:]],
-        }, indent=2))
+        self._history_file.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "event_id": e.event_id,
+                            "event_type": e.event_type,
+                            "module": e.module,
+                            "severity": e.severity,
+                            "message": e.message,
+                            "details": e.details,
+                            "timestamp": e.timestamp,
+                        }
+                        for e in self._events[-500:]
+                    ],
+                    "actions": [
+                        {
+                            "action_id": a.action_id,
+                            "action_type": a.action_type,
+                            "target": a.target,
+                            "reason": a.reason,
+                            "success": a.success,
+                            "duration_ms": a.duration_ms,
+                            "timestamp": a.timestamp,
+                        }
+                        for a in self._recovery_actions[-100:]
+                    ],
+                },
+                indent=2,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Event recording
     # ------------------------------------------------------------------
 
-    def record_error(self, module: str, message: str,
-                     severity: str = "warning",
-                     details: Optional[dict] = None) -> HealthEvent:
+    def record_error(
+        self,
+        module: str,
+        message: str,
+        severity: str = "warning",
+        details: Optional[dict] = None,
+    ) -> HealthEvent:
         """Record a system error or warning."""
         event = HealthEvent(
             event_id=str(uuid.uuid4())[:12],
@@ -126,12 +151,15 @@ class SelfHealingWatchdog:
         self._save()
 
         if severity in ("critical", "high"):
-            logger.warning("[SelfHealing] {} error in {}: {}", severity, module, message)
+            logger.warning(
+                "[SelfHealing] {} error in {}: {}", severity, module, message
+            )
 
         return event
 
-    def record_performance(self, module: str, metric: str,
-                           value: float, threshold: float) -> HealthEvent:
+    def record_performance(
+        self, module: str, metric: str, value: float, threshold: float
+    ) -> HealthEvent:
         """Record a performance metric that may indicate regression."""
         severity = "warning" if value < threshold else "info"
         if not severity == "info":
@@ -149,8 +177,9 @@ class SelfHealingWatchdog:
         self._save()
         return event
 
-    def record_recovery(self, action_type: str, target: str,
-                        reason: str, success: bool) -> RecoveryAction:
+    def record_recovery(
+        self, action_type: str, target: str, reason: str, success: bool
+    ) -> RecoveryAction:
         """Record a recovery action."""
         action = RecoveryAction(
             action_id=str(uuid.uuid4())[:12],
@@ -224,10 +253,13 @@ class SelfHealingWatchdog:
 
         if event.severity == "critical":
             action_type = "rollback"
-            logger.warning("[SelfHealing] CRITICAL — triggering rollback for {}", event.module)
+            logger.warning(
+                "[SelfHealing] CRITICAL — triggering rollback for {}", event.module
+            )
             try:
                 # Find and rollback the most recent change
                 from backend.agi.rollback_manager import RollbackManager
+
                 rm = RollbackManager(str(self.repo_path))
                 recent = rm.get_events(limit=5)
                 if recent:
@@ -260,8 +292,7 @@ class SelfHealingWatchdog:
         self._save()
         return action
 
-    def register_recovery_handler(self, action_type: str,
-                                   handler: Callable) -> None:
+    def register_recovery_handler(self, action_type: str, handler: Callable) -> None:
         """Register a custom recovery handler."""
         self._recovery_handlers[action_type] = handler
 
@@ -315,10 +346,13 @@ class SelfHealingWatchdog:
             "health_score": self.get_health_score(),
             "total_events": len(self._events),
             "total_recovery_actions": len(self._recovery_actions),
-            "recent_errors": len([e for e in self._events[-50:]
-                                  if e.event_type == "error"]),
+            "recent_errors": len(
+                [e for e in self._events[-50:] if e.event_type == "error"]
+            ),
             "recovery_success_rate": round(
                 sum(1 for a in self._recovery_actions if a.success)
-                / max(len(self._recovery_actions), 1) * 100, 1
+                / max(len(self._recovery_actions), 1)
+                * 100,
+                1,
             ),
         }

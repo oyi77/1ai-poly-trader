@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError
 from backend.models.database import BotState, SessionLocal, StrategyConfig
 
 from loguru import logger
+
 HEARTBEAT_PREFIX = "heartbeat:"
 _recent_alerts: dict[str, datetime] = {}  # strategy_name -> last_alert_time
 ALERT_DEDUP_WINDOW = timedelta(minutes=5)
@@ -58,6 +59,7 @@ def _flush_heartbeats() -> bool:
     Falls back to SQLAlchemy ORM for SQLite.
     """
     from backend.config import settings
+
     with _hb_lock:
         if not _pending_heartbeats:
             return True
@@ -65,7 +67,10 @@ def _flush_heartbeats() -> bool:
 
     try:
         heartbeat_patch = json.dumps(
-            {f"{HEARTBEAT_PREFIX}{strategy_name}": ts for strategy_name, ts in snapshot.items()}
+            {
+                f"{HEARTBEAT_PREFIX}{strategy_name}": ts
+                for strategy_name, ts in snapshot.items()
+            }
         )
         with SessionLocal() as db:
             # Postgres: use atomic jsonb_set to avoid read-modify-write deadlocks
@@ -73,7 +78,9 @@ def _flush_heartbeats() -> bool:
                 db.execute(text("SET LOCAL lock_timeout = '2s'"))
                 db.execute(text("SET LOCAL statement_timeout = '5s'"))
                 acquired = db.execute(
-                    text("SELECT pg_try_advisory_xact_lock(hashtext('polyedge_heartbeat_flush'))")
+                    text(
+                        "SELECT pg_try_advisory_xact_lock(hashtext('polyedge_heartbeat_flush'))"
+                    )
                 ).scalar()
                 if not acquired:
                     db.rollback()
@@ -96,9 +103,15 @@ def _flush_heartbeats() -> bool:
                     data = {}
                     if state.misc_data:
                         try:
-                            data = json.loads(state.misc_data) if isinstance(state.misc_data, str) else state.misc_data
+                            data = (
+                                json.loads(state.misc_data)
+                                if isinstance(state.misc_data, str)
+                                else state.misc_data
+                            )
                         except Exception:
-                            logger.exception(f"heartbeat: failed to parse misc_data JSON for mode {state.mode}")
+                            logger.exception(
+                                f"heartbeat: failed to parse misc_data JSON for mode {state.mode}"
+                            )
                             data = {}
                     for strategy_name, ts in snapshot.items():
                         data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = ts
@@ -128,6 +141,7 @@ def get_strategy_health(db) -> list[dict]:
             db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
         )
         from backend.config import settings
+
         all_data = {}
         for mode in settings.active_modes_set:
             state = db.query(BotState).filter_by(mode=mode).first()
@@ -140,7 +154,9 @@ def get_strategy_health(db) -> list[dict]:
                     )
                     all_data.update(mode_data)
                 except Exception:
-                    logger.warning(f"Failed to parse misc_data JSON for mode {mode}, skipping")
+                    logger.warning(
+                        f"Failed to parse misc_data JSON for mode {mode}, skipping"
+                    )
 
         now = datetime.now(timezone.utc)
         for cfg in configs:
@@ -189,10 +205,13 @@ async def watchdog_job() -> None:
     _touch_heartbeat_file()
 
     if not _flush_heartbeats():
-        logger.warning("[WATCHDOG] Skipping stale heartbeat checks until heartbeat flush succeeds")
+        logger.warning(
+            "[WATCHDOG] Skipping stale heartbeat checks until heartbeat flush succeeds"
+        )
         return
 
     from backend.db.utils import get_db_session
+
     with get_db_session() as db:
         healths = get_strategy_health(db)
         for h in healths:
@@ -248,6 +267,7 @@ def _send_telegram_alert_sync(message: str) -> None:
 
     def _do_send():
         import httpx
+
         admin_ids = getattr(settings, "TELEGRAM_ADMIN_CHAT_IDS", "")
         try:
             with httpx.Client() as client:
@@ -267,6 +287,7 @@ def _send_telegram_alert_sync(message: str) -> None:
             logger.debug(f"Telegram alert thread failed: {exc}")
 
     import threading
+
     t = threading.Thread(target=_do_send, daemon=True)
     t.start()
 
@@ -282,6 +303,7 @@ async def wallet_sync_job() -> None:
     modes_to_sync = set()
     try:
         from backend.db.utils import get_db_session
+
         with get_db_session() as _db:
             configs = (
                 _db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
@@ -294,7 +316,9 @@ async def wallet_sync_job() -> None:
         logger.info("wallet_sync_job cancelled during shutdown")
         return
     except Exception:
-        logger.exception("wallet_sync_job: failed to query enabled strategy configs for wallet sync modes")
+        logger.exception(
+            "wallet_sync_job: failed to query enabled strategy configs for wallet sync modes"
+        )
 
     for mode in settings.active_modes_set:
         if mode in ("live", "testnet"):
@@ -346,17 +370,25 @@ def _sync_balance_to_db(balance: float, mode: str) -> None:
             if state:
                 state.bankroll = max(0.0, float(balance))
                 db.commit()
-                logger.debug(f"wallet_sync: {mode} balance updated to ${state.bankroll:.2f}")
+                logger.debug(
+                    f"wallet_sync: {mode} balance updated to ${state.bankroll:.2f}"
+                )
     except Exception as e:
         if _is_lock_timeout_error(e):
-            logger.warning(f"wallet_sync: deferred {mode} balance update due to BotState contention")
+            logger.warning(
+                f"wallet_sync: deferred {mode} balance update due to BotState contention"
+            )
         else:
             logger.warning(f"wallet_sync: failed to update {mode} balance: {e}")
     except Exception as e:
         logger.warning(f"wallet_sync: {mode} balance update failed: {e}")
 
 
-HEARTBEAT_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.omc', 'bot-heartbeat.tmp')
+HEARTBEAT_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    ".omc",
+    "bot-heartbeat.tmp",
+)
 
 
 def _touch_heartbeat_file() -> None:
@@ -368,7 +400,7 @@ def _touch_heartbeat_file() -> None:
     """
     try:
         os.makedirs(os.path.dirname(HEARTBEAT_FILE), exist_ok=True)
-        with open(HEARTBEAT_FILE, 'w') as f:
+        with open(HEARTBEAT_FILE, "w") as f:
             f.write(datetime.now(timezone.utc).isoformat())
     except OSError:
         pass  # Non-critical — don't crash watchdog for a file write failure

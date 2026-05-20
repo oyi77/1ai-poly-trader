@@ -1,4 +1,5 @@
 """Tests for backend.core.position_monitor."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

@@ -89,15 +89,17 @@ def _restore_settings(saved):
 def _seed_bot_state(db):
     db.query(BotState).delete()
     db.commit()
-    db.add(BotState(
-        mode="paper",
-        bankroll=10000.0,
-        paper_bankroll=10000.0,
-        total_trades=0,
-        winning_trades=0,
-        total_pnl=0.0,
-        is_running=True,
-    ))
+    db.add(
+        BotState(
+            mode="paper",
+            bankroll=10000.0,
+            paper_bankroll=10000.0,
+            total_trades=0,
+            winning_trades=0,
+            total_pnl=0.0,
+            is_running=True,
+        )
+    )
     db.commit()
 
 
@@ -133,9 +135,9 @@ async def test_draft_to_backtest_auto_promotion():
         await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.BACKTEST.value, (
-            f"DRAFT should auto-promote to BACKTEST, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.BACKTEST.value
+        ), f"DRAFT should auto-promote to BACKTEST, got {exp.status}"
     finally:
         _restore_settings(saved)
         db.close()
@@ -173,9 +175,9 @@ async def test_backtest_to_shadow_with_proposal():
         await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.SHADOW.value, (
-            f"BACKTEST should promote to SHADOW with passing proposal, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.SHADOW.value
+        ), f"BACKTEST should promote to SHADOW with passing proposal, got {exp.status}"
         assert bool(exp.backtest_passed) is True
         assert exp.backtest_sharpe == 1.2
         assert exp.backtest_win_rate == 0.58
@@ -220,9 +222,9 @@ async def test_backtest_to_shadow_with_record_flag():
         await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.SHADOW.value, (
-            f"BACKTEST with backtest_passed=True should promote to SHADOW, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.SHADOW.value
+        ), f"BACKTEST with backtest_passed=True should promote to SHADOW, got {exp.status}"
     finally:
         _restore_settings(saved)
         db.close()
@@ -250,9 +252,9 @@ async def test_backtest_stays_when_no_proposal():
         stats = await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.BACKTEST.value, (
-            f"BACKTEST without passing proposal should stay, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.BACKTEST.value
+        ), f"BACKTEST without passing proposal should stay, got {exp.status}"
         assert stats["retired"] == 0
     finally:
         _restore_settings(saved)
@@ -292,9 +294,9 @@ async def test_backtest_retired_after_7_days():
         stats = await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.RETIRED.value, (
-            f"BACKTEST older than 7d with no passing proposal should be RETIRED, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.RETIRED.value
+        ), f"BACKTEST older than 7d with no passing proposal should be RETIRED, got {exp.status}"
         assert exp.retired_at is not None
         assert stats["retired"] == 1
     finally:
@@ -338,9 +340,10 @@ async def test_review_to_backtest_with_improvement():
 
         db.refresh(exp)
         # REVIEW→BACKTEST→SHADOW happens in same run when proposal exists
-        assert exp.status in (ExperimentStatus.BACKTEST.value, ExperimentStatus.SHADOW.value), (
-            f"REVIEW with improvement should go to BACKTEST or SHADOW, got {exp.status}"
-        )
+        assert exp.status in (
+            ExperimentStatus.BACKTEST.value,
+            ExperimentStatus.SHADOW.value,
+        ), f"REVIEW with improvement should go to BACKTEST or SHADOW, got {exp.status}"
         assert exp.degradation_count == 0, "Degradation count should reset"
         assert exp.review_reason is None, "Review reason should clear"
         assert exp.backtest_sharpe == 0.9
@@ -373,9 +376,9 @@ async def test_review_to_retired_when_expired():
         stats = await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.RETIRED.value, (
-            f"REVIEW older than 14d without improvement should be RETIRED, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.RETIRED.value
+        ), f"REVIEW older than 14d without improvement should be RETIRED, got {exp.status}"
         assert exp.retired_at is not None
         assert stats["retired"] == 1
     finally:
@@ -415,9 +418,9 @@ async def test_full_pipeline_backtest_to_shadow_to_paper():
         await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.SHADOW.value, (
-            f"After first run: should be SHADOW, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.SHADOW.value
+        ), f"After first run: should be SHADOW, got {exp.status}"
 
         exp.shadow_trades = 10
         exp.shadow_win_rate = 0.55
@@ -428,9 +431,9 @@ async def test_full_pipeline_backtest_to_shadow_to_paper():
         await promoter.run_once()
 
         db.refresh(exp)
-        assert exp.status == ExperimentStatus.PAPER.value, (
-            f"After shadow criteria met: should be PAPER, got {exp.status}"
-        )
+        assert (
+            exp.status == ExperimentStatus.PAPER.value
+        ), f"After shadow criteria met: should be PAPER, got {exp.status}"
     finally:
         _restore_settings(saved)
         db.close()

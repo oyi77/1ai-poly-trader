@@ -4,6 +4,7 @@ Multi-model signal ensemble for PolyEdge Trading Bot.
 Combines technical, AI, orderbook, and data-quality signals
 into a single weighted probability with confidence scoring.
 """
+
 import math
 import numpy as np
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from dataclasses import dataclass
 from backend.ai.probability_utils import clamp_probability
 
 from loguru import logger
+
+
 def platt_scale(raw_prob: float, a: float = 1.0, b: float = 0.0) -> float:
     return 1.0 / (1.0 + math.exp(-(a * raw_prob + b)))
 
@@ -22,9 +25,9 @@ def extremize(prob: float, factor: float = 1.2) -> float:
 @dataclass
 class EnsembleSignal:
     combined_probability: float  # final weighted probability [0, 1]
-    confidence: float            # overall confidence [0, 1]
-    component_breakdown: dict    # component_name -> weighted contribution
-    edge: float                  # |combined_probability - market_price|
+    confidence: float  # overall confidence [0, 1]
+    component_breakdown: dict  # component_name -> weighted contribution
+    edge: float  # |combined_probability - market_price|
 
 
 class EnsembleSignalGenerator:

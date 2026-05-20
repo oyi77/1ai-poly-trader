@@ -114,13 +114,16 @@ class PolyEdgeBot:
         await self._app.start()
 
         from backend.api.main import app
-        if hasattr(app.state, 'task_manager'):
+
+        if hasattr(app.state, "task_manager"):
             await app.state.task_manager.create_task(
                 self._app.updater.start_polling(drop_pending_updates=True),
-                name="telegram_bot_polling"
+                name="telegram_bot_polling",
             )
         else:
-            asyncio.create_task(self._app.updater.start_polling(drop_pending_updates=True))
+            asyncio.create_task(
+                self._app.updater.start_polling(drop_pending_updates=True)
+            )
         logger.info(f"Telegram bot started — admins: {self.admin_ids}")
 
     async def stop(self):
@@ -277,13 +280,21 @@ class PolyEdgeBot:
             size_str = (
                 f"${trade.size:.2f}"
                 if trade
-                else f"${signal.suggested_size:.2f}"
-                if hasattr(signal, "suggested_size")
-                else "—"
+                else (
+                    f"${signal.suggested_size:.2f}"
+                    if hasattr(signal, "suggested_size")
+                    else "—"
+                )
             )
             mode_str = ", ".join(m.upper() for m in sorted(settings.active_modes_set))
-            primary_mode = sorted(settings.active_modes_set)[0].upper() if settings.active_modes_set else "PAPER"
-            mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(primary_mode, "⚪")
+            primary_mode = (
+                sorted(settings.active_modes_set)[0].upper()
+                if settings.active_modes_set
+                else "PAPER"
+            )
+            mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(
+                primary_mode, "⚪"
+            )
             executed = "✅ TRADE PLACED" if trade else "📊 SIGNAL (no trade)"
             text = (
                 f"<b>BTC SIGNAL {mode_emoji} {mode_str}</b>\n"
@@ -315,8 +326,14 @@ class PolyEdgeBot:
             from backend.config import settings
 
             _mode_str = ", ".join(m.upper() for m in sorted(settings.active_modes_set))
-            primary_mode = sorted(settings.active_modes_set)[0].upper() if settings.active_modes_set else "PAPER"
-            mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(primary_mode, "⚪")
+            primary_mode = (
+                sorted(settings.active_modes_set)[0].upper()
+                if settings.active_modes_set
+                else "PAPER"
+            )
+            mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(
+                primary_mode, "⚪"
+            )
             text = (
                 f"<b>📈 TRADE OPENED {mode_emoji}</b>\n"
                 f"\n"
@@ -351,9 +368,7 @@ class PolyEdgeBot:
             pnl_str = (
                 f"+${pnl:.2f}"
                 if pnl and pnl > 0
-                else f"-${abs(pnl):.2f}"
-                if pnl
-                else "—"
+                else f"-${abs(pnl):.2f}" if pnl else "—"
             )
             text = (
                 f"<b>{emoji}</b>\n"
@@ -499,7 +514,9 @@ class PolyEdgeBot:
         from backend.models.database import SessionLocal, BotState, for_update
 
         mode_emoji = {"paper": "🟠 PAPER", "testnet": "🟡 TESTNET", "live": "🔴 LIVE"}
-        mode_str = ", ".join(mode_emoji.get(m, "🟠 PAPER") for m in sorted(settings.active_modes_set))
+        mode_str = ", ".join(
+            mode_emoji.get(m, "🟠 PAPER") for m in sorted(settings.active_modes_set)
+        )
         paused = "⏸ PAUSED" if self._paused else "🟢 RUNNING"
 
         bankroll = settings.INITIAL_BANKROLL
@@ -756,8 +773,14 @@ class PolyEdgeBot:
             exposure = sum(t.size for t in pending)
             equity = settings.INITIAL_BANKROLL + total_pnl
             _mode_str = ", ".join(m.upper() for m in sorted(settings.active_modes_set))
-            primary_mode = sorted(settings.active_modes_set)[0].upper() if settings.active_modes_set else "PAPER"
-            mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(primary_mode, "⚪")
+            primary_mode = (
+                sorted(settings.active_modes_set)[0].upper()
+                if settings.active_modes_set
+                else "PAPER"
+            )
+            mode_emoji = {"PAPER": "🟠", "TESTNET": "🟡", "LIVE": "🔴"}.get(
+                primary_mode, "⚪"
+            )
             await update.message.reply_text(
                 f"<b>💰 Bankroll {mode_emoji}</b>\n"
                 f"\n"

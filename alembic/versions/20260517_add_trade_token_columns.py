@@ -27,4 +27,3 @@ def downgrade() -> None:
     op.drop_index("ix_trades_token_id", table_name="trades")
     op.drop_column("trades", "condition_id")
     op.drop_column("trades", "token_id")
-

@@ -172,7 +172,11 @@ class TestExperimentRunnerRetire:
         session.commit()
 
         runner.retire_experiment(str(experiment.id), "test retirement")
-        audit = session.query(DecisionAuditLog).filter_by(decision_type="experiment_retired").first()
+        audit = (
+            session.query(DecisionAuditLog)
+            .filter_by(decision_type="experiment_retired")
+            .first()
+        )
         assert audit is not None
         assert "retire" in str(audit.input_data).lower()
 

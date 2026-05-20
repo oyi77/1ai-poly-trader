@@ -2,13 +2,25 @@ from backend.core.wash_trade_detector import WashTradeDetector, WashTradeRisk
 
 
 def _make_trade(maker, taker, price, usd_amount, timestamp):
-    return {"maker": maker, "taker": taker, "price": price, "usd_amount": usd_amount, "timestamp": timestamp}
+    return {
+        "maker": maker,
+        "taker": taker,
+        "price": price,
+        "usd_amount": usd_amount,
+        "timestamp": timestamp,
+    }
 
 
 def test_clean_market_low_risk():
     detector = WashTradeDetector()
     trades = [
-        _make_trade(f"wallet_maker_{i}", f"wallet_taker_{i}", 0.50 + i * 0.01, 100 + i * 37, 1000 + i * 120)
+        _make_trade(
+            f"wallet_maker_{i}",
+            f"wallet_taker_{i}",
+            0.50 + i * 0.01,
+            100 + i * 37,
+            1000 + i * 120,
+        )
         for i in range(20)
     ]
     result = detector.analyze_trades(trades, market_id="clean_market")
@@ -33,7 +45,9 @@ def test_self_trading_detected():
 def test_size_uniformity_detected():
     detector = WashTradeDetector()
     # 90% of trades are exactly $100
-    trades = [_make_trade(f"m{i}", f"t{i}", 0.50, 100, 1000 + i * 200) for i in range(9)]
+    trades = [
+        _make_trade(f"m{i}", f"t{i}", 0.50, 100, 1000 + i * 200) for i in range(9)
+    ]
     trades.append(_make_trade("mx", "tx", 0.50, 237, 3000))
     result = detector.analyze_trades(trades)
     assert result.indicators["size_uniformity"] == 100.0
@@ -43,7 +57,10 @@ def test_timing_clustering_detected():
     detector = WashTradeDetector()
     # 8 trades within 5-second windows out of 9 consecutive pairs (>70%)
     base = 1000
-    trades = [_make_trade(f"m{i}", f"t{i}", 0.50 + i * 0.01, 100 + i * 10, base + i * 2) for i in range(9)]
+    trades = [
+        _make_trade(f"m{i}", f"t{i}", 0.50 + i * 0.01, 100 + i * 10, base + i * 2)
+        for i in range(9)
+    ]
     # add one outlier far away
     trades.append(_make_trade("mx", "tx", 0.60, 200, base + 500))
     result = detector.analyze_trades(trades)
@@ -53,7 +70,10 @@ def test_timing_clustering_detected():
 def test_price_manipulation_detected():
     detector = WashTradeDetector()
     # 80% of trades at price 0.50
-    trades = [_make_trade(f"m{i}", f"t{i}", 0.50, 100 + i * 13, 1000 + i * 300) for i in range(8)]
+    trades = [
+        _make_trade(f"m{i}", f"t{i}", 0.50, 100 + i * 13, 1000 + i * 300)
+        for i in range(8)
+    ]
     trades.append(_make_trade("mx", "tx", 0.60, 200, 5000))
     trades.append(_make_trade("my", "ty", 0.70, 150, 6000))
     result = detector.analyze_trades(trades)

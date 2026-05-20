@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Analyze btc_oracle strategy performance."""
+
 import sys
+
 sys.path.insert(0, "/home/openclaw/projects/polyedge")
 
 from sqlalchemy import create_engine, text
@@ -21,7 +23,9 @@ with engine.connect() as conn:
     """)).fetchall()
     print("=== BY DIRECTION ===")
     for r in rows:
-        print(f"  {r[0]:5s} | {r[1]:4d}t | pnl={r[2]:+8.2f} | wr={r[3]:.1%} | avg={r[4]:+.3f} | gw={r[5]:+.2f} gl={r[6]:+.2f}")
+        print(
+            f"  {r[0]:5s} | {r[1]:4d}t | pnl={r[2]:+8.2f} | wr={r[3]:.1%} | avg={r[4]:+.3f} | gw={r[5]:+.2f} gl={r[6]:+.2f}"
+        )
 
     # By price bucket
     rows = conn.execute(text("""
@@ -50,7 +54,9 @@ with engine.connect() as conn:
     print("\n=== LAST 20 TRADES ===")
     for r in rows:
         pnl_str = f"{r[3]:+.2f}" if r[3] is not None else "pending"
-        print(f"  {str(r[0])[:50]:50s} | {r[1]:5s} | entry={r[2]} | pnl={pnl_str} | {r[4]}")
+        print(
+            f"  {str(r[0])[:50]:50s} | {r[1]:5s} | entry={r[2]} | pnl={pnl_str} | {r[4]}"
+        )
 
     # By hour
     rows = conn.execute(text("""

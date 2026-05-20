@@ -48,7 +48,12 @@ def test_exhausted_retries_raises():
 def test_non_retryable_exception_passthrough():
     call_count = 0
 
-    @retry(max_attempts=3, backoff_base=0.01, max_delay=0.1, retryable_exceptions=(RuntimeError,))
+    @retry(
+        max_attempts=3,
+        backoff_base=0.01,
+        max_delay=0.1,
+        retryable_exceptions=(RuntimeError,),
+    )
     def func():
         nonlocal call_count
         call_count += 1
@@ -89,8 +94,10 @@ def test_jitter_adds_randomness():
     def func():
         raise RuntimeError("fail")
 
-    with patch("time.sleep", side_effect=lambda d: delays.append(d)), \
-         patch("random.random", return_value=0.42):
+    with (
+        patch("time.sleep", side_effect=lambda d: delays.append(d)),
+        patch("random.random", return_value=0.42),
+    ):
         with pytest.raises(RuntimeError):
             func()
 

@@ -1,6 +1,5 @@
 """Tests for backend/core/log.py (loguru-based logging)."""
 
-
 from backend.core.log import (
     configure_logging,
     correlation_id,
@@ -26,6 +25,7 @@ def test_configure_logging_runs_without_error():
     """Verify configure_logging sets up sinks without error."""
     # Should not raise — calls logger.remove() then adds sinks
     configure_logging(level="INFO", json_output=False)
+
 
 def test_configure_logging_json_mode():
     """Verify JSON mode configures loguru with serialize=True."""

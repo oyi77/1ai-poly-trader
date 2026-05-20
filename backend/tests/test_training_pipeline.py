@@ -6,6 +6,7 @@ Uses synthetic examples (no network) to exercise:
 - PredictionEngine loads the trained pickle and predicts in [0, 1]
 - ModelEvaluator computes accuracy / log_loss / brier / ece
 """
+
 import os
 import random
 

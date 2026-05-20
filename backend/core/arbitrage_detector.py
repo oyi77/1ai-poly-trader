@@ -1,4 +1,5 @@
 """Arbitrage opportunity detection across Polymarket markets."""
+
 from dataclasses import dataclass
 from typing import List, Optional, Iterable, Dict, Any
 
@@ -33,12 +34,16 @@ class ArbitrageDetector:
         return ArbOpportunity(
             market_id=str(market.get("market_id", "?")),
             kind="yes_no",
-            yes_price=yes, no_price=no,
-            raw_profit=raw, net_profit=net,
+            yes_price=yes,
+            no_price=no,
+            raw_profit=raw,
+            net_profit=net,
             detail={"sum": total},
         )
 
-    def detect_cross_market(self, market_a: Dict[str, Any], market_b: Dict[str, Any]) -> Optional[ArbOpportunity]:
+    def detect_cross_market(
+        self, market_a: Dict[str, Any], market_b: Dict[str, Any]
+    ) -> Optional[ArbOpportunity]:
         if market_a.get("event_id") != market_b.get("event_id"):
             return None
         a_yes = market_a.get("yes_price")
@@ -55,11 +60,14 @@ class ArbitrageDetector:
         return ArbOpportunity(
             market_id=f"{market_a.get('market_id')}+{market_b.get('market_id')}",
             kind="cross_market",
-            raw_profit=raw, net_profit=net,
+            raw_profit=raw,
+            net_profit=net,
             detail={"a": market_a.get("market_id"), "b": market_b.get("market_id")},
         )
 
-    def calculate_profit_after_fees(self, raw_profit: float, fee_pct: Optional[float] = None) -> float:
+    def calculate_profit_after_fees(
+        self, raw_profit: float, fee_pct: Optional[float] = None
+    ) -> float:
         fee = fee_pct if fee_pct is not None else self.fee_pct
         return round(raw_profit - fee, 6)
 

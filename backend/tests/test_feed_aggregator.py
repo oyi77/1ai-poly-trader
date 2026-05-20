@@ -7,14 +7,20 @@ def _make_fake_parsed(url, entries):
     """Build a fake feedparser result."""
     parsed = MagicMock()
     parsed.feed = MagicMock()
-    parsed.feed.get = lambda key, default="": "FakeSource" if key == "title" else default
+    parsed.feed.get = lambda key, default="": (
+        "FakeSource" if key == "title" else default
+    )
     parsed.entries = entries
     return parsed
 
 
 def _make_entry(title, link, summary=""):
     e = MagicMock()
-    e.get = lambda key, default="": {"title": title, "link": link, "summary": summary}.get(key, default)
+    e.get = lambda key, default="": {
+        "title": title,
+        "link": link,
+        "summary": summary,
+    }.get(key, default)
     e.published_parsed = None
     return e
 

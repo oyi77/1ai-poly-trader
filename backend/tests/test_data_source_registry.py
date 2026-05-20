@@ -1,4 +1,5 @@
 """Test suite for data source registry."""
+
 import pytest
 
 from backend.data.base_source import BaseDataSource, DataSourceManifest, DataType
@@ -123,6 +124,7 @@ def test_health_check_marks_degraded():
     registry.register(FailingSource)
 
     import asyncio
+
     results = asyncio.run(registry.run_health_checks())
 
     assert results["failing"] is False

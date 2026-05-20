@@ -4,20 +4,22 @@ Neg-Risk Arbitrage Scanner for PolyEdge.
 Groups markets by event and detects opportunities where the sum of YES
 prices across mutually exclusive outcomes deviates meaningfully from 1.0.
 """
+
 from dataclasses import dataclass
 
 from loguru import logger
+
 DEFAULT_FEE_RATE = 0.02
-DEFAULT_MIN_DEVIATION = 0.02   # minimum net deviation to flag as opportunity
-DEFAULT_MIN_OUTCOMES = 3       # require at least this many outcomes per event
+DEFAULT_MIN_DEVIATION = 0.02  # minimum net deviation to flag as opportunity
+DEFAULT_MIN_OUTCOMES = 3  # require at least this many outcomes per event
 
 
 @dataclass
 class NegRiskOpportunity:
     event_id: str
-    outcomes: list[dict]        # [{"label": str, "price": float, "token_id": str}]
+    outcomes: list[dict]  # [{"label": str, "price": float, "token_id": str}]
     sum_of_prices: float
-    deviation: float            # abs(sum_of_prices - 1.0)
+    deviation: float  # abs(sum_of_prices - 1.0)
     profit_after_fees: float
 
 
@@ -54,11 +56,13 @@ def scan_negrisk_opportunities(
         for o in outcomes:
             try:
                 price = float(o.get("price", 0.0))
-                valid_outcomes.append({
-                    "label": str(o.get("label", "")),
-                    "price": price,
-                    "token_id": str(o.get("token_id", "")),
-                })
+                valid_outcomes.append(
+                    {
+                        "label": str(o.get("label", "")),
+                        "price": price,
+                        "token_id": str(o.get("token_id", "")),
+                    }
+                )
             except (TypeError, ValueError) as e:
                 logger.warning(
                     f"negrisk_arb: skipping malformed outcome in event {event_id}: {e}"

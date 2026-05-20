@@ -1,6 +1,8 @@
 """Hands-on verification of all 15 core AGI modules."""
+
 import sys
-sys.path.insert(0, '.')
+
+sys.path.insert(0, ".")
 
 # Import all 15 core modules
 from core.regime_detector import RegimeDetector, RegimeResult
@@ -22,15 +24,19 @@ print("✅ ALL 15 CORE MODULES IMPORTED SUCCESSFULLY")
 # Test 1: RegimeDetector
 print("\n--- RegimeDetector ---")
 detector = RegimeDetector()
-result = detector.detect_regime({
-    "btc_price": 50000.0,
-    "btc_change_24h": 0.05,
-    "volume_ratio": 1.3,
-    "volatility": 0.02,
-})
+result = detector.detect_regime(
+    {
+        "btc_price": 50000.0,
+        "btc_change_24h": 0.05,
+        "volume_ratio": 1.3,
+        "volatility": 0.02,
+    }
+)
 assert isinstance(result, RegimeResult)
 assert isinstance(result.regime, MarketRegime)
-print(f"✅ RegimeDetector works: regime={result.regime}, confidence={result.confidence}")
+print(
+    f"✅ RegimeDetector works: regime={result.regime}, confidence={result.confidence}"
+)
 
 # Test 2: KnowledgeGraph
 print("\n--- KnowledgeGraph ---")
@@ -44,18 +50,22 @@ print("✅ KnowledgeGraph works: entity stored and retrieved")
 # Test 3: StrategyComposer
 print("\n--- StrategyComposer ---")
 composer = StrategyComposer()
-blocks = [StrategyBlock(
-    signal_source="btc_momentum_signal",
-    filter="min_edge_005",
-    position_sizer="kelly_sizer",
-    risk_rule="max_1pct",
-    exit_rule="take_profit_10pct",
-)]
+blocks = [
+    StrategyBlock(
+        signal_source="btc_momentum_signal",
+        filter="min_edge_005",
+        position_sizer="kelly_sizer",
+        risk_rule="max_1pct",
+        exit_rule="take_profit_10pct",
+    )
+]
 composed = composer.compose(blocks, "test_strategy")
 assert composed is not None
 assert composed.name == "test_strategy"
 assert len(composed.blocks) == 1
-print(f"✅ StrategyComposer works: strategy '{composed.name}' with {len(composed.blocks)} block(s)")
+print(
+    f"✅ StrategyComposer works: strategy '{composed.name}' with {len(composed.blocks)} block(s)"
+)
 
 # Test 4: RegimeAwareAllocator
 print("\n--- RegimeAwareAllocator ---")
@@ -93,14 +103,18 @@ tracker.record_call("claude-3-opus", 1000, 0.03, "test_action")
 status = tracker.get_budget_status()
 assert status.spent_today == 0.03
 assert tracker.can_spend(5.0) == True
-print(f"✅ LLMCostTracker works: spent=${status.spent_today}, can_spend(5.0)={tracker.can_spend(5.0)}")
+print(
+    f"✅ LLMCostTracker works: spent=${status.spent_today}, can_spend(5.0)={tracker.can_spend(5.0)}"
+)
 
 # Test 8: AGIPromotionPipeline
 print("\n--- AGIPromotionPipeline ---")
 pipeline = AGIPromotionPipeline()
 result = pipeline.submit_experiment("test_exp")
 assert result is not None
-print(f"✅ AGIPromotionPipeline works: promoted={result.promoted}, message={result.message}")
+print(
+    f"✅ AGIPromotionPipeline works: promoted={result.promoted}, message={result.message}"
+)
 
 # Test 9: CausalReasoner
 print("\n--- CausalReasoner ---")
@@ -131,6 +145,6 @@ print("\n--- ExperimentRunner ---")
 runner = ExperimentRunner()
 print("✅ ExperimentRunner works: instantiated")
 
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("🎉 ALL 15 CORE AGI MODULES FULLY VERIFIED")
-print("="*60)
+print("=" * 60)
