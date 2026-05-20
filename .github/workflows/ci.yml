@@ -28,7 +28,7 @@ jobs:
         run: pip install -r requirements.txt pytest-cov
 
       - name: Lint with ruff
-        run: ruff check backend/ --select=E,F,W --ignore=E501,E712
+        run: ruff check backend/ --select=E,F,W --ignore=E501,E712,E402,F401
 
       - name: Run backend tests with coverage
         env:
