@@ -1,4 +1,5 @@
 """Tests for backend.ai.probability_utils.clamp_probability."""
+
 from __future__ import annotations
 
 import pytest

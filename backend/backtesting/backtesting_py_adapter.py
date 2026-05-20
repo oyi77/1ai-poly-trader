@@ -55,7 +55,9 @@ class BacktestingPyAdapter(BaseBacktestStrategyRunner):
         try:
             from backtesting import Backtest
         except ImportError:
-            logger.error("backtesting.py not installed. Install with: pip install backtesting.py")
+            logger.error(
+                "backtesting.py not installed. Install with: pip install backtesting.py"
+            )
             return []
 
         # Wrap the PolyEdge strategy as a backtesting.py Strategy
@@ -74,13 +76,15 @@ class BacktestingPyAdapter(BaseBacktestStrategyRunner):
             # Convert backtesting.py trades to our format
             trades = []
             for _, row in stats._trades.iterrows():
-                trades.append({
-                    "entry_time": str(row.get("EntryBar", "")),
-                    "exit_time": str(row.get("ExitBar", "")),
-                    "direction": "long" if row.get("Size", 0) > 0 else "short",
-                    "pnl": float(row.get("PnL", 0)),
-                    "return_pct": float(row.get("ReturnPct", 0)),
-                })
+                trades.append(
+                    {
+                        "entry_time": str(row.get("EntryBar", "")),
+                        "exit_time": str(row.get("ExitBar", "")),
+                        "direction": "long" if row.get("Size", 0) > 0 else "short",
+                        "pnl": float(row.get("PnL", 0)),
+                        "return_pct": float(row.get("ReturnPct", 0)),
+                    }
+                )
 
             return trades
 
@@ -110,7 +114,7 @@ class BacktestingPyAdapter(BaseBacktestStrategyRunner):
 
     def health_check(self) -> bool:
         try:
-# noqa: F401 - used via getattr            import backtesting
+            # noqa: F401 - used via getattr            import backtesting
             return True
         except ImportError:
             return False

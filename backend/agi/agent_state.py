@@ -1,4 +1,5 @@
 """AGI core infrastructure: AgentState, BaseAGINode, NodeRegistry, GraphEngine."""
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -52,7 +53,15 @@ class AgentState:
 
     def with_error(self, node_name: str, error: Exception) -> "AgentState":
         """Return a new state with an error added."""
-        return self.evolve(errors=[{"node": node_name, "error": str(error), "timestamp": datetime.now(timezone.utc).isoformat()}])
+        return self.evolve(
+            errors=[
+                {
+                    "node": node_name,
+                    "error": str(error),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
+        )
 
     def get(self, key: str, default: Any = None) -> Any:
         """Dict-like access to state data."""

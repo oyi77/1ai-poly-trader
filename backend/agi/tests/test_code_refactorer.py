@@ -20,9 +20,7 @@ class TestCodeRefactoringAgent:
     @pytest.fixture
     def temp_module(self):
         """Create a temporary Python module for testing."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""
 def add(a, b):
     '''Add two numbers.'''

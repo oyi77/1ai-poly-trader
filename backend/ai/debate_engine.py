@@ -28,6 +28,7 @@ from backend.ai.llm_router import LLMRouter as _LLMRouter
 from backend.ai.probability_utils import clamp_probability
 
 from loguru import logger
+
 # --- Configuration ---
 MAX_DEBATE_ROUNDS = 2
 MIN_DEBATE_ROUNDS = 1
@@ -267,6 +268,7 @@ def _build_judge_prompt(
     )
 
     import random
+
     for r in range(1, max_rounds + 1):
         prompt += f"\n=== ROUND {r} ===\n"
         round_args = []
@@ -362,7 +364,6 @@ def _parse_agent_response(response: str) -> tuple[float, float, str] | None:
     # Strategy 3: Fallback — parse failure, drop the signal
     logger.warning("[debate_engine] Parse failed, dropping signal")
     return None
-
 
 
 # --- Core Engine ---
@@ -569,9 +570,7 @@ async def run_debate(
         judge_prompt, _build_judge_system(), role="judge"
     )
 
-    judge_parsed = (
-        _parse_agent_response(judge_response) if judge_response else None
-    )
+    judge_parsed = _parse_agent_response(judge_response) if judge_response else None
 
     if judge_parsed is not None:
         consensus_prob, consensus_conf, consensus_reasoning = judge_parsed

@@ -16,19 +16,21 @@ from backend.domain.evolution.evolution_action import EvolutionAction
 from backend.domain.evolution.fitness import calculate_fitness
 from backend.core.event_bus import publish_event
 
-
 # Auto-kill conditions from spec lines 227-232
 AUTO_KILL_CONDITIONS = [
-    lambda m: m.max_drawdown_pct > 0.50,                              # 50% drawdown
-    lambda m: m.sharpe_ratio < -2.0 and m.win_rate < 0.05,           # Sharpe + win rate both terminal
-    lambda m: m.brier_score > 0.35,                                   # Worse than random guessing
+    lambda m: m.max_drawdown_pct > 0.50,  # 50% drawdown
+    lambda m: m.sharpe_ratio < -2.0
+    and m.win_rate < 0.05,  # Sharpe + win rate both terminal
+    lambda m: m.brier_score > 0.35,  # Worse than random guessing
 ]
 
 
 class LifecycleManager:
     """Manages strategy genome lifecycle stage transitions."""
 
-    def evaluate_stage_transition(self, genome: StrategyGenome, regime: str, db: Session) -> Optional[str]:
+    def evaluate_stage_transition(
+        self, genome: StrategyGenome, regime: str, db: Session
+    ) -> Optional[str]:
         """Evaluate if a genome should transition to a new stage.
 
         Args:
@@ -75,7 +77,9 @@ class LifecycleManager:
 
         return None
 
-    def _evaluate_shadow_to_paper(self, genome: StrategyGenome, db: Session) -> Optional[str]:
+    def _evaluate_shadow_to_paper(
+        self, genome: StrategyGenome, db: Session
+    ) -> Optional[str]:
         """Evaluate SHADOW → PAPER transition.
 
         Criteria: 24h+ AND signal accuracy > 60% → PAPER
@@ -104,12 +108,16 @@ class LifecycleManager:
 
         return None
 
-    def _evaluate_paper_to_live(self, genome: StrategyGenome, regime: str) -> Optional[str]:
+    def _evaluate_paper_to_live(
+        self, genome: StrategyGenome, regime: str
+    ) -> Optional[str]:
         if should_promote_paper_to_live(genome, regime):
             return "LIVE"
         return None
 
-    def _evaluate_live_transition(self, genome: StrategyGenome, db: Session) -> Optional[str]:
+    def _evaluate_live_transition(
+        self, genome: StrategyGenome, db: Session
+    ) -> Optional[str]:
         m = genome.fitness_metrics
         fitness = calculate_fitness(m)
 
@@ -128,7 +136,9 @@ class LifecycleManager:
 
         return None
 
-    def _evaluate_breeding_transition(self, genome: StrategyGenome, db: Session) -> Optional[str]:
+    def _evaluate_breeding_transition(
+        self, genome: StrategyGenome, db: Session
+    ) -> Optional[str]:
         m = genome.fitness_metrics
         fitness = calculate_fitness(m)
 
@@ -152,7 +162,9 @@ class LifecycleManager:
 
         return None
 
-    def _evaluate_graveyard_rehabilitation(self, genome: StrategyGenome, db: Session) -> Optional[str]:
+    def _evaluate_graveyard_rehabilitation(
+        self, genome: StrategyGenome, db: Session
+    ) -> Optional[str]:
         """Evaluate GRAVEYARD → DRAFT rehabilitation.
 
         Criteria: 50%+ win rate on last 10 trades AND positive PnL
@@ -162,27 +174,35 @@ class LifecycleManager:
 
         return None
 
-    def _get_stage_entered_at(self, genome_id: str, db, stage: Optional[str] = None) -> Optional[datetime]:
+    def _get_stage_entered_at(
+        self, genome_id: str, db, stage: Optional[str] = None
+    ) -> Optional[datetime]:
         try:
             from backend.models.database import GenomeRegistry
-            query = db.query(GenomeRegistry).filter(GenomeRegistry.genome_id == genome_id)
+
+            query = db.query(GenomeRegistry).filter(
+                GenomeRegistry.genome_id == genome_id
+            )
             if stage:
                 query = query.filter(GenomeRegistry.stage == stage)
             result = query.first()
             if result and isinstance(result.stage_entered_at, datetime):
                 return result.stage_entered_at
         except Exception as e:
-            logger.debug("Failed to get stage_entered_at for genome %s: %s", genome_id, e)
+            logger.debug(
+                "Failed to get stage_entered_at for genome %s: %s", genome_id, e
+            )
         return None
 
     def _get_total_pnl_for_genome(self, genome_id: str, db) -> float:
         try:
             from backend.models.database import Trade
-            total_pnl = db.query(
-                db.func.coalesce(db.func.sum(Trade.pnl), 0)
-            ).filter(
-                Trade.strategy == genome_id
-            ).scalar()
+
+            total_pnl = (
+                db.query(db.func.coalesce(db.func.sum(Trade.pnl), 0))
+                .filter(Trade.strategy == genome_id)
+                .scalar()
+            )
             return float(total_pnl or 0.0)
         except Exception as e:
             logger.warning("Failed to get total_pnl for genome %s: %s", genome_id, e)
@@ -192,7 +212,9 @@ class LifecycleManager:
         """Check if genome meets any auto-kill conditions."""
         return self.check_auto_kill(genome) is not None
 
-    def execute_transition(self, genome: StrategyGenome, target_stage: str, db: Session) -> EvolutionAction:
+    def execute_transition(
+        self, genome: StrategyGenome, target_stage: str, db: Session
+    ) -> EvolutionAction:
         """Execute a stage transition — update DB, publish event, log evolution.
 
         Args:
@@ -212,9 +234,11 @@ class LifecycleManager:
         genome.updated_at = datetime.now(timezone.utc)
 
         # Update database
-        db_genome = db.query(GenomeRegistry).filter(
-            GenomeRegistry.genome_id == genome.genome_id
-        ).first()
+        db_genome = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.genome_id == genome.genome_id)
+            .first()
+        )
 
         if db_genome:
             db_genome.stage = target_stage
@@ -223,7 +247,11 @@ class LifecycleManager:
 
             # Update fitness metrics — sync both JSON and native columns
             if genome.fitness_metrics:
-                metrics_dict = genome.fitness_metrics.model_dump() if hasattr(genome.fitness_metrics, 'model_dump') else genome.fitness_metrics
+                metrics_dict = (
+                    genome.fitness_metrics.model_dump()
+                    if hasattr(genome.fitness_metrics, "model_dump")
+                    else genome.fitness_metrics
+                )
                 db_genome.fitness_json = json.dumps(metrics_dict)
                 db_genome.total_pnl = metrics_dict.get("total_pnl", 0.0)
                 db_genome.win_rate = metrics_dict.get("win_rate", 0.0)
@@ -232,7 +260,7 @@ class LifecycleManager:
                 db_genome.trade_count = metrics_dict.get("total_trades", 0)
 
             # Sync native columns
-            if hasattr(genome, 'fitness_score') and genome.fitness_score is not None:
+            if hasattr(genome, "fitness_score") and genome.fitness_score is not None:
                 db_genome.fitness_score = genome.fitness_score
             db_genome.last_evaluated_at = datetime.now(timezone.utc)
             db_genome.fitness_updated_at = datetime.now(timezone.utc)
@@ -240,7 +268,11 @@ class LifecycleManager:
             db.commit()
 
         # Create evolution action
-        action_type = "promotion" if target_stage in ["SHADOW", "PAPER", "LIVE", "BREEDING", "LEGEND"] else "auto_kill"
+        action_type = (
+            "promotion"
+            if target_stage in ["SHADOW", "PAPER", "LIVE", "BREEDING", "LEGEND"]
+            else "auto_kill"
+        )
         if target_stage == "GRAVEYARD":
             action_type = "auto_kill"
         elif target_stage == "DRAFT" and current_stage == "GRAVEYARD":
@@ -254,11 +286,11 @@ class LifecycleManager:
                 "from_stage": current_stage,
                 "to_stage": target_stage,
                 "fitness_score": calculate_fitness(genome.fitness_metrics),
-                "metrics": genome.fitness_metrics.model_dump()
+                "metrics": genome.fitness_metrics.model_dump(),
             },
             timestamp=datetime.now(timezone.utc),
             from_stage=current_stage,
-            to_stage=target_stage
+            to_stage=target_stage,
         )
 
         # Log to evolution_log table
@@ -267,19 +299,22 @@ class LifecycleManager:
             event_type=action_type,
             from_stage=current_stage,
             to_stage=target_stage,
-            data=action.details
+            data=action.details,
         )
         db.add(evolution_log)
         db.commit()
 
         # Publish event
-        publish_event("lifecycle_transition", {
-            "genome_id": genome.genome_id,
-            "strategy_name": genome.strategy_name,
-            "from_stage": current_stage,
-            "to_stage": target_stage,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
+        publish_event(
+            "lifecycle_transition",
+            {
+                "genome_id": genome.genome_id,
+                "strategy_name": genome.strategy_name,
+                "from_stage": current_stage,
+                "to_stage": target_stage,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
         return action
 
@@ -299,7 +334,7 @@ class LifecycleManager:
                     total_trades=m.total_trades,
                     regime_at_death="unknown",  # Would be populated from RegimeDetector
                     killer_condition=str(condition),
-                    rehabilitation_eligible=True
+                    rehabilitation_eligible=True,
                 )
 
         return None
@@ -323,9 +358,9 @@ def should_promote_paper_to_live(genome: StrategyGenome, regime: str) -> bool:
 
     # Regime-dynamic thresholds
     thresholds = {
-        "volatile":    {"min_sharpe": 0.60, "min_win_rate": 0.50},
-        "trending":    {"min_sharpe": 0.40, "min_win_rate": 0.55},
-        "sideways":    {"min_sharpe": 0.50, "min_win_rate": 0.48},
+        "volatile": {"min_sharpe": 0.60, "min_win_rate": 0.50},
+        "trending": {"min_sharpe": 0.40, "min_win_rate": 0.55},
+        "sideways": {"min_sharpe": 0.50, "min_win_rate": 0.48},
         "event_dense": {"min_sharpe": 0.45, "min_win_rate": 0.52},
     }
 
@@ -352,17 +387,19 @@ def check_rehabilitation_eligibility(genome: StrategyGenome, db: Session) -> boo
     # Get recent trades for this genome
     from backend.models.database import Trade
 
-    recent_trades = db.query(Trade).filter(
-        Trade.strategy == genome.genome_id
-    ).order_by(
-        Trade.timestamp.desc()
-    ).limit(10).all()
+    recent_trades = (
+        db.query(Trade)
+        .filter(Trade.strategy == genome.genome_id)
+        .order_by(Trade.timestamp.desc())
+        .limit(10)
+        .all()
+    )
 
     if len(recent_trades) < 5:
         return False
 
-    win_count = sum(1 for t in recent_trades if getattr(t, 'pnl', 0) > 0)
+    win_count = sum(1 for t in recent_trades if getattr(t, "pnl", 0) > 0)
     win_rate = win_count / len(recent_trades)
-    total_pnl = sum(getattr(t, 'pnl', 0) for t in recent_trades)
+    total_pnl = sum(getattr(t, "pnl", 0) for t in recent_trades)
 
     return win_rate >= 0.50 and total_pnl > 0

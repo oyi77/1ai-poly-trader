@@ -21,10 +21,14 @@ from sqlalchemy.orm import Session
 
 from backend.models.database import SessionLocal, TradeAttempt, DecisionLog, Signal
 from backend.models.historical_data import MarketOutcome
-from backend.models.outcome_tables import BlockedSignalCounterfactual, CounterfactualInsight
+from backend.models.outcome_tables import (
+    BlockedSignalCounterfactual,
+    CounterfactualInsight,
+)
 from backend.config import settings
 
 from loguru import logger
+
 DIRECTION_UP_ALIASES = {"up", "yes", "UP", "YES", "buy", "BUY"}
 DIRECTION_DOWN_ALIASES = {"down", "no", "DOWN", "NO", "sell", "SELL"}
 
@@ -52,7 +56,9 @@ def _direction_won(direction: str, settlement_value: float) -> bool:
     return False
 
 
-def _compute_hypothetical_pnl(direction: str, entry_price: float, size: float, settlement_value: float) -> float:
+def _compute_hypothetical_pnl(
+    direction: str, entry_price: float, size: float, settlement_value: float
+) -> float:
     d = _normalize_direction(direction)
     if d == "up":
         if settlement_value >= 0.5:
@@ -69,15 +75,22 @@ def _compute_hypothetical_pnl(direction: str, entry_price: float, size: float, s
 
 def ingest_blocked_attempts(db: Session) -> int:
     existing_source_ids = set(
-        row[0] for row in db.query(BlockedSignalCounterfactual.source_id).filter(
-            BlockedSignalCounterfactual.source_table == "trade_attempt"
-        ).all()
+        row[0]
+        for row in db.query(BlockedSignalCounterfactual.source_id)
+        .filter(BlockedSignalCounterfactual.source_table == "trade_attempt")
+        .all()
     )
 
-    blocked = db.query(TradeAttempt).filter(
-        TradeAttempt.status.in_(["BLOCKED", "REJECTED"]),
-        ~TradeAttempt.id.in_(existing_source_ids),
-    ).order_by(TradeAttempt.created_at.desc()).limit(500).all()
+    blocked = (
+        db.query(TradeAttempt)
+        .filter(
+            TradeAttempt.status.in_(["BLOCKED", "REJECTED"]),
+            ~TradeAttempt.id.in_(existing_source_ids),
+        )
+        .order_by(TradeAttempt.created_at.desc())
+        .limit(500)
+        .all()
+    )
 
     ingested = 0
     for attempt in blocked:
@@ -120,15 +133,22 @@ def ingest_blocked_attempts(db: Session) -> int:
 
 def ingest_skipped_decisions(db: Session) -> int:
     existing_source_ids = set(
-        row[0] for row in db.query(BlockedSignalCounterfactual.source_id).filter(
-            BlockedSignalCounterfactual.source_table == "decision_log"
-        ).all()
+        row[0]
+        for row in db.query(BlockedSignalCounterfactual.source_id)
+        .filter(BlockedSignalCounterfactual.source_table == "decision_log")
+        .all()
     )
 
-    skipped = db.query(DecisionLog).filter(
-        DecisionLog.decision == "SKIP",
-        ~DecisionLog.id.in_(existing_source_ids),
-    ).order_by(DecisionLog.created_at.desc()).limit(500).all()
+    skipped = (
+        db.query(DecisionLog)
+        .filter(
+            DecisionLog.decision == "SKIP",
+            ~DecisionLog.id.in_(existing_source_ids),
+        )
+        .order_by(DecisionLog.created_at.desc())
+        .limit(500)
+        .all()
+    )
 
     ingested = 0
     for dl in skipped:
@@ -176,28 +196,48 @@ def ingest_skipped_decisions(db: Session) -> int:
     return ingested
 
 
-async def _resolve_from_market_outcome(db: Session, market_ticker: str) -> Optional[tuple[str, float]]:
-    outcome = db.query(MarketOutcome).filter(
-        MarketOutcome.market_ticker == market_ticker
-    ).order_by(MarketOutcome.resolved_at.desc()).first()
+async def _resolve_from_market_outcome(
+    db: Session, market_ticker: str
+) -> Optional[tuple[str, float]]:
+    outcome = (
+        db.query(MarketOutcome)
+        .filter(MarketOutcome.market_ticker == market_ticker)
+        .order_by(MarketOutcome.resolved_at.desc())
+        .first()
+    )
 
     if outcome and outcome.outcome:
         outcome_str = outcome.outcome.lower().strip()
-        final_price = outcome.final_price if outcome.final_price is not None else (1.0 if outcome_str in ("up", "yes") else 0.0)
+        final_price = (
+            outcome.final_price
+            if outcome.final_price is not None
+            else (1.0 if outcome_str in ("up", "yes") else 0.0)
+        )
         actual_dir = "up" if final_price >= 0.5 else "down"
         return actual_dir, final_price
     return None
 
 
-async def _resolve_from_signal_calibration(db: Session, market_ticker: str) -> Optional[tuple[str, float]]:
-    signal = db.query(Signal).filter(
-        Signal.market_ticker == market_ticker,
-        Signal.actual_outcome.isnot(None),
-    ).order_by(Signal.settled_at.desc()).first()
+async def _resolve_from_signal_calibration(
+    db: Session, market_ticker: str
+) -> Optional[tuple[str, float]]:
+    signal = (
+        db.query(Signal)
+        .filter(
+            Signal.market_ticker == market_ticker,
+            Signal.actual_outcome.isnot(None),
+        )
+        .order_by(Signal.settled_at.desc())
+        .first()
+    )
 
     if signal and signal.actual_outcome:
         actual_dir = _normalize_direction(signal.actual_outcome)
-        sv = signal.settlement_value if signal.settlement_value is not None else (1.0 if actual_dir == "up" else 0.0)
+        sv = (
+            signal.settlement_value
+            if signal.settlement_value is not None
+            else (1.0 if actual_dir == "up" else 0.0)
+        )
         return actual_dir, sv
     return None
 
@@ -208,10 +248,16 @@ async def _resolve_from_gamma_api(market_ticker: str) -> Optional[tuple[str, flo
 
     search_params = []
     if is_condition_id:
-        search_params.append({"condition_id": market_ticker, "closed": "true", "limit": 1})
+        search_params.append(
+            {"condition_id": market_ticker, "closed": "true", "limit": 1}
+        )
     elif is_token_id:
-        search_params.append({"clob_token_ids": market_ticker, "closed": "true", "limit": 1})
-        search_params.append({"clob_token_ids": market_ticker, "closed": "false", "limit": 1})
+        search_params.append(
+            {"clob_token_ids": market_ticker, "closed": "true", "limit": 1}
+        )
+        search_params.append(
+            {"clob_token_ids": market_ticker, "closed": "false", "limit": 1}
+        )
     else:
         search_params.append({"slug": market_ticker, "limit": 1})
         search_params.append({"id": market_ticker, "limit": 1})
@@ -249,10 +295,16 @@ async def _resolve_from_gamma_api(market_ticker: str) -> Optional[tuple[str, flo
 
 
 async def score_unresolved(db: Session) -> dict:
-    unscored = db.query(BlockedSignalCounterfactual).filter(
-        BlockedSignalCounterfactual.scored.is_(False),
-        BlockedSignalCounterfactual.direction.isnot(None),
-    ).order_by(BlockedSignalCounterfactual.signal_blocked_at.desc()).limit(500).all()
+    unscored = (
+        db.query(BlockedSignalCounterfactual)
+        .filter(
+            BlockedSignalCounterfactual.scored.is_(False),
+            BlockedSignalCounterfactual.direction.isnot(None),
+        )
+        .order_by(BlockedSignalCounterfactual.signal_blocked_at.desc())
+        .limit(500)
+        .all()
+    )
 
     if not unscored:
         return {"scored": 0, "won": 0, "lost": 0, "no_resolution": 0}
@@ -290,7 +342,9 @@ async def score_unresolved(db: Session) -> dict:
         actual_dir, settlement_value = result
         row.actual_outcome = actual_dir
         row.settlement_value = settlement_value
-        row.would_have_won = _direction_won(row.direction or "unknown", settlement_value)
+        row.would_have_won = _direction_won(
+            row.direction or "unknown", settlement_value
+        )
         if not row.resolution_source:
             row.resolution_source = "market_outcome"
         row.resolved_at = datetime.now(timezone.utc)
@@ -313,13 +367,22 @@ async def score_unresolved(db: Session) -> dict:
         scored_count += 1
 
     db.flush()
-    return {"scored": scored_count, "won": won_count, "lost": lost_count, "no_resolution": no_resolution}
+    return {
+        "scored": scored_count,
+        "won": won_count,
+        "lost": lost_count,
+        "no_resolution": no_resolution,
+    }
 
 
 def compute_insights(db: Session) -> dict:
-    scored = db.query(BlockedSignalCounterfactual).filter(
-        BlockedSignalCounterfactual.scored.is_(True),
-    ).all()
+    scored = (
+        db.query(BlockedSignalCounterfactual)
+        .filter(
+            BlockedSignalCounterfactual.scored.is_(True),
+        )
+        .all()
+    )
 
     if not scored:
         return {"insights": 0}
@@ -393,42 +456,54 @@ def _get_dimensions(row: BlockedSignalCounterfactual) -> list[tuple[str, str]]:
 
 
 def get_risk_calibration_recommendations(db: Session) -> list[dict]:
-    insights = db.query(CounterfactualInsight).filter(
-        CounterfactualInsight.dimension.in_(["strategy", "block_reason"]),
-        CounterfactualInsight.total_blocked >= 10,
-    ).all()
+    insights = (
+        db.query(CounterfactualInsight)
+        .filter(
+            CounterfactualInsight.dimension.in_(["strategy", "block_reason"]),
+            CounterfactualInsight.total_blocked >= 10,
+        )
+        .all()
+    )
 
     recommendations = []
     for ins in insights:
         if ins.counterfactual_wr > 0.55 and ins.lost_profit > 0:
-            recommendations.append({
-                "dimension": ins.dimension,
-                "value": ins.dimension_value,
-                "counterfactual_wr": round(ins.counterfactual_wr, 3),
-                "lost_profit": ins.lost_profit,
-                "total_blocked": ins.total_blocked,
-                "recommendation": f"{ins.dimension_value} blocked signals win {ins.counterfactual_wr:.0%} "
-                                    f"— ${ins.lost_profit:.2f} in missed profit. Consider loosening this gate.",
-            })
+            recommendations.append(
+                {
+                    "dimension": ins.dimension,
+                    "value": ins.dimension_value,
+                    "counterfactual_wr": round(ins.counterfactual_wr, 3),
+                    "lost_profit": ins.lost_profit,
+                    "total_blocked": ins.total_blocked,
+                    "recommendation": f"{ins.dimension_value} blocked signals win {ins.counterfactual_wr:.0%} "
+                    f"— ${ins.lost_profit:.2f} in missed profit. Consider loosening this gate.",
+                }
+            )
         elif ins.counterfactual_wr < 0.35:
-            recommendations.append({
-                "dimension": ins.dimension,
-                "value": ins.dimension_value,
-                "counterfactual_wr": round(ins.counterfactual_wr, 3),
-                "hypothetical_pnl": ins.hypothetical_total_pnl,
-                "total_blocked": ins.total_blocked,
-                "recommendation": f"{ins.dimension_value} blocked signals lose {1 - ins.counterfactual_wr:.0%} "
-                                    f"— gate is correctly filtering. Keep as is.",
-            })
+            recommendations.append(
+                {
+                    "dimension": ins.dimension,
+                    "value": ins.dimension_value,
+                    "counterfactual_wr": round(ins.counterfactual_wr, 3),
+                    "hypothetical_pnl": ins.hypothetical_total_pnl,
+                    "total_blocked": ins.total_blocked,
+                    "recommendation": f"{ins.dimension_value} blocked signals lose {1 - ins.counterfactual_wr:.0%} "
+                    f"— gate is correctly filtering. Keep as is.",
+                }
+            )
 
     return recommendations
 
 
 def get_strategy_counterfactual_stats(db: Session, strategy: str) -> dict:
-    rows = db.query(BlockedSignalCounterfactual).filter(
-        BlockedSignalCounterfactual.strategy == strategy,
-        BlockedSignalCounterfactual.scored.is_(True),
-    ).all()
+    rows = (
+        db.query(BlockedSignalCounterfactual)
+        .filter(
+            BlockedSignalCounterfactual.strategy == strategy,
+            BlockedSignalCounterfactual.scored.is_(True),
+        )
+        .all()
+    )
 
     if not rows:
         return {"strategy": strategy, "total_scored": 0}
@@ -455,7 +530,10 @@ def get_strategy_counterfactual_stats(db: Session, strategy: str) -> dict:
         "counterfactual_wr": round(wins / total, 3) if total > 0 else 0.0,
         "hypothetical_total_pnl": round(hyp_pnl, 2),
         "lost_profit_from_blocking": round(lost, 2),
-        "by_block_reason": {k: {**v, "wr": round(v["wins"] / v["total"], 3) if v["total"] > 0 else 0.0} for k, v in by_reason.items()},
+        "by_block_reason": {
+            k: {**v, "wr": round(v["wins"] / v["total"], 3) if v["total"] > 0 else 0.0}
+            for k, v in by_reason.items()
+        },
     }
 
 
@@ -473,12 +551,20 @@ async def run_counterfactual_cycle(db: Optional[Session] = None) -> dict:
         insights = compute_insights(db)
         db.commit()
 
-        total_unscored = db.query(BlockedSignalCounterfactual).filter(
-            BlockedSignalCounterfactual.scored.is_(False),
-        ).count()
-        total_scored = db.query(BlockedSignalCounterfactual).filter(
-            BlockedSignalCounterfactual.scored.is_(True),
-        ).count()
+        total_unscored = (
+            db.query(BlockedSignalCounterfactual)
+            .filter(
+                BlockedSignalCounterfactual.scored.is_(False),
+            )
+            .count()
+        )
+        total_scored = (
+            db.query(BlockedSignalCounterfactual)
+            .filter(
+                BlockedSignalCounterfactual.scored.is_(True),
+            )
+            .count()
+        )
 
         logger.info(
             f"Counterfactual cycle: ingested={ingested_attempts + ingested_decisions} "

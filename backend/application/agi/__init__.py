@@ -9,7 +9,14 @@ __all__ = [
     "detect_regime_and_rebalance",
 ]
 
-from backend.application.agi.performance_attributor import attribute_trade_to_chromosomes
+from backend.application.agi.performance_attributor import (
+    attribute_trade_to_chromosomes,
+)
 from backend.application.agi.forensics_feedback import ForensicsFeedbackApplicator
-from backend.application.agi.necromancer import run_necromancy_analysis, NecromancyReport
-from backend.application.agi.regime_population_manager import detect_regime_and_rebalance
+from backend.application.agi.necromancer import (
+    run_necromancy_analysis,
+    NecromancyReport,
+)
+from backend.application.agi.regime_population_manager import (
+    detect_regime_and_rebalance,
+)

@@ -1,4 +1,5 @@
 """Strategy attribution: per-strategy P&L breakdown and metrics computation."""
+
 import math
 from dataclasses import dataclass
 from datetime import datetime
@@ -6,6 +7,8 @@ from datetime import datetime
 from backend.core.portfolio_optimizer import StrategyMetrics
 
 from loguru import logger
+
+
 @dataclass
 class StrategyAttribution:
     strategy: str
@@ -27,7 +30,8 @@ def compute_attribution(
     total_pnl is 0 each strategy gets 0%.
     """
     in_period = [
-        t for t in trades
+        t
+        for t in trades
         if getattr(t, "settled", False)
         and t.timestamp is not None
         and period_start <= t.timestamp <= period_end
@@ -39,17 +43,13 @@ def compute_attribution(
         key = getattr(t, "strategy", None) or "unknown"
         groups.setdefault(key, []).append(t)
 
-    total_pnl = sum(
-        (getattr(t, "pnl", None) or 0.0) for t in in_period
-    )
+    total_pnl = sum((getattr(t, "pnl", None) or 0.0) for t in in_period)
 
     attributions: list[StrategyAttribution] = []
     for strategy, strat_trades in groups.items():
         pnl = sum((getattr(t, "pnl", None) or 0.0) for t in strat_trades)
         trade_count = len(strat_trades)
-        wins = sum(
-            1 for t in strat_trades if getattr(t, "result", None) == "win"
-        )
+        wins = sum(1 for t in strat_trades if getattr(t, "result", None) == "win")
         win_rate = wins / trade_count if trade_count > 0 else 0.0
         contribution_pct = (pnl / total_pnl * 100.0) if total_pnl != 0 else 0.0
 
@@ -81,7 +81,8 @@ def compute_strategy_metrics(trades: list, strategy_name: str) -> StrategyMetric
     Only settled trades belonging to strategy_name are used.
     """
     strat_trades = [
-        t for t in trades
+        t
+        for t in trades
         if getattr(t, "settled", False)
         and (getattr(t, "strategy", None) or "unknown") == strategy_name
     ]

@@ -1,4 +1,5 @@
 """Custom / OmniRoute AI provider using OpenAI-compatible chat completions API."""
+
 import time
 import re
 import json
@@ -32,7 +33,9 @@ class CustomAIClient(BaseAIClient):
             try:
                 from openai import OpenAI
             except ImportError:
-                raise ImportError("openai package not installed. Run: pip install openai")
+                raise ImportError(
+                    "openai package not installed. Run: pip install openai"
+                )
             kwargs: Dict[str, Any] = {}
             if self.api_key:
                 kwargs["api_key"] = self.api_key
@@ -44,7 +47,9 @@ class CustomAIClient(BaseAIClient):
             self._client = OpenAI(**kwargs)
         return self._client
 
-    def _chat(self, prompt: str, max_tokens: int = 400, temperature: float = 0.2) -> tuple[str, float, int]:
+    def _chat(
+        self, prompt: str, max_tokens: int = 400, temperature: float = 0.2
+    ) -> tuple[str, float, int]:
         """Single chat completion. Returns (content, latency_ms, tokens_used)."""
         start = time.time()
         client = self._get_client()
@@ -59,7 +64,9 @@ class CustomAIClient(BaseAIClient):
         tokens = response.usage.total_tokens if response.usage else 0
         return content.strip(), latency_ms, tokens
 
-    async def classify_market(self, title: str, description: str = "") -> tuple[str, float]:
+    async def classify_market(
+        self, title: str, description: str = ""
+    ) -> tuple[str, float]:
         try:
             prompt = create_classification_prompt(title, description)
             result, _, _ = self._chat(prompt, max_tokens=20, temperature=0.1)
@@ -96,7 +103,9 @@ class CustomAIClient(BaseAIClient):
                 f"Direction: {signal_data.get('direction', 'Unknown')}\n\n"
                 f"Is this edge reliable?"
             )
-            result, latency_ms, tokens = self._chat(prompt, max_tokens=100, temperature=0.3)
+            result, latency_ms, tokens = self._chat(
+                prompt, max_tokens=100, temperature=0.3
+            )
             confidence = 0.6
             if "reliable" in result.lower() or "strong" in result.lower():
                 confidence = 0.75
@@ -127,7 +136,7 @@ class CustomAIClient(BaseAIClient):
     def suggest_params(self, prompt: str) -> tuple[Dict[str, Any], str]:
         """Call provider for parameter suggestions. Returns (suggestions_dict, raw_response)."""
         raw, _, _ = self._chat(prompt, max_tokens=400, temperature=0.2)
-        json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+        json_match = re.search(r"\{.*\}", raw, re.DOTALL)
         if json_match:
             suggestions = json.loads(json_match.group())
         else:
@@ -138,6 +147,7 @@ class CustomAIClient(BaseAIClient):
 def get_custom_client() -> Optional[CustomAIClient]:
     """Build a CustomAIClient from current settings, or return None if not configured."""
     from backend.config import settings
+
     provider = getattr(settings, "AI_PROVIDER", "groq")
     if provider not in ("omniroute", "custom"):
         return None

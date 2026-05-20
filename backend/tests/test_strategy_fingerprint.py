@@ -6,9 +6,19 @@ import time
 from backend.strategies.fingerprint import strategy_fingerprint
 
 
-def _make_positions(n, *, title="BTC up or down 5m", outcome="YES",
-                    avg_price=0.55, size=10.0, pnl=5.0,
-                    start_ts=None, gap_seconds=300, slug="", event_slug=""):
+def _make_positions(
+    n,
+    *,
+    title="BTC up or down 5m",
+    outcome="YES",
+    avg_price=0.55,
+    size=10.0,
+    pnl=5.0,
+    start_ts=None,
+    gap_seconds=300,
+    slug="",
+    event_slug="",
+):
     """Generate n position dicts with controllable parameters."""
     base_ts = start_ts or time.time() - n * gap_seconds
     return [
@@ -84,16 +94,18 @@ class TestHighConfidence:
         positions = []
         base = time.time() - 200 * 600
         for i, p in enumerate(pnls):
-            positions.append({
-                "title": "BTC up or down 5m",
-                "outcome": "YES",
-                "avgPrice": 0.55,
-                "totalBought": 10.0,
-                "realizedPnl": p,
-                "timestamp": base + i * 600,
-                "slug": "btc-5m",
-                "eventSlug": "btc-event",
-            })
+            positions.append(
+                {
+                    "title": "BTC up or down 5m",
+                    "outcome": "YES",
+                    "avgPrice": 0.55,
+                    "totalBought": 10.0,
+                    "realizedPnl": p,
+                    "timestamp": base + i * 600,
+                    "slug": "btc-5m",
+                    "eventSlug": "btc-event",
+                }
+            )
         fp = strategy_fingerprint(positions)
         assert fp.confidence > 0.8
 
@@ -140,16 +152,18 @@ class TestLuckyTradeFlag:
     def test_lucky_trade_red_flag(self):
         positions = _make_positions(30, pnl=2.0)
         # Add one dominant winning trade
-        positions.append({
-            "title": "BTC up or down 5m",
-            "outcome": "YES",
-            "avgPrice": 0.55,
-            "totalBought": 500.0,
-            "realizedPnl": 600.0,
-            "timestamp": time.time(),
-            "slug": "btc-5m",
-            "eventSlug": "btc-event",
-        })
+        positions.append(
+            {
+                "title": "BTC up or down 5m",
+                "outcome": "YES",
+                "avgPrice": 0.55,
+                "totalBought": 500.0,
+                "realizedPnl": 600.0,
+                "timestamp": time.time(),
+                "slug": "btc-5m",
+                "eventSlug": "btc-event",
+            }
+        )
         fp = strategy_fingerprint(positions)
         assert "lucky trade" in fp.red_flags
 
@@ -163,16 +177,18 @@ class TestGreenFlags:
         positions = []
         base = time.time() - 500 * 600
         for i, p in enumerate(pnls):
-            positions.append({
-                "title": "BTC up or down 5m",
-                "outcome": "YES",
-                "avgPrice": 0.55,
-                "totalBought": 10.0,
-                "realizedPnl": p,
-                "timestamp": base + i * 600,
-                "slug": "btc-5m",
-                "eventSlug": "btc-event",
-            })
+            positions.append(
+                {
+                    "title": "BTC up or down 5m",
+                    "outcome": "YES",
+                    "avgPrice": 0.55,
+                    "totalBought": 10.0,
+                    "realizedPnl": p,
+                    "timestamp": base + i * 600,
+                    "slug": "btc-5m",
+                    "eventSlug": "btc-event",
+                }
+            )
         fp = strategy_fingerprint(positions)
         assert "large sample" in fp.green_flags
         assert "consistent win rate" in fp.green_flags

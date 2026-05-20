@@ -90,7 +90,11 @@ class TestNotificationRegistry:
         asyncio.run(registry.broadcast("test_event", "test message", {"key": "value"}))
 
         assert len(mock_provider.sent_messages) == 1
-        assert mock_provider.sent_messages[0] == ("test message", "test_event", {"key": "value"})
+        assert mock_provider.sent_messages[0] == (
+            "test message",
+            "test_event",
+            {"key": "value"},
+        )
 
     def test_send_to_specific_provider_success(self):
         registry.register(MockProvider)

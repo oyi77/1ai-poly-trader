@@ -35,10 +35,30 @@ class TestProfileDefinitions:
         aggressive = PRESETS["aggressive"]
         extreme = PRESETS["extreme"]
 
-        assert safe.kelly_fraction < normal.kelly_fraction < aggressive.kelly_fraction < extreme.kelly_fraction
-        assert safe.max_trade_size < normal.max_trade_size < aggressive.max_trade_size < extreme.max_trade_size
-        assert safe.max_position_fraction < normal.max_position_fraction < aggressive.max_position_fraction < extreme.max_position_fraction
-        assert safe.daily_drawdown_limit_pct < normal.daily_drawdown_limit_pct < aggressive.daily_drawdown_limit_pct < extreme.daily_drawdown_limit_pct
+        assert (
+            safe.kelly_fraction
+            < normal.kelly_fraction
+            < aggressive.kelly_fraction
+            < extreme.kelly_fraction
+        )
+        assert (
+            safe.max_trade_size
+            < normal.max_trade_size
+            < aggressive.max_trade_size
+            < extreme.max_trade_size
+        )
+        assert (
+            safe.max_position_fraction
+            < normal.max_position_fraction
+            < aggressive.max_position_fraction
+            < extreme.max_position_fraction
+        )
+        assert (
+            safe.daily_drawdown_limit_pct
+            < normal.daily_drawdown_limit_pct
+            < aggressive.daily_drawdown_limit_pct
+            < extreme.daily_drawdown_limit_pct
+        )
 
     def test_normal_has_expected_values(self):
         normal = PRESETS["normal"]
@@ -75,9 +95,10 @@ class TestGetProfile:
         db.execute(text("DROP TABLE risk_profiles"))
         db.commit()
 
-        with patch("backend.core.risk_profiles.logger.warning") as warning_mock, patch(
-            "backend.core.risk_profiles.logger.exception"
-        ) as exception_mock:
+        with (
+            patch("backend.core.risk_profiles.logger.warning") as warning_mock,
+            patch("backend.core.risk_profiles.logger.exception") as exception_mock,
+        ):
             profile = get_profile("safe", db=db)
 
         assert profile.name == "safe"
@@ -89,13 +110,17 @@ class TestGetProfile:
 class TestApplyProfile:
     def test_apply_safe(self):
         from backend.config import settings
+
         original_kelly = settings.KELLY_FRACTION
 
         profile = apply_profile("safe")
         assert profile.name == "safe"
         assert settings.KELLY_FRACTION == PRESETS["safe"].kelly_fraction
         assert settings.MAX_POSITION_FRACTION == PRESETS["safe"].max_position_fraction
-        assert settings.DAILY_DRAWDOWN_LIMIT_PCT == PRESETS["safe"].daily_drawdown_limit_pct
+        assert (
+            settings.DAILY_DRAWDOWN_LIMIT_PCT
+            == PRESETS["safe"].daily_drawdown_limit_pct
+        )
 
         settings.KELLY_FRACTION = original_kelly
 
@@ -127,11 +152,17 @@ class TestDBBackedProfiles:
     def test_create_custom_profile(self, db):
         seed_presets(db=db)
         custom = RiskProfile(
-            name="custom1", display_name="Custom 1",
-            kelly_fraction=0.4, min_edge_threshold=0.2, max_trade_size=15.0,
-            max_position_fraction=0.12, max_total_exposure_fraction=0.8,
-            daily_loss_limit=10.0, daily_drawdown_limit_pct=0.15,
-            weekly_drawdown_limit_pct=0.25, slippage_tolerance=0.025,
+            name="custom1",
+            display_name="Custom 1",
+            kelly_fraction=0.4,
+            min_edge_threshold=0.2,
+            max_trade_size=15.0,
+            max_position_fraction=0.12,
+            max_total_exposure_fraction=0.8,
+            daily_loss_limit=10.0,
+            daily_drawdown_limit_pct=0.15,
+            weekly_drawdown_limit_pct=0.25,
+            slippage_tolerance=0.025,
             auto_approve_min_confidence=0.4,
         )
         result = create_profile(custom, db=db)
@@ -142,18 +173,26 @@ class TestDBBackedProfiles:
 
     def test_update_profile(self, db):
         seed_presets(db=db)
-        updated = update_profile("safe", {"kelly_fraction": 0.15, "max_trade_size": 5.0}, db=db)
+        updated = update_profile(
+            "safe", {"kelly_fraction": 0.15, "max_trade_size": 5.0}, db=db
+        )
         assert updated.kelly_fraction == 0.15
         assert updated.max_trade_size == 5.0
 
     def test_delete_custom_profile(self, db):
         seed_presets(db=db)
         custom = RiskProfile(
-            name="temp_profile", display_name="Temp",
-            kelly_fraction=0.3, min_edge_threshold=0.3, max_trade_size=8.0,
-            max_position_fraction=0.08, max_total_exposure_fraction=0.7,
-            daily_loss_limit=5.0, daily_drawdown_limit_pct=0.1,
-            weekly_drawdown_limit_pct=0.2, slippage_tolerance=0.02,
+            name="temp_profile",
+            display_name="Temp",
+            kelly_fraction=0.3,
+            min_edge_threshold=0.3,
+            max_trade_size=8.0,
+            max_position_fraction=0.08,
+            max_total_exposure_fraction=0.7,
+            daily_loss_limit=5.0,
+            daily_drawdown_limit_pct=0.1,
+            weekly_drawdown_limit_pct=0.2,
+            slippage_tolerance=0.02,
             auto_approve_min_confidence=0.5,
         )
         create_profile(custom, db=db)
@@ -169,13 +208,16 @@ class TestDBBackedProfiles:
         assert "safe" in all_profiles
         assert "normal" in all_profiles
 
-    def test_list_profiles_missing_table_returns_presets_without_exception_log(self, db):
+    def test_list_profiles_missing_table_returns_presets_without_exception_log(
+        self, db
+    ):
         db.execute(text("DROP TABLE risk_profiles"))
         db.commit()
 
-        with patch("backend.core.risk_profiles.logger.warning") as warning_mock, patch(
-            "backend.core.risk_profiles.logger.exception"
-        ) as exception_mock:
+        with (
+            patch("backend.core.risk_profiles.logger.warning") as warning_mock,
+            patch("backend.core.risk_profiles.logger.exception") as exception_mock,
+        ):
             all_profiles = list_profiles(db=db)
 
         assert set(PRESETS).issubset(all_profiles)

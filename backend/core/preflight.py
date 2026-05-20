@@ -1,11 +1,13 @@
 """
 Startup preflight checks: geoblock detection and API connectivity.
 """
+
 import httpx
 
 from backend.config import settings
 
 from loguru import logger
+
 CLOB_HOST = settings.CLOB_API_URL
 
 
@@ -45,8 +47,14 @@ async def run_preflight_checks() -> dict:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(url)
                 results[name] = {
-                    "status": "OK" if resp.status_code == 200 else f"HTTP {resp.status_code}",
-                    "latency_ms": round(resp.elapsed.total_seconds() * 1000) if resp.elapsed else 0,
+                    "status": (
+                        "OK" if resp.status_code == 200 else f"HTTP {resp.status_code}"
+                    ),
+                    "latency_ms": (
+                        round(resp.elapsed.total_seconds() * 1000)
+                        if resp.elapsed
+                        else 0
+                    ),
                 }
         except Exception as e:
             results[name] = {"status": f"FAILED: {e}", "latency_ms": None}

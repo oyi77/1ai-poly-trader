@@ -6,7 +6,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from backend.core.agi_types import MarketRegime
-from backend.models.kg_models import Base, KGEntity as KGEntityModel, KGRelation as KGRelationModel
+from backend.models.kg_models import (
+    Base,
+    KGEntity as KGEntityModel,
+    KGRelation as KGRelationModel,
+)
 
 
 class CausalExplanation:
@@ -35,7 +39,13 @@ class CausalExplanation:
 
 
 class Prediction:
-    def __init__(self, regime: MarketRegime, strategy: str, predicted_outcome: str, confidence: float):
+    def __init__(
+        self,
+        regime: MarketRegime,
+        strategy: str,
+        predicted_outcome: str,
+        confidence: float,
+    ):
         self.regime = regime
         self.strategy = strategy
         self.predicted_outcome = predicted_outcome
@@ -51,7 +61,9 @@ class Prediction:
 
 
 class CausalReasoner:
-    def __init__(self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"):
+    def __init__(
+        self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"
+    ):
         if session is not None:
             self._session = session
             self._owns_session = False
@@ -65,7 +77,9 @@ class CausalReasoner:
         if self._owns_session:
             self._session.close()
 
-    def why_did_trade_fail(self, trade: dict[str, Any], context: dict[str, Any]) -> CausalExplanation:
+    def why_did_trade_fail(
+        self, trade: dict[str, Any], context: dict[str, Any]
+    ) -> CausalExplanation:
         regime = context.get("regime", "unknown")
         strategy = trade.get("strategy", "unknown")
         direction = trade.get("direction", "unknown")
@@ -178,7 +192,10 @@ class CausalReasoner:
                         event=event_id,
                         cause=f"Related to {to_entity.entity_id} via {rel.relation_type}",
                         confidence=rel.confidence,
-                        evidence=[f"Relation: {rel.relation_type}", f"Weight: {rel.weight}"],
+                        evidence=[
+                            f"Relation: {rel.relation_type}",
+                            f"Weight: {rel.weight}",
+                        ],
                     )
                 )
         return explanations

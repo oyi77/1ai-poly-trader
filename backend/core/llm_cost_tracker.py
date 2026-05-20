@@ -1,4 +1,5 @@
 """LLM Cost Tracker — tracks LLM spending with hard caps per cycle."""
+
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -8,7 +9,6 @@ from backend.models.database import SessionLocal
 from backend.models.kg_models import LLMCostRecord as LLMCostRecordDB
 
 from loguru import logger
-
 
 DAILY_BUDGET_DEFAULT = 10.0
 COST_LIMITS = {
@@ -42,14 +42,19 @@ class BudgetStatus:
 
 class LLMCostTracker:
     """LLM cost tracking with daily budget enforcement."""
+
     def __init__(self, daily_budget: Optional[float] = None):
-        self.daily_budget = daily_budget or float(os.environ.get("LLM_DAILY_BUDGET", DAILY_BUDGET_DEFAULT))
+        self.daily_budget = daily_budget or float(
+            os.environ.get("LLM_DAILY_BUDGET", DAILY_BUDGET_DEFAULT)
+        )
         self.calls: list[LLMCostRecord] = []
         self._period_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
 
-    def record_call(self, model: str, token_count: int, cost_usd: float, purpose: str) -> None:
+    def record_call(
+        self, model: str, token_count: int, cost_usd: float, purpose: str
+    ) -> None:
         if not self.can_spend(cost_usd):
             raise BudgetExceededError(
                 f"Budget exceeded: ${cost_usd:.4f} would exceed daily limit of ${self.daily_budget:.2f}"
@@ -57,10 +62,15 @@ class LLMCostTracker:
         spent_after = self._spent_today() + cost_usd
         remaining = self.daily_budget - spent_after
         # Alert at 80% budget consumption
-        if spent_after >= self.daily_budget * 0.8 and self._spent_today() < self.daily_budget * 0.8:
+        if (
+            spent_after >= self.daily_budget * 0.8
+            and self._spent_today() < self.daily_budget * 0.8
+        ):
             logger.warning(
                 "[LLMCostTracker] 80% daily budget consumed: ${:.4f} / ${:.2f} ({:.0f}%)",
-                spent_after, self.daily_budget, (spent_after / self.daily_budget) * 100,
+                spent_after,
+                self.daily_budget,
+                (spent_after / self.daily_budget) * 100,
             )
         record = LLMCostRecord(
             timestamp=datetime.now(timezone.utc),
@@ -85,7 +95,9 @@ class LLMCostTracker:
             db.add(db_record)
             db.commit()
         except Exception:
-            logger.exception("[LLMCostTracker] Failed to persist cost record to database")
+            logger.exception(
+                "[LLMCostTracker] Failed to persist cost record to database"
+            )
         finally:
             db.close()
 
@@ -109,7 +121,8 @@ class LLMCostTracker:
     def get_cost_by_purpose(self, purpose: str, days: int = 1) -> float:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return sum(
-            r.cost_usd for r in self.calls
+            r.cost_usd
+            for r in self.calls
             if r.purpose == purpose and r.timestamp >= cutoff
         )
 

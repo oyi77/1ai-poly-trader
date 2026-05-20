@@ -147,7 +147,9 @@ async def test_routing_mirofish_enabled_success(mock_db, sample_mirofish_signals
         assert result.consensus_probability > 0.60
         assert "mirofish_model_a" in result.reasoning
         assert result.data_sources == ["mirofish"]
-        mock_client.fetch_signals.assert_called_once_with(market="polymarket", question="Test question", market_price=0.55)
+        mock_client.fetch_signals.assert_called_once_with(
+            market="polymarket", question="Test question", market_price=0.55
+        )
 
 
 @pytest.mark.asyncio
@@ -155,8 +157,10 @@ async def test_routing_mirofish_empty_signals_fallback(mock_db):
     setting = SystemSettings(key="mirofish_enabled", value=True)
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch("backend.ai.debate_router.run_debate") as mock_run_debate:
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch("backend.ai.debate_router.run_debate") as mock_run_debate,
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(return_value=[])
@@ -185,8 +189,10 @@ async def test_routing_mirofish_exception_fallback(mock_db):
     setting = SystemSettings(key="mirofish_enabled", value=True)
     mock_db.query.return_value.filter.return_value.first.return_value = setting
 
-    with patch("backend.ai.debate_router.MiroFishClient") as MockClient, \
-         patch("backend.ai.debate_router.run_debate") as mock_run_debate:
+    with (
+        patch("backend.ai.debate_router.MiroFishClient") as MockClient,
+        patch("backend.ai.debate_router.run_debate") as mock_run_debate,
+    ):
 
         mock_client = MockClient.return_value
         mock_client.fetch_signals = AsyncMock(side_effect=Exception("API timeout"))

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 @dataclass
 class CrossValidationFold:
     """Result of a single time-series fold."""
+
     fold_num: int
     start: datetime
     end: datetime
@@ -33,6 +34,7 @@ class CrossValidationFold:
 @dataclass
 class CrossValidationResult:
     """Aggregated cross-validation results for a strategy."""
+
     strategy: str
     n_folds: int = 0
     folds: list[CrossValidationFold] = field(default_factory=list)
@@ -105,8 +107,9 @@ class TimeSeriesCrossValidator:
 
             if len(outcomes) < self.min_trades_per_fold * self.n_folds:
                 logger.debug(
-                    "[CrossValidator] \'%s\' has %d trades, need %d - skipping",
-                    strategy, len(outcomes),
+                    "[CrossValidator] '%s' has %d trades, need %d - skipping",
+                    strategy,
+                    len(outcomes),
                     self.min_trades_per_fold * self.n_folds,
                 )
                 return result
@@ -116,7 +119,9 @@ class TimeSeriesCrossValidator:
 
             for i in range(self.n_folds):
                 start_idx = i * fold_size
-                end_idx = start_idx + fold_size if i < self.n_folds - 1 else len(outcomes)
+                end_idx = (
+                    start_idx + fold_size if i < self.n_folds - 1 else len(outcomes)
+                )
                 fold_outcomes = outcomes[start_idx:end_idx]
 
                 wins = sum(1 for o in fold_outcomes if o.result == "win")
@@ -126,8 +131,16 @@ class TimeSeriesCrossValidator:
 
                 fold = CrossValidationFold(
                     fold_num=i + 1,
-                    start=fold_outcomes[0].settled_at if fold_outcomes else datetime.now(timezone.utc),
-                    end=fold_outcomes[-1].settled_at if fold_outcomes else datetime.now(timezone.utc),
+                    start=(
+                        fold_outcomes[0].settled_at
+                        if fold_outcomes
+                        else datetime.now(timezone.utc)
+                    ),
+                    end=(
+                        fold_outcomes[-1].settled_at
+                        if fold_outcomes
+                        else datetime.now(timezone.utc)
+                    ),
                     trades=len(fold_outcomes),
                     wins=wins,
                     losses=losses,
@@ -139,13 +152,19 @@ class TimeSeriesCrossValidator:
 
             result.n_folds = len(result.folds)
             result.mean_win_rate = sum(wr_values) / len(wr_values) if wr_values else 0.0
-            result.mean_pnl = sum(f.pnl for f in result.folds) / len(result.folds) if result.folds else 0.0
+            result.mean_pnl = (
+                sum(f.pnl for f in result.folds) / len(result.folds)
+                if result.folds
+                else 0.0
+            )
             result.worst_fold_wr = min(wr_values) if wr_values else 0.0
             result.best_fold_wr = max(wr_values) if wr_values else 0.0
 
             if len(wr_values) > 1:
                 mean = result.mean_win_rate
-                variance = sum((w - mean) ** 2 for w in wr_values) / (len(wr_values) - 1)
+                variance = sum((w - mean) ** 2 for w in wr_values) / (
+                    len(wr_values) - 1
+                )
                 result.std_win_rate = math.sqrt(variance)
             else:
                 result.std_win_rate = 0.0
@@ -162,14 +181,20 @@ class TimeSeriesCrossValidator:
             )
 
             logger.info(
-                "[CrossValidator] \'%s\': %d folds, mean_wr=%.3f, std=%.3f, "
+                "[CrossValidator] '%s': %d folds, mean_wr=%.3f, std=%.3f, "
                 "consistency=%.3f, valid=%s",
-                strategy, result.n_folds, result.mean_win_rate,
-                result.std_win_rate, result.consistency_score, result.is_valid,
+                strategy,
+                result.n_folds,
+                result.mean_win_rate,
+                result.std_win_rate,
+                result.consistency_score,
+                result.is_valid,
             )
 
         except Exception as e:
-            logger.error("[CrossValidator] Failed for \'%s\': %s", strategy, e, exc_info=True)
+            logger.error(
+                "[CrossValidator] Failed for '%s': %s", strategy, e, exc_info=True
+            )
         finally:
             if _owned:
                 db.close()
@@ -189,20 +214,22 @@ class TimeSeriesCrossValidator:
 
         try:
             from backend.models.database import StrategyConfig
+
             active = (
-                db.query(StrategyConfig)
-                .filter(StrategyConfig.enabled.is_(True))
-                .all()
+                db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
             )
             for cfg in active:
                 cv_result = self.validate(
-                    cfg.strategy_name, db=db,
+                    cfg.strategy_name,
+                    db=db,
                     lookback_days=lookback_days,
                     trading_mode=trading_mode,
                 )
                 results.append(cv_result)
         except Exception as e:
-            logger.error("[CrossValidator] validate_all_active failed: %s", e, exc_info=True)
+            logger.error(
+                "[CrossValidator] validate_all_active failed: %s", e, exc_info=True
+            )
         finally:
             if _owned:
                 db.close()
@@ -212,4 +239,5 @@ class TimeSeriesCrossValidator:
 
 def _get_session():
     from backend.models.database import SessionLocal
+
     return SessionLocal()

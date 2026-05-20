@@ -1,4 +1,5 @@
 """Tests for MarketMakerStrategy."""
+
 import pytest
 from backend.strategies.market_maker import MarketMakerStrategy
 from backend.strategies.registry import STRATEGY_REGISTRY
@@ -47,5 +48,6 @@ def test_registered_in_strategy_registry():
     """MarketMakerStrategy must appear in STRATEGY_REGISTRY after import."""
     # Import triggers __init_subclass__ auto-registration
     import backend.strategies.market_maker  # noqa: F401
+
     assert "market_maker" in STRATEGY_REGISTRY
     assert STRATEGY_REGISTRY["market_maker"] is MarketMakerStrategy

@@ -1,10 +1,13 @@
 """Calibration tracker — validates that model predicted probabilities match actual outcomes."""
+
 from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from loguru import logger
+
+
 def get_price_bucket(probability: float, num_bins: int = 10) -> int:
     """Return bucket index (0-indexed) for a probability value."""
     return min(int(probability * num_bins), num_bins - 1)
@@ -108,7 +111,8 @@ class CalibrationTracker:
             bin_high = (i + 1) * bin_width
 
             in_bin = [
-                r for r in records
+                r
+                for r in records
                 if bin_low <= r.predicted_prob < bin_high
                 or (i == num_bins - 1 and r.predicted_prob == 1.0)
             ]
@@ -120,13 +124,15 @@ class CalibrationTracker:
             wins = sum(1 for r in in_bin if r.actual_outcome == "win")
             actual_win_rate = wins / len(in_bin)
 
-            bins.append({
-                "bin_low": round(bin_low, 2),
-                "bin_high": round(bin_high, 2),
-                "predicted_avg": round(predicted_avg, 4),
-                "actual_win_rate": round(actual_win_rate, 4),
-                "count": len(in_bin),
-            })
+            bins.append(
+                {
+                    "bin_low": round(bin_low, 2),
+                    "bin_high": round(bin_high, 2),
+                    "predicted_avg": round(predicted_avg, 4),
+                    "actual_win_rate": round(actual_win_rate, 4),
+                    "count": len(in_bin),
+                }
+            )
 
         return bins
 
@@ -207,16 +213,23 @@ def compute_price_bucket_calibration(
     from datetime import timedelta
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
-    trades = db.query(Trade).filter(
-        Trade.settled,
-        Trade.timestamp >= cutoff,
-    ).all()
+    trades = (
+        db.query(Trade)
+        .filter(
+            Trade.settled,
+            Trade.timestamp >= cutoff,
+        )
+        .all()
+    )
 
     buckets: dict = {}
     for bucket_start in range(0, 100, bucket_width):
         bucket_trades = [
-            t for t in trades
-            if bucket_start <= (getattr(t, "entry_price", 0.5) or 0.5) * 100 < bucket_start + bucket_width
+            t
+            for t in trades
+            if bucket_start
+            <= (getattr(t, "entry_price", 0.5) or 0.5) * 100
+            < bucket_start + bucket_width
         ]
         if not bucket_trades:
             continue
@@ -300,7 +313,8 @@ def get_bucket_calibration(
                 bin_high = (i + 1) * bin_width
 
                 in_bin = [
-                    r for r in records
+                    r
+                    for r in records
                     if bin_low <= r.predicted_prob < bin_high
                     or (i == num_bins - 1 and r.predicted_prob == 1.0)
                 ]
@@ -312,13 +326,15 @@ def get_bucket_calibration(
                 wins = sum(1 for r in in_bin if r.actual_outcome == "win")
                 actual_win_rate = wins / len(in_bin)
 
-                result.append({
-                    "bin_low": round(bin_low, 2),
-                    "bin_high": round(bin_high, 2),
-                    "predicted_avg": round(predicted_avg, 4),
-                    "actual_win_rate": round(actual_win_rate, 4),
-                    "count": len(in_bin),
-                })
+                result.append(
+                    {
+                        "bin_low": round(bin_low, 2),
+                        "bin_high": round(bin_high, 2),
+                        "predicted_avg": round(predicted_avg, 4),
+                        "actual_win_rate": round(actual_win_rate, 4),
+                        "count": len(in_bin),
+                    }
+                )
 
             return result
     except Exception as exc:

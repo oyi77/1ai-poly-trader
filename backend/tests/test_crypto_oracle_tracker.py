@@ -1,4 +1,5 @@
 """Tests for crypto oracle per-asset performance tracker."""
+
 import pytest
 from datetime import datetime, timezone
 
@@ -37,7 +38,9 @@ def test_get_asset_stats_respects_lookback(tracker):
     """get_asset_stats limits to lookback_trades."""
     now = datetime.now(timezone.utc)
     for i in range(30):
-        tracker.record_trade("solana", "up", 0.52, 0.50, now, "win" if i < 25 else "loss", 0.1)
+        tracker.record_trade(
+            "solana", "up", 0.52, 0.50, now, "win" if i < 25 else "loss", 0.1
+        )
 
     stats_limited = tracker.get_asset_stats("solana", lookback_trades=10)
     assert stats_limited.trade_count == 10
@@ -51,12 +54,18 @@ def test_get_time_stats(tracker):
     now = datetime.now(timezone.utc)
     # 3 wins at hour 17
     for _ in range(3):
-        tracker.record_trade("bitcoin", "up", 0.52, 0.50, now.replace(hour=17), "win", 0.5)
+        tracker.record_trade(
+            "bitcoin", "up", 0.52, 0.50, now.replace(hour=17), "win", 0.5
+        )
     # 1 loss at hour 17
-    tracker.record_trade("bitcoin", "up", 0.52, 0.50, now.replace(hour=17), "loss", -0.5)
+    tracker.record_trade(
+        "bitcoin", "up", 0.52, 0.50, now.replace(hour=17), "loss", -0.5
+    )
     # 2 wins at hour 3
     for _ in range(2):
-        tracker.record_trade("bitcoin", "up", 0.52, 0.50, now.replace(hour=3), "win", 0.5)
+        tracker.record_trade(
+            "bitcoin", "up", 0.52, 0.50, now.replace(hour=3), "win", 0.5
+        )
 
     time_stats = tracker.get_time_stats(lookback_hours=48)
     assert 17 in time_stats

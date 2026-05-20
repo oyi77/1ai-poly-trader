@@ -4,6 +4,7 @@ Decision logging helper for PolyEdge strategies.
 Every strategy must call record_decision() for EVERY BUY/SKIP/SELL/HOLD/ERROR
 evaluation — including skips. This creates the audit trail and ML training dataset.
 """
+
 import json
 import time
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from sqlalchemy.exc import OperationalError, PendingRollbackError
 from backend.models.database import DecisionLog
 
 from loguru import logger
+
 _DB_LOCKED_MAX_RETRIES = 3
 _DB_LOCKED_RETRY_DELAY = 0.5
 
@@ -80,10 +82,15 @@ def record_decision(
             try:
                 db.rollback()
             except Exception:
-                logger.error(f"record_decision: rollback also failed for {strategy}/{market_ticker}")
+                logger.error(
+                    f"record_decision: rollback also failed for {strategy}/{market_ticker}"
+                )
             return None
         except OperationalError as e:
-            if "database is locked" not in str(e).lower() or attempt >= _DB_LOCKED_MAX_RETRIES - 1:
+            if (
+                "database is locked" not in str(e).lower()
+                or attempt >= _DB_LOCKED_MAX_RETRIES - 1
+            ):
                 logger.warning(
                     f"record_decision: OperationalError for {strategy}/{market_ticker}, "
                     f"rolling back session: {e}"
@@ -91,7 +98,9 @@ def record_decision(
                 try:
                     db.rollback()
                 except Exception:
-                    logger.error(f"record_decision: rollback also failed for {strategy}/{market_ticker}")
+                    logger.error(
+                        f"record_decision: rollback also failed for {strategy}/{market_ticker}"
+                    )
                 return None
             logger.info(
                 f"record_decision: database locked for {strategy}/{market_ticker}, "
@@ -100,16 +109,18 @@ def record_decision(
             try:
                 db.rollback()
             except Exception:
-                logger.exception("record_decision: failed to rollback after OperationalError")
+                logger.exception(
+                    "record_decision: failed to rollback after OperationalError"
+                )
             time.sleep(_DB_LOCKED_RETRY_DELAY)
         except Exception as e:
-            logger.error(
-                f"record_decision failed for {strategy}/{market_ticker}: {e}"
-            )
+            logger.error(f"record_decision failed for {strategy}/{market_ticker}: {e}")
             try:
                 db.rollback()
             except Exception:
-                logger.exception("record_decision: rollback failed after unhandled exception")
+                logger.exception(
+                    "record_decision: rollback failed after unhandled exception"
+                )
             return None
     return None
 
@@ -139,7 +150,15 @@ def record_decision_standalone(
     for attempt in range(max_retries):
         try:
             with get_db_session() as db:
-                row = record_decision(db, strategy, market_ticker, decision, confidence, signal_data, reason)
+                row = record_decision(
+                    db,
+                    strategy,
+                    market_ticker,
+                    decision,
+                    confidence,
+                    signal_data,
+                    reason,
+                )
                 return row
         except OperationalError as e:
             logger.warning(
@@ -151,6 +170,8 @@ def record_decision_standalone(
                 continue
             return None
         except Exception as e:
-            logger.error(f"record_decision_standalone failed for {strategy}/{market_ticker}: {e}")
+            logger.error(
+                f"record_decision_standalone failed for {strategy}/{market_ticker}: {e}"
+            )
             return None
     return None

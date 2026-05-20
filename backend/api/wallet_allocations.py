@@ -9,6 +9,7 @@ from backend.api.auth import require_admin
 
 router = APIRouter(prefix="/wallet-allocations", tags=["wallet_allocations"])
 
+
 class TradingWalletCreate(BaseModel):
     label: str
     chain: str
@@ -19,6 +20,7 @@ class TradingWalletCreate(BaseModel):
     enabled: bool = True
     is_paper: bool = False
     notes: Optional[str] = None
+
 
 class TradingWalletUpdate(BaseModel):
     label: Optional[str] = None
@@ -31,6 +33,7 @@ class TradingWalletUpdate(BaseModel):
     is_paper: Optional[bool] = None
     notes: Optional[str] = None
 
+
 class WalletAllocationCreate(BaseModel):
     wallet_id: int
     strategy_name: str
@@ -38,10 +41,12 @@ class WalletAllocationCreate(BaseModel):
     max_exposure_usd: Optional[float] = None
     enabled: bool = True
 
+
 class WalletAllocationUpdate(BaseModel):
     weight: Optional[float] = None
     max_exposure_usd: Optional[float] = None
     enabled: Optional[bool] = None
+
 
 def _wallet_to_dict(w: TradingWallet) -> dict:
     return {
@@ -58,6 +63,7 @@ def _wallet_to_dict(w: TradingWallet) -> dict:
         "notes": w.notes,
     }
 
+
 def _alloc_to_dict(a: WalletAllocation) -> dict:
     return {
         "id": a.id,
@@ -69,13 +75,21 @@ def _alloc_to_dict(a: WalletAllocation) -> dict:
         "updated_at": a.updated_at.isoformat() if a.updated_at else None,
     }
 
+
 @router.get("/wallets")
-def list_trading_wallets(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def list_trading_wallets(
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     rows = db.query(TradingWallet).all()
     return {"items": [_wallet_to_dict(r) for r in rows]}
 
+
 @router.post("/wallets")
-def create_trading_wallet(body: TradingWalletCreate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def create_trading_wallet(
+    body: TradingWalletCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = TradingWallet(
         label=body.label,
         chain=body.chain,
@@ -92,8 +106,14 @@ def create_trading_wallet(body: TradingWalletCreate, db: Session = Depends(get_d
     db.refresh(row)
     return _wallet_to_dict(row)
 
+
 @router.put("/wallets/{wallet_id}")
-def update_trading_wallet(wallet_id: int, body: TradingWalletUpdate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def update_trading_wallet(
+    wallet_id: int,
+    body: TradingWalletUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = db.query(TradingWallet).filter_by(id=wallet_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Wallet not found")
@@ -121,8 +141,11 @@ def update_trading_wallet(wallet_id: int, body: TradingWalletUpdate, db: Session
     db.refresh(row)
     return _wallet_to_dict(row)
 
+
 @router.delete("/wallets/{wallet_id}")
-def delete_trading_wallet(wallet_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def delete_trading_wallet(
+    wallet_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     row = db.query(TradingWallet).filter_by(id=wallet_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Wallet not found")
@@ -130,13 +153,19 @@ def delete_trading_wallet(wallet_id: int, db: Session = Depends(get_db), _: None
     db.commit()
     return {"success": True}
 
+
 @router.get("/allocations")
 def list_allocations(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     rows = db.query(WalletAllocation).all()
     return {"items": [_alloc_to_dict(r) for r in rows]}
 
+
 @router.post("/allocations")
-def create_allocation(body: WalletAllocationCreate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def create_allocation(
+    body: WalletAllocationCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = WalletAllocation(
         wallet_id=body.wallet_id,
         strategy_name=body.strategy_name,
@@ -149,8 +178,14 @@ def create_allocation(body: WalletAllocationCreate, db: Session = Depends(get_db
     db.refresh(row)
     return _alloc_to_dict(row)
 
+
 @router.put("/allocations/{alloc_id}")
-def update_allocation(alloc_id: int, body: WalletAllocationUpdate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def update_allocation(
+    alloc_id: int,
+    body: WalletAllocationUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = db.query(WalletAllocation).filter_by(id=alloc_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Allocation not found")
@@ -166,8 +201,11 @@ def update_allocation(alloc_id: int, body: WalletAllocationUpdate, db: Session =
     db.refresh(row)
     return _alloc_to_dict(row)
 
+
 @router.delete("/allocations/{alloc_id}")
-def delete_allocation(alloc_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def delete_allocation(
+    alloc_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     row = db.query(WalletAllocation).filter_by(id=alloc_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Allocation not found")

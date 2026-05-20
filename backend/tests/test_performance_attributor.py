@@ -9,7 +9,7 @@ from backend.application.agi.performance_attributor import (
     evaluate_entry_exit_timing,
     evaluate_fill_quality,
     evaluate_sizing_optimality,
-    evaluate_regime_alignment
+    evaluate_regime_alignment,
 )
 
 
@@ -24,9 +24,9 @@ def create_test_genome():
             "cognition": {},
             "execution": {},
             "risk": {},
-            "meta": {}
+            "meta": {},
         },
-        fitness_metrics=FitnessMetrics(total_capital=10000.0)
+        fitness_metrics=FitnessMetrics(total_capital=10000.0),
     )
 
 
@@ -101,7 +101,7 @@ def test_attribute_trade_to_chromosomes():
     genome = create_test_genome()
     market_state = {"regime": "trending"}
 
-    with patch('backend.core.event_bus.publish_event') as mock_publish:
+    with patch("backend.core.event_bus.publish_event") as mock_publish:
         attribution = attribute_trade_to_chromosomes(trade, genome, market_state)
 
         # Check attribution scores
@@ -126,8 +126,13 @@ def test_chromosome_flagging():
     market_state = {"regime": "trending"}
 
     # Set up 5 consecutive low scores for perception
-    with patch('backend.application.agi.performance_attributor.evaluate_signal_quality', return_value=0.2):
-        with patch('backend.application.agi.performance_attributor.publish_event') as mock_publish:
+    with patch(
+        "backend.application.agi.performance_attributor.evaluate_signal_quality",
+        return_value=0.2,
+    ):
+        with patch(
+            "backend.application.agi.performance_attributor.publish_event"
+        ) as mock_publish:
             for _ in range(5):
                 attribute_trade_to_chromosomes(trade, genome, market_state)
 

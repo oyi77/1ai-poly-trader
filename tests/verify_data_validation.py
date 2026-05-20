@@ -6,10 +6,11 @@ from sqlalchemy.exc import IntegrityError
 from backend.models.database import SessionLocal, Trade
 from backend.core.validation import TradeValidator, SignalValidator, ValidationError
 
+
 def test_invalid_trade_insertion():
     print("Testing database constraints for invalid trade data...")
     db = SessionLocal()
-    
+
     try:
         print("\n1. Testing negative trade size (should fail)...")
         try:
@@ -31,7 +32,7 @@ def test_invalid_trade_insertion():
         except IntegrityError:
             db.rollback()
             print("   ✅ PASSED: Database rejected negative size")
-        
+
         print("\n2. Testing invalid price range (should fail)...")
         try:
             trade = Trade(
@@ -52,7 +53,7 @@ def test_invalid_trade_insertion():
         except IntegrityError:
             db.rollback()
             print("   ✅ PASSED: Database rejected invalid price")
-        
+
         print("\n3. Testing invalid confidence (should fail)...")
         try:
             trade = Trade(
@@ -74,7 +75,7 @@ def test_invalid_trade_insertion():
         except IntegrityError:
             db.rollback()
             print("   ✅ PASSED: Database rejected invalid confidence")
-        
+
         print("\n4. Testing valid trade (should succeed)...")
         try:
             trade = Trade(
@@ -98,7 +99,7 @@ def test_invalid_trade_insertion():
             db.rollback()
             print(f"   ❌ FAILED: Valid trade rejected: {e}")
             return False
-        
+
         print("\n5. Testing application-level validation...")
         try:
             invalid_data = {"size": -10.0, "entry_price": 1.5}
@@ -107,7 +108,7 @@ def test_invalid_trade_insertion():
             return False
         except ValidationError as e:
             print(f"   ✅ PASSED: Application validator rejected: {e.message}")
-        
+
         print("\n6. Testing signal validation...")
         try:
             invalid_signal = {"confidence": 2.0, "suggested_size": -5.0}
@@ -116,14 +117,15 @@ def test_invalid_trade_insertion():
             return False
         except ValidationError as e:
             print(f"   ✅ PASSED: Signal validator rejected: {e.message}")
-        
-        print("\n" + "="*60)
+
+        print("\n" + "=" * 60)
         print("✅ ALL VALIDATION TESTS PASSED")
-        print("="*60)
+        print("=" * 60)
         return True
-        
+
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     success = test_invalid_trade_insertion()

@@ -151,7 +151,12 @@ def test_multiple_trades_with_different_fees(test_db):
         test_db.add(trade)
     test_db.commit()
 
-    all_trades = test_db.query(Trade).filter(Trade.market_ticker.like("MARKET-%")).order_by(Trade.id).all()
+    all_trades = (
+        test_db.query(Trade)
+        .filter(Trade.market_ticker.like("MARKET-%"))
+        .order_by(Trade.id)
+        .all()
+    )
     assert len(all_trades) == 3
     assert abs(all_trades[0].fee - 0.2) < 1e-9
     assert abs(all_trades[1].fee - 0.4) < 1e-9

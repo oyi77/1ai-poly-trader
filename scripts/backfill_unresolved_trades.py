@@ -34,6 +34,7 @@ from loguru import logger
 
 # Suppress extra logs
 import logging
+
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 engine = create_engine(settings.DATABASE_URL)
@@ -45,9 +46,12 @@ CLOB_URL = settings.CLOB_API_URL
 WALLET_ADDR = settings.POLYMARKET_WALLET_ADDRESS
 
 
-async def resolve_via_gamma_slug(market_ticker: str) -> Tuple[bool, Optional[float], Optional[str], Optional[str]]:
+async def resolve_via_gamma_slug(
+    market_ticker: str,
+) -> Tuple[bool, Optional[float], Optional[str], Optional[str]]:
     """Try to find market resolution using slug."""
     import httpx
+
     async with httpx.AsyncClient(timeout=10) as c:
         # Try markets endpoint with slug
         for attempt in range(2):
@@ -60,7 +64,11 @@ async def resolve_via_gamma_slug(market_ticker: str) -> Tuple[bool, Optional[flo
                     condition_id = market.get("conditionId", "")
                     token_ids = market.get("clobTokenIds", [])
                     token_id = str(token_ids[0]) if token_ids else None
-                    if outcome_prices and isinstance(outcome_prices, list) and len(outcome_prices) >= 2:
+                    if (
+                        outcome_prices
+                        and isinstance(outcome_prices, list)
+                        and len(outcome_prices) >= 2
+                    ):
                         # If prices are [0, 1] or [1, 0], market resolved
                         p0, p1 = float(outcome_prices[0]), float(outcome_prices[1])
                         if p0 == 0.0 and p1 == 1.0:
@@ -76,11 +84,13 @@ async def resolve_via_gamma_slug(market_ticker: str) -> Tuple[bool, Optional[flo
                             return True, 0.0, condition_id, token_id
                     # Check if market is closed
                     if market.get("closed") and (p0 == 0.0 or p1 == 0.0):
-                        logger.info(f"  Gamma slug resolved closed: {market_ticker} prices={outcome_prices}")
+                        logger.info(
+                            f"  Gamma slug resolved closed: {market_ticker} prices={outcome_prices}"
+                        )
                         return True, p0, condition_id, token_id
             elif r.status_code == 404:
                 break
-        
+
         # Try events search
         # Extract event slug (remove last suffix)
         parts = market_ticker.rsplit("-", 1)
@@ -90,13 +100,18 @@ async def resolve_via_gamma_slug(market_ticker: str) -> Tuple[bool, Optional[flo
                 events = r2.json()
                 for ev in events if isinstance(events, list) else []:
                     for m in ev.get("markets", []):
-                        if m.get("slug") == market_ticker or m.get("id") == market_ticker:
+                        if (
+                            m.get("slug") == market_ticker
+                            or m.get("id") == market_ticker
+                        ):
                             outcome_prices = m.get("outcomePrices", [])
                             condition_id = m.get("conditionId", "")
                             token_ids = m.get("clobTokenIds", [])
                             token_id = str(token_ids[0]) if token_ids else None
                             if outcome_prices and isinstance(outcome_prices, list):
-                                p0, p1 = float(outcome_prices[0]), float(outcome_prices[1])
+                                p0, p1 = float(outcome_prices[0]), float(
+                                    outcome_prices[1]
+                                )
                                 if p0 == 0.0 and p1 == 1.0:
                                     return True, 1.0, condition_id, token_id
                                 elif p0 == 1.0 and p1 == 0.0:
@@ -107,13 +122,14 @@ async def resolve_via_gamma_slug(market_ticker: str) -> Tuple[bool, Optional[flo
                                     return True, 1.0, condition_id, token_id
                                 elif resolved.lower() == "no":
                                     return True, 0.0, condition_id, token_id
-    
+
     return False, None, None, None
 
 
 async def resolve_via_clob(market_ticker: str) -> Tuple[bool, Optional[float]]:
     """Check CLOB API for market resolution."""
     import httpx
+
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.get(f"{CLOB_URL}/markets", params={"slug": market_ticker})
         if r.status_code == 200:
@@ -153,7 +169,7 @@ def calculate_entry_win(entry_price: float, size: float, direction: str) -> floa
 async def backfill(dry_run: bool = True, limit: int = None):
     """Main backfill logic."""
     db = Session()
-    
+
     unresolved = db.execute(text("""
         SELECT id, market_ticker, direction, entry_price, size, 
                strategy, timestamp, event_slug, token_id, condition_id
@@ -161,107 +177,145 @@ async def backfill(dry_run: bool = True, limit: int = None):
         WHERE result = 'closed_unresolved' AND settled = true AND trading_mode = 'live'
         ORDER BY timestamp DESC
     """)).fetchall()
-    
+
     if limit:
         unresolved = unresolved[:limit]
-    
+
     print(f"\n{'='*60}")
     print(f"BACKFILL: {len(unresolved)} unresolved trades to process")
     print(f"MODE: {'DRY RUN' if dry_run else 'LIVE UPDATE'}")
     print(f"{'='*60}\n")
-    
+
     resolved_count = 0
     loss_count = 0
     win_count = 0
     total_loss = 0.0
     total_win = 0.0
     mark_not_found = 0
-    
-    from backend.core.settlement_helpers import fetch_polymarket_resolution, calculate_pnl
-    
+
+    from backend.core.settlement_helpers import (
+        fetch_polymarket_resolution,
+        calculate_pnl,
+    )
+
     for i, trade in enumerate(unresolved):
-        tid, ticker, direction, entry_price, size, strategy, ts, event_slug, token_id, condition_id = trade
-        
+        (
+            tid,
+            ticker,
+            direction,
+            entry_price,
+            size,
+            strategy,
+            ts,
+            event_slug,
+            token_id,
+            condition_id,
+        ) = trade
+
         progress = f"[{i+1}/{len(unresolved)}]"
-        
+
         # Skip if entry_price >= 1.0 (can't calculate)
         if entry_price and entry_price >= 1.0:
-            print(f"  {progress} #{tid} {ticker} ⏭️ entry_price={entry_price:.4f} >= 1.0, skip")
+            print(
+                f"  {progress} #{tid} {ticker} ⏭️ entry_price={entry_price:.4f} >= 1.0, skip"
+            )
             continue
-        
-        print(f"\n  {progress} #{tid} {ticker} {direction} @ {entry_price:.4f} size={size:.2f} cond={condition_id or '-'}")
-        
+
+        print(
+            f"\n  {progress} #{tid} {ticker} {direction} @ {entry_price:.4f} size={size:.2f} cond={condition_id or '-'}"
+        )
+
         # Strategy 1: Use condition_id if available
         resolved = False
         settlement_value = None
-        
+
         if condition_id:
             resolved, settlement_value = await fetch_polymarket_resolution(
                 ticker, event_slug=event_slug, condition_id=condition_id
             )
             if resolved:
                 print(f"    ✅ Resolved via condition_id: val={settlement_value}")
-        
+
         # Strategy 2: Gamma slug lookup
         if not resolved:
-            resolved, settlement_value, new_cond_id, new_token_id = await resolve_via_gamma_slug(ticker)
+            resolved, settlement_value, new_cond_id, new_token_id = (
+                await resolve_via_gamma_slug(ticker)
+            )
             if resolved:
                 print(f"    ✅ Resolved via Gamma slug: val={settlement_value}")
                 # Store the discovered ids for future use
                 if new_cond_id and not condition_id:
-                    db.execute(text("UPDATE trades SET condition_id=:cid WHERE id=:tid"), 
-                               {"cid": new_cond_id, "tid": tid})
+                    db.execute(
+                        text("UPDATE trades SET condition_id=:cid WHERE id=:tid"),
+                        {"cid": new_cond_id, "tid": tid},
+                    )
                     condition_id = new_cond_id
                 if new_token_id and not token_id:
-                    db.execute(text("UPDATE trades SET token_id=:tok WHERE id=:tid"),
-                               {"tok": new_token_id, "tid": tid})
+                    db.execute(
+                        text("UPDATE trades SET token_id=:tok WHERE id=:tid"),
+                        {"tok": new_token_id, "tid": tid},
+                    )
                     token_id = new_token_id
                 if not dry_run:
                     db.commit()
-        
+
         # Strategy 3: CLOB check
         if not resolved:
             resolved, _ = await resolve_via_clob(ticker)
             if resolved:
                 print(f"    ⚠️ CLOB says closed but no resolution data")
                 # Will mark as expired properly
-        
+
         # If resolved, calculate PnL and update
         if resolved and settlement_value is not None:
             pnl = calculate_pnl(
-                type('obj', (object,), {
-                    'direction': direction, 
-                    'entry_price': entry_price, 
-                    'size': size,
-                    'filled_size': None,
-                    'fill_price': None
-                })(),
-                settlement_value
+                type(
+                    "obj",
+                    (object,),
+                    {
+                        "direction": direction,
+                        "entry_price": entry_price,
+                        "size": size,
+                        "filled_size": None,
+                        "fill_price": None,
+                    },
+                )(),
+                settlement_value,
             )
-            
+
             # Determine win/loss
             dir_map = "yes" if direction in ("yes", "up") else "no"
-            is_win = (dir_map == "yes" and settlement_value == 1.0) or (dir_map == "no" and settlement_value == 0.0)
+            is_win = (dir_map == "yes" and settlement_value == 1.0) or (
+                dir_map == "no" and settlement_value == 0.0
+            )
             result_str = "win" if is_win else "loss"
-            
+
             if is_win:
                 win_count += 1
                 total_win += pnl
             else:
                 loss_count += 1
                 total_loss += pnl
-            
+
             if not dry_run:
-                db.execute(text("""
+                db.execute(
+                    text("""
                     UPDATE trades 
                     SET result = :result, pnl = :pnl, settlement_value = :sv,
                         settlement_source = 'backfill_script', 
                         settlement_time = NOW(),
                         updated_at = NOW()
                     WHERE id = :tid
-                """), {"result": result_str, "pnl": round(pnl, 2), "sv": settlement_value, "tid": tid})
+                """),
+                    {
+                        "result": result_str,
+                        "pnl": round(pnl, 2),
+                        "sv": settlement_value,
+                        "tid": tid,
+                    },
+                )
                 db.commit()
-            
+
             print(f"    {'🟢 WIN' if is_win else '🔴 LOSS'} PnL={pnl:+.2f}")
             resolved_count += 1
         else:
@@ -270,10 +324,13 @@ async def backfill(dry_run: bool = True, limit: int = None):
             # (market expired, position closed by exchange)
             est_loss = calculate_entry_loss(entry_price or 0.5, size, direction)
             mark_not_found += 1
-            print(f"    ❌ Market not found on Gamma/CLOB, estimated loss={est_loss:.2f}")
-            
+            print(
+                f"    ❌ Market not found on Gamma/CLOB, estimated loss={est_loss:.2f}"
+            )
+
             if not dry_run:
-                db.execute(text("""
+                db.execute(
+                    text("""
                     UPDATE trades 
                     SET result = 'expired_unresolved', pnl = :pnl,
                         settlement_value = 0.0,
@@ -281,9 +338,11 @@ async def backfill(dry_run: bool = True, limit: int = None):
                         settlement_time = NOW(),
                         updated_at = NOW()
                     WHERE id = :tid
-                """), {"pnl": round(est_loss, 2), "tid": tid})
+                """),
+                    {"pnl": round(est_loss, 2), "tid": tid},
+                )
                 db.commit()
-    
+
     print(f"\n{'='*60}")
     print(f"BACKFILL SUMMARY:")
     print(f"  Total processed: {len(unresolved)}")
@@ -294,16 +353,23 @@ async def backfill(dry_run: bool = True, limit: int = None):
     print(f"  Net PnL adjustment: ${total_win + total_loss:.2f}")
     print(f"  Dry run: {dry_run}")
     print(f"{'='*60}")
-    
+
     db.close()
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Dry run (no updates)")
-    parser.add_argument("--no-dry-run", action="store_false", dest="dry_run", help="Actually update DB")
-    parser.add_argument("--limit", type=int, default=None, help="Limit number of trades to process")
+    parser.add_argument(
+        "--dry-run", action="store_true", default=True, help="Dry run (no updates)"
+    )
+    parser.add_argument(
+        "--no-dry-run", action="store_false", dest="dry_run", help="Actually update DB"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Limit number of trades to process"
+    )
     args = parser.parse_args()
-    
+
     asyncio.run(backfill(dry_run=args.dry_run, limit=args.limit))

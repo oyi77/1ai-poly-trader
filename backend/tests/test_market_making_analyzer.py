@@ -1,4 +1,5 @@
 """Tests for Market Making Analyzer."""
+
 import pytest
 
 from backend.core.market_making_analyzer import (
@@ -90,12 +91,18 @@ class TestMarketMakingAnalyzer:
     def test_micro_price_within_spread(self):
         bids, asks = make_bids_asks()
         metrics = self.analyzer.analyze("m1", bids, asks)
-        assert metrics.spread.best_bid <= metrics.spread.micro_price <= metrics.spread.best_ask
+        assert (
+            metrics.spread.best_bid
+            <= metrics.spread.micro_price
+            <= metrics.spread.best_ask
+        )
 
 
 class TestDepthLevel:
     def test_fields(self):
-        dl = DepthLevel(price=0.5, size=100.0, cumulative_size=100.0, distance_from_mid_pct=2.0)
+        dl = DepthLevel(
+            price=0.5, size=100.0, cumulative_size=100.0, distance_from_mid_pct=2.0
+        )
         assert dl.price == 0.5
         assert dl.cumulative_size == 100.0
 
@@ -103,7 +110,12 @@ class TestDepthLevel:
 class TestSpreadAnalysis:
     def test_spread_pct(self):
         sa = SpreadAnalysis(
-            best_bid=0.48, best_ask=0.52, spread=0.04, spread_pct=0.08,
-            mid_price=0.5, micro_price=0.5, time_since_last_trade_s=0,
+            best_bid=0.48,
+            best_ask=0.52,
+            spread=0.04,
+            spread_pct=0.08,
+            mid_price=0.5,
+            micro_price=0.5,
+            time_since_last_trade_s=0,
         )
         assert sa.spread_pct == pytest.approx(0.08, abs=0.001)

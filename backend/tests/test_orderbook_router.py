@@ -5,7 +5,7 @@ from datetime import datetime
 
 from backend.infrastructure.market_stream.orderbook_router import (
     OrderbookRouter,
-    OrderbookUpdate
+    OrderbookUpdate,
 )
 from backend.data.polymarket_websocket import OrderbookSnapshot as WsOrderbookSnapshot
 from backend.config import settings
@@ -19,7 +19,7 @@ def sample_update():
         asks_yes=[{"price": "0.55", "size": "100"}],
         bids_no=[{"price": "0.50", "size": "100"}],
         asks_no=[{"price": "0.60", "size": "100"}],
-        timestamp=int(datetime.now().timestamp())
+        timestamp=int(datetime.now().timestamp()),
     )
 
 
@@ -62,7 +62,9 @@ async def test_subscribe_respects_limit(router: OrderbookRouter):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_loop_calls_handlers(router: OrderbookRouter, sample_update: OrderbookUpdate):
+async def test_dispatch_loop_calls_handlers(
+    router: OrderbookRouter, sample_update: OrderbookUpdate
+):
     """Test that dispatch loop calls registered handlers"""
     handler = AsyncMock()
 
@@ -79,13 +81,16 @@ async def test_dispatch_loop_calls_handlers(router: OrderbookRouter, sample_upda
 
 
 @pytest.mark.asyncio
-async def test_dispatch_loop_timeout(router: OrderbookRouter, sample_update: OrderbookUpdate):
+async def test_dispatch_loop_timeout(
+    router: OrderbookRouter, sample_update: OrderbookUpdate
+):
     """Test that dispatch loop enforces handler timeout"""
     # Set timeout to 50ms for testing
     original_timeout = settings.WS_HANDLER_TIMEOUT_MS
     settings.WS_HANDLER_TIMEOUT_MS = 50
 
     try:
+
         async def slow_handler(update):
             await asyncio.sleep(0.1)  # Longer than timeout
 
@@ -106,7 +111,9 @@ async def test_dispatch_loop_timeout(router: OrderbookRouter, sample_update: Ord
 
 
 @pytest.mark.asyncio
-async def test_on_orderbook_update_queues_update(router: OrderbookRouter, sample_update: OrderbookUpdate):
+async def test_on_orderbook_update_queues_update(
+    router: OrderbookRouter, sample_update: OrderbookUpdate
+):
     """Test that _on_orderbook_update puts updates into queue"""
     await router.start()
 
@@ -121,7 +128,9 @@ async def test_on_orderbook_update_queues_update(router: OrderbookRouter, sample
 
 
 @pytest.mark.asyncio
-async def test_on_orderbook_update_adapts_polymarket_ws_snapshot(router: OrderbookRouter):
+async def test_on_orderbook_update_adapts_polymarket_ws_snapshot(
+    router: OrderbookRouter,
+):
     """PolymarketWebSocket sends OrderbookSnapshot, not OrderbookUpdate."""
     snapshot = WsOrderbookSnapshot(
         asset_id="token_1",
@@ -156,7 +165,7 @@ async def test_queue_drops_oldest_when_full(router: OrderbookRouter):
             asks_yes=[],
             bids_no=[],
             asks_no=[],
-            timestamp=i
+            timestamp=i,
         )
         await router._queue.put(update)
 
@@ -170,7 +179,7 @@ async def test_queue_drops_oldest_when_full(router: OrderbookRouter):
         asks_yes=[],
         bids_no=[],
         asks_no=[],
-        timestamp=9999
+        timestamp=9999,
     )
     await router._on_orderbook_update(new_update)
 
@@ -179,7 +188,9 @@ async def test_queue_drops_oldest_when_full(router: OrderbookRouter):
 
 
 @pytest.mark.asyncio
-async def test_snapshot_storage(router: OrderbookRouter, sample_update: OrderbookUpdate):
+async def test_snapshot_storage(
+    router: OrderbookRouter, sample_update: OrderbookUpdate
+):
     """Test that snapshots are stored correctly"""
     await router._on_orderbook_update(sample_update)
 

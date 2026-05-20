@@ -1,4 +1,5 @@
 """T18: Proposal column name validation + schema fix [#50]."""
+
 import pytest
 
 from backend.models.database import Base, StrategyProposal
@@ -8,6 +9,7 @@ from backend.models.database import Base, StrategyProposal
 def test_db():
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -38,9 +40,13 @@ class TestProposalSchema:
         assert p.backtest_passed is False
 
     def test_query_by_status_no_error(self, test_db):
-        results = test_db.query(StrategyProposal).filter(
-            StrategyProposal.status == "pending",
-            StrategyProposal.auto_promotable,
-            not StrategyProposal.backtest_passed,
-        ).all()
+        results = (
+            test_db.query(StrategyProposal)
+            .filter(
+                StrategyProposal.status == "pending",
+                StrategyProposal.auto_promotable,
+                not StrategyProposal.backtest_passed,
+            )
+            .all()
+        )
         assert isinstance(results, list)

@@ -4,9 +4,14 @@ from loguru import logger
 from backend.models.outcome_tables import StrategyOutcome, ParamChange
 
 
-def compute_reward(trade, recent_sharpe: float = 1.0, recent_drawdown_pct: float = 0.0, mode_weight: float = 1.0) -> float:
+def compute_reward(
+    trade,
+    recent_sharpe: float = 1.0,
+    recent_drawdown_pct: float = 0.0,
+    mode_weight: float = 1.0,
+) -> float:
     """Sharpe-adjusted PnL reward. paper=1x, testnet=10x, live=100x"""
-    pnl = getattr(trade, 'pnl', 0.0) or 0.0
+    pnl = getattr(trade, "pnl", 0.0) or 0.0
     if pnl > 0:
         reward = pnl / max(1.0, recent_sharpe)
     else:
@@ -17,43 +22,55 @@ def compute_reward(trade, recent_sharpe: float = 1.0, recent_drawdown_pct: float
 def record_outcome(trade, db) -> Optional[StrategyOutcome]:
     """Insert a StrategyOutcome from a settled Trade. Returns None on error or duplicate."""
     try:
-        trade_id = getattr(trade, 'id', None)
+        trade_id = getattr(trade, "id", None)
         if trade_id is not None:
-            existing = db.query(StrategyOutcome).filter(StrategyOutcome.trade_id == trade_id).first()
+            existing = (
+                db.query(StrategyOutcome)
+                .filter(StrategyOutcome.trade_id == trade_id)
+                .first()
+            )
             if existing:
                 return existing
 
-        mode_weights = {'paper': 1.0, 'testnet': 10.0, 'live': 100.0}
-        mode = getattr(trade, 'trading_mode', 'paper') or 'paper'
+        mode_weights = {"paper": 1.0, "testnet": 10.0, "live": 100.0}
+        mode = getattr(trade, "trading_mode", "paper") or "paper"
         weight = mode_weights.get(mode, 1.0)
         reward = compute_reward(trade, mode_weight=weight)
         outcome = StrategyOutcome(
-            strategy=getattr(trade, 'strategy', 'unknown') or 'unknown',
-            market_ticker=getattr(trade, 'market_ticker', '') or '',
-            market_type=getattr(trade, 'market_type', 'unknown') or 'unknown',
+            strategy=getattr(trade, "strategy", "unknown") or "unknown",
+            market_ticker=getattr(trade, "market_ticker", "") or "",
+            market_type=getattr(trade, "market_type", "unknown") or "unknown",
             trading_mode=mode,
-            direction=getattr(trade, 'direction', 'unknown') or 'unknown',
-            model_probability=getattr(trade, 'model_probability', None),
-            market_price=getattr(trade, 'market_price_at_entry', None),
-            edge_at_entry=getattr(trade, 'edge_at_entry', None),
-            confidence=getattr(trade, 'confidence', None),
-            result=getattr(trade, 'result', None),
-            pnl=getattr(trade, 'pnl', None),
+            direction=getattr(trade, "direction", "unknown") or "unknown",
+            model_probability=getattr(trade, "model_probability", None),
+            market_price=getattr(trade, "market_price_at_entry", None),
+            edge_at_entry=getattr(trade, "edge_at_entry", None),
+            confidence=getattr(trade, "confidence", None),
+            result=getattr(trade, "result", None),
+            pnl=getattr(trade, "pnl", None),
             reward=reward,
-            settled_at=getattr(trade, 'settlement_time', None) or datetime.now(timezone.utc),
+            settled_at=getattr(trade, "settlement_time", None)
+            or datetime.now(timezone.utc),
             trade_id=trade.id,
         )
         db.add(outcome)
         db.commit()
         return outcome
     except Exception as e:
-        logger.exception("[outcome_repository] record_outcome failed for trade %s", getattr(trade, 'id', '?'))
-        logger.warning(f"[outcome_repository] record_outcome failed for trade {getattr(trade, 'id', '?')}: {e}")
+        logger.exception(
+            "[outcome_repository] record_outcome failed for trade %s",
+            getattr(trade, "id", "?"),
+        )
+        logger.warning(
+            f"[outcome_repository] record_outcome failed for trade {getattr(trade, 'id', '?')}: {e}"
+        )
         db.rollback()
         return None
 
 
-def get_strategy_stats(strategy: str, market_type: Optional[str], db) -> Optional[Dict[str, Any]]:
+def get_strategy_stats(
+    strategy: str, market_type: Optional[str], db
+) -> Optional[Dict[str, Any]]:
     """Return win rate, Sharpe, drawdown for a strategy. Returns None if no data."""
     try:
         q = db.query(StrategyOutcome).filter(StrategyOutcome.strategy == strategy)
@@ -62,44 +79,61 @@ def get_strategy_stats(strategy: str, market_type: Optional[str], db) -> Optiona
         outcomes = q.all()
         if not outcomes:
             return None
-        wins = sum(1 for o in outcomes if o.result == 'win')
-        losses = sum(1 for o in outcomes if o.result == 'loss')
+        wins = sum(1 for o in outcomes if o.result == "win")
+        losses = sum(1 for o in outcomes if o.result == "loss")
         total = len(outcomes)
         pnls = [o.pnl for o in outcomes if o.pnl is not None]
         avg_pnl = sum(pnls) / len(pnls) if pnls else 0.0
-        std_pnl = (sum((p - avg_pnl) ** 2 for p in pnls) / len(pnls)) ** 0.5 if len(pnls) > 1 else 1.0
+        std_pnl = (
+            (sum((p - avg_pnl) ** 2 for p in pnls) / len(pnls)) ** 0.5
+            if len(pnls) > 1
+            else 1.0
+        )
         sharpe = avg_pnl / max(std_pnl, 1e-9)
         return {
-            'strategy': strategy,
-            'total_trades': total,
-            'wins': wins,
-            'losses': losses,
-            'win_rate': wins / total if total > 0 else 0.0,
-            'sharpe': sharpe,
-            'avg_pnl': avg_pnl,
+            "strategy": strategy,
+            "total_trades": total,
+            "wins": wins,
+            "losses": losses,
+            "win_rate": wins / total if total > 0 else 0.0,
+            "sharpe": sharpe,
+            "avg_pnl": avg_pnl,
         }
     except Exception:
-        logger.exception("[outcome_repository] get_strategy_stats failed for strategy '%s'", strategy)
+        logger.exception(
+            "[outcome_repository] get_strategy_stats failed for strategy '%s'", strategy
+        )
         return None
 
 
 def get_recent_outcomes(strategy: str, limit: int, db) -> List[StrategyOutcome]:
     """Return last N outcomes for a strategy."""
     try:
-        return (db.query(StrategyOutcome)
-                .filter(StrategyOutcome.strategy == strategy)
-                .order_by(StrategyOutcome.settled_at.desc())
-                .limit(limit)
-                .all())
+        return (
+            db.query(StrategyOutcome)
+            .filter(StrategyOutcome.strategy == strategy)
+            .order_by(StrategyOutcome.settled_at.desc())
+            .limit(limit)
+            .all()
+        )
     except Exception:
-        logger.exception("[outcome_repository] get_recent_outcomes failed for strategy '%s'", strategy)
+        logger.exception(
+            "[outcome_repository] get_recent_outcomes failed for strategy '%s'",
+            strategy,
+        )
         return []
 
 
-def record_param_change(strategy: str, param: str, old_val: float, new_val: float, db) -> Optional[ParamChange]:
+def record_param_change(
+    strategy: str, param: str, old_val: float, new_val: float, db
+) -> Optional[ParamChange]:
     """Insert a ParamChange record."""
     try:
-        change_pct = ((new_val - old_val) / max(abs(old_val), 1e-9)) * 100 if old_val != 0 else 0.0
+        change_pct = (
+            ((new_val - old_val) / max(abs(old_val), 1e-9)) * 100
+            if old_val != 0
+            else 0.0
+        )
         change = ParamChange(
             strategy=strategy,
             param_name=param,
@@ -113,7 +147,10 @@ def record_param_change(strategy: str, param: str, old_val: float, new_val: floa
         db.commit()
         return change
     except Exception:
-        logger.exception("[outcome_repository] record_param_change failed for strategy '%s'", strategy)
+        logger.exception(
+            "[outcome_repository] record_param_change failed for strategy '%s'",
+            strategy,
+        )
         db.rollback()
         return None
 
@@ -127,7 +164,10 @@ def mark_param_reverted(change_id: int, post_sharpe: float, db) -> None:
             change.post_change_sharpe = post_sharpe
             db.commit()
     except Exception:
-        logger.exception("[outcome_repository] mark_param_reverted failed for change_id %s", change_id)
+        logger.exception(
+            "[outcome_repository] mark_param_reverted failed for change_id %s",
+            change_id,
+        )
         db.rollback()
 
 
@@ -135,11 +175,16 @@ def backfill_missing_outcomes(db) -> int:
     """Backfill strategy_outcomes for settled trades missing outcomes. Returns count."""
     try:
         from backend.models.database import Trade
+
         existing_ids = set(r[0] for r in db.query(StrategyOutcome.trade_id).all())
-        settled = db.query(Trade).filter(
-            Trade.settled.is_(True),
-            Trade.result.in_(["win", "loss"]),
-        ).all()
+        settled = (
+            db.query(Trade)
+            .filter(
+                Trade.settled.is_(True),
+                Trade.result.in_(["win", "loss"]),
+            )
+            .all()
+        )
         missing = [t for t in settled if t.id not in existing_ids]
         if not missing:
             return 0
@@ -148,7 +193,9 @@ def backfill_missing_outcomes(db) -> int:
             outcome = record_outcome(t, db)
             if outcome:
                 count += 1
-        logger.info(f"[outcome_repository] Backfilled {count} missing outcomes from {len(missing)} settled trades")
+        logger.info(
+            f"[outcome_repository] Backfilled {count} missing outcomes from {len(missing)} settled trades"
+        )
         return count
     except Exception as e:
         logger.exception("[outcome_repository] backfill failed")

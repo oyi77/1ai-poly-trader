@@ -22,29 +22,95 @@ Create Date: 2026-05-17
 from alembic import op
 import sqlalchemy as sa
 
-revision = '20260517_add_db_integrity_constraints'
-down_revision = ('merge_active_heads', '20260514_add_signal_log')
+revision = "20260517_add_db_integrity_constraints"
+down_revision = ("merge_active_heads", "20260514_add_signal_log")
 branch_labels = None
 depends_on = None
 
 # ── FK constraints: (table, column, constraint_name, ref_table, ref_column, on_delete) ──
 FK_CONSTRAINTS = [
     ("trades", "signal_id", "fk_trades_signal_id", "signals", "id", "SET NULL"),
-    ("trade_attempts", "trade_id", "fk_trade_attempts_trade_id", "trades", "id", "SET NULL"),
-    ("settlement_events", "trade_id", "fk_settlement_events_trade_id", "trades", "id", "CASCADE"),
-    ("trade_context", "trade_id", "fk_trade_context_trade_id", "trades", "id", "CASCADE"),
-    ("experiments", "strategy_name", "fk_experiments_strategy_name", "strategy_config", "strategy_name", "SET NULL"),
-    ("proposal_feedback", "proposal_id", "fk_proposal_feedback_proposal_id", "strategy_proposal", "id", "CASCADE"),
-    ("evolution_lineage", "parent_experiment_id", "fk_evolution_lineage_parent", "experiment_records", "id", "SET NULL"),
-    ("evolution_lineage", "child_experiment_id", "fk_evolution_lineage_child", "experiment_records", "id", "CASCADE"),
-    ("kg_relations", "from_entity_id", "fk_kg_relations_from_entity", "kg_entities", "id", "CASCADE"),
-    ("kg_relations", "to_entity_id", "fk_kg_relations_to_entity", "kg_entities", "id", "CASCADE"),
+    (
+        "trade_attempts",
+        "trade_id",
+        "fk_trade_attempts_trade_id",
+        "trades",
+        "id",
+        "SET NULL",
+    ),
+    (
+        "settlement_events",
+        "trade_id",
+        "fk_settlement_events_trade_id",
+        "trades",
+        "id",
+        "CASCADE",
+    ),
+    (
+        "trade_context",
+        "trade_id",
+        "fk_trade_context_trade_id",
+        "trades",
+        "id",
+        "CASCADE",
+    ),
+    (
+        "experiments",
+        "strategy_name",
+        "fk_experiments_strategy_name",
+        "strategy_config",
+        "strategy_name",
+        "SET NULL",
+    ),
+    (
+        "proposal_feedback",
+        "proposal_id",
+        "fk_proposal_feedback_proposal_id",
+        "strategy_proposal",
+        "id",
+        "CASCADE",
+    ),
+    (
+        "evolution_lineage",
+        "parent_experiment_id",
+        "fk_evolution_lineage_parent",
+        "experiment_records",
+        "id",
+        "SET NULL",
+    ),
+    (
+        "evolution_lineage",
+        "child_experiment_id",
+        "fk_evolution_lineage_child",
+        "experiment_records",
+        "id",
+        "CASCADE",
+    ),
+    (
+        "kg_relations",
+        "from_entity_id",
+        "fk_kg_relations_from_entity",
+        "kg_entities",
+        "id",
+        "CASCADE",
+    ),
+    (
+        "kg_relations",
+        "to_entity_id",
+        "fk_kg_relations_to_entity",
+        "kg_entities",
+        "id",
+        "CASCADE",
+    ),
 ]
 
 # ── CHECK constraints: {table: {constraint_name: (column, [valid_values])}} ──
 CHECKS = {
     "trades": {
-        "ck_trades_result": ("result", ["pending", "win", "loss", "expired", "push", "closed"]),
+        "ck_trades_result": (
+            "result",
+            ["pending", "win", "loss", "expired", "push", "closed"],
+        ),
         "ck_trades_trading_mode": ("trading_mode", ["paper", "testnet", "live"]),
         "ck_trades_market_type": ("market_type", ["btc", "weather"]),
         "ck_trades_role": ("role", ["maker", "taker", "unknown"]),
@@ -54,7 +120,10 @@ CHECKS = {
         "ck_signals_market_type": ("market_type", ["btc", "weather"]),
     },
     "hft_execution_records": {
-        "ck_hft_status": ("status", ["pending", "filled", "failed", "queued", "cancelled"]),
+        "ck_hft_status": (
+            "status",
+            ["pending", "filled", "failed", "queued", "cancelled"],
+        ),
         "ck_hft_side": ("side", ["BUY", "SELL"]),
         "ck_hft_trading_mode": ("trading_mode", ["paper", "testnet", "live"]),
         "ck_hft_role": ("role", ["maker", "taker", "unknown"]),
@@ -64,9 +133,17 @@ CHECKS = {
     },
     "strategy_config": {
         "ck_strat_config_time_horizon": ("time_horizon", ["short", "mid", "long"]),
-        "ck_strat_config_risk_tier": ("risk_tier", [
-            "safe", "conservative", "moderate", "aggressive", "extreme", "crazy",
-        ]),
+        "ck_strat_config_risk_tier": (
+            "risk_tier",
+            [
+                "safe",
+                "conservative",
+                "moderate",
+                "aggressive",
+                "extreme",
+                "crazy",
+            ],
+        ),
     },
     "decision_log": {
         "ck_decision_log_outcome": ("outcome", ["WIN", "LOSS", "PUSH"]),
@@ -74,7 +151,10 @@ CHECKS = {
     "strategy_outcomes": {
         "ck_strat_outcomes_result": ("result", ["win", "loss", "push"]),
         "ck_strat_outcomes_market_type": ("market_type", ["btc", "weather"]),
-        "ck_strat_outcomes_trading_mode": ("trading_mode", ["paper", "testnet", "live"]),
+        "ck_strat_outcomes_trading_mode": (
+            "trading_mode",
+            ["paper", "testnet", "live"],
+        ),
     },
 }
 
@@ -104,14 +184,25 @@ def _rebuild_table_with_checks(raw, table, constraints):
     if pk_cols:
         col_sqls.append(f"PRIMARY KEY ({', '.join(f'[{c}]' for c in pk_cols)})")
 
-    for fk_id, seq, ref_table, from_col, to_col, on_update, on_delete, _match in fk_defs:
+    for (
+        fk_id,
+        seq,
+        ref_table,
+        from_col,
+        to_col,
+        on_update,
+        on_delete,
+        _match,
+    ) in fk_defs:
         col_sqls.append(
             f"FOREIGN KEY([{from_col}]) REFERENCES [{ref_table}] ([{to_col}])"
             f" ON DELETE {on_delete or 'NO ACTION'} ON UPDATE {on_update or 'NO ACTION'}"
         )
 
     for ck_name, (column, valid) in constraints.items():
-        col_sqls.append(f"CONSTRAINT [{ck_name}] CHECK {_build_check_expr(column, valid)}")
+        col_sqls.append(
+            f"CONSTRAINT [{ck_name}] CHECK {_build_check_expr(column, valid)}"
+        )
 
     col_list = ", ".join(f"[{r[1]}]" for r in col_defs)
     tmp = f"_alembic_tmp_{table}"
@@ -142,7 +233,16 @@ def _rebuild_table_without_checks(raw, table, constraint_names_to_drop):
     if pk_cols:
         col_sqls.append(f"PRIMARY KEY ({', '.join(f'[{c}]' for c in pk_cols)})")
 
-    for fk_id, seq, ref_table, from_col, to_col, on_update, on_delete, _match in fk_defs:
+    for (
+        fk_id,
+        seq,
+        ref_table,
+        from_col,
+        to_col,
+        on_update,
+        on_delete,
+        _match,
+    ) in fk_defs:
         col_sqls.append(
             f"FOREIGN KEY([{from_col}]) REFERENCES [{ref_table}] ([{to_col}])"
             f" ON DELETE {on_delete or 'NO ACTION'} ON UPDATE {on_update or 'NO ACTION'}"
@@ -169,19 +269,25 @@ def upgrade() -> None:
     for name in raw.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp%'"
     ).fetchall():
-        raw.execute('DROP TABLE IF EXISTS [' + name[0] + ']')
+        raw.execute("DROP TABLE IF EXISTS [" + name[0] + "]")
 
     insp = sa.inspect(conn)
     existing_tables = set(insp.get_table_names())
 
-    for table, column, constraint_name, ref_table, ref_column, on_delete in FK_CONSTRAINTS:
+    for (
+        table,
+        column,
+        constraint_name,
+        ref_table,
+        ref_column,
+        on_delete,
+    ) in FK_CONSTRAINTS:
         if table not in existing_tables:
             continue
         # Check if FK already exists
         fk_defs = raw.execute(f"PRAGMA foreign_key_list([{table}])").fetchall()
         existing_fks = {
-            (fk[2], fk[3], fk[4])  # (ref_table, from_col, to_col)
-            for fk in fk_defs
+            (fk[2], fk[3], fk[4]) for fk in fk_defs  # (ref_table, from_col, to_col)
         }
         if (ref_table, column, ref_column) in existing_fks:
             continue
@@ -207,7 +313,9 @@ def upgrade() -> None:
             f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table}'"
         ).fetchone()
         if orig_ddl:
-            existing_cks = {ck for ck in constraints if f'CONSTRAINT [{ck}]' in orig_ddl[0]}
+            existing_cks = {
+                ck for ck in constraints if f"CONSTRAINT [{ck}]" in orig_ddl[0]
+            }
             if len(existing_cks) == len(constraints):
                 continue
 
@@ -233,12 +341,14 @@ def downgrade() -> None:
         _rebuild_table_without_checks(raw, table, set(constraints.keys()))
 
     # ── Drop FK constraints ──
-    for table, column, constraint_name, ref_table, ref_column, on_delete in reversed(FK_CONSTRAINTS):
+    for table, column, constraint_name, ref_table, ref_column, on_delete in reversed(
+        FK_CONSTRAINTS
+    ):
         if table not in existing_tables:
             continue
         try:
             with op.batch_alter_table(table, schema=None) as batch_op:
-                batch_op.drop_constraint(constraint_name, type_='foreignkey')
+                batch_op.drop_constraint(constraint_name, type_="foreignkey")
         except Exception as e:
             print(f"Drop FK {constraint_name}: {e}")
 

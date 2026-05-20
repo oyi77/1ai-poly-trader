@@ -60,6 +60,7 @@ class TestCalibrationTracker:
         tracker.record_outcome(db, "mkt-1", 0.0)
 
         from backend.models.database import CalibrationRecord
+
         record = db.query(CalibrationRecord).first()
         assert record.actual_outcome == "loss"
 
@@ -71,6 +72,7 @@ class TestCalibrationTracker:
         tracker.record_outcome(db, "mkt-no", 0.0)  # NO wins
 
         from backend.models.database import CalibrationRecord
+
         record = db.query(CalibrationRecord).first()
         assert record.actual_outcome == "win"
 
@@ -133,6 +135,7 @@ class TestExperimentTracker:
         tracker.record_metrics(db, exp_id, {"sharpe": 1.5, "win_rate": 0.6})
 
         from backend.models.database import Experiment
+
         exp = db.query(Experiment).filter(Experiment.id == exp_id).first()
         metrics = json.loads(exp.metrics_json)
         assert metrics["sharpe"] == 1.5
@@ -281,7 +284,11 @@ class TestStrategyRanker:
         disabled = ranker.disable_underperformers(db, min_sharpe=0.0, min_trades=30)
 
         assert "loser" in disabled
-        cfg = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == "loser").first()
+        cfg = (
+            db.query(StrategyConfig)
+            .filter(StrategyConfig.strategy_name == "loser")
+            .first()
+        )
         assert cfg.enabled is False
 
 
@@ -290,7 +297,11 @@ class TestStrategyRanker:
 
 class TestBacktesterMetrics:
     def test_sharpe_uses_returns_not_pnl(self):
-        from backend.core.backtester import BacktestTrade, BacktestEngine, BacktestConfig
+        from backend.core.backtester import (
+            BacktestTrade,
+            BacktestEngine,
+            BacktestConfig,
+        )
         from datetime import datetime
 
         config = BacktestConfig(
@@ -303,24 +314,44 @@ class TestBacktesterMetrics:
         # Create trades with varying returns so stdev > 0
         trades = [
             BacktestTrade(
-                timestamp=datetime(2024, 1, 1), market_ticker="t0",
-                direction="yes", entry_price=0.5, size=2.0, edge=0.05,
-                pnl=2.0, settled=True,  # return = 1.0
+                timestamp=datetime(2024, 1, 1),
+                market_ticker="t0",
+                direction="yes",
+                entry_price=0.5,
+                size=2.0,
+                edge=0.05,
+                pnl=2.0,
+                settled=True,  # return = 1.0
             ),
             BacktestTrade(
-                timestamp=datetime(2024, 1, 2), market_ticker="t1",
-                direction="yes", entry_price=0.6, size=3.0, edge=0.05,
-                pnl=2.0, settled=True,  # return = 0.67
+                timestamp=datetime(2024, 1, 2),
+                market_ticker="t1",
+                direction="yes",
+                entry_price=0.6,
+                size=3.0,
+                edge=0.05,
+                pnl=2.0,
+                settled=True,  # return = 0.67
             ),
             BacktestTrade(
-                timestamp=datetime(2024, 1, 3), market_ticker="t2",
-                direction="yes", entry_price=0.4, size=4.0, edge=0.05,
-                pnl=6.0, settled=True,  # return = 1.5
+                timestamp=datetime(2024, 1, 3),
+                market_ticker="t2",
+                direction="yes",
+                entry_price=0.4,
+                size=4.0,
+                edge=0.05,
+                pnl=6.0,
+                settled=True,  # return = 1.5
             ),
             BacktestTrade(
-                timestamp=datetime(2024, 1, 4), market_ticker="t3",
-                direction="yes", entry_price=0.5, size=2.0, edge=0.05,
-                pnl=-1.0, settled=True,  # return = -0.5
+                timestamp=datetime(2024, 1, 4),
+                market_ticker="t3",
+                direction="yes",
+                entry_price=0.5,
+                size=2.0,
+                edge=0.05,
+                pnl=-1.0,
+                settled=True,  # return = -0.5
             ),
         ]
 
@@ -332,7 +363,11 @@ class TestBacktesterMetrics:
         assert metrics["profit_factor"] > 0
 
     def test_profit_factor_calculation(self):
-        from backend.core.backtester import BacktestTrade, BacktestEngine, BacktestConfig
+        from backend.core.backtester import (
+            BacktestTrade,
+            BacktestEngine,
+            BacktestConfig,
+        )
         from datetime import datetime
 
         config = BacktestConfig(
@@ -344,14 +379,24 @@ class TestBacktesterMetrics:
 
         trades = [
             BacktestTrade(
-                timestamp=datetime(2024, 1, 1), market_ticker="w1",
-                direction="yes", entry_price=0.5, size=2.0, edge=0.05,
-                pnl=2.0, settled=True,
+                timestamp=datetime(2024, 1, 1),
+                market_ticker="w1",
+                direction="yes",
+                entry_price=0.5,
+                size=2.0,
+                edge=0.05,
+                pnl=2.0,
+                settled=True,
             ),
             BacktestTrade(
-                timestamp=datetime(2024, 1, 2), market_ticker="l1",
-                direction="yes", entry_price=0.5, size=2.0, edge=0.05,
-                pnl=-2.0, settled=True,
+                timestamp=datetime(2024, 1, 2),
+                market_ticker="l1",
+                direction="yes",
+                entry_price=0.5,
+                size=2.0,
+                edge=0.05,
+                pnl=-2.0,
+                settled=True,
             ),
         ]
 
@@ -381,7 +426,8 @@ class TestWalkForward:
 
         engine = WalkForwardEngine()
         result = await engine.run(
-            db, "nonexistent",
+            db,
+            "nonexistent",
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 6, 1),
             in_sample_days=30,
@@ -398,7 +444,8 @@ class TestWalkForward:
 
         engine = WalkForwardEngine()
         results = await engine.sweep(
-            db, "test",
+            db,
+            "test",
             param_grid={"kelly_fraction": [0.05, 0.10]},
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 6, 1),

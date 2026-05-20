@@ -59,12 +59,12 @@ def _convert_signals_to_debate_result(
     # Compute weighted consensus
     total_weight = sum(vote.weight for vote in signal_votes)
     if total_weight > 0:
-        consensus = sum(
-            vote.prediction * vote.weight for vote in signal_votes
-        ) / total_weight
-        avg_confidence = sum(
-            vote.confidence * vote.weight for vote in signal_votes
-        ) / total_weight
+        consensus = (
+            sum(vote.prediction * vote.weight for vote in signal_votes) / total_weight
+        )
+        avg_confidence = (
+            sum(vote.confidence * vote.weight for vote in signal_votes) / total_weight
+        )
     else:
         consensus = market_price
         avg_confidence = 0.0
@@ -128,9 +128,7 @@ async def run_debate_with_routing(
     mirofish_enabled = _get_setting(db, "mirofish_enabled", default=False)
 
     if not mirofish_enabled:
-        logger.info(
-            "[debate_router] MiroFish disabled - using local DebateEngine"
-        )
+        logger.info("[debate_router] MiroFish disabled - using local DebateEngine")
         return await run_debate(
             question=question,
             market_price=market_price,

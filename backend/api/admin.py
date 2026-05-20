@@ -25,6 +25,7 @@ from backend.models.database import BotState, get_db
 from sqlalchemy.orm import Session
 
 from loguru import logger
+
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # ---------------------------------------------------------------------------
@@ -81,10 +82,16 @@ def _grouped_settings() -> Dict[str, Dict[str, Any]]:
         },
         "api_keys": {
             "POLYMARKET_API_KEY": _mask("POLYMARKET_API_KEY", s.POLYMARKET_API_KEY),
-            "POLYMARKET_PRIVATE_KEY": _mask("POLYMARKET_PRIVATE_KEY", getattr(s, "POLYMARKET_PRIVATE_KEY", None)),
-            "KALSHI_API_KEY": _mask("KALSHI_API_KEY", getattr(s, "KALSHI_API_KEY", None)),
+            "POLYMARKET_PRIVATE_KEY": _mask(
+                "POLYMARKET_PRIVATE_KEY", getattr(s, "POLYMARKET_PRIVATE_KEY", None)
+            ),
+            "KALSHI_API_KEY": _mask(
+                "KALSHI_API_KEY", getattr(s, "KALSHI_API_KEY", None)
+            ),
             "ADMIN_API_KEY": _mask("ADMIN_API_KEY", s.ADMIN_API_KEY),
-            "ANTHROPIC_API_KEY": _mask("ANTHROPIC_API_KEY", getattr(s, "ANTHROPIC_API_KEY", None)),
+            "ANTHROPIC_API_KEY": _mask(
+                "ANTHROPIC_API_KEY", getattr(s, "ANTHROPIC_API_KEY", None)
+            ),
             "GROQ_API_KEY": _mask("GROQ_API_KEY", getattr(s, "GROQ_API_KEY", None)),
         },
         "telegram": {
@@ -95,8 +102,12 @@ def _grouped_settings() -> Dict[str, Dict[str, Any]]:
     }
     # Also return flat format for frontend compatibility
     grouped["mirofish_enabled"] = getattr(s, "MIROFISH_ENABLED", False)
-    grouped["mirofish_api_url"] = getattr(s, "MIROFISH_API_URL", settings.MIROFISH_API_URL)
-    grouped["mirofish_api_key"] = _mask("MIROFISH_API_KEY", getattr(s, "MIROFISH_API_KEY", ""))
+    grouped["mirofish_api_url"] = getattr(
+        s, "MIROFISH_API_URL", settings.MIROFISH_API_URL
+    )
+    grouped["mirofish_api_key"] = _mask(
+        "MIROFISH_API_KEY", getattr(s, "MIROFISH_API_KEY", "")
+    )
     grouped["trading_mode"] = s.TRADING_MODE
     grouped["strategies"] = {
         "btc_momentum": getattr(s, "BTC_MOMENTUM_ENABLED", False),

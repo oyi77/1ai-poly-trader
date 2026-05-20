@@ -7,6 +7,7 @@ Provides an ABC (CognitiveCoreAdapter) with three concrete implementations:
 
 See docs/architecture/adr-009-cognitive-core-interface.md for design decisions.
 """
+
 from __future__ import annotations
 
 import time
@@ -23,14 +24,15 @@ from backend.monitoring.agi_metrics import (
     set_cognitive_core_health,
 )
 
-
 # ---------------------------------------------------------------------------
 # Health status model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CoreHealth:
     """Health status returned by health_check()."""
+
     status: str  # "online" | "amnesia" | "offline"
     latency_ms: float = 0.0
     last_success: Optional[str] = None
@@ -40,6 +42,7 @@ class CoreHealth:
 # ---------------------------------------------------------------------------
 # Abstract base class
 # ---------------------------------------------------------------------------
+
 
 class CognitiveCoreAdapter(ABC):
     """Abstract interface to a cognitive core (brain).
@@ -109,6 +112,7 @@ class CognitiveCoreAdapter(ABC):
 # MockCore — in-memory implementation for tests
 # ---------------------------------------------------------------------------
 
+
 class MockCore(CognitiveCoreAdapter):
     """In-memory cognitive core for unit testing.
 
@@ -161,12 +165,14 @@ class MockCore(CognitiveCoreAdapter):
             key_match = query_lower in key.lower()
             value_match = isinstance(value, str) and query_lower in value.lower()
             if key_match or value_match or not query:
-                results.append({
-                    "key": key,
-                    "value": value,
-                    "importance": importance,
-                    "relevance": importance,
-                })
+                results.append(
+                    {
+                        "key": key,
+                        "value": value,
+                        "importance": importance,
+                        "relevance": importance,
+                    }
+                )
                 if len(results) >= limit:
                     break
         elapsed = time.monotonic() - t0
@@ -243,6 +249,7 @@ class MockCore(CognitiveCoreAdapter):
 # DegradedCore — amnesia mode fallback
 # ---------------------------------------------------------------------------
 
+
 class DegradedCore(CognitiveCoreAdapter):
     """Fallback cognitive core when 1ai-hub is unreachable.
 
@@ -267,7 +274,8 @@ class DegradedCore(CognitiveCoreAdapter):
         t0 = time.monotonic()
         logger.warning(
             "[DegradedCore] remember() queued — amnesia mode (ns={}, key={})",
-            namespace, key,
+            namespace,
+            key,
         )
         if len(self._write_queue) >= self._MAX_QUEUE_SIZE:
             dropped = self._write_queue.pop(0)
@@ -275,14 +283,16 @@ class DegradedCore(CognitiveCoreAdapter):
                 "[DegradedCore] Write queue overflow — dropped oldest entry: {}",
                 dropped.get("key"),
             )
-        self._write_queue.append({
-            "operation": "remember",
-            "namespace": namespace,
-            "key": key,
-            "value": value,
-            "importance": importance,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        self._write_queue.append(
+            {
+                "operation": "remember",
+                "namespace": namespace,
+                "key": key,
+                "value": value,
+                "importance": importance,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
         record_cognitive_core_latency("remember", time.monotonic() - t0)
 
     def recall(
@@ -304,14 +314,17 @@ class DegradedCore(CognitiveCoreAdapter):
         t0 = time.monotonic()
         logger.warning(
             "[DegradedCore] forget() queued — amnesia mode (ns={}, key={})",
-            namespace, key,
+            namespace,
+            key,
         )
-        self._write_queue.append({
-            "operation": "forget",
-            "namespace": namespace,
-            "key": key,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        self._write_queue.append(
+            {
+                "operation": "forget",
+                "namespace": namespace,
+                "key": key,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
         record_cognitive_core_latency("forget", time.monotonic() - t0)
         return False
 
@@ -325,7 +338,9 @@ class DegradedCore(CognitiveCoreAdapter):
         )
 
     def get_personality(self) -> dict[str, Any]:
-        logger.warning("[DegradedCore] get_personality() returning default — amnesia mode")
+        logger.warning(
+            "[DegradedCore] get_personality() returning default — amnesia mode"
+        )
         return {
             "mode": "degraded",
             "risk_tolerance": 0.3,
@@ -364,7 +379,9 @@ class DegradedCore(CognitiveCoreAdapter):
             try:
                 if op["operation"] == "remember":
                     target.remember(
-                        op["namespace"], op["key"], op["value"],
+                        op["namespace"],
+                        op["key"],
+                        op["value"],
                         op.get("importance", 0.5),
                     )
                 elif op["operation"] == "forget":
@@ -373,7 +390,8 @@ class DegradedCore(CognitiveCoreAdapter):
             except Exception as e:
                 logger.error(
                     "[DegradedCore] Replay failed for op={}: {}",
-                    op.get("operation"), e,
+                    op.get("operation"),
+                    e,
                 )
                 # Re-queue the failed op at the front
                 self._write_queue.insert(0, op)
@@ -387,6 +405,7 @@ class DegradedCore(CognitiveCoreAdapter):
 # ---------------------------------------------------------------------------
 # OneAIHubCore — production implementation
 # ---------------------------------------------------------------------------
+
 
 class OneAIHubCore(CognitiveCoreAdapter):
     """Production cognitive core backed by the 1ai-hub HTTP API.
@@ -411,6 +430,7 @@ class OneAIHubCore(CognitiveCoreAdapter):
     def _get_client(self) -> Any:
         if self._client is None:
             import httpx
+
             headers = {}
             if self._api_key:
                 headers["Authorization"] = f"Bearer {self._api_key}"
@@ -445,12 +465,16 @@ class OneAIHubCore(CognitiveCoreAdapter):
         importance: float = 0.5,
     ) -> None:
         t0 = time.monotonic()
-        self._request("POST", "/api/v1/memory", json={
-            "namespace": namespace,
-            "key": key,
-            "value": value,
-            "importance": importance,
-        })
+        self._request(
+            "POST",
+            "/api/v1/memory",
+            json={
+                "namespace": namespace,
+                "key": key,
+                "value": value,
+                "importance": importance,
+            },
+        )
         record_cognitive_core_latency("remember", time.monotonic() - t0)
 
     def recall(
@@ -461,12 +485,16 @@ class OneAIHubCore(CognitiveCoreAdapter):
         min_relevance: float = 0.0,
     ) -> list[dict[str, Any]]:
         t0 = time.monotonic()
-        data = self._request("GET", "/api/v1/memory/recall", params={
-            "query": query,
-            "namespace": namespace,
-            "limit": limit,
-            "min_relevance": min_relevance,
-        })
+        data = self._request(
+            "GET",
+            "/api/v1/memory/recall",
+            params={
+                "query": query,
+                "namespace": namespace,
+                "limit": limit,
+                "min_relevance": min_relevance,
+            },
+        )
         record_cognitive_core_latency("recall", time.monotonic() - t0)
         return data.get("results", [])
 
@@ -511,11 +539,15 @@ class OneAIHubCore(CognitiveCoreAdapter):
         question: str,
         personality_mode: str = "balanced",
     ) -> str:
-        data = self._request("POST", "/api/v1/reason", json={
-            "context": context,
-            "question": question,
-            "personality_mode": personality_mode,
-        })
+        data = self._request(
+            "POST",
+            "/api/v1/reason",
+            json={
+                "context": context,
+                "question": question,
+                "personality_mode": personality_mode,
+            },
+        )
         return data.get("answer", "")
 
     def route_llm(
@@ -524,11 +556,15 @@ class OneAIHubCore(CognitiveCoreAdapter):
         task_type: str = "general",
         max_cost_usd: float = 0.05,
     ) -> str:
-        data = self._request("POST", "/api/v1/llm/route", json={
-            "prompt": prompt,
-            "task_type": task_type,
-            "max_cost_usd": max_cost_usd,
-        })
+        data = self._request(
+            "POST",
+            "/api/v1/llm/route",
+            json={
+                "prompt": prompt,
+                "task_type": task_type,
+                "max_cost_usd": max_cost_usd,
+            },
+        )
         return data.get("response", "")
 
     def memory_stats(self) -> dict[str, Any]:
@@ -541,6 +577,7 @@ class OneAIHubCore(CognitiveCoreAdapter):
 # ---------------------------------------------------------------------------
 # Factory helper
 # ---------------------------------------------------------------------------
+
 
 def create_cognitive_core(
     hub_url: str = "",
@@ -555,6 +592,7 @@ def create_cognitive_core(
     if not hub_url:
         try:
             from backend.config import settings as _settings
+
             hub_url = getattr(_settings, "BRAIN_API_URL", "")
         except Exception:
             logger.debug("Could not load BRAIN_API_URL from settings")
@@ -570,7 +608,8 @@ def create_cognitive_core(
         except Exception as e:
             logger.warning(
                 "[CognitiveCore] Failed to connect to 1ai-hub ({}): {} — using DegradedCore",
-                hub_url, e,
+                hub_url,
+                e,
             )
     else:
         logger.info("[CognitiveCore] No hub URL configured — using DegradedCore")

@@ -1,4 +1,7 @@
-from backend.core.execution_pipeline.base import BaseExecutionStage, ExecutionStageManifest
+from backend.core.execution_pipeline.base import (
+    BaseExecutionStage,
+    ExecutionStageManifest,
+)
 from backend.core.execution_pipeline.registry import registry
 from backend.core.paper_slippage import PaperSlippageSimulator
 

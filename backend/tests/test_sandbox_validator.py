@@ -1,6 +1,5 @@
 """Tests for sandbox validator 4-gate pipeline."""
 
-
 from backend.agi.sandbox.sandbox_validator import SandboxValidator
 
 

@@ -16,7 +16,6 @@ from backend.strategies.registry import STRATEGY_REGISTRY
 from backend.config_extensions import settings as extended_settings
 from backend.services.mirofish_service import get_mirofish_service
 
-
 TEST_ENGINE = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
@@ -37,10 +36,18 @@ def db():
     session.close()
 
 
-def _add_settled_trade(db, *, ticker: str = "TEST", direction: str = "up",
-                      entry_price: float = 0.50, size: float = 5.0,
-                      settlement_value: float = 1.0, pnl: float = 2.5,
-                      strategy: str = "test_strategy", ts: datetime = None):
+def _add_settled_trade(
+    db,
+    *,
+    ticker: str = "TEST",
+    direction: str = "up",
+    entry_price: float = 0.50,
+    size: float = 5.0,
+    settlement_value: float = 1.0,
+    pnl: float = 2.5,
+    strategy: str = "test_strategy",
+    ts: datetime = None,
+):
     if ts is None:
         ts = datetime(2024, 1, 15)
     trade = Trade(
@@ -69,21 +76,22 @@ def test_configuration_system(db):
     """Test that the configuration system works correctly with both base and extended settings."""
     from backend.config import settings as base_settings
 
-    assert hasattr(base_settings, 'DATABASE_URL')
-    assert hasattr(base_settings, 'POLYMARKET_API_KEY')
+    assert hasattr(base_settings, "DATABASE_URL")
+    assert hasattr(base_settings, "POLYMARKET_API_KEY")
 
-    assert hasattr(extended_settings, 'AGGRESSIVE_MODE_ENABLED')
-    assert hasattr(extended_settings, 'POLYGON_RPC_URL')
-    assert hasattr(extended_settings, 'PORT')
+    assert hasattr(extended_settings, "AGGRESSIVE_MODE_ENABLED")
+    assert hasattr(extended_settings, "POLYGON_RPC_URL")
+    assert hasattr(extended_settings, "PORT")
 
     from backend.config_extensions import settings
-    assert hasattr(settings, 'DATABASE_URL')
-    assert hasattr(settings, 'AGGRESSIVE_MODE_ENABLED')
+
+    assert hasattr(settings, "DATABASE_URL")
+    assert hasattr(settings, "AGGRESSIVE_MODE_ENABLED")
 
     system_setting = SystemSettings(
         key="test_config",
         value={"enabled": True, "value": 42},
-        updated_at=datetime.now(timezone.utc)
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(system_setting)
     db.commit()
@@ -137,7 +145,7 @@ def test_edge_case_accuracy_low_probability(db):
         strategy_name="test_strategy",
         start_date=datetime(2024, 1, 1),
         end_date=datetime(2024, 1, 31),
-        initial_bankroll=1000.0
+        initial_bankroll=1000.0,
     )
 
     engine = BacktestEngine(config)
@@ -167,7 +175,7 @@ def test_edge_case_accuracy_high_probability(db):
         strategy_name="test_strategy",
         start_date=datetime(2024, 1, 1),
         end_date=datetime(2024, 1, 31),
-        initial_bankroll=1000.0
+        initial_bankroll=1000.0,
     )
 
     engine = BacktestEngine(config)
@@ -225,7 +233,7 @@ def test_risk_manager_extreme_values(db):
         current_exposure=5000.0,
         bankroll=1000.0,
         confidence=0.95,
-        market_ticker="EXTREME_TEST"
+        market_ticker="EXTREME_TEST",
     )
 
     assert decision is not None
@@ -235,7 +243,7 @@ def test_risk_manager_extreme_values(db):
         current_exposure=0.0,
         bankroll=0.0,
         confidence=0.0,
-        market_ticker="ZERO_TEST"
+        market_ticker="ZERO_TEST",
     )
 
     assert decision is not None
@@ -248,7 +256,7 @@ def test_strategy_registry_comprehensive():
     assert len(STRATEGY_REGISTRY) > 0
 
     for name, strategy_class in STRATEGY_REGISTRY.items():
-        assert hasattr(strategy_class, 'run') or hasattr(strategy_class, '__call__')
+        assert hasattr(strategy_class, "run") or hasattr(strategy_class, "__call__")
         assert isinstance(name, str)
         assert len(name) > 0
 
@@ -256,10 +264,28 @@ def test_strategy_registry_comprehensive():
 def test_backtest_performance_regression(db):
     """Regression test for backtest performance with complex scenarios."""
     scenarios = [
-        {"ticker": "HIGH_WIN", "entry": 0.3, "settlement": 1.0, "pnl": 7.0, "count": 20},
+        {
+            "ticker": "HIGH_WIN",
+            "entry": 0.3,
+            "settlement": 1.0,
+            "pnl": 7.0,
+            "count": 20,
+        },
         {"ticker": "LOW_WIN", "entry": 0.8, "settlement": 1.0, "pnl": 2.0, "count": 10},
-        {"ticker": "HIGH_LOSE", "entry": 0.2, "settlement": 0.0, "pnl": -2.0, "count": 15},
-        {"ticker": "LOW_LOSE", "entry": 0.9, "settlement": 0.0, "pnl": -1.0, "count": 5},
+        {
+            "ticker": "HIGH_LOSE",
+            "entry": 0.2,
+            "settlement": 0.0,
+            "pnl": -2.0,
+            "count": 15,
+        },
+        {
+            "ticker": "LOW_LOSE",
+            "entry": 0.9,
+            "settlement": 0.0,
+            "pnl": -1.0,
+            "count": 5,
+        },
     ]
 
     trade_count = 0
@@ -281,7 +307,7 @@ def test_backtest_performance_regression(db):
         strategy_name="test_strategy",
         start_date=datetime(2024, 1, 1),
         end_date=datetime(2024, 1, 31),
-        initial_bankroll=1000.0
+        initial_bankroll=1000.0,
     )
 
     start_time = time.time()
@@ -294,13 +320,14 @@ def test_backtest_performance_regression(db):
     assert execution_time < 2.0
 
     assert result.total_trades == trade_count
-    assert hasattr(result, 'win_rate')
-    assert hasattr(result, 'total_pnl')
+    assert hasattr(result, "win_rate")
+    assert hasattr(result, "total_pnl")
 
 
 @pytest.mark.asyncio
 async def test_concurrent_operations(db):
     """Test concurrent database operations for performance."""
+
     async def add_trades_task(count, task_id):
         trades = []
         for i in range(count):

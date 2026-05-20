@@ -18,20 +18,21 @@ from typing import Any, Optional
 
 from loguru import logger
 
-
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ModuleInfo:
     """Information about a single Python module in the codebase."""
-    path: str                    # Relative path (e.g. backend/core/risk_manager.py)
-    package: str                 # Python dotted name (e.g. backend.core.risk_manager)
-    lines: int                   # Total lines of code
-    imports: list[str] = field(default_factory=list)       # Modules this file imports
-    imported_by: list[str] = field(default_factory=list)   # Modules that import this
-    exports: list[str] = field(default_factory=list)       # Defined classes/functions
+
+    path: str  # Relative path (e.g. backend/core/risk_manager.py)
+    package: str  # Python dotted name (e.g. backend.core.risk_manager)
+    lines: int  # Total lines of code
+    imports: list[str] = field(default_factory=list)  # Modules this file imports
+    imported_by: list[str] = field(default_factory=list)  # Modules that import this
+    exports: list[str] = field(default_factory=list)  # Defined classes/functions
     has_tests: bool = False
     ast_node: Optional[ast.AST] = None  # Cached AST for re-analysis
 
@@ -39,10 +40,11 @@ class ModuleInfo:
 @dataclass
 class ImprovementCandidate:
     """An identified opportunity for codebase improvement."""
-    category: str        # e.g. "high_complexity", "bare_except", "missing_tests"
+
+    category: str  # e.g. "high_complexity", "bare_except", "missing_tests"
     file_path: str
     line_number: int
-    severity: str        # "critical", "high", "medium", "low"
+    severity: str  # "critical", "high", "medium", "low"
     description: str
     suggestion: str
     estimated_effort: str = "medium"  # "minutes", "hours", "days"
@@ -51,6 +53,7 @@ class ImprovementCandidate:
 @dataclass
 class CodebaseSnapshot:
     """A point-in-time snapshot of codebase health metrics."""
+
     timestamp: float
     total_modules: int
     total_lines: int
@@ -67,6 +70,7 @@ class CodebaseSnapshot:
 # ModuleGraph — dependency analysis
 # ---------------------------------------------------------------------------
 
+
 class ModuleGraph:
     """Directed graph of module dependencies.
 
@@ -76,8 +80,15 @@ class ModuleGraph:
     def __init__(self) -> None:
         self._modules: dict[str, ModuleInfo] = {}
 
-    def add_module(self, path: str, package: str, imports: list[str],
-                   exports: list[str], lines: int, ast_node: Any = None) -> ModuleInfo:
+    def add_module(
+        self,
+        path: str,
+        package: str,
+        imports: list[str],
+        exports: list[str],
+        lines: int,
+        ast_node: Any = None,
+    ) -> ModuleInfo:
         info = ModuleInfo(
             path=path,
             package=package,
@@ -106,13 +117,18 @@ class ModuleGraph:
 
     def leaf_modules(self) -> list[ModuleInfo]:
         """Modules with ZERO in-project dependents — safest to modify."""
-        return [info for info in self._modules.values()
-                if not self.dependents_of(info.package)]
+        return [
+            info
+            for info in self._modules.values()
+            if not self.dependents_of(info.package)
+        ]
 
     def core_modules(self) -> list[ModuleInfo]:
         """Modules with the MOST in-project dependents — highest risk."""
-        scored = [(len(self.dependents_of(info.package)), info)
-                  for info in self._modules.values()]
+        scored = [
+            (len(self.dependents_of(info.package)), info)
+            for info in self._modules.values()
+        ]
         scored.sort(reverse=True)
         return [info for _, info in scored[:10]]
 
@@ -120,11 +136,13 @@ class ModuleGraph:
         """Modules that no other project module imports."""
         project_packages = set(self._modules.keys())
         return [
-            info for info in self._modules.values()
+            info
+            for info in self._modules.values()
             if info.package in project_packages
             and not any(
                 info.package in self._modules[p].imports
-                for p in project_packages if p != info.package
+                for p in project_packages
+                if p != info.package
             )
         ]
 
@@ -145,6 +163,7 @@ class ModuleGraph:
 # CodebaseScanner — walks files, builds graph
 # ---------------------------------------------------------------------------
 
+
 class CodebaseScanner:
     """Walks the backend/ tree, parses every .py file, builds ModuleGraph."""
 
@@ -163,8 +182,13 @@ class CodebaseScanner:
         py_files: list[Path] = []
         for root, dirs, files in os.walk(str(self.BASE_DIR)):
             # Skip common non-source directories
-            dirs[:] = [d for d in dirs if not d.startswith(("__pycache__", ".", "venv",
-                                                              "node_modules", "alembic"))]
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(
+                    ("__pycache__", ".", "venv", "node_modules", "alembic")
+                )
+            ]
             for f in files:
                 if f.endswith(".py"):
                     py_files.append(Path(root) / f)
@@ -210,16 +234,21 @@ class CodebaseScanner:
             info.has_tests = test_path is not None
 
         self._scan_time = time.time() - start
-        logger.info("[CodebaseScanner] Scanned {} modules in {:.1f}s",
-                    len(self.graph._modules), self._scan_time)
+        logger.info(
+            "[CodebaseScanner] Scanned {} modules in {:.1f}s",
+            len(self.graph._modules),
+            self._scan_time,
+        )
         return self.graph
 
     @staticmethod
     def _path_to_package(fpath: Path) -> str:
         """Convert backend/core/foo.py → backend.core.foo"""
-        relative = fpath.relative_to(CodebaseScanner.BASE_DIR.parent
-                                     if fpath.parts[0] == "backend"
-                                     else CodebaseScanner.BASE_DIR)
+        relative = fpath.relative_to(
+            CodebaseScanner.BASE_DIR.parent
+            if fpath.parts[0] == "backend"
+            else CodebaseScanner.BASE_DIR
+        )
         parts = list(relative.parts)
         if parts[-1] == "__init__.py":
             parts.pop()
@@ -277,10 +306,11 @@ class CodebaseScanner:
 # ImprovementAnalyzer — identifies improvement candidates
 # ---------------------------------------------------------------------------
 
+
 class ImprovementAnalyzer:
     """Static analysis to find codebase improvement opportunities."""
 
-    HIGH_COMPLEXITY_THRESHOLD = 50    # lines
+    HIGH_COMPLEXITY_THRESHOLD = 50  # lines
     MAX_BRANCHES = 5
 
     def __init__(self, scanner: CodebaseScanner) -> None:
@@ -313,20 +343,29 @@ class ImprovementAnalyzer:
                     end = node.end_lineno or 0
                     start = node.lineno
                     length = end - start
-                    branches = sum(1 for _ in ast.walk(node)
-                                   if isinstance(_, (ast.If, ast.For, ast.While,
-                                                     ast.Try, ast.ExceptHandler)))
-                    if length > self.HIGH_COMPLEXITY_THRESHOLD or branches > self.MAX_BRANCHES:
+                    branches = sum(
+                        1
+                        for _ in ast.walk(node)
+                        if isinstance(
+                            _, (ast.If, ast.For, ast.While, ast.Try, ast.ExceptHandler)
+                        )
+                    )
+                    if (
+                        length > self.HIGH_COMPLEXITY_THRESHOLD
+                        or branches > self.MAX_BRANCHES
+                    ):
                         severity = "high" if length > 100 else "medium"
-                        candidates.append(ImprovementCandidate(
-                            category="high_complexity",
-                            file_path=info.path,
-                            line_number=start,
-                            severity=severity,
-                            description=f"{node.name}: {length} lines, {branches} branches",
-                            suggestion="Refactor into smaller functions or use strategy pattern",
-                            estimated_effort="hours" if length > 100 else "medium",
-                        ))
+                        candidates.append(
+                            ImprovementCandidate(
+                                category="high_complexity",
+                                file_path=info.path,
+                                line_number=start,
+                                severity=severity,
+                                description=f"{node.name}: {length} lines, {branches} branches",
+                                suggestion="Refactor into smaller functions or use strategy pattern",
+                                estimated_effort="hours" if length > 100 else "medium",
+                            )
+                        )
         return candidates
 
     # ------------------------------------------------------------------
@@ -341,28 +380,34 @@ class ImprovementAnalyzer:
             for node in ast.walk(info.ast_node):
                 if isinstance(node, ast.ExceptHandler):
                     if node.type is None:
-                        candidates.append(ImprovementCandidate(
-                            category="bare_except",
-                            file_path=info.path,
-                            line_number=node.lineno,
-                            severity="high",
-                            description="Bare except: handler catches ALL exceptions",
-                            suggestion="Add explicit exception type or use logger.exception()",
-                            estimated_effort="minutes",
-                        ))
+                        candidates.append(
+                            ImprovementCandidate(
+                                category="bare_except",
+                                file_path=info.path,
+                                line_number=node.lineno,
+                                severity="high",
+                                description="Bare except: handler catches ALL exceptions",
+                                suggestion="Add explicit exception type or use logger.exception()",
+                                estimated_effort="minutes",
+                            )
+                        )
                     # Check if body is just "pass" or empty
-                    if (node.type is not None
-                            and len(node.body) == 1
-                            and isinstance(node.body[0], ast.Pass)):
-                        candidates.append(ImprovementCandidate(
-                            category="bare_except",
-                            file_path=info.path,
-                            line_number=node.lineno,
-                            severity="medium",
-                            description="Empty except handler — error silently swallowed",
-                            suggestion="Log the exception with logger.exception()",
-                            estimated_effort="minutes",
-                        ))
+                    if (
+                        node.type is not None
+                        and len(node.body) == 1
+                        and isinstance(node.body[0], ast.Pass)
+                    ):
+                        candidates.append(
+                            ImprovementCandidate(
+                                category="bare_except",
+                                file_path=info.path,
+                                line_number=node.lineno,
+                                severity="medium",
+                                description="Empty except handler — error silently swallowed",
+                                suggestion="Log the exception with logger.exception()",
+                                estimated_effort="minutes",
+                            )
+                        )
         return candidates
 
     # ------------------------------------------------------------------
@@ -380,15 +425,17 @@ class ImprovementAnalyzer:
             if "Base" in info.exports or "Abstract" in " ".join(info.exports):
                 continue
             if not info.has_tests and info.lines > 50:
-                candidates.append(ImprovementCandidate(
-                    category="missing_tests",
-                    file_path=info.path,
-                    line_number=1,
-                    severity="medium",
-                    description=f"No test file found for {info.package} ({info.lines} lines)",
-                    suggestion=f"Create tests/test_{info.path.split('/')[-1]} with pytest",
-                    estimated_effort="hours",
-                ))
+                candidates.append(
+                    ImprovementCandidate(
+                        category="missing_tests",
+                        file_path=info.path,
+                        line_number=1,
+                        severity="medium",
+                        description=f"No test file found for {info.package} ({info.lines} lines)",
+                        suggestion=f"Create tests/test_{info.path.split('/')[-1]} with pytest",
+                        estimated_effort="hours",
+                    )
+                )
         return candidates
 
     # ------------------------------------------------------------------
@@ -405,19 +452,29 @@ class ImprovementAnalyzer:
                     # Check if any argument lacks annotation
                     args = node.args
                     untyped = []
-                    for arg in args.args + args.kwonlyargs + ([args.vararg] if args.vararg else []):
-                        if arg.arg != "self" and arg.arg != "cls" and arg.annotation is None:
+                    for arg in (
+                        args.args
+                        + args.kwonlyargs
+                        + ([args.vararg] if args.vararg else [])
+                    ):
+                        if (
+                            arg.arg != "self"
+                            and arg.arg != "cls"
+                            and arg.annotation is None
+                        ):
                             untyped.append(arg.arg)
                     if untyped and node.lineno:
-                        candidates.append(ImprovementCandidate(
-                            category="type_unsafe",
-                            file_path=info.path,
-                            line_number=node.lineno,
-                            severity="low",
-                            description=f"{node.name}: untyped params: {', '.join(untyped[:5])}",
-                            suggestion="Add type annotations to function signature",
-                            estimated_effort="minutes",
-                        ))
+                        candidates.append(
+                            ImprovementCandidate(
+                                category="type_unsafe",
+                                file_path=info.path,
+                                line_number=node.lineno,
+                                severity="low",
+                                description=f"{node.name}: untyped params: {', '.join(untyped[:5])}",
+                                suggestion="Add type annotations to function signature",
+                                estimated_effort="minutes",
+                            )
+                        )
         return candidates
 
     # ------------------------------------------------------------------
@@ -426,9 +483,17 @@ class ImprovementAnalyzer:
 
     def _detect_performance_hotspots(self) -> list[ImprovementCandidate]:
         """Detect blocking calls (time.sleep, requests.get, etc.) inside async functions."""
-        BLOCKING_CALLS = {"time.sleep", "requests.get", "requests.post",
-                          "subprocess.run", "subprocess.call",
-                          "open(", ".read()", ".write()", "json.load(open"}
+        BLOCKING_CALLS = {
+            "time.sleep",
+            "requests.get",
+            "requests.post",
+            "subprocess.run",
+            "subprocess.call",
+            "open(",
+            ".read()",
+            ".write()",
+            "json.load(open",
+        }
         candidates: list[ImprovementCandidate] = []
         for info in self.graph.all_modules():
             if not info.ast_node:
@@ -444,15 +509,17 @@ class ImprovementAnalyzer:
                                 call_str = child.func.id
                             for blocking in BLOCKING_CALLS:
                                 if blocking in call_str:
-                                    candidates.append(ImprovementCandidate(
-                                        category="performance_hotspot",
-                                        file_path=info.path,
-                                        line_number=child.lineno,
-                                        severity="high",
-                                        description=f"Blocking call '{call_str}' inside async {node.name}",
-                                        suggestion=f"Use async equivalent of {blocking} or wrap in asyncio.to_thread()",
-                                        estimated_effort="minutes",
-                                    ))
+                                    candidates.append(
+                                        ImprovementCandidate(
+                                            category="performance_hotspot",
+                                            file_path=info.path,
+                                            line_number=child.lineno,
+                                            severity="high",
+                                            description=f"Blocking call '{call_str}' inside async {node.name}",
+                                            suggestion=f"Use async equivalent of {blocking} or wrap in asyncio.to_thread()",
+                                            estimated_effort="minutes",
+                                        )
+                                    )
         return candidates
 
     # ------------------------------------------------------------------
@@ -466,15 +533,17 @@ class ImprovementAnalyzer:
             # Skip __init__.py and __main__.py
             if info.package.endswith(("__init__", "__main__")):
                 continue
-            candidates.append(ImprovementCandidate(
-                category="dead_code",
-                file_path=info.path,
-                line_number=1,
-                severity="low",
-                description=f"Module {info.package} has no in-project consumers",
-                suggestion="Consider removing or consolidating; or add exports if it's a public API",
-                estimated_effort="medium",
-            ))
+            candidates.append(
+                ImprovementCandidate(
+                    category="dead_code",
+                    file_path=info.path,
+                    line_number=1,
+                    severity="low",
+                    description=f"Module {info.package} has no in-project consumers",
+                    suggestion="Consider removing or consolidating; or add exports if it's a public API",
+                    estimated_effort="medium",
+                )
+            )
         return candidates
 
     # ------------------------------------------------------------------
@@ -489,20 +558,26 @@ class ImprovementAnalyzer:
                 continue
             for node in ast.walk(info.ast_node):
                 # Look for numeric literals in range that are likely tunable constants
-                if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-                    if 5 <= node.value <= 3600 and not self._is_in_test_or_config(info.path):
+                if isinstance(node, ast.Constant) and isinstance(
+                    node.value, (int, float)
+                ):
+                    if 5 <= node.value <= 3600 and not self._is_in_test_or_config(
+                        info.path
+                    ):
                         # Only flag if used in a comparison or assignment
-                        parent = getattr(node, 'parent', None)
+                        parent = getattr(node, "parent", None)
                         if parent and isinstance(parent, (ast.Compare, ast.Assign)):
-                            candidates.append(ImprovementCandidate(
-                                category="hardcoded_config",
-                                file_path=info.path,
-                                line_number=node.lineno,
-                                severity="low",
-                                description=f"Magic number {node.value} should be configurable",
-                                suggestion="Extract to settings or strategy params",
-                                estimated_effort="minutes",
-                            ))
+                            candidates.append(
+                                ImprovementCandidate(
+                                    category="hardcoded_config",
+                                    file_path=info.path,
+                                    line_number=node.lineno,
+                                    severity="low",
+                                    description=f"Magic number {node.value} should be configurable",
+                                    suggestion="Extract to settings or strategy params",
+                                    estimated_effort="minutes",
+                                )
+                            )
         return candidates
 
     @staticmethod
@@ -513,6 +588,7 @@ class ImprovementAnalyzer:
 # ---------------------------------------------------------------------------
 # CodebaseHealthMetrics — tracks quality over time
 # ---------------------------------------------------------------------------
+
 
 class CodebaseHealthMetrics:
     """Tracks codebase health metrics over time for trend detection."""
@@ -531,15 +607,22 @@ class CodebaseHealthMetrics:
                 data = json.loads(self._file.read_text())
                 self._history = [CodebaseSnapshot(**s) for s in data]
             except (json.JSONDecodeError, KeyError, TypeError) as exc:
-                logger.warning("[CodebaseHealthMetrics] Failed to load metrics: {}", exc)
+                logger.warning(
+                    "[CodebaseHealthMetrics] Failed to load metrics: {}", exc
+                )
 
     def _save(self) -> None:
-        self._file.write_text(json.dumps(
-            [asdict(s) for s in self._history], indent=2, default=str
-        ))
+        self._file.write_text(
+            json.dumps([asdict(s) for s in self._history], indent=2, default=str)
+        )
 
-    def record_scan(self, total_modules: int, total_lines: int, test_count: int,
-                    candidates: list[ImprovementCandidate]) -> CodebaseSnapshot:
+    def record_scan(
+        self,
+        total_modules: int,
+        total_lines: int,
+        test_count: int,
+        candidates: list[ImprovementCandidate],
+    ) -> CodebaseSnapshot:
         """Record a new scan snapshot."""
         critical = sum(1 for c in candidates if c.severity == "critical")
         high = sum(1 for c in candidates if c.severity == "high")
@@ -611,7 +694,10 @@ class CodebaseHealthMetrics:
 # Convenience: full scan
 # ---------------------------------------------------------------------------
 
-def run_full_codebase_scan() -> tuple[ModuleGraph, list[ImprovementCandidate], CodebaseSnapshot]:
+
+def run_full_codebase_scan() -> (
+    tuple[ModuleGraph, list[ImprovementCandidate], CodebaseSnapshot]
+):
     """Convenience: run scanner + analyzer + metrics in one call."""
     scanner = CodebaseScanner()
     graph = scanner.scan_all()

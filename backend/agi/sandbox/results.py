@@ -1,4 +1,5 @@
 """Sandbox validation results."""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List
@@ -7,6 +8,7 @@ from typing import List
 @dataclass
 class SandboxResult:
     """Result of a sandbox validation run."""
+
     run_id: str
     status: str  # "passed", "failed", "error"
     gates_passed: List[str] = field(default_factory=list)

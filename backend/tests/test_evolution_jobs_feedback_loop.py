@@ -22,7 +22,9 @@ def _make_genome(genome_id: str, stage: str) -> GenomeRegistry:
     )
 
 
-def _add_shadow_trades(db, genome_id: str, pnls: list[float], size: float = 100.0) -> None:
+def _add_shadow_trades(
+    db, genome_id: str, pnls: list[float], size: float = 100.0
+) -> None:
     for idx, pnl in enumerate(pnls):
         db.add(
             ShadowTrade(
@@ -41,8 +43,12 @@ def _add_shadow_trades(db, genome_id: str, pnls: list[float], size: float = 100.
         )
 
 
-def test_shadow_feedback_loop_promotes_shadow_to_paper_and_updates_fitness(db, monkeypatch):
-    monkeypatch.setattr("backend.application.agi.evolution_jobs.settings.EVOLUTION_ENGINE_ENABLED", True)
+def test_shadow_feedback_loop_promotes_shadow_to_paper_and_updates_fitness(
+    db, monkeypatch
+):
+    monkeypatch.setattr(
+        "backend.application.agi.evolution_jobs.settings.EVOLUTION_ENGINE_ENABLED", True
+    )
 
     genome_id = "genome-shadow-pass"
     db.add(_make_genome(genome_id, "SHADOW"))
@@ -68,7 +74,9 @@ def test_shadow_feedback_loop_promotes_shadow_to_paper_and_updates_fitness(db, m
 
 
 def test_shadow_feedback_loop_promotes_paper_to_live(db, monkeypatch):
-    monkeypatch.setattr("backend.application.agi.evolution_jobs.settings.EVOLUTION_ENGINE_ENABLED", True)
+    monkeypatch.setattr(
+        "backend.application.agi.evolution_jobs.settings.EVOLUTION_ENGINE_ENABLED", True
+    )
 
     genome_id = "genome-paper-pass"
     db.add(_make_genome(genome_id, "PAPER"))
@@ -83,7 +91,9 @@ def test_shadow_feedback_loop_promotes_paper_to_live(db, monkeypatch):
 
 
 def test_shadow_feedback_loop_auto_kills_bad_drawdown(db, monkeypatch):
-    monkeypatch.setattr("backend.application.agi.evolution_jobs.settings.EVOLUTION_ENGINE_ENABLED", True)
+    monkeypatch.setattr(
+        "backend.application.agi.evolution_jobs.settings.EVOLUTION_ENGINE_ENABLED", True
+    )
 
     genome_id = "genome-kill-dd"
     db.add(_make_genome(genome_id, "SHADOW"))

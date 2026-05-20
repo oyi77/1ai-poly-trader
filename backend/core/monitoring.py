@@ -2,6 +2,7 @@
 Production monitoring and alerting system
 Detects anomalies and sends alerts via Slack/Discord webhooks
 """
+
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -13,6 +14,7 @@ from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from backend.utils.redaction import redact_sensitive
 
 from loguru import logger
+
 webhook_breaker = CircuitBreaker(
     "webhook",
     failure_threshold=settings.CB_FAILURE_THRESHOLD,
@@ -41,22 +43,26 @@ class ProductionMonitor:
         """)).fetchall()
 
         if duplicates:
-            issues.append({
-                "severity": "high",
-                "type": "duplicates",
-                "message": f"Found {len(duplicates)} duplicate trades",
-                "details": [{"ticker": d[0], "count": d[1]} for d in duplicates]
-            })
+            issues.append(
+                {
+                    "severity": "high",
+                    "type": "duplicates",
+                    "message": f"Found {len(duplicates)} duplicate trades",
+                    "details": [{"ticker": d[0], "count": d[1]} for d in duplicates],
+                }
+            )
 
         db_size = self.db.execute(text("SELECT COUNT(*) FROM trades")).fetchone()[0]
 
         if db_size < 10:
-            issues.append({
-                "severity": "critical",
-                "type": "database_wipe",
-                "message": f"Database suspiciously small: only {db_size} trades",
-                "details": {"trade_count": db_size}
-            })
+            issues.append(
+                {
+                    "severity": "critical",
+                    "type": "database_wipe",
+                    "message": f"Database suspiciously small: only {db_size} trades",
+                    "details": {"trade_count": db_size},
+                }
+            )
 
         missing_pnl = self.db.execute(text("""
             SELECT COUNT(*)
@@ -65,17 +71,19 @@ class ProductionMonitor:
         """)).fetchone()[0]
 
         if missing_pnl > 0:
-            issues.append({
-                "severity": "medium",
-                "type": "missing_pnl",
-                "message": f"{missing_pnl} settled trades missing PNL",
-                "details": {"count": missing_pnl}
-            })
+            issues.append(
+                {
+                    "severity": "medium",
+                    "type": "missing_pnl",
+                    "message": f"{missing_pnl} settled trades missing PNL",
+                    "details": {"count": missing_pnl},
+                }
+            )
 
         return {
             "healthy": len(issues) == 0,
             "issues": issues,
-            "checked_at": datetime.now(timezone.utc).isoformat()
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
     def check_pnl_accuracy(self) -> Dict[str, Any]:
@@ -86,19 +94,25 @@ class ProductionMonitor:
             results = {}
             all_accurate = True
             for mode in settings.active_modes_set:
-                bot = for_update(self.db, self.db.query(BotState).filter(
-                    BotState.mode == mode
-                )).first()
+                bot = for_update(
+                    self.db, self.db.query(BotState).filter(BotState.mode == mode)
+                ).first()
                 if not bot:
-                    results[mode] = {"accurate": True, "message": "no BotState to verify"}
+                    results[mode] = {
+                        "accurate": True,
+                        "message": "no BotState to verify",
+                    }
                     continue
 
                 reported_pnl = bot.total_pnl or 0.0
 
-                result = self.db.execute(text("""
+                result = self.db.execute(
+                    text("""
                     SELECT COALESCE(SUM(pnl), 0) FROM trades
                     WHERE settled = TRUE AND trading_mode = :mode
-                """), {"mode": mode}).fetchone()
+                """),
+                    {"mode": mode},
+                ).fetchone()
 
                 computed_pnl = float(result[0]) if result else 0.0
 
@@ -107,7 +121,11 @@ class ProductionMonitor:
                     continue
 
                 tolerance = settings.MONITORING_PNL_TOLERANCE_PCT
-                diff_pct = abs(reported_pnl - computed_pnl) / abs(reported_pnl) if abs(reported_pnl) > 0 else abs(computed_pnl)
+                diff_pct = (
+                    abs(reported_pnl - computed_pnl) / abs(reported_pnl)
+                    if abs(reported_pnl) > 0
+                    else abs(computed_pnl)
+                )
 
                 accurate = diff_pct <= tolerance
                 if not accurate:
@@ -118,7 +136,11 @@ class ProductionMonitor:
                     "computed_pnl": round(computed_pnl, 2),
                     "diff_pct": round(diff_pct, 4),
                     "tolerance_pct": tolerance,
-                    "message": "PnL verified" if accurate else f"PnL mismatch: {diff_pct:.2%} > {tolerance:.2%} tolerance"
+                    "message": (
+                        "PnL verified"
+                        if accurate
+                        else f"PnL mismatch: {diff_pct:.2%} > {tolerance:.2%} tolerance"
+                    ),
                 }
 
             return {"accurate": all_accurate, "modes": results}
@@ -132,12 +154,18 @@ class ProductionMonitor:
         backup_dir = Path(settings.DB_BACKUP_DIR)
         if not backup_dir.is_absolute():
             from backend.config import ROOT_DIR
+
             backup_dir = Path(ROOT_DIR) / backup_dir
 
         if not backup_dir.exists():
-            return {"healthy": False, "message": f"Backup directory not found: {backup_dir}"}
+            return {
+                "healthy": False,
+                "message": f"Backup directory not found: {backup_dir}",
+            }
 
-        backups = sorted(backup_dir.glob("auto_*.db"), key=os.path.getmtime, reverse=True)
+        backups = sorted(
+            backup_dir.glob("auto_*.db"), key=os.path.getmtime, reverse=True
+        )
 
         if not backups:
             return {"healthy": False, "message": "No backups found"}
@@ -150,14 +178,14 @@ class ProductionMonitor:
             return {
                 "healthy": False,
                 "message": f"Latest backup is {backup_age/3600:.1f} hours old",
-                "latest_backup": str(latest_backup)
+                "latest_backup": str(latest_backup),
             }
 
         return {
             "healthy": True,
             "message": f"Latest backup: {backup_age/60:.0f} minutes ago",
             "backup_count": len(backups),
-            "latest_backup": str(latest_backup)
+            "latest_backup": str(latest_backup),
         }
 
     def run_health_check(self) -> Dict[str, Any]:
@@ -166,7 +194,7 @@ class ProductionMonitor:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "database": self.check_database_health(),
             "pnl_accuracy": self.check_pnl_accuracy(),
-            "backups": self.check_backup_status()
+            "backups": self.check_backup_status(),
         }
 
     def send_alert(self, severity: str, message: str, details: Optional[Dict] = None):
@@ -177,7 +205,7 @@ class ProductionMonitor:
             "severity": severity,
             "message": message,
             "details": details or {},
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.warning(f"ALERT [{severity}]: {message}")
@@ -218,21 +246,24 @@ class ProductionMonitor:
                             "type": "section",
                             "text": {
                                 "type": "mrkdwn",
-                                "text": f"*{alert['severity'].upper()}*\n{alert['message']}"
-                            }
+                                "text": f"*{alert['severity'].upper()}*\n{alert['message']}",
+                            },
                         }
-                    ]
+                    ],
                 }
                 if alert.get("details"):
                     details_text = "\n".join(
-                        f"- {k}: {v}" for k, v in alert["details"].items()
+                        f"- {k}: {v}"
+                        for k, v in alert["details"].items()
                         if not isinstance(v, (dict, list))
                     )
                     if details_text:
-                        slack_payload["blocks"].append({
-                            "type": "section",
-                            "text": {"type": "mrkdwn", "text": details_text}
-                        })
+                        slack_payload["blocks"].append(
+                            {
+                                "type": "section",
+                                "text": {"type": "mrkdwn", "text": details_text},
+                            }
+                        )
                 await webhook_breaker.call(_send_slack, slack_payload)
             except CircuitOpenError:
                 logger.debug("Slack webhook circuit open, skipping")
@@ -242,16 +273,20 @@ class ProductionMonitor:
         if settings.DISCORD_WEBHOOK_URL:
             try:
                 color_map = {
-                    "info": 3447003, "warning": 16776960,
-                    "critical": 15158332, "emergency": 15158332
+                    "info": 3447003,
+                    "warning": 16776960,
+                    "critical": 15158332,
+                    "emergency": 15158332,
                 }
                 discord_payload = {
-                    "embeds": [{
-                        "title": f"[{alert['severity'].upper()}]",
-                        "description": alert["message"],
-                        "color": color_map.get(alert["severity"], 16777215),
-                        "timestamp": alert["timestamp"],
-                    }]
+                    "embeds": [
+                        {
+                            "title": f"[{alert['severity'].upper()}]",
+                            "description": alert["message"],
+                            "color": color_map.get(alert["severity"], 16777215),
+                            "timestamp": alert["timestamp"],
+                        }
+                    ]
                 }
                 if alert.get("details"):
                     fields = [
@@ -280,7 +315,7 @@ async def run_monitoring_check(db: Session) -> Dict[str, Any]:
             monitor.send_alert(
                 severity="warning",
                 message=f"Health check failed: {check_name}",
-                details=check_result
+                details=check_result,
             )
 
     return health

@@ -67,9 +67,7 @@ async def test_external_api_timeout():
 
     with pytest.raises(asyncio.TimeoutError):
         await execute_external_api_with_timeout(
-            slow_api_call,
-            timeout=1.0,
-            operation_name="test_api"
+            slow_api_call, timeout=1.0, operation_name="test_api"
         )
 
 
@@ -82,9 +80,7 @@ async def test_external_api_success():
         return {"data": "value"}
 
     result = await execute_external_api_with_timeout(
-        fast_api_call,
-        timeout=5.0,
-        operation_name="test_api"
+        fast_api_call, timeout=5.0, operation_name="test_api"
     )
 
     assert result == {"data": "value"}

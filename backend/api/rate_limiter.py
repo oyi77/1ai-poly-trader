@@ -5,6 +5,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from loguru import logger
+
+
 class RateLimiterMiddleware(BaseHTTPMiddleware):
     """
     In-process rate limiter with per-endpoint limits using sliding window.
@@ -58,7 +60,9 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             (allowed, remaining_requests)
         """
         window_start = now - 60
-        self._http_per_ip[client_id] = [t for t in self._http_per_ip[client_id] if t > window_start]
+        self._http_per_ip[client_id] = [
+            t for t in self._http_per_ip[client_id] if t > window_start
+        ]
 
         request_count = len(self._http_per_ip[client_id])
         remaining = max(0, self.HTTP_LIMIT_PER_IP - request_count)
@@ -70,14 +74,22 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
         # Periodic cleanup: remove IPs with no recent activity to prevent memory leak
         if len(self._http_per_ip) > 1000:
-            stale_ips = [ip for ip, ts in self._http_per_ip.items() if not ts or (now - ts[-1]) > 120]
+            stale_ips = [
+                ip
+                for ip, ts in self._http_per_ip.items()
+                if not ts or (now - ts[-1]) > 120
+            ]
             for ip in stale_ips:
                 del self._http_per_ip[ip]
 
         return True, remaining - 1
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path.startswith("/ws/") or request.url.path in ["/", "/api/health", "/metrics"]:
+        if request.url.path.startswith("/ws/") or request.url.path in [
+            "/",
+            "/api/health",
+            "/metrics",
+        ]:
             return await call_next(request)
 
         client_id = self._get_client_id(request)
@@ -112,7 +124,9 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         ]
 
         if len(self._requests) > 10000:
-            self._requests = defaultdict(list, {k: v for k, v in self._requests.items() if v})
+            self._requests = defaultdict(
+                list, {k: v for k, v in self._requests.items() if v}
+            )
 
         request_count = len(self._requests[client_id])
         remaining = max(0, limit - request_count)

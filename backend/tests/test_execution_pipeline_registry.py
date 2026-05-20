@@ -3,9 +3,13 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 import sys
+
 sys.path.insert(0, "/Users/paijo/1ai-poly-trader")
 
-from backend.core.execution_pipeline.base import BaseExecutionStage, ExecutionStageManifest
+from backend.core.execution_pipeline.base import (
+    BaseExecutionStage,
+    ExecutionStageManifest,
+)
 from backend.core.execution_pipeline.registry import ExecutionPipelineRegistry, registry
 from backend.core.plugin_errors import PluginNotFound
 
@@ -17,6 +21,7 @@ class TestValidationStage:
 
     def test_validate_passed(self):
         from backend.core.execution_pipeline.stages.validate import ValidationStage
+
         stage = ValidationStage()
         decision = {
             "size": 100.0,
@@ -37,6 +42,7 @@ class TestValidationStage:
 
     def test_validate_rejected_low_confidence(self):
         from backend.core.execution_pipeline.stages.validate import ValidationStage
+
         stage = ValidationStage()
         decision = {
             "size": 100.0,
@@ -63,6 +69,7 @@ class TestPaperSimulationStage:
 
     def test_execute_simulation(self):
         from backend.core.execution_pipeline.stages.simulate import PaperSimulationStage
+
         stage = PaperSimulationStage()
         decision = {
             "entry_price": 0.5,
@@ -81,6 +88,7 @@ class TestPaperSimulationStage:
 
     def test_validate_always_passes(self):
         from backend.core.execution_pipeline.stages.simulate import PaperSimulationStage
+
         stage = PaperSimulationStage()
         decision = {"test": "decision"}
         ctx = {"mode": "paper"}
@@ -97,6 +105,7 @@ class TestLiveExecuteStage:
 
     def test_validate_with_token_id(self):
         from backend.core.execution_pipeline.stages.execute import LiveExecuteStage
+
         stage = LiveExecuteStage()
         decision = {
             "token_id": "0x123",
@@ -110,6 +119,7 @@ class TestLiveExecuteStage:
 
     def test_validate_without_token_id(self):
         from backend.core.execution_pipeline.stages.execute import LiveExecuteStage
+
         stage = LiveExecuteStage()
         decision = {
             "market_ticker": "US election",
@@ -122,9 +132,12 @@ class TestLiveExecuteStage:
 
     def test_health_check(self):
         from backend.core.execution_pipeline.stages.execute import LiveExecuteStage
+
         stage = LiveExecuteStage()
 
-        with patch("backend.markets.provider_registry.market_registry") as mock_registry:
+        with patch(
+            "backend.markets.provider_registry.market_registry"
+        ) as mock_registry:
             mock_manager = MagicMock()
             mock_provider = MagicMock()
             mock_provider.health_check.return_value = True
@@ -144,6 +157,7 @@ class TestRecordStage:
 
     def test_execute_record(self):
         from backend.core.execution_pipeline.stages.record import RecordStage
+
         stage = RecordStage()
         decision = {
             "size": 100.0,
@@ -163,6 +177,7 @@ class TestRecordStage:
 
     def test_validate_always_passes(self):
         from backend.core.execution_pipeline.stages.record import RecordStage
+
         stage = RecordStage()
         result = stage.validate({}, {})
         assert result is True
@@ -175,6 +190,7 @@ class TestNotifyStage:
 
     def test_execute_notify(self):
         from backend.core.execution_pipeline.stages.notify import NotifyStage
+
         stage = NotifyStage()
         decision = {
             "market_ticker": "US election",
@@ -195,6 +211,7 @@ class TestNotifyStage:
 
     def test_validate_always_passes(self):
         from backend.core.execution_pipeline.stages.notify import NotifyStage
+
         stage = NotifyStage()
         result = stage.validate({}, {})
         assert result is True
@@ -376,9 +393,14 @@ class TestRegistry:
         assert "live_mode" not in result
 
     def test_auto_discover(self):
-        importlib.reload(sys.modules['backend.core.execution_pipeline.stages']) if 'backend.core.execution_pipeline.stages' in sys.modules else None
+        (
+            importlib.reload(sys.modules["backend.core.execution_pipeline.stages"])
+            if "backend.core.execution_pipeline.stages" in sys.modules
+            else None
+        )
 
         from backend.core.execution_pipeline.registry import registry
+
         assert "validation" in registry._plugins
         assert "paper_simulate" in registry._plugins
         assert "live_execute" in registry._plugins
@@ -387,7 +409,6 @@ class TestRegistry:
 
     def test_health_check(self):
         registry.reset()
-
 
         result = registry.health_check()
 

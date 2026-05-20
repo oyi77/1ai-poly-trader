@@ -210,7 +210,9 @@ async def test_network_error_returns_empty(tmp_path):
 async def test_stale_cache_triggers_refresh(tmp_path):
     stale_data = [{"title": "Old"}]
     p = tmp_path / f"{WALLET[2:14].lower()}_positions.json"
-    p.write_text(json.dumps({"data": stale_data, "timestamp": time.time() - CACHE_TTL - 1}))
+    p.write_text(
+        json.dumps({"data": stale_data, "timestamp": time.time() - CACHE_TTL - 1})
+    )
 
     fresh_data = [{"title": "Fresh"}]
     calls = 0

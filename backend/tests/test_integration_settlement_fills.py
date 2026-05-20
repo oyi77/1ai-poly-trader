@@ -18,7 +18,7 @@ class TestFillEventProcessing:
             filled_size=Decimal("10.5"),
             filled_price=Decimal("0.65"),
             fill_timestamp=datetime.now(timezone.utc).timestamp(),
-            is_final=True
+            is_final=True,
         )
 
         assert fill.venue == "polymarket"
@@ -34,7 +34,7 @@ class TestFillEventProcessing:
             filled_size=Decimal("50"),
             filled_price=Decimal("0.45"),
             fill_timestamp=datetime.now(timezone.utc).timestamp(),
-            is_final=True
+            is_final=True,
         )
 
         assert fill.is_final is True
@@ -49,7 +49,7 @@ class TestFillEventProcessing:
             filled_size=Decimal("5"),
             filled_price=Decimal("0.55"),
             fill_timestamp=datetime.now(timezone.utc).timestamp(),
-            is_final=False
+            is_final=False,
         )
 
         final = NormalizedFillEvent(
@@ -60,7 +60,7 @@ class TestFillEventProcessing:
             filled_size=Decimal("10"),
             filled_price=Decimal("0.55"),
             fill_timestamp=datetime.now(timezone.utc).timestamp(),
-            is_final=True
+            is_final=True,
         )
 
         assert partial.is_final is False
@@ -75,7 +75,7 @@ class TestFillEventProcessing:
             filled_size=Decimal("10"),
             filled_price=Decimal("0.60"),
             fill_timestamp=datetime.now(timezone.utc).timestamp(),
-            is_final=True
+            is_final=True,
         )
 
         Kalshi_event = NormalizedFillEvent(
@@ -86,7 +86,7 @@ class TestFillEventProcessing:
             filled_size=Decimal("100"),
             filled_price=Decimal("0.50"),
             fill_timestamp=datetime.now(timezone.utc).timestamp(),
-            is_final=True
+            is_final=True,
         )
 
         assert Polymarket_event.venue == "polymarket"
@@ -102,7 +102,7 @@ class TestTradeSettlementIntegration:
             market_type="btc",
             direction="up",
             entry_price=0.60,
-            size=100
+            size=100,
         )
         db.add(trade)
         db.commit()
@@ -123,7 +123,7 @@ class TestTradeSettlementIntegration:
             market_type="btc",
             direction="up",
             entry_price=0.60,
-            size=100
+            size=100,
         )
         db.add(trade)
         db.commit()
@@ -144,7 +144,7 @@ class TestTradeSettlementIntegration:
             market_type="btc",
             direction="down",
             entry_price=0.50,
-            size=100
+            size=100,
         )
         db.add(trade)
         db.commit()
@@ -165,7 +165,7 @@ class TestTradeSettlementIntegration:
             market_type="btc",
             direction="down",
             entry_price=0.50,
-            size=100
+            size=100,
         )
         db.add(trade)
         db.commit()
@@ -181,7 +181,9 @@ class TestTradeSettlementIntegration:
 
 class TestMarketSettlementIntegration:
     def test_token_id_recognition(self):
-        valid_token = "1000000000000000000000000000000000000000000000000000000000000000001"
+        valid_token = (
+            "1000000000000000000000000000000000000000000000000000000000000000001"
+        )
         assert _looks_like_token_id(valid_token) is True
 
         invalid_token = "short"
@@ -201,7 +203,7 @@ class TestMarketSettlementIntegration:
             size=100,
             settled=True,
             settlement_time=datetime.now(timezone.utc),
-            settlement_value=0.75
+            settlement_value=0.75,
         )
         db.add(settlement)
         db.commit()
@@ -219,7 +221,7 @@ class TestMarketSettlementIntegration:
             direction="up",
             entry_price=0.50,
             size=100,
-            source="polymarket"
+            source="polymarket",
         )
         Kalshi_trade = Trade(
             signal_id=2,
@@ -229,13 +231,15 @@ class TestMarketSettlementIntegration:
             direction="down",
             entry_price=0.50,
             size=100,
-            source="kalshi"
+            source="kalshi",
         )
 
         db.add_all([Polymarket_trade, Kalshi_trade])
         db.commit()
 
-        Polymarket_retrieved = db.query(Trade).filter(Trade.source == "polymarket").first()
+        Polymarket_retrieved = (
+            db.query(Trade).filter(Trade.source == "polymarket").first()
+        )
         Kalshi_retrieved = db.query(Trade).filter(Trade.source == "kalshi").first()
 
         assert Polymarket_retrieved.market_ticker == "BTC-USD"
@@ -253,7 +257,7 @@ class TestPnLSettlementIntegration:
                 filled_size=Decimal("50"),
                 filled_price=Decimal("0.60"),
                 fill_timestamp=datetime.now(timezone.utc).timestamp(),
-                is_final=False
+                is_final=False,
             ),
             NormalizedFillEvent(
                 venue="polymarket",
@@ -263,8 +267,8 @@ class TestPnLSettlementIntegration:
                 filled_size=Decimal("50"),
                 filled_price=Decimal("0.62"),
                 fill_timestamp=datetime.now(timezone.utc).timestamp(),
-                is_final=True
-            )
+                is_final=True,
+            ),
         ]
 
         total_size = sum(f.filled_size for f in fills)
@@ -280,7 +284,7 @@ class TestPnLSettlementIntegration:
             market_ticker="BTC-USD",
             pnl=10.0,
             result="pending",
-            settled=False
+            settled=False,
         )
         db.add(trade)
         db.commit()
@@ -306,7 +310,7 @@ class TestPnLSettlementIntegration:
             pnl=5.0,
             settled=True,
             result="win",
-            settlement_time=settlement_time
+            settlement_time=settlement_time,
         )
         db.add(trade)
         db.commit()

@@ -34,13 +34,10 @@ class CodeRefactoringAgent:
         """Check if a module path requires safety approval."""
         normalized = module_path.replace("\\", "/")
         return any(
-            normalized.startswith(protected)
-            for protected in self.PROTECTED_PATHS
+            normalized.startswith(protected) for protected in self.PROTECTED_PATHS
         )
 
-    async def propose_refactor(
-        self, module_path: str, goal: str
-    ) -> Optional[str]:
+    async def propose_refactor(self, module_path: str, goal: str) -> Optional[str]:
         """
         Propose a unified diff for code refactoring using LLM.
 
@@ -99,7 +96,9 @@ Always output valid, applicable diffs."""
             # Try to get a provider from the registry
             available = self.provider_registry.list_available()
             if not available:
-                self.logger.warning("No AI providers available for refactoring proposal")
+                self.logger.warning(
+                    "No AI providers available for refactoring proposal"
+                )
                 return None
 
             # Use the first available provider
@@ -109,7 +108,7 @@ Always output valid, applicable diffs."""
             self.logger.info(
                 f"Requesting refactor proposal from {provider_name}",
                 goal=goal,
-                module=module_path
+                module=module_path,
             )
 
             diff = await provider.complete(
@@ -120,9 +119,7 @@ Always output valid, applicable diffs."""
             )
 
             self.logger.info(
-                "Received refactor proposal",
-                diff_length=len(diff),
-                module=module_path
+                "Received refactor proposal", diff_length=len(diff), module=module_path
             )
 
             return diff
@@ -207,9 +204,7 @@ Always output valid, applicable diffs."""
                     )
 
                 if result.returncode != 0:
-                    self.logger.error(
-                        f"Patch command failed: {result.stderr}"
-                    )
+                    self.logger.error(f"Patch command failed: {result.stderr}")
                     # Restore from backup
                     self._restore_backup(module_path, backup_path)
                     return False
@@ -434,9 +429,7 @@ Always output valid, applicable diffs."""
             )
             # For now, log but don't block. In production, this would require human approval.
             msg = "Protected path - manual approval required"
-            self._log_refactor_action(
-                "safety_gate", module_path, goal, False, msg
-            )
+            self._log_refactor_action("safety_gate", module_path, goal, False, msg)
             return False, msg
 
         # Step 4: Apply refactor

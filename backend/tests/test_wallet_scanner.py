@@ -118,9 +118,7 @@ class TestDeduplication:
                 return_value=positions,
             ),
         ):
-            result = await find_profitable_traders(
-                min_volume=1000, min_trades=50
-            )
+            result = await find_profitable_traders(min_volume=1000, min_trades=50)
 
         # Should be deduplicated to exactly 1 trader
         assert len(result) == 1
@@ -138,7 +136,9 @@ class TestFilterVolume:
             _score(wallet="0x2", volume=5000, total_trades=60),
             _score(wallet="0x3", volume=999, total_trades=60),
         ]
-        result = _filter_and_sort(traders, min_vol=1000, min_trades=50, max_results=50, sort_by="pnl")
+        result = _filter_and_sort(
+            traders, min_vol=1000, min_trades=50, max_results=50, sort_by="pnl"
+        )
         assert len(result) == 1
         assert result[0].wallet == "0x2"
 
@@ -155,7 +155,9 @@ class TestSortPnL:
             _score(wallet="0x2", pnl=100.0),
             _score(wallet="0x3", pnl=50.0),
         ]
-        result = _filter_and_sort(traders, min_vol=0, min_trades=0, max_results=50, sort_by="pnl")
+        result = _filter_and_sort(
+            traders, min_vol=0, min_trades=0, max_results=50, sort_by="pnl"
+        )
         assert [t.pnl for t in result] == [100.0, 50.0, 10.0]
 
 
@@ -171,7 +173,9 @@ class TestSortWinRate:
             _score(wallet="0x2", win_rate=0.9),
             _score(wallet="0x3", win_rate=0.6),
         ]
-        result = _filter_and_sort(traders, min_vol=0, min_trades=0, max_results=50, sort_by="win_rate")
+        result = _filter_and_sort(
+            traders, min_vol=0, min_trades=0, max_results=50, sort_by="win_rate"
+        )
         assert [t.win_rate for t in result] == [0.9, 0.6, 0.4]
 
 
@@ -195,11 +199,25 @@ class TestCache:
 
     def test_expired_cache_returns_none(self, tmp_path):
         cache_file = tmp_path / "scan_results.json"
-        cache_file.write_text(json.dumps({
-            "timestamp": time.time() - 7200,  # 2 hours ago
-            "traders": [{"wallet": "0x1", "proxy": None, "pnl": 0, "win_rate": 0,
-                         "total_trades": 0, "volume": 0, "sharpe": 0, "source_method": ""}],
-        }))
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "timestamp": time.time() - 7200,  # 2 hours ago
+                    "traders": [
+                        {
+                            "wallet": "0x1",
+                            "proxy": None,
+                            "pnl": 0,
+                            "win_rate": 0,
+                            "total_trades": 0,
+                            "volume": 0,
+                            "sharpe": 0,
+                            "source_method": "",
+                        }
+                    ],
+                }
+            )
+        )
         with patch("backend.core.wallet_scanner.CACHE_DIR", tmp_path):
             result = _load_scan_cache()
         assert result is None
@@ -218,9 +236,7 @@ class TestCache:
                 new_callable=AsyncMock,
             ) as mock_gamma,
         ):
-            result = await find_profitable_traders(
-                min_volume=0, min_trades=0
-            )
+            result = await find_profitable_traders(min_volume=0, min_trades=0)
 
         # Should use cache and never call discovery
         mock_gamma.assert_not_called()

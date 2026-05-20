@@ -13,8 +13,12 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from backend.models.database import (
-    ActivityLog, StrategyProposal, StrategyConfig, MiroFishSignal,
-    DecisionLog, BotState,
+    ActivityLog,
+    StrategyProposal,
+    StrategyConfig,
+    MiroFishSignal,
+    DecisionLog,
+    BotState,
 )
 
 
@@ -69,9 +73,9 @@ class TestPhase2RegressionFeature2:
             db.add(activity)
         db.commit()
 
-        weather_activities = db.query(ActivityLog).filter_by(
-            strategy_name="weather_emos"
-        ).all()
+        weather_activities = (
+            db.query(ActivityLog).filter_by(strategy_name="weather_emos").all()
+        )
         assert len(weather_activities) == 2
 
     def test_activity_null_data_handled_gracefully(self, db: Session):
@@ -430,9 +434,7 @@ class TestPerformanceBaseline:
         db.commit()
 
         start = datetime.now(timezone.utc)
-        results = db.query(ActivityLog).filter_by(
-            strategy_name="btc_momentum"
-        ).all()
+        results = db.query(ActivityLog).filter_by(strategy_name="btc_momentum").all()
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
 
         assert elapsed < 0.5  # Query should complete in < 500ms
@@ -463,9 +465,9 @@ class TestErrorRecoveryPathsForDeployment:
         db.add(proposal2)
         db.commit()
 
-        proposals = db.query(StrategyProposal).filter_by(
-            strategy_name="test_strat"
-        ).all()
+        proposals = (
+            db.query(StrategyProposal).filter_by(strategy_name="test_strat").all()
+        )
         assert len(proposals) == 2
 
     def test_corrupted_json_fields_logged_not_crashed(self, db: Session):

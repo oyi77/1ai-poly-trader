@@ -1,4 +1,5 @@
 """Tests for LLM Cost Tracker — budget enforcement, cost tracking, daily reset."""
+
 import pytest
 from unittest.mock import patch
 
@@ -87,6 +88,7 @@ class TestLLMCostTracker:
 
     def test_env_var_daily_budget(self):
         import os
+
         original = os.environ.get("LLM_DAILY_BUDGET")
         os.environ["LLM_DAILY_BUDGET"] = "5.0"
         tracker = LLMCostTracker()

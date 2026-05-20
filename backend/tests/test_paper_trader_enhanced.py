@@ -100,7 +100,14 @@ class TestEnhancedPaperTrader:
 
 class TestSimulatedFill:
     def test_fields(self):
-        f = SimulatedFill(price=0.5, size=10.0, slippage=0.01, latency_ms=50.0, partial=False, timestamp=0.0)
+        f = SimulatedFill(
+            price=0.5,
+            size=10.0,
+            slippage=0.01,
+            latency_ms=50.0,
+            partial=False,
+            timestamp=0.0,
+        )
         assert f.price == 0.5
         assert f.partial is False
 

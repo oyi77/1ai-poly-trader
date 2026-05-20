@@ -43,7 +43,8 @@ def test_settlement_check_has_misfire_grace_for_transient_lock_delays():
         node
         for node in persist_calls
         if any(
-            keyword.arg == "id" and isinstance(keyword.value, ast.Constant)
+            keyword.arg == "id"
+            and isinstance(keyword.value, ast.Constant)
             and keyword.value.value == "settlement_check"
             for keyword in node.keywords
         )

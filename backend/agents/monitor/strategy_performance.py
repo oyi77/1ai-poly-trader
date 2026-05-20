@@ -231,16 +231,24 @@ class StrategyPerformanceTracker:
 
                     # Recent trades count
                     now = datetime.now(timezone.utc)
-                    report.recent_trades_7d = db.query(Trade).filter(
-                        Trade.strategy == config.name,
-                        Trade.mode == mode,
-                        Trade.timestamp >= now - timedelta(days=7),
-                    ).count()
-                    report.recent_trades_30d = db.query(Trade).filter(
-                        Trade.strategy == config.name,
-                        Trade.mode == mode,
-                        Trade.timestamp >= now - timedelta(days=30),
-                    ).count()
+                    report.recent_trades_7d = (
+                        db.query(Trade)
+                        .filter(
+                            Trade.strategy == config.name,
+                            Trade.mode == mode,
+                            Trade.timestamp >= now - timedelta(days=7),
+                        )
+                        .count()
+                    )
+                    report.recent_trades_30d = (
+                        db.query(Trade)
+                        .filter(
+                            Trade.strategy == config.name,
+                            Trade.mode == mode,
+                            Trade.timestamp >= now - timedelta(days=30),
+                        )
+                        .count()
+                    )
 
                     reports[config.name] = report
 
@@ -298,9 +306,7 @@ class StrategyPerformanceTracker:
             # Profit factor
             gross_win = sum(t.pnl or 0.0 for t in wins)
             gross_loss = abs(sum(t.pnl or 0.0 for t in losses))
-            stats["profit_factor"] = (
-                gross_win / gross_loss if gross_loss > 0 else 999.0
-            )
+            stats["profit_factor"] = gross_win / gross_loss if gross_loss > 0 else 999.0
 
             # Avgs
             stats["avg_win"] = gross_win / len(wins) if wins else 0.0
@@ -319,9 +325,7 @@ class StrategyPerformanceTracker:
 
         return stats
 
-    def _compute_streaks(
-        self, db, strategy_name: str, mode: str
-    ) -> Dict[str, Any]:
+    def _compute_streaks(self, db, strategy_name: str, mode: str) -> Dict[str, Any]:
         """Compute current win/loss streaks from recent trades."""
         result = {"wins": 0, "losses": 0, "streak_str": ""}
 
@@ -349,7 +353,9 @@ class StrategyPerformanceTracker:
                 if streak_type is None:
                     streak_type = "W" if is_win else "L"
                     streak_count = 1
-                elif (is_win and streak_type == "W") or (not is_win and streak_type == "L"):
+                elif (is_win and streak_type == "W") or (
+                    not is_win and streak_type == "L"
+                ):
                     streak_count += 1
                 else:
                     break

@@ -8,9 +8,17 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.config import settings
-from backend.models.database import SessionLocal, Trade, StrategyConfig, BotState, for_update
+from backend.models.database import (
+    SessionLocal,
+    Trade,
+    StrategyConfig,
+    BotState,
+    for_update,
+)
 
 from loguru import logger
+
+
 class NightlyReviewWriter:
     """Generates nightly AGI review reports as markdown files."""
 
@@ -46,10 +54,10 @@ class NightlyReviewWriter:
 
             # Publish event for KnowledgeGraph integration
             from backend.core.event_bus import publish_event
-            publish_event("nightly_review_complete", {
-                "date": date_str,
-                "file_path": path
-            })
+
+            publish_event(
+                "nightly_review_complete", {"date": date_str, "file_path": path}
+            )
 
             return path
         except Exception as e:
@@ -67,9 +75,9 @@ class NightlyReviewWriter:
             from backend.config import settings
 
             for mode in settings.active_modes_set:
-                bot = for_update(db, db.query(BotState).filter(
-                    BotState.mode == mode
-                )).first()
+                bot = for_update(
+                    db, db.query(BotState).filter(BotState.mode == mode)
+                ).first()
                 if bot:
                     lines.append(f"### Mode: {mode}")
                     lines.append(f"- **Bankroll**: ${bot.bankroll or 0:.2f}")
@@ -172,7 +180,9 @@ class NightlyReviewWriter:
             else:
                 lines.append("- No pending proposals")
 
-            disabled = db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(False)).all()
+            disabled = (
+                db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(False)).all()
+            )
             if disabled:
                 lines.append(f"\n### Disabled Strategies ({len(disabled)})\n")
                 for d in disabled:

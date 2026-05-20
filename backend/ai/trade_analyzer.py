@@ -50,9 +50,7 @@ class TradeAnalyzer:
 
             # Handle missing data gracefully
             if trade.entry_price is None:
-                self.logger.warning(
-                    f"Trade {trade_id} missing entry_price, skipping"
-                )
+                self.logger.warning(f"Trade {trade_id} missing entry_price, skipping")
                 return None
 
             # Handle zero quantity edge case
@@ -122,9 +120,7 @@ class TradeAnalyzer:
 
         for trade in trades:
             # Skip trades with missing data
-            if (trade.entry_price is None or
-                trade.size is None or
-                trade.size == 0):
+            if trade.entry_price is None or trade.size is None or trade.size == 0:
                 self.logger.warning(f"Skipping trade {trade.id} due to missing data")
                 continue
 
@@ -204,9 +200,17 @@ class TradeAnalyzer:
         if trade.settlement_value is None:
             # Trade not settled yet, estimate based on result
             if trade.result == "win":
-                return abs(trade.entry_price - 1.0) * trade.size if trade.direction == "up" else abs(trade.entry_price) * trade.size
+                return (
+                    abs(trade.entry_price - 1.0) * trade.size
+                    if trade.direction == "up"
+                    else abs(trade.entry_price) * trade.size
+                )
             elif trade.result == "loss":
-                return -trade.entry_price * trade.size if trade.direction == "up" else -(1.0 - trade.entry_price) * trade.size
+                return (
+                    -trade.entry_price * trade.size
+                    if trade.direction == "up"
+                    else -(1.0 - trade.entry_price) * trade.size
+                )
             else:
                 return 0.0
 
@@ -357,13 +361,11 @@ class TradeAnalyzer:
             return []
 
         from collections import Counter
+
         factor_counts = Counter(factors)
 
         # Return factors that appear more than once, sorted by frequency
-        common = [
-            factor for factor, count in factor_counts.most_common()
-            if count > 1
-        ]
+        common = [factor for factor, count in factor_counts.most_common() if count > 1]
 
         return common[:5]  # Top 5 most common
 

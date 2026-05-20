@@ -3,6 +3,7 @@
 This module implements channel-aware event routing for the SSE endpoint,
 allowing clients to subscribe to specific event channels.
 """
+
 import asyncio
 import json
 from datetime import datetime, timezone
@@ -56,19 +57,23 @@ async def events_stream(
     token: str = "",
     channels: str = Query(
         "",
-        description="Comma-separated list of channels to subscribe to (e.g., 'dashboard,agi_control')"
-    )
+        description="Comma-separated list of channels to subscribe to (e.g., 'dashboard,agi_control')",
+    ),
 ):
     """Server-Sent Events stream for real-time trade notifications with channel filtering.
 
     Clients can subscribe to specific channels to receive only relevant events.
     If no channels parameter is provided, all events are sent (backward compatible).
     """
-    if not authorize_realtime_access(token=token or None, admin_session=request.cookies.get("admin_session")):
+    if not authorize_realtime_access(
+        token=token or None, admin_session=request.cookies.get("admin_session")
+    ):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     # Parse requested channels
-    requested_channels = set(c.strip() for c in channels.split(",") if c.strip()) if channels else set()
+    requested_channels = (
+        set(c.strip() for c in channels.split(",") if c.strip()) if channels else set()
+    )
 
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     event_bus.subscribe(queue)
@@ -108,7 +113,11 @@ async def events_stream(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": ", ".join(settings.CORS_ORIGINS.split(",")) if settings.CORS_ORIGINS else "*",
+            "Access-Control-Allow-Origin": (
+                ", ".join(settings.CORS_ORIGINS.split(","))
+                if settings.CORS_ORIGINS
+                else "*"
+            ),
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
         },
@@ -118,12 +127,14 @@ async def events_stream(
 @router.get("/events/status")
 async def event_bus_status():
     from backend.core.event_bus import event_bus
+
     return {"status": "ok", **event_bus.get_health()}
 
 
 @router.get("/events/strategies")
 async def subscribed_strategies():
     from backend.core.event_bus import event_bus
+
     return {
         "ws_connected": event_bus.ws_connected,
         "total_tokens": len(event_bus.get_all_subscribed_tokens()),

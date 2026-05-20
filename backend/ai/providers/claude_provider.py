@@ -1,4 +1,5 @@
 """Claude AI provider plugin wrapping ClaudeAnalyzer for the plugin system."""
+
 import os
 from typing import Optional
 
@@ -54,5 +55,7 @@ class ClaudeProvider(BaseAIProvider, ClaudeAnalyzer):
         if system:
             signal_data["system"] = system
 
-        result: AIAnalysis = await self.analyze_signal(signal_data, kwargs.get("context"))
+        result: AIAnalysis = await self.analyze_signal(
+            signal_data, kwargs.get("context")
+        )
         return result.reasoning or ""

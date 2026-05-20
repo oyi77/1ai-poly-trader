@@ -9,6 +9,7 @@ from backend.api.auth import require_admin
 
 router = APIRouter(prefix="/copy-policy", tags=["copy_policy"])
 
+
 class CopyPolicyCreate(BaseModel):
     source_name: str
     enabled: bool = True
@@ -18,6 +19,7 @@ class CopyPolicyCreate(BaseModel):
     size_scale_factor: float = 1.0
     cooldown_seconds: int = 60
 
+
 class CopyPolicyUpdate(BaseModel):
     enabled: Optional[bool] = None
     max_size_usd: Optional[float] = None
@@ -25,6 +27,7 @@ class CopyPolicyUpdate(BaseModel):
     max_delay_seconds: Optional[int] = None
     size_scale_factor: Optional[float] = None
     cooldown_seconds: Optional[int] = None
+
 
 def _policy_to_dict(p: CopyPolicy) -> dict:
     return {
@@ -39,13 +42,19 @@ def _policy_to_dict(p: CopyPolicy) -> dict:
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }
 
+
 @router.get("/")
 def list_copy_policies(db: Session = Depends(get_db), _: None = Depends(require_admin)):
     rows = db.query(CopyPolicy).all()
     return {"items": [_policy_to_dict(r) for r in rows]}
 
+
 @router.post("/")
-def create_copy_policy(body: CopyPolicyCreate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def create_copy_policy(
+    body: CopyPolicyCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = CopyPolicy(
         source_name=body.source_name,
         enabled=body.enabled,
@@ -60,8 +69,14 @@ def create_copy_policy(body: CopyPolicyCreate, db: Session = Depends(get_db), _:
     db.refresh(row)
     return _policy_to_dict(row)
 
+
 @router.put("/{policy_id}")
-def update_copy_policy(policy_id: int, body: CopyPolicyUpdate, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def update_copy_policy(
+    policy_id: int,
+    body: CopyPolicyUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     row = db.query(CopyPolicy).filter_by(id=policy_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="CopyPolicy not found")
@@ -83,8 +98,11 @@ def update_copy_policy(policy_id: int, body: CopyPolicyUpdate, db: Session = Dep
     db.refresh(row)
     return _policy_to_dict(row)
 
+
 @router.delete("/{policy_id}")
-def delete_copy_policy(policy_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)):
+def delete_copy_policy(
+    policy_id: int, db: Session = Depends(get_db), _: None = Depends(require_admin)
+):
     row = db.query(CopyPolicy).filter_by(id=policy_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="CopyPolicy not found")

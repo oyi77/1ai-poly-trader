@@ -1,6 +1,9 @@
 from loguru import logger
 
-from backend.core.execution_pipeline.base import BaseExecutionStage, ExecutionStageManifest
+from backend.core.execution_pipeline.base import (
+    BaseExecutionStage,
+    ExecutionStageManifest,
+)
 from backend.core.execution_pipeline.registry import registry
 from backend.bot.notification.registry import registry as notification_registry
 
@@ -43,9 +46,14 @@ class NotifyStage(BaseExecutionStage):
                 try:
                     provider.send(event)
                 except Exception:
-                    logger.warning("Notification provider '%s' failed", name, exc_info=True)
+                    logger.warning(
+                        "Notification provider '%s' failed", name, exc_info=True
+                    )
 
-        return {"status": "notified", "providers_notified": len(notification_registry._plugins)}
+        return {
+            "status": "notified",
+            "providers_notified": len(notification_registry._plugins),
+        }
 
     def record(self, decision, result, ctx):
         logger.debug("[NotifyStage] record() not implemented")
@@ -56,6 +64,7 @@ class NotifyStage(BaseExecutionStage):
     def health_check(self):
         try:
             from backend.bot.notification.registry import notification_registry
+
             notification_registry
             return True
         except Exception:

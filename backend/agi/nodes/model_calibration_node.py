@@ -1,4 +1,5 @@
 """Model calibration AGI node - monitors and triggers model retraining."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -28,7 +29,7 @@ class ModelCalibrationNode(BaseAGINode):
         if not prediction_history or not actual_outcomes:
             return state.with_error(
                 self.manifest().name,
-                ValueError("Insufficient data for calibration check")
+                ValueError("Insufficient data for calibration check"),
             )
 
         try:

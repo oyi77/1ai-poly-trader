@@ -55,12 +55,18 @@ class ProviderSummary(BaseModel):
 # ────────────────────────────────────────────────── Endpoints ─────────────────
 
 
-@router.get("/summary", response_model=List[ProviderSummary], dependencies=[Depends(require_admin)])
+@router.get(
+    "/summary",
+    response_model=List[ProviderSummary],
+    dependencies=[Depends(require_admin)],
+)
 async def list_providers(db: Session = Depends(get_db)) -> List[ProviderSummary]:
     """Return a summary of all configured providers (key names only, no values)."""
-    rows = db.query(ProviderCredential).order_by(
-        ProviderCredential.provider_name, ProviderCredential.config_key
-    ).all()
+    rows = (
+        db.query(ProviderCredential)
+        .order_by(ProviderCredential.provider_name, ProviderCredential.config_key)
+        .all()
+    )
 
     by_provider: dict[str, list[str]] = {}
     for row in rows:

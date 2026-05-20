@@ -69,10 +69,8 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-
     retries = 5
     delay = 1  # delay in seconds between retries
-
 
     with connectable.connect() as connection:
         context.configure(

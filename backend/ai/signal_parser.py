@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 @dataclass
 class Signal:
     """Internal signal format for debate engine integration."""
+
     market_id: str
     prediction: float  # 0.0-1.0
     confidence: float  # 0.0-1.0
@@ -68,11 +69,15 @@ class SignalParser:
                 return None
 
             if prediction is None:
-                logger.warning(f"MiroFish signal for {market_id} missing prediction - skipping")
+                logger.warning(
+                    f"MiroFish signal for {market_id} missing prediction - skipping"
+                )
                 return None
 
             if confidence is None:
-                logger.warning(f"MiroFish signal for {market_id} missing confidence - skipping")
+                logger.warning(
+                    f"MiroFish signal for {market_id} missing confidence - skipping"
+                )
                 return None
 
             # Convert to float
@@ -124,7 +129,7 @@ class SignalParser:
             logger.error(
                 f"Unexpected error parsing MiroFish signal: {e}",
                 exc_info=True,
-                extra={"raw_signal": raw_signal}
+                extra={"raw_signal": raw_signal},
             )
             return None
 
@@ -202,14 +207,17 @@ class SignalParser:
         try:
             if session is None:
                 from backend.models.database import get_db_session
+
                 session = get_db_session()
 
             from backend.models.database import MiroFishSignal
 
             # Check if signal already exists for this market
-            existing = session.query(MiroFishSignal).filter(
-                MiroFishSignal.market_id == signal.market_id
-            ).first()
+            existing = (
+                session.query(MiroFishSignal)
+                .filter(MiroFishSignal.market_id == signal.market_id)
+                .first()
+            )
 
             if existing:
                 # Update existing signal (upsert)
@@ -243,7 +251,7 @@ class SignalParser:
         except Exception as e:
             logger.error(
                 f"Failed to store signal {signal.market_id} in database: {e}",
-                exc_info=True
+                exc_info=True,
             )
             if session:
                 session.rollback()

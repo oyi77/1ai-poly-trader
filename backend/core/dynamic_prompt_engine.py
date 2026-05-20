@@ -7,7 +7,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from backend.core.agi_types import KGEntity
-from backend.models.kg_models import Base, KGEntity as KGEntityModel, KGRelation as KGRelationModel
+from backend.models.kg_models import (
+    Base,
+    KGEntity as KGEntityModel,
+    KGRelation as KGRelationModel,
+)
 
 
 class PromptVersion:
@@ -47,12 +51,22 @@ class PromptVersion:
             prompt_text=d["prompt_text"],
             win_rate=d.get("win_rate", 0.0),
             trade_count=d.get("trade_count", 0),
-            promoted_at=datetime.fromisoformat(d["promoted_at"]) if d.get("promoted_at") else None,
+            promoted_at=(
+                datetime.fromisoformat(d["promoted_at"])
+                if d.get("promoted_at")
+                else None
+            ),
         )
 
 
 class PromptComparison:
-    def __init__(self, version_a: str, version_b: str, winner: Optional[str] = None, confidence: float = 0.0):
+    def __init__(
+        self,
+        version_a: str,
+        version_b: str,
+        winner: Optional[str] = None,
+        confidence: float = 0.0,
+    ):
         self.version_a = version_a
         self.version_b = version_b
         self.winner = winner
@@ -60,7 +74,9 @@ class PromptComparison:
 
 
 class DynamicPromptEngine:
-    def __init__(self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"):
+    def __init__(
+        self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"
+    ):
         if session is not None:
             self._session = session
             self._owns_session = False
@@ -74,7 +90,9 @@ class DynamicPromptEngine:
         if self._owns_session:
             self._session.close()
 
-    def get_prompt(self, template_id: str, context: dict[str, Any] | None = None) -> str:
+    def get_prompt(
+        self, template_id: str, context: dict[str, Any] | None = None
+    ) -> str:
         entity = (
             self._session.query(KGEntityModel)
             .filter(
@@ -92,7 +110,9 @@ class DynamicPromptEngine:
                 prompt_text = prompt_text.replace(f"{{{key}}}", str(value))
         return prompt_text
 
-    def evolve_prompt(self, template_id: str, outcomes: list[dict[str, Any]]) -> PromptVersion:
+    def evolve_prompt(
+        self, template_id: str, outcomes: list[dict[str, Any]]
+    ) -> PromptVersion:
         old_version = self.get_prompt(template_id)
         new_version_str = f"v{int(datetime.now(timezone.utc).timestamp())}"
         new_prompt_text = old_version + "\n# Evolved based on outcomes"

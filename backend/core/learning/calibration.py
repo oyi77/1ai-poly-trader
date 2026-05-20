@@ -17,8 +17,16 @@ from loguru import logger
 from backend.models.database import Trade
 
 BUCKETS = [
-    (0, 10), (10, 20), (20, 30), (30, 40), (40, 50),
-    (50, 60), (60, 70), (70, 80), (80, 90), (90, 100)
+    (0, 10),
+    (10, 20),
+    (20, 30),
+    (30, 40),
+    (40, 50),
+    (50, 60),
+    (60, 70),
+    (70, 80),
+    (80, 90),
+    (90, 100),
 ]
 
 
@@ -66,7 +74,7 @@ def get_bucket_win_rate(
     if len(trades) < 10:
         return None
 
-    wins = sum(1 for t in trades if getattr(t, 'settlement_value', 0) == 1.0)
+    wins = sum(1 for t in trades if getattr(t, "settlement_value", 0) == 1.0)
     return wins / len(trades)
 
 

@@ -1,7 +1,14 @@
 """API endpoints for strategy proposal management."""
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -48,8 +55,7 @@ class CreateProposalRequest(BaseModel):
 
 @router.get("", response_model=List[ProposalResponse])
 async def list_proposals(
-    status: Optional[str] = "pending",
-    db: Session = Depends(get_db)
+    status: Optional[str] = "pending", db: Session = Depends(get_db)
 ):
     """List strategy proposals filtered by status.
 
@@ -77,7 +83,7 @@ async def list_proposals(
             backtest_win_rate=p.backtest_win_rate,
             proposed_params=p.proposed_params,
             created_at=p.created_at.isoformat() if p.created_at else "",
-            executed_at=p.executed_at.isoformat() if p.executed_at else None
+            executed_at=p.executed_at.isoformat() if p.executed_at else None,
         )
         for p in proposals
     ]
@@ -97,7 +103,7 @@ async def create_proposal(
         change_details=request.change_details,
         expected_impact=request.expected_impact,
         admin_decision="pending",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
     db.add(proposal)
     db.commit()
@@ -110,7 +116,7 @@ async def create_proposal(
         expected_impact=proposal.expected_impact,
         admin_decision=proposal.admin_decision,
         created_at=proposal.created_at.isoformat() if proposal.created_at else "",
-        executed_at=proposal.executed_at.isoformat() if proposal.executed_at else None
+        executed_at=proposal.executed_at.isoformat() if proposal.executed_at else None,
     )
 
 
@@ -119,7 +125,7 @@ async def approve_proposal(
     proposal_id: int,
     request: ValidatedProposalApproval,
     db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin)
+    _admin: dict = Depends(require_admin),
 ):
     """Approve a strategy proposal (admin only).
 
@@ -128,25 +134,25 @@ async def approve_proposal(
     generator = ProposalGenerator()
 
     success = generator.approve_proposal(
-        proposal_id,
-        request.admin_user_id,
-        request.reason
+        proposal_id, request.admin_user_id, request.reason
     )
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Proposal {proposal_id} not found or already processed"
+            detail=f"Proposal {proposal_id} not found or already processed",
         )
 
     proposal = db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
     if proposal:
-        await broadcast_proposal_update({
-            "id": proposal.id,
-            "strategy_name": proposal.strategy_name,
-            "admin_decision": proposal.admin_decision,
-            "admin_user_id": proposal.admin_user_id,
-        })
+        await broadcast_proposal_update(
+            {
+                "id": proposal.id,
+                "strategy_name": proposal.strategy_name,
+                "admin_decision": proposal.admin_decision,
+                "admin_user_id": proposal.admin_user_id,
+            }
+        )
 
     return {"status": "approved", "proposal_id": proposal_id}
 
@@ -156,7 +162,7 @@ async def reject_proposal(
     proposal_id: int,
     request: ValidatedProposalApproval,
     db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin)
+    _admin: dict = Depends(require_admin),
 ):
     """Reject a strategy proposal (admin only).
 
@@ -165,33 +171,32 @@ async def reject_proposal(
     generator = ProposalGenerator()
 
     success = generator.reject_proposal(
-        proposal_id,
-        request.admin_user_id,
-        request.reason
+        proposal_id, request.admin_user_id, request.reason
     )
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Proposal {proposal_id} not found or already processed"
+            detail=f"Proposal {proposal_id} not found or already processed",
         )
 
     proposal = db.query(DBProposal).filter(DBProposal.id == proposal_id).first()
     if proposal:
-        await broadcast_proposal_update({
-            "id": proposal.id,
-            "strategy_name": proposal.strategy_name,
-            "admin_decision": proposal.admin_decision,
-            "admin_user_id": proposal.admin_user_id,
-        })
+        await broadcast_proposal_update(
+            {
+                "id": proposal.id,
+                "strategy_name": proposal.strategy_name,
+                "admin_decision": proposal.admin_decision,
+                "admin_user_id": proposal.admin_user_id,
+            }
+        )
 
     return {"status": "rejected", "proposal_id": proposal_id}
 
 
 @router.post("/generate", status_code=status.HTTP_201_CREATED)
 async def generate_proposal(
-    db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin)
+    db: Session = Depends(get_db), _admin: dict = Depends(require_admin)
 ):
     """Generate a new strategy proposal from recent trades (admin only).
 
@@ -202,7 +207,7 @@ async def generate_proposal(
     if not recent_trades:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No trades available for analysis"
+            detail="No trades available for analysis",
         )
 
     generator = ProposalGenerator()
@@ -211,22 +216,19 @@ async def generate_proposal(
     if not proposal:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate proposal"
+            detail="Failed to generate proposal",
         )
 
     return {
         "status": "created",
         "strategy_name": proposal.strategy_name,
         "change_type": proposal.change_type,
-        "confidence": proposal.confidence
+        "confidence": proposal.confidence,
     }
 
 
 @router.get("/{proposal_id}/impact")
-async def get_proposal_impact(
-    proposal_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_proposal_impact(proposal_id: int, db: Session = Depends(get_db)):
     """Get impact metrics for an executed proposal."""
     measurer = ImpactMeasurer()
     impact_data = measurer.get_proposal_impact(proposal_id)
@@ -234,7 +236,7 @@ async def get_proposal_impact(
     if not impact_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No impact data found for proposal {proposal_id}"
+            detail=f"No impact data found for proposal {proposal_id}",
         )
 
     return impact_data
@@ -244,7 +246,7 @@ async def get_proposal_impact(
 async def rollback_proposal(
     proposal_id: int,
     db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin)
+    _admin: dict = Depends(require_admin),
 ):
     """Rollback a proposal to restore previous strategy config (admin only)."""
     rollback_mgr = RollbackManager()
@@ -252,7 +254,7 @@ async def rollback_proposal(
     if not rollback_mgr.can_rollback(proposal_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Proposal {proposal_id} cannot be rolled back (not approved or no snapshot)"
+            detail=f"Proposal {proposal_id} cannot be rolled back (not approved or no snapshot)",
         )
 
     success = rollback_mgr.rollback_proposal(proposal_id)
@@ -260,13 +262,13 @@ async def rollback_proposal(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to rollback proposal {proposal_id}"
+            detail=f"Failed to rollback proposal {proposal_id}",
         )
 
     return {
         "status": "rolled_back",
         "proposal_id": proposal_id,
-        "message": "Strategy configuration restored to previous state"
+        "message": "Strategy configuration restored to previous state",
     }
 
 

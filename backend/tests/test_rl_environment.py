@@ -1,4 +1,5 @@
 """Tests for PredictionMarketEnv — gymnasium interface, step/reset, and shapes."""
+
 import numpy as np
 import pytest
 
@@ -12,7 +13,6 @@ from backend.core.rl_environment import (  # noqa: E402
     PredictionMarketEnv,
     generate_synthetic_opportunities,
 )
-
 
 # --- Fixtures ---
 
@@ -59,7 +59,9 @@ def test_observation_space_shapes(env):
     assert "market_features" in obs
     assert "portfolio" in obs
     assert obs["market_features"].shape == (6,)
-    assert obs["portfolio"].shape == (env._max_positions + 2,)  # bankroll + positions + unrealized_pnl
+    assert obs["portfolio"].shape == (
+        env._max_positions + 2,
+    )  # bankroll + positions + unrealized_pnl
 
 
 def test_action_space_sample_shape(env):
@@ -106,7 +108,10 @@ def test_reset_with_seed(env):
 
 def test_step_hold_returns_correct_shapes(env):
     env.reset()
-    action = {"action_type": ACTION_HOLD, "position_size": np.array([0.0], dtype=np.float32)}
+    action = {
+        "action_type": ACTION_HOLD,
+        "position_size": np.array([0.0], dtype=np.float32),
+    }
     obs, reward, terminated, truncated, info = env.step(action)
     assert obs["market_features"].shape == (6,)
     assert obs["portfolio"].shape == (env._max_positions + 2,)
@@ -119,7 +124,10 @@ def test_step_hold_returns_correct_shapes(env):
 def test_step_buy_reduces_bankroll(env):
     obs, info = env.reset()
     initial_bankroll = info["bankroll"]
-    action = {"action_type": ACTION_BUY, "position_size": np.array([0.1], dtype=np.float32)}
+    action = {
+        "action_type": ACTION_BUY,
+        "position_size": np.array([0.1], dtype=np.float32),
+    }
     obs, reward, terminated, truncated, info = env.step(action)
     if not terminated:
         assert info["bankroll"] < initial_bankroll or info["n_positions"] > 0
@@ -127,7 +135,10 @@ def test_step_buy_reduces_bankroll(env):
 
 def test_step_sell_with_no_positions_is_noop(env):
     env.reset()
-    action = {"action_type": ACTION_SELL, "position_size": np.array([0.5], dtype=np.float32)}
+    action = {
+        "action_type": ACTION_SELL,
+        "position_size": np.array([0.5], dtype=np.float32),
+    }
     obs, reward, terminated, truncated, info = env.step(action)
     if not terminated:
         assert info["n_positions"] == 0
@@ -140,7 +151,10 @@ def test_episode_completes(env):
     truncated = False
     steps = 0
     while not (terminated or truncated):
-        action = {"action_type": ACTION_HOLD, "position_size": np.array([0.0], dtype=np.float32)}
+        action = {
+            "action_type": ACTION_HOLD,
+            "position_size": np.array([0.0], dtype=np.float32),
+        }
         _, _, terminated, truncated, _ = env.step(action)
         steps += 1
         assert steps <= env._n_opportunities + 1  # safety
@@ -149,7 +163,10 @@ def test_episode_completes(env):
 def test_step_returns_zero_obs_on_termination(env):
     env.reset()
     for _ in range(env._n_opportunities):
-        action = {"action_type": ACTION_HOLD, "position_size": np.array([0.0], dtype=np.float32)}
+        action = {
+            "action_type": ACTION_HOLD,
+            "position_size": np.array([0.0], dtype=np.float32),
+        }
         obs, reward, terminated, truncated, info = env.step(action)
     # After all steps, obs should be zeroed
     np.testing.assert_array_equal(obs["market_features"], np.zeros(6, dtype=np.float32))
@@ -184,6 +201,9 @@ def test_generate_synthetic_opportunities_reproducible():
 
 def test_reward_is_finite(env):
     env.reset()
-    action = {"action_type": ACTION_BUY, "position_size": np.array([0.05], dtype=np.float32)}
+    action = {
+        "action_type": ACTION_BUY,
+        "position_size": np.array([0.05], dtype=np.float32),
+    }
     _, reward, _, _, _ = env.step(action)
     assert np.isfinite(reward)

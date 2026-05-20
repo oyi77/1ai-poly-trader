@@ -1,4 +1,5 @@
 """Sandbox registry - mock-only registry for sandboxed validation."""
+
 import logging
 from typing import List, Optional
 
@@ -42,10 +43,14 @@ class SandboxNodeRegistry(PluginRegistry[NodeManifest, BaseAGINode]):
 
         if manifest.requires_db:
             logger.warning(f"Sandbox rejected node '{name}': requires_db=True")
-            raise ValueError(f"Node '{name}' requires database access - not allowed in sandbox")
+            raise ValueError(
+                f"Node '{name}' requires database access - not allowed in sandbox"
+            )
         if manifest.requires_live_data:
             logger.warning(f"Sandbox rejected node '{name}': requires_live_data=True")
-            raise ValueError(f"Node '{name}' requires live data - not allowed in sandbox")
+            raise ValueError(
+                f"Node '{name}' requires live data - not allowed in sandbox"
+            )
 
         try:
             instance = node_class()
@@ -67,7 +72,9 @@ class SandboxNodeRegistry(PluginRegistry[NodeManifest, BaseAGINode]):
 
     def list_all(self) -> List[NodeManifest]:
         """Return all sandbox node manifests."""
-        return [self._manifests[n] for n in self._plugins if self._enabled.get(n, False)]
+        return [
+            self._manifests[n] for n in self._plugins if self._enabled.get(n, False)
+        ]
 
     async def run_health_checks(self) -> dict:
         """All sandbox nodes are always healthy (no external deps)."""

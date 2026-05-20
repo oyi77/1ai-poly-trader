@@ -42,7 +42,9 @@ async def calculate_position_market_value(
             - telemetry: Dict with pricing stats and error details
     """
     alert_manager = AlertManager(db)
-    mode_trades = db.query(Trade).filter(~Trade.settled, Trade.trading_mode == mode).all()
+    mode_trades = (
+        db.query(Trade).filter(~Trade.settled, Trade.trading_mode == mode).all()
+    )
 
     position_cost = 0.0
     position_market_value = 0.0
@@ -84,9 +86,7 @@ async def calculate_position_market_value(
         }
 
     # Fetch prices with fallback strategy
-    ticker_to_price = await _fetch_prices_with_fallback(
-        tickers, http_client, telemetry
-    )
+    ticker_to_price = await _fetch_prices_with_fallback(tickers, http_client, telemetry)
 
     # Calculate position values
     for t in mode_trades:
@@ -125,9 +125,7 @@ async def calculate_position_market_value(
                 # Last resort: mid-price
                 current_price = 0.5
                 telemetry["fallbacks_used"] += 1
-                logger.warning(
-                    f"Using mid-price fallback (0.5) for {t.market_ticker}"
-                )
+                logger.warning(f"Using mid-price fallback (0.5) for {t.market_ticker}")
 
         # Calculate market value using exact formula from system.py:259-282
         entry = t.entry_price or 0.5

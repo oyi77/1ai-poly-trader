@@ -22,10 +22,10 @@ from backend.monitoring.agi_metrics import (
     record_pipeline_error,
 )
 
-
 # ---------------------------------------------------------------------------
 # Pipeline metrics
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class PipelineMetrics:
@@ -64,6 +64,7 @@ class PipelineMetrics:
 # Trade lesson structure
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TradeLesson:
     """Structured lesson extracted from a trade outcome."""
@@ -76,7 +77,9 @@ class TradeLesson:
     strategy_name: str
     outcome: str  # "win", "loss", "marginal"
     pnl: float
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -95,6 +98,7 @@ class TradeLesson:
 # ---------------------------------------------------------------------------
 # Lesson extractor
 # ---------------------------------------------------------------------------
+
 
 class LessonExtractor:
     """Extracts structured lessons from trade forensics results."""
@@ -181,6 +185,7 @@ class LessonExtractor:
 # ---------------------------------------------------------------------------
 # Learning pipeline
 # ---------------------------------------------------------------------------
+
 
 class LearningPipeline:
     """Post-settlement learning pipeline (ADR-013).
@@ -274,6 +279,7 @@ class LearningPipeline:
             # Stage 6: Wire to AGI self-tuner (non-blocking)
             try:
                 from backend.core.agi_self_tuner import get_agi_self_tuner
+
                 tuner = get_agi_self_tuner()
                 await tuner.process_settlement(
                     trade_id=trade_id,
@@ -309,7 +315,9 @@ class LearningPipeline:
     async def _run_forensics(self, trade_id: int) -> Optional[Dict[str, Any]]:
         """Stage 1: Run forensics on a losing trade."""
         if self._forensics is None:
-            logger.debug(f"[LearningPipeline] No forensics engine — skipping trade {trade_id}")
+            logger.debug(
+                f"[LearningPipeline] No forensics engine — skipping trade {trade_id}"
+            )
             return None
 
         try:
@@ -346,7 +354,11 @@ class LearningPipeline:
             else:
                 # Marginal or unknown — extract minimal lesson
                 return self._lesson_extractor.extract_from_winning_trade(
-                    trade_id, strategy_name, pnl, regime, signal_confidence,
+                    trade_id,
+                    strategy_name,
+                    pnl,
+                    regime,
+                    signal_confidence,
                     outcome=outcome,
                 )
         except Exception:
@@ -394,10 +406,13 @@ class LearningPipeline:
 
             async with botstate_mutex:
                 from backend.db.utils import get_db_session
+
                 with get_db_session() as db:
-                    genome = db.query(GenomeRegistry).filter(
-                        GenomeRegistry.genome_id == genome_id
-                    ).first()
+                    genome = (
+                        db.query(GenomeRegistry)
+                        .filter(GenomeRegistry.genome_id == genome_id)
+                        .first()
+                    )
 
                     if genome is None:
                         logger.warning(
@@ -428,7 +443,9 @@ class LearningPipeline:
                         fitness_delta = -0.01 * min(abs(pnl), 50.0) / 50.0
 
                     current_fitness = genome.fitness_score or 0.5
-                    genome.fitness_score = max(0.0, min(1.0, current_fitness + fitness_delta))
+                    genome.fitness_score = max(
+                        0.0, min(1.0, current_fitness + fitness_delta)
+                    )
                     genome.fitness_updated_at = datetime.now(timezone.utc)
 
                     db.commit()
@@ -474,10 +491,14 @@ class LearningPipeline:
                 # Add lesson-specific relation: strategy → root_cause
                 root_cause = lesson.applicability.get("root_cause", "unknown")
                 cause_entity_id = f"cause:{root_cause}"
-                kg.add_entity("root_cause", cause_entity_id, {
-                    "cause": root_cause,
-                    "lesson_count": 1,
-                })
+                kg.add_entity(
+                    "root_cause",
+                    cause_entity_id,
+                    {
+                        "cause": root_cause,
+                        "lesson_count": 1,
+                    },
+                )
                 kg.add_relation(
                     from_entity_id=f"strategy:{strategy_name}",
                     to_entity_id=cause_entity_id,

@@ -1,4 +1,5 @@
 """Wallet synchronization endpoints."""
+
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -13,10 +14,13 @@ from backend.core.wallet_reconciliation import WalletReconciler
 from backend.models.database import BotState, get_db, for_update
 
 from loguru import logger
+
 router = APIRouter(tags=["sync"])
+
 
 class SyncStatusResponse(BaseModel):
     """Status of wallet sync for a single mode (testnet or live)."""
+
     mode: str  # "testnet" or "live"
     last_synced_at: Optional[datetime]
     next_sync_at: Optional[datetime]
@@ -26,14 +30,14 @@ class SyncStatusResponse(BaseModel):
 
 class SyncStatusAllResponse(BaseModel):
     """Combined sync status for both modes."""
+
     testnet: SyncStatusResponse
     live: SyncStatusResponse
 
 
 @router.get("/admin/sync-status", response_model=SyncStatusAllResponse)
 async def get_sync_status(
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     """
     Get wallet sync status for testnet and live modes.
@@ -102,25 +106,31 @@ async def _sync_wallet_background(mode: str, db: Session, db_ctx):
         )
 
         # Publish event for dashboard
-        publish_event("sync_completed", {
-            "mode": mode,
-            "imported": result.imported_count,
-            "updated": result.updated_count,
-            "closed": result.closed_count,
-            "errors": len(result.errors),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        publish_event(
+            "sync_completed",
+            {
+                "mode": mode,
+                "imported": result.imported_count,
+                "updated": result.updated_count,
+                "closed": result.closed_count,
+                "errors": len(result.errors),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
     except Exception as e:
         logger.error(
             f"[api.sync._sync_wallet_background] {type(e).__name__}: Background sync failed for mode={mode}: {e}",
-            exc_info=True
+            exc_info=True,
         )
-        publish_event("sync_failed", {
-            "mode": mode,
-            "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        publish_event(
+            "sync_failed",
+            {
+                "mode": mode,
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
     finally:
         db_ctx.__exit__(None, None, None)
 
@@ -130,7 +140,7 @@ async def sync_now(
     mode: str = "live",
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    _: None = Depends(require_admin),
 ):
     """
     Trigger an immediate wallet sync in the background.
@@ -149,17 +159,17 @@ async def sync_now(
     if mode != "live":
         raise HTTPException(
             status_code=400,
-            detail="mode must be 'live' (no separate testnet blockchain exists)"
+            detail="mode must be 'live' (no separate testnet blockchain exists)",
         )
 
     if not settings.is_mode_active("live") and not settings.is_mode_active("testnet"):
         raise HTTPException(
-            status_code=400,
-            detail="Sync not available — no live/testnet mode active"
+            status_code=400, detail="Sync not available — no live/testnet mode active"
         )
 
     # Need to create a new session for background task since the injected one closes when request finishes
     from backend.db.utils import get_db_session
+
     bg_db_ctx = get_db_session()
     bg_db = bg_db_ctx.__enter__()
 
@@ -171,5 +181,5 @@ async def sync_now(
     return {
         "status": "syncing",
         "mode": mode,
-        "message": f"Wallet sync started for {mode} mode"
+        "message": f"Wallet sync started for {mode} mode",
     }

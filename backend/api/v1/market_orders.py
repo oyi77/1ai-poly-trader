@@ -1,4 +1,5 @@
 """Market order management API for PolyEdge plugin system."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from decimal import Decimal
@@ -15,6 +16,7 @@ router = APIRouter(tags=["Market Orders"])
 
 class PlaceOrderRequest(BaseModel):
     """Request body for placing an order."""
+
     venue: str
     market_id: str
     side: str  # "YES" or "NO"
@@ -28,7 +30,9 @@ async def place_order(req: PlaceOrderRequest, _=Depends(require_admin)):
     try:
         provider = market_registry.get(req.venue)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Venue '{req.venue}' not found or disabled")
+        raise HTTPException(
+            status_code=404, detail=f"Venue '{req.venue}' not found or disabled"
+        )
 
     order = NormalizedOrder(
         client_order_id=str(uuid.uuid4()),
@@ -41,7 +45,11 @@ async def place_order(req: PlaceOrderRequest, _=Depends(require_admin)):
     return {
         "venue_order_id": result.venue_order_id,
         "client_order_id": result.client_order_id,
-        "status": result.status.value if hasattr(result.status, "value") else str(result.status),
+        "status": (
+            result.status.value
+            if hasattr(result.status, "value")
+            else str(result.status)
+        ),
         "filled_size": str(result.filled_size),
         "filled_avg_price": str(result.filled_avg_price),
         "remaining_size": str(result.remaining_size),
@@ -55,7 +63,9 @@ async def cancel_order(venue: str, order_id: str, _=Depends(require_admin)):
     try:
         provider = market_registry.get(venue)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Venue '{venue}' not found or disabled")
+        raise HTTPException(
+            status_code=404, detail=f"Venue '{venue}' not found or disabled"
+        )
 
     cancelled = await provider.cancel_order(order_id)
     return {"cancelled": cancelled, "venue_order_id": order_id}
@@ -67,16 +77,24 @@ async def get_order(venue: str, order_id: str, _=Depends(require_admin)):
     try:
         provider = market_registry.get(venue)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Venue '{venue}' not found or disabled")
+        raise HTTPException(
+            status_code=404, detail=f"Venue '{venue}' not found or disabled"
+        )
 
     try:
         result = await provider.get_order(order_id)
     except NotImplementedError:
-        raise HTTPException(status_code=501, detail=f"Venue '{venue}' does not support order status")
+        raise HTTPException(
+            status_code=501, detail=f"Venue '{venue}' does not support order status"
+        )
 
     return {
         "venue_order_id": result.venue_order_id,
-        "status": result.status.value if hasattr(result.status, "value") else str(result.status),
+        "status": (
+            result.status.value
+            if hasattr(result.status, "value")
+            else str(result.status)
+        ),
         "filled_size": str(result.filled_size),
         "remaining_size": str(result.remaining_size),
     }

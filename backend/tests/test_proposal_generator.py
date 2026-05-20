@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.ai.proposal_generator import ProposalGenerator, StrategyProposal
-from backend.models.database import Trade, StrategyConfig, StrategyProposal as DBProposal
+from backend.models.database import (
+    Trade,
+    StrategyConfig,
+    StrategyProposal as DBProposal,
+)
 
 
 @pytest.fixture
@@ -28,7 +32,7 @@ def sample_trades():
             market_price_at_entry=0.5,
             edge_at_entry=0.1,
             strategy="btc_momentum" if i < 10 else "weather_emos",
-            confidence=0.7
+            confidence=0.7,
         )
         trades.append(trade)
     return trades
@@ -65,44 +69,55 @@ class TestProposalGenerator:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_generate_proposal_success(self, sample_trades, mock_claude_response, db):
+    async def test_generate_proposal_success(
+        self, sample_trades, mock_claude_response, db
+    ):
         """Test successful proposal generation."""
         generator = ProposalGenerator()
 
-        db.add(StrategyConfig(
-            strategy_name="btc_momentum",
-            enabled=True,
-            interval_seconds=60,
-            params='{"min_edge": 0.05}'
-        ))
+        db.add(
+            StrategyConfig(
+                strategy_name="btc_momentum",
+                enabled=True,
+                interval_seconds=60,
+                params='{"min_edge": 0.05}',
+            )
+        )
         db.commit()
 
-        with patch.object(generator.claude_analyzer, '_get_client') as mock_client:
+        with patch.object(generator.claude_analyzer, "_get_client") as mock_client:
             mock_message = MagicMock()
             mock_message.content = [MagicMock(text=mock_claude_response)]
             mock_message.usage.input_tokens = 500
             mock_message.usage.output_tokens = 200
 
-            mock_client.return_value.messages.create = AsyncMock(return_value=mock_message)
+            mock_client.return_value.messages.create = AsyncMock(
+                return_value=mock_message
+            )
 
             proposal = await generator.generate_proposal(sample_trades)
 
             assert proposal is not None
             assert proposal.strategy_name == "btc_momentum"
             assert proposal.change_type == "parameter_adjustment"
-            assert proposal.change_details == {"min_edge": 0.08, "max_position_usd": 150}
+            assert proposal.change_details == {
+                "min_edge": 0.08,
+                "max_position_usd": 150,
+            }
             assert proposal.confidence == 0.75
             assert proposal.priority == "high"
             assert proposal.estimated_improvement == 8.5
 
     def test_get_strategy_configs(self, db):
         """Test retrieving strategy configurations."""
-        db.add(StrategyConfig(
-            strategy_name="test_strategy",
-            enabled=True,
-            interval_seconds=120,
-            params='{"param1": "value1"}'
-        ))
+        db.add(
+            StrategyConfig(
+                strategy_name="test_strategy",
+                enabled=True,
+                interval_seconds=120,
+                params='{"param1": "value1"}',
+            )
+        )
         db.commit()
 
         generator = ProposalGenerator()
@@ -141,14 +156,14 @@ class TestProposalGenerator:
             "win_rate": 0.35,
             "common_win_factors": ["high_confidence_signal", "strong_edge"],
             "common_loss_factors": ["weak_edge", "poor_entry_price"],
-            "edge_score": 0.6
+            "edge_score": 0.6,
         }
 
         strategy_configs = {
             "btc_momentum": {
                 "enabled": True,
                 "interval_seconds": 60,
-                "params": {"min_edge": 0.05}
+                "params": {"min_edge": 0.05},
             }
         }
 
@@ -159,14 +174,14 @@ class TestProposalGenerator:
             "avg_pnl": 0.5,
             "strategy_performance": {
                 "btc_momentum": {"trades": 10, "win_rate": 0.4, "pnl": 5.0}
-            }
+            },
         }
 
         prompt = generator._build_claude_prompt(
             trade_analysis=trade_analysis,
             strategy_configs=strategy_configs,
             performance_metrics=performance_metrics,
-            recent_trades=sample_trades
+            recent_trades=sample_trades,
         )
 
         assert "PERFORMANCE SUMMARY" in prompt
@@ -181,8 +196,7 @@ class TestProposalGenerator:
         generator = ProposalGenerator()
 
         proposal = generator._parse_claude_response(
-            mock_claude_response,
-            {"total_trades": 20}
+            mock_claude_response, {"total_trades": 20}
         )
 
         assert proposal is not None
@@ -241,7 +255,7 @@ PRIORITY: high"""
             expected_impact="Test impact",
             reasoning="Test reasoning",
             confidence=0.8,
-            priority="high"
+            priority="high",
         )
 
         proposal_id = generator._store_proposal(proposal)
@@ -268,18 +282,22 @@ PRIORITY: high"""
         db.query(DBProposal).delete()
         db.commit()
 
-        db.add(DBProposal(
-            strategy_name="test1",
-            change_details={"param": 1},
-            expected_impact="Impact 1",
-            admin_decision="pending"
-        ))
-        db.add(DBProposal(
-            strategy_name="test2",
-            change_details={"param": 2},
-            expected_impact="Impact 2",
-            admin_decision="approved"
-        ))
+        db.add(
+            DBProposal(
+                strategy_name="test1",
+                change_details={"param": 1},
+                expected_impact="Impact 1",
+                admin_decision="pending",
+            )
+        )
+        db.add(
+            DBProposal(
+                strategy_name="test2",
+                change_details={"param": 2},
+                expected_impact="Impact 2",
+                admin_decision="approved",
+            )
+        )
         db.commit()
 
         generator = ProposalGenerator()
@@ -295,7 +313,7 @@ PRIORITY: high"""
             strategy_name="test",
             change_details={"param": 1},
             expected_impact="Test",
-            admin_decision="pending"
+            admin_decision="pending",
         )
         db.add(proposal)
         db.commit()
@@ -322,7 +340,7 @@ PRIORITY: high"""
             strategy_name="test",
             change_details={"param": 1},
             expected_impact="Test",
-            admin_decision="approved"
+            admin_decision="approved",
         )
         db.add(proposal)
         db.commit()
@@ -337,7 +355,7 @@ PRIORITY: high"""
             strategy_name="test",
             change_details={"param": 1},
             expected_impact="Test",
-            admin_decision="pending"
+            admin_decision="pending",
         )
         db.add(proposal)
         db.commit()
@@ -365,13 +383,9 @@ PRIORITY: high"""
             "strategy1": {
                 "enabled": True,
                 "interval_seconds": 60,
-                "params": {"min_edge": 0.05}
+                "params": {"min_edge": 0.05},
             },
-            "strategy2": {
-                "enabled": False,
-                "interval_seconds": 120,
-                "params": {}
-            }
+            "strategy2": {"enabled": False, "interval_seconds": 120, "params": {}},
         }
 
         formatted = generator._format_strategy_configs(configs)

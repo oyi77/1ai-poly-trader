@@ -1,4 +1,5 @@
 """Strategy composer AGI node - wraps existing StrategyComposer."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry

@@ -1,4 +1,5 @@
 """AGI API router for PolyEdge plugin system."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -75,7 +76,11 @@ async def disable_node(name: str, _: Session = Depends(require_admin)):
 @router.get("/graphs")
 async def list_graphs(_: Session = Depends(require_admin)):
     """List all available AGI graph definitions."""
-    from backend.agi.graphs import MARKET_ANALYSIS_GRAPH, STRATEGY_EVOLUTION_GRAPH, FORENSICS_GRAPH
+    from backend.agi.graphs import (
+        MARKET_ANALYSIS_GRAPH,
+        STRATEGY_EVOLUTION_GRAPH,
+        FORENSICS_GRAPH,
+    )
 
     graphs = [MARKET_ANALYSIS_GRAPH, STRATEGY_EVOLUTION_GRAPH, FORENSICS_GRAPH]
     return {
@@ -98,7 +103,11 @@ async def run_graph(
     _: Session = Depends(require_admin),
 ):
     """Execute an AGI graph with initial data."""
-    from backend.agi.graphs import MARKET_ANALYSIS_GRAPH, STRATEGY_EVOLUTION_GRAPH, FORENSICS_GRAPH
+    from backend.agi.graphs import (
+        MARKET_ANALYSIS_GRAPH,
+        STRATEGY_EVOLUTION_GRAPH,
+        FORENSICS_GRAPH,
+    )
 
     graphs = {
         MARKET_ANALYSIS_GRAPH.name: MARKET_ANALYSIS_GRAPH,

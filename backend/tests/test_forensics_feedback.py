@@ -6,7 +6,7 @@ from backend.application.agi.forensics_feedback import (
     ForensicsFeedbackApplicator,
     increase_param,
     decrease_param,
-    add_to_list
+    add_to_list,
 )
 from backend.models.database import StrategyConfig
 
@@ -45,13 +45,13 @@ def test_add_to_list():
     """Test adding value to list parameter."""
     config = MagicMock()
     config.strategy_name = "test_strategy"
-    config.params = '[]'
+    config.params = "[]"
 
     mutation = add_to_list(config, "skip_regimes", value="volatile")
 
     assert mutation.strategy_name == "test_strategy"
     assert mutation.param == "params"
-    assert mutation.old_value == '[]'
+    assert mutation.old_value == "[]"
     assert mutation.new_value == '["volatile"]'
 
 
@@ -69,8 +69,10 @@ def test_forensics_feedback_applicator_apply_disabled():
     """Test applicator when auto-mutation is disabled."""
     applicator = ForensicsFeedbackApplicator()
 
-    with patch('backend.config.settings.FORENSICS_AUTO_MUTATE', False):
-        with patch('backend.application.agi.forensics_feedback.publish_event') as mock_publish:
+    with patch("backend.config.settings.FORENSICS_AUTO_MUTATE", False):
+        with patch(
+            "backend.application.agi.forensics_feedback.publish_event"
+        ) as mock_publish:
             db = MagicMock()
             result = applicator.apply("test_strategy", "CAUSE_SLIPPAGE_HIGH", "BTC", db)
 
@@ -84,8 +86,10 @@ def test_forensics_feedback_applicator_apply_success():
     """Test successful mutation application."""
     applicator = ForensicsFeedbackApplicator()
 
-    with patch('backend.config.settings.FORENSICS_AUTO_MUTATE', True):
-        with patch('backend.application.agi.forensics_feedback.publish_event') as mock_publish:
+    with patch("backend.config.settings.FORENSICS_AUTO_MUTATE", True):
+        with patch(
+            "backend.application.agi.forensics_feedback.publish_event"
+        ) as mock_publish:
             # Mock database and config
             db = MagicMock()
             config = StrategyConfig(strategy_name="test_strategy", params="[]")
@@ -105,8 +109,8 @@ def test_forensics_feedback_applicator_max_mutations():
     """Test mutation limit enforcement."""
     applicator = ForensicsFeedbackApplicator()
 
-    with patch('backend.config.settings.FORENSICS_AUTO_MUTATE', True):
-        with patch.object(applicator, '_mutations_today', return_value=1):
+    with patch("backend.config.settings.FORENSICS_AUTO_MUTATE", True):
+        with patch.object(applicator, "_mutations_today", return_value=1):
             db = MagicMock()
             result = applicator.apply("test_strategy", "CAUSE_SLIPPAGE_HIGH", "BTC", db)
 
@@ -117,7 +121,7 @@ def test_forensics_feedback_applicator_unknown_rule():
     """Test unknown root cause handling."""
     applicator = ForensicsFeedbackApplicator()
 
-    with patch('backend.config.settings.FORENSICS_AUTO_MUTATE', True):
+    with patch("backend.config.settings.FORENSICS_AUTO_MUTATE", True):
         db = MagicMock()
         result = applicator.apply("test_strategy", "UNKNOWN_CAUSE", "BTC", db)
 

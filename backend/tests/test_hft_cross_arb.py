@@ -1,4 +1,5 @@
 """Tests for HFT cross-exchange atomic arbitrage executor."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,8 +45,10 @@ def _make_opp(
 # Helpers: mock circuit breaker that passes through
 # ---------------------------------------------------------------------------
 
+
 class _PassThroughBreaker:
     """Mock circuit breaker that always allows calls through."""
+
     def __init__(self):
         self.state = "CLOSED"
 
@@ -66,6 +69,7 @@ class _PassThroughBreaker:
 def _patch_breakers():
     """Replace module-level circuit breakers with pass-through mocks."""
     import backend.strategies.hft_cross_arb as mod
+
     orig_poly = mod._poly_breaker
     orig_kalshi = mod._kalshi_breaker
     mod._poly_breaker = _PassThroughBreaker()
@@ -78,6 +82,7 @@ def _patch_breakers():
 # ---------------------------------------------------------------------------
 # Unit tests: Kelly sizing
 # ---------------------------------------------------------------------------
+
 
 class TestKellySize:
     def test_positive_edge(self):
@@ -92,7 +97,9 @@ class TestKellySize:
         assert _kelly_size(edge=-0.01) == 0.0
 
     def test_capped_at_max_size(self):
-        size = _kelly_size(edge=0.5, bankroll=100000.0, max_size=200.0, kelly_fraction=0.25)
+        size = _kelly_size(
+            edge=0.5, bankroll=100000.0, max_size=200.0, kelly_fraction=0.25
+        )
         assert size == 200.0
 
     def test_zero_bankroll_returns_zero(self):
@@ -103,11 +110,14 @@ class TestKellySize:
 # Unit tests: fee calculation
 # ---------------------------------------------------------------------------
 
+
 class TestFeeCalculation:
     def test_basic_fees(self):
         poly_fee, kalshi_fee, slippage = _calculate_fees(
-            poly_price=0.60, kalshi_price=0.35,
-            poly_size=100.0, kalshi_size=100.0,
+            poly_price=0.60,
+            kalshi_price=0.35,
+            poly_size=100.0,
+            kalshi_size=100.0,
             slippage_bps=5.0,
         )
         assert poly_fee == pytest.approx(0.60)  # 0.60 * 100 * 0.01
@@ -116,9 +126,12 @@ class TestFeeCalculation:
 
     def test_custom_fee_rates(self):
         poly_fee, kalshi_fee, _ = _calculate_fees(
-            poly_price=0.50, kalshi_price=0.50,
-            poly_size=100.0, kalshi_size=100.0,
-            poly_fee_pct=0.02, kalshi_fee_pct=0.07,
+            poly_price=0.50,
+            kalshi_price=0.50,
+            poly_size=100.0,
+            kalshi_size=100.0,
+            poly_fee_pct=0.02,
+            kalshi_fee_pct=0.07,
             slippage_bps=0.0,
         )
         assert poly_fee == pytest.approx(1.0)  # 0.50 * 100 * 0.02
@@ -128,6 +141,7 @@ class TestFeeCalculation:
 # ---------------------------------------------------------------------------
 # Unit tests: size calculation
 # ---------------------------------------------------------------------------
+
 
 class TestCalculateSizes:
     def test_valid_opp(self):
@@ -148,6 +162,7 @@ class TestCalculateSizes:
 # ---------------------------------------------------------------------------
 # Atomic execution: both legs succeed
 # ---------------------------------------------------------------------------
+
 
 class TestAtomicExecution:
     @pytest.mark.asyncio
@@ -211,7 +226,9 @@ class TestAtomicExecution:
         mock_clob.cancel_order = AsyncMock(return_value=True)
 
         mock_kalshi = AsyncMock()
-        mock_kalshi.place_order = AsyncMock(side_effect=Exception("kalshi rate limited"))
+        mock_kalshi.place_order = AsyncMock(
+            side_effect=Exception("kalshi rate limited")
+        )
         mock_kalshi.cancel_order = AsyncMock(return_value=True)
 
         executor = HFTCrossArbExecutor(
@@ -257,6 +274,7 @@ class TestAtomicExecution:
 # Batch execution
 # ---------------------------------------------------------------------------
 
+
 class TestBatchExecution:
     @pytest.mark.asyncio
     async def test_batch_returns_results(self):
@@ -283,6 +301,7 @@ class TestBatchExecution:
 # History tracking
 # ---------------------------------------------------------------------------
 
+
 class TestHistory:
     @pytest.mark.asyncio
     async def test_history_recorded(self):
@@ -291,9 +310,7 @@ class TestHistory:
             return_value=MagicMock(order_id="h1", success=True)
         )
         mock_kalshi = AsyncMock()
-        mock_kalshi.place_order = AsyncMock(
-            return_value={"order": {"order_id": "h2"}}
-        )
+        mock_kalshi.place_order = AsyncMock(return_value={"order": {"order_id": "h2"}})
 
         executor = HFTCrossArbExecutor(
             clob=mock_clob,
@@ -312,6 +329,7 @@ class TestHistory:
 # ---------------------------------------------------------------------------
 # Detection passthrough
 # ---------------------------------------------------------------------------
+
 
 class TestDetection:
     def test_detect_arb_delegates(self):

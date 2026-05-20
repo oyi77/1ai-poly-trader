@@ -15,7 +15,6 @@ from backend.data.polymarket_clob import (
     _inflight_keys,
 )
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -103,7 +102,9 @@ class TestPlaceLimitOrderLive:
     @pytest.mark.asyncio
     async def test_live_order_api_error(self):
         clob = _make_live_clob()
-        clob._clob_client.create_order.side_effect = Exception("API rejected: insufficient balance")
+        clob._clob_client.create_order.side_effect = Exception(
+            "API rejected: insufficient balance"
+        )
 
         clob._http = AsyncMock()
         try:
@@ -121,9 +122,7 @@ class TestPlaceLimitOrderLive:
 
         clob._http = AsyncMock()
         try:
-            result = await clob.place_limit_order(
-                "token1", "BUY", price=0.50, size=1.0
-            )
+            result = await clob.place_limit_order("token1", "BUY", price=0.50, size=1.0)
             assert not result.success
             assert "minimum" in result.error.lower()
         finally:
@@ -154,6 +153,7 @@ class TestPlaceLimitOrderLive:
 
         clob._http = AsyncMock()
         from backend.data.polymarket_clob import clob_breaker
+
         original_state = clob_breaker.state
         clob_breaker._state = "OPEN"
         try:
@@ -190,7 +190,9 @@ class TestIdempotency:
         try:
             async with clob:
                 clob.get_mid_price = AsyncMock(return_value=0.55)
-                result = await clob.place_limit_order("tok1", "BUY", price=0.55, size=20.0)
+                result = await clob.place_limit_order(
+                    "tok1", "BUY", price=0.55, size=20.0
+                )
             assert not result.success
             assert "duplicate" in result.error.lower()
         finally:
@@ -228,7 +230,10 @@ class TestGetWalletBalance:
 
         clob._http = AsyncMock()
         try:
-            with patch("backend.data.polymarket_clob.httpx.AsyncClient", return_value=mock_http_client):
+            with patch(
+                "backend.data.polymarket_clob.httpx.AsyncClient",
+                return_value=mock_http_client,
+            ):
                 with patch("backend.data.polymarket_clob.settings") as mock_settings:
                     mock_settings.USDC_E_ADDRESS = "0xUSDC_E"
                     mock_settings.USDC_NATIVE_ADDRESS = "0xUSDC_N"
@@ -255,7 +260,10 @@ class TestGetWalletBalance:
 
         clob._http = AsyncMock()
         try:
-            with patch("backend.data.polymarket_clob.httpx.AsyncClient", return_value=mock_http_client):
+            with patch(
+                "backend.data.polymarket_clob.httpx.AsyncClient",
+                return_value=mock_http_client,
+            ):
                 with patch("backend.data.polymarket_clob.settings") as mock_settings:
                     mock_settings.USDC_E_ADDRESS = "0xUSDC_E"
                     mock_settings.USDC_NATIVE_ADDRESS = "0xUSDC_N"
@@ -306,8 +314,14 @@ class TestPositionTracking:
     async def test_get_wallet_trades_pagination(self):
         """Wallet trades should paginate correctly."""
         clob = PolymarketCLOB(simulation=True)
-        page1 = [{"id": f"t{i}", "price": "0.5", "shares": "10", "timestamp": 1000} for i in range(100)]
-        page2 = [{"id": f"t{i+100}", "price": "0.5", "shares": "10", "timestamp": 1000} for i in range(5)]
+        page1 = [
+            {"id": f"t{i}", "price": "0.5", "shares": "10", "timestamp": 1000}
+            for i in range(100)
+        ]
+        page2 = [
+            {"id": f"t{i+100}", "price": "0.5", "shares": "10", "timestamp": 1000}
+            for i in range(5)
+        ]
 
         call_count = 0
 
@@ -378,7 +392,9 @@ class TestErrorHandling:
         clob = PolymarketCLOB(simulation=True)
 
         async with clob:
-            clob._http.get = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
+            clob._http.get = AsyncMock(
+                side_effect=httpx.ConnectError("connection refused")
+            )
             with pytest.raises(httpx.ConnectError):
                 await clob.get_order_book("token1")
 
@@ -394,7 +410,9 @@ class TestErrorHandling:
         )
 
         async with clob:
-            clob._http.get = AsyncMock(side_effect=resp_404.raise_for_status.side_effect)
+            clob._http.get = AsyncMock(
+                side_effect=resp_404.raise_for_status.side_effect
+            )
             result = await clob.get_order("nonexistent_order")
 
         assert result is None

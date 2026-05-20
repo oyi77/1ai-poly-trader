@@ -12,10 +12,10 @@ from backend.monitoring.trade_journal import (
     TradeJournal,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_trade(**overrides):
     """Return a mock Trade object with sensible defaults."""
@@ -65,6 +65,7 @@ def _mock_query_chain(mock_session, trades_for_all):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetTrades:
     """get_trades returns filtered list of trade dicts."""

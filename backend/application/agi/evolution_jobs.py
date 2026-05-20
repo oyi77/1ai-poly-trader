@@ -37,7 +37,9 @@ from backend.domain.evolution.mutation_engine import mutate_genome
 from backend.domain.evolution.crossover_engine import crossover_genomes
 from backend.domain.evolution.seed import FOUNDING_ARCHETYPES
 from backend.application.agi.necromancer import run_necromancy_analysis
-from backend.application.agi.regime_population_manager import detect_regime_and_rebalance
+from backend.application.agi.regime_population_manager import (
+    detect_regime_and_rebalance,
+)
 from backend.domain.evolution.shadow_metrics import compute_shadow_metrics
 from backend.domain.evolution.evolution_action import EvolutionAction
 from backend.models.database import GenomeRegistry, EvolutionLog, ShadowTrade
@@ -128,7 +130,11 @@ def _individual_to_genome(
                 if isinstance(value, float) and gene_idx < len(ind.genes):
                     setattr(chrom, field_name, ind.genes[gene_idx])
                     gene_idx += 1
-                elif isinstance(value, int) and not isinstance(value, bool) and gene_idx < len(ind.genes):
+                elif (
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and gene_idx < len(ind.genes)
+                ):
                     setattr(chrom, field_name, int(ind.genes[gene_idx] * 100))
                     gene_idx += 1
 
@@ -186,7 +192,9 @@ def _chromosomes_for(genome_row: GenomeRegistry) -> dict:
                 {
                     "entry_logic": {
                         "trigger_type": "threshold_cross",
-                        "conditions": [{"indicator": "rsi", "operator": ">", "value": 70.0}],
+                        "conditions": [
+                            {"indicator": "rsi", "operator": ">", "value": 70.0}
+                        ],
                     },
                     "exit_logic": {"trigger_type": "time_based"},
                     "market_selector": {},
@@ -204,7 +212,9 @@ def _to_strategy_genome(genome_row: GenomeRegistry) -> StrategyGenome:
     lineage = (
         LineageData(**lineage_raw)
         if lineage_raw
-        else LineageData(parent_genome_ids=[genome_row.genome_id], generation=1, creator="human")
+        else LineageData(
+            parent_genome_ids=[genome_row.genome_id], generation=1, creator="human"
+        )
     )
     return StrategyGenome(
         genome_id=genome_row.genome_id,
@@ -223,13 +233,19 @@ def _to_strategy_genome(genome_row: GenomeRegistry) -> StrategyGenome:
 def _chromosomes_to_json(chromosomes: dict) -> str:
     serialized = {}
     for name, chromosome in chromosomes.items():
-        serialized[name] = chromosome.model_dump() if hasattr(chromosome, "model_dump") else chromosome
+        serialized[name] = (
+            chromosome.model_dump() if hasattr(chromosome, "model_dump") else chromosome
+        )
     return json.dumps(serialized)
 
 
 def _upsert_genome(genome: StrategyGenome, db: Session) -> None:
     now = datetime.now(timezone.utc)
-    existing = db.query(GenomeRegistry).filter(GenomeRegistry.genome_id == genome.genome_id).first()
+    existing = (
+        db.query(GenomeRegistry)
+        .filter(GenomeRegistry.genome_id == genome.genome_id)
+        .first()
+    )
     if existing:
         existing.strategy_name = genome.strategy_name
         existing.archetype = genome.archetype
@@ -271,22 +287,33 @@ def run_mutation_cycle() -> int:
     with _get_db_session() as db:
         population = (
             db.query(GenomeRegistry)
-            .filter(GenomeRegistry.stage.in_(["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]))
+            .filter(
+                GenomeRegistry.stage.in_(
+                    ["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]
+                )
+            )
             .all()
         )
         if not population:
             return 0
 
         sorted_population = sorted(population, key=_fitness_score_for, reverse=True)
-        elite_count = max(1, min(len(sorted_population), settings.AGI_POPULATION_SIZE // 2))
+        elite_count = max(
+            1, min(len(sorted_population), settings.AGI_POPULATION_SIZE // 2)
+        )
         elites = sorted_population[:elite_count]
 
-        offspring_target = max(1, int(round(settings.AGI_POPULATION_SIZE * settings.AGI_MUTATION_RATE)))
+        offspring_target = max(
+            1, int(round(settings.AGI_POPULATION_SIZE * settings.AGI_MUTATION_RATE))
+        )
 
         # DEAP path: use evolution harness for mutation
         if settings.EVOLUTION_BACKEND == "deap":
             backend = create_evolution_backend("deap", gene_bounds=_DEFAULT_GENE_BOUNDS)
-            individuals = [_genome_to_individual(_to_strategy_genome(r)) for r in elites]
+            individuals = [
+                _genome_to_individual(_to_strategy_genome(r)) for r in elites
+            ]
+
             # Evaluate current fitness
             def _fit_fn(ind: Individual) -> tuple[float, ...]:
                 # Find matching genome row for fitness
@@ -298,13 +325,18 @@ def run_mutation_cycle() -> int:
                 return (0.0, 0.0)
 
             backend.evaluate(individuals, _fit_fn)
-            mutated_individuals = [backend.mutate(ind, rate=settings.AGI_MUTATION_RATE) for ind in individuals[:offspring_target]]
+            mutated_individuals = [
+                backend.mutate(ind, rate=settings.AGI_MUTATION_RATE)
+                for ind in individuals[:offspring_target]
+            ]
 
             created = 0
             for mut_ind in mutated_individuals:
                 parent_row = elites[created % len(elites)]
                 parent = _to_strategy_genome(parent_row)
-                mutated = _individual_to_genome(mut_ind, parent, f"{parent.strategy_name}-deap-mut-{created + 1}")
+                mutated = _individual_to_genome(
+                    mut_ind, parent, f"{parent.strategy_name}-deap-mut-{created + 1}"
+                )
                 mutated.archetype = parent.archetype
                 _upsert_genome(mutated, db)
                 log_evolution_action(
@@ -312,7 +344,10 @@ def run_mutation_cycle() -> int:
                         action_type="mutation",
                         genome_id=mutated.genome_id,
                         strategy_name=mutated.strategy_name,
-                        details={"parent_genome_id": parent.genome_id, "backend": "deap"},
+                        details={
+                            "parent_genome_id": parent.genome_id,
+                            "backend": "deap",
+                        },
                         from_stage=parent.stage,
                         to_stage=mutated.stage,
                     ),
@@ -328,7 +363,9 @@ def run_mutation_cycle() -> int:
             if created >= offspring_target:
                 break
             parent = _to_strategy_genome(parent_row)
-            mutated, mutations = mutate_genome(parent, fitness_score=_fitness_score_for(parent_row))
+            mutated, mutations = mutate_genome(
+                parent, fitness_score=_fitness_score_for(parent_row)
+            )
             mutated.archetype = parent.archetype
             mutated.strategy_name = f"{parent.strategy_name}-mut-{created + 1}"
             _upsert_genome(mutated, db)
@@ -337,7 +374,10 @@ def run_mutation_cycle() -> int:
                     action_type="mutation",
                     genome_id=mutated.genome_id,
                     strategy_name=mutated.strategy_name,
-                    details={"parent_genome_id": parent.genome_id, "mutations": mutations},
+                    details={
+                        "parent_genome_id": parent.genome_id,
+                        "mutations": mutations,
+                    },
                     from_stage=parent.stage,
                     to_stage=mutated.stage,
                 ),
@@ -361,7 +401,11 @@ def run_crossover_cycle() -> int:
     with _get_db_session() as db:
         population = (
             db.query(GenomeRegistry)
-            .filter(GenomeRegistry.stage.in_(["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]))
+            .filter(
+                GenomeRegistry.stage.in_(
+                    ["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]
+                )
+            )
             .all()
         )
         if len(population) < 2:
@@ -385,7 +429,12 @@ def run_crossover_cycle() -> int:
             pairs: list[tuple[GenomeRegistry, GenomeRegistry]] = []
             for left in range(len(archetypes)):
                 for right in range(left + 1, len(archetypes)):
-                    pairs.append((by_archetype[archetypes[left]][0], by_archetype[archetypes[right]][0]))
+                    pairs.append(
+                        (
+                            by_archetype[archetypes[left]][0],
+                            by_archetype[archetypes[right]][0],
+                        )
+                    )
 
             created = 0
             for parent_a_row, parent_b_row in pairs:
@@ -398,7 +447,8 @@ def run_crossover_cycle() -> int:
                 child_ind_a, child_ind_b = backend.crossover(ind_a, ind_b)
 
                 child = _individual_to_genome(
-                    child_ind_a, parent_a,
+                    child_ind_a,
+                    parent_a,
                     f"deap-cross-{parent_a.archetype[:8]}-{parent_b.archetype[:8]}-{created + 1}",
                 )
                 child.archetype = f"hybrid_{parent_a.archetype}_{parent_b.archetype}"
@@ -408,7 +458,11 @@ def run_crossover_cycle() -> int:
                         action_type="crossover",
                         genome_id=child.genome_id,
                         strategy_name=child.strategy_name,
-                        details={"parent_a_id": parent_a.genome_id, "parent_b_id": parent_b.genome_id, "backend": "deap"},
+                        details={
+                            "parent_a_id": parent_a.genome_id,
+                            "parent_b_id": parent_b.genome_id,
+                            "backend": "deap",
+                        },
                         to_stage=child.stage,
                     ),
                     db,
@@ -439,7 +493,10 @@ def run_crossover_cycle() -> int:
                         action_type="crossover",
                         genome_id=child.genome_id,
                         strategy_name=child.strategy_name,
-                        details={"parent_a_id": parent_a.genome_id, "parent_b_id": parent_b.genome_id},
+                        details={
+                            "parent_a_id": parent_a.genome_id,
+                            "parent_b_id": parent_b.genome_id,
+                        },
                         to_stage=child.stage,
                     ),
                     db,
@@ -454,12 +511,18 @@ def update_fitness_from_shadow() -> int:
         return 0
 
     with _get_db_session() as db:
-        genomes = db.query(GenomeRegistry).filter(GenomeRegistry.stage != "GRAVEYARD").all()
+        genomes = (
+            db.query(GenomeRegistry).filter(GenomeRegistry.stage != "GRAVEYARD").all()
+        )
         updated = 0
         for genome in genomes:
             trades = (
                 db.query(ShadowTrade)
-                .filter(ShadowTrade.genome_id == genome.genome_id, ShadowTrade.settled.is_(True), ShadowTrade.pnl.isnot(None))
+                .filter(
+                    ShadowTrade.genome_id == genome.genome_id,
+                    ShadowTrade.settled.is_(True),
+                    ShadowTrade.pnl.isnot(None),
+                )
                 .all()
             )
             if not trades:
@@ -488,14 +551,19 @@ def update_fitness_from_shadow() -> int:
                 if t.predicted_outcome is not None and t.actual_outcome is not None
             ]
             brier = (
-                sum((pred - actual) ** 2 for pred, actual in brier_inputs) / len(brier_inputs)
+                sum((pred - actual) ** 2 for pred, actual in brier_inputs)
+                / len(brier_inputs)
                 if brier_inputs
                 else 0.25
             )
             metrics = FitnessMetrics(
                 sharpe_ratio=sharpe,
                 win_rate=wins / len(trades),
-                profit_factor=positive / negative if negative > 0 else (positive if positive > 0 else 0.0),
+                profit_factor=(
+                    positive / negative
+                    if negative > 0
+                    else (positive if positive > 0 else 0.0)
+                ),
                 max_drawdown_pct=max_drawdown,
                 brier_score=brier,
                 alpha_per_trade=avg,
@@ -518,7 +586,11 @@ def rebalance_population() -> int:
     with _get_db_session() as db:
         active = (
             db.query(GenomeRegistry)
-            .filter(GenomeRegistry.stage.in_(["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]))
+            .filter(
+                GenomeRegistry.stage.in_(
+                    ["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]
+                )
+            )
             .all()
         )
         if not active:
@@ -545,7 +617,9 @@ def rebalance_population() -> int:
         for archetype in missing[:remaining_capacity]:
             donor_row = next(donor_cycle)
             donor = _to_strategy_genome(donor_row)
-            child, _ = mutate_genome(donor, fitness_score=fitness_by_id.get(donor.genome_id, 0.0))
+            child, _ = mutate_genome(
+                donor, fitness_score=fitness_by_id.get(donor.genome_id, 0.0)
+            )
             child.archetype = archetype
             child.strategy_name = f"rebalance-{archetype}-{created + 1}"
             _upsert_genome(child, db)
@@ -554,7 +628,10 @@ def rebalance_population() -> int:
                     action_type="rebalance",
                     genome_id=child.genome_id,
                     strategy_name=child.strategy_name,
-                    details={"source_genome_id": donor.genome_id, "target_archetype": archetype},
+                    details={
+                        "source_genome_id": donor.genome_id,
+                        "target_archetype": archetype,
+                    },
                     to_stage=child.stage,
                 ),
                 db,
@@ -579,10 +656,14 @@ def log_evolution_action(action: EvolutionAction, db: Session) -> None:
 
     # Publish event
     publish_event("evolution_action", action.to_dict())
-    logger.info(f"Evolution action logged: {action.action_type} for genome {action.genome_id}")
+    logger.info(
+        f"Evolution action logged: {action.action_type} for genome {action.genome_id}"
+    )
 
 
-def _sync_genome_fitness_from_shadow_trades(genome, settled_trades, db: Session) -> dict:
+def _sync_genome_fitness_from_shadow_trades(
+    genome, settled_trades, db: Session
+) -> dict:
     """Update fitness_json, native metric columns, and genome_performance row from settled shadow trades."""
     metrics = compute_shadow_metrics(settled_trades)
     fitness = FitnessMetrics(
@@ -606,9 +687,11 @@ def _sync_genome_fitness_from_shadow_trades(genome, settled_trades, db: Session)
     genome.trade_count = metrics["total_trades"]
     genome.last_evaluated_at = datetime.now(timezone.utc)
 
-    perf_row = db.query(GenomePerformance).filter(
-        GenomePerformance.genome_id == genome.genome_id
-    ).first()
+    perf_row = (
+        db.query(GenomePerformance)
+        .filter(GenomePerformance.genome_id == genome.genome_id)
+        .first()
+    )
     if perf_row is None:
         perf_row = GenomePerformance(genome_id=genome.genome_id)
         db.add(perf_row)
@@ -652,20 +735,26 @@ def fitness_evaluation_job() -> None:
     logger.info("Starting fitness evaluation job")
     with _get_db_session() as db:
         # Get all active genomes (not in GRAVEYARD stage)
-        genomes = db.query(GenomeRegistry).filter(
-            GenomeRegistry.stage != "GRAVEYARD"
-        ).all()
+        genomes = (
+            db.query(GenomeRegistry).filter(GenomeRegistry.stage != "GRAVEYARD").all()
+        )
 
         for genome in genomes:
             try:
-                raw = genome.fitness_metrics  # hybrid_property auto-deserializes fitness_json
-                metrics = FitnessMetrics(**{k: v for k, v in raw.items() if k in FitnessMetrics.model_fields})
+                raw = (
+                    genome.fitness_metrics
+                )  # hybrid_property auto-deserializes fitness_json
+                metrics = FitnessMetrics(
+                    **{k: v for k, v in raw.items() if k in FitnessMetrics.model_fields}
+                )
                 fitness_score = calculate_fitness(metrics)
 
                 # Sync both JSON and native denormalized columns
                 genome.fitness_score = fitness_score
                 genome.fitness_updated_at = datetime.now(timezone.utc)
-                genome.total_pnl = raw.get("total_pnl", 0.0) if metrics.total_trades > 0 else 0.0
+                genome.total_pnl = (
+                    raw.get("total_pnl", 0.0) if metrics.total_trades > 0 else 0.0
+                )
                 genome.win_rate = metrics.win_rate
                 genome.sharpe_ratio = metrics.sharpe_ratio
                 genome.max_drawdown_pct = metrics.max_drawdown_pct
@@ -681,10 +770,14 @@ def fitness_evaluation_job() -> None:
                 )
                 log_evolution_action(action, db)
 
-                logger.debug(f"Fitness evaluated for {genome.strategy_name}: {fitness_score}")
+                logger.debug(
+                    f"Fitness evaluated for {genome.strategy_name}: {fitness_score}"
+                )
 
             except Exception as e:
-                logger.error(f"Error evaluating fitness for {genome.strategy_name}: {e}")
+                logger.error(
+                    f"Error evaluating fitness for {genome.strategy_name}: {e}"
+                )
 
         db.commit()
         logger.info(f"Fitness evaluation completed for {len(genomes)} genomes")
@@ -699,9 +792,11 @@ def mutation_cycle_job() -> None:
     logger.info("Starting mutation cycle")
     with _get_db_session() as db:
         # Get genomes eligible for mutation (PAPER or LIVE stage)
-        eligible = db.query(GenomeRegistry).filter(
-            GenomeRegistry.stage.in_(["PAPER", "LIVE"])
-        ).all()
+        eligible = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.stage.in_(["PAPER", "LIVE"]))
+            .all()
+        )
 
         mutants = []
         for genome in eligible:
@@ -730,7 +825,9 @@ def mutation_cycle_job() -> None:
                 )
                 log_evolution_action(action, db)
 
-                logger.debug(f"Mutated {genome.strategy_name} -> {mutant_genome.strategy_name}")
+                logger.debug(
+                    f"Mutated {genome.strategy_name} -> {mutant_genome.strategy_name}"
+                )
 
             except Exception as e:
                 logger.error(f"Error mutating {genome.strategy_name}: {e}")
@@ -748,9 +845,13 @@ def crossover_cycle_job() -> None:
     logger.info("Starting crossover cycle")
     with _get_db_session() as db:
         # Get elite genomes (top performers) for crossover
-        elite_genomes = db.query(GenomeRegistry).filter(
-            GenomeRegistry.stage.in_(["PAPER", "LIVE"])
-        ).order_by(GenomeRegistry.fitness_score.desc()).limit(10).all()
+        elite_genomes = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.stage.in_(["PAPER", "LIVE"]))
+            .order_by(GenomeRegistry.fitness_score.desc())
+            .limit(10)
+            .all()
+        )
 
         for i in range(0, len(elite_genomes) - 1, 2):
             parent_a = elite_genomes[i]
@@ -775,17 +876,26 @@ def crossover_cycle_job() -> None:
                     action_type="crossover",
                     genome_id=child_genome.genome_id,
                     strategy_name=child_genome.strategy_name,
-                    details={"parent_a": parent_a.genome_id, "parent_b": parent_b.genome_id},
+                    details={
+                        "parent_a": parent_a.genome_id,
+                        "parent_b": parent_b.genome_id,
+                    },
                 )
                 log_evolution_action(action, db)
 
-                logger.info(f"Crossover created {child_genome.strategy_name} from {parent_a.strategy_name} x {parent_b.strategy_name}")
+                logger.info(
+                    f"Crossover created {child_genome.strategy_name} from {parent_a.strategy_name} x {parent_b.strategy_name}"
+                )
 
             except Exception as e:
-                logger.error(f"Error in crossover for {parent_a.strategy_name} x {parent_b.strategy_name}: {e}")
+                logger.error(
+                    f"Error in crossover for {parent_a.strategy_name} x {parent_b.strategy_name}: {e}"
+                )
 
         db.commit()
-        logger.info(f"Crossover cycle completed, created {len(elite_genomes) // 2} children")
+        logger.info(
+            f"Crossover cycle completed, created {len(elite_genomes) // 2} children"
+        )
 
 
 def necromancy_analysis_job() -> None:
@@ -808,7 +918,7 @@ def necromancy_analysis_job() -> None:
                 "death_causes": report.death_causes,
                 "high_risk_genes": len(report.high_risk_genes),
                 "legend_genes": len(report.legend_genes),
-                "new_anti_patterns": len(report.new_anti_patterns)
+                "new_anti_patterns": len(report.new_anti_patterns),
             },
         )
         log_evolution_action(action, db)
@@ -832,10 +942,7 @@ def regime_rebalancing_job() -> None:
             action_type="regime_rebalance",
             genome_id="system",
             strategy_name="regime_detector",
-            details={
-                "detected_regime": regime,
-                "population_changes": changes
-            },
+            details={"detected_regime": regime, "population_changes": changes},
         )
         log_evolution_action(action, db)
 
@@ -858,25 +965,33 @@ def shadow_validation_job() -> None:
     logger.info("Starting shadow validation job")
     with _get_db_session() as db:
         from backend.models.database import ShadowTrade
-        candidate_genomes = db.query(GenomeRegistry).filter(
-            GenomeRegistry.stage.in_(["SHADOW", "PAPER"])
-        ).all()
+
+        candidate_genomes = (
+            db.query(GenomeRegistry)
+            .filter(GenomeRegistry.stage.in_(["SHADOW", "PAPER"]))
+            .all()
+        )
 
         promoted = 0
         killed = 0
         for genome in candidate_genomes:
-            trades = db.query(ShadowTrade).filter(
-                ShadowTrade.genome_id == genome.genome_id,
-                ShadowTrade.settled.is_(True),
-                ShadowTrade.pnl.isnot(None),
-            ).order_by(ShadowTrade.timestamp.asc()).all()
+            trades = (
+                db.query(ShadowTrade)
+                .filter(
+                    ShadowTrade.genome_id == genome.genome_id,
+                    ShadowTrade.settled.is_(True),
+                    ShadowTrade.pnl.isnot(None),
+                )
+                .order_by(ShadowTrade.timestamp.asc())
+                .all()
+            )
 
             metrics = _sync_genome_fitness_from_shadow_trades(genome, trades, db)
 
             # Auto-kill gates
-            if (
-                metrics["max_drawdown_pct"] > AUTO_KILL_MAX_DRAWDOWN
-                or (metrics["sharpe_ratio"] < AUTO_KILL_MIN_SHARPE and metrics["win_rate"] < AUTO_KILL_MIN_WIN_RATE)
+            if metrics["max_drawdown_pct"] > AUTO_KILL_MAX_DRAWDOWN or (
+                metrics["sharpe_ratio"] < AUTO_KILL_MIN_SHARPE
+                and metrics["win_rate"] < AUTO_KILL_MIN_WIN_RATE
             ):
                 from_stage = genome.stage
                 genome.stage = "GRAVEYARD"
@@ -971,14 +1086,26 @@ def full_population_review_job() -> None:
 
     logger.info("Starting full population review job")
     with _get_db_session() as db:
-        genomes = db.query(GenomeRegistry).filter(
-            GenomeRegistry.stage.in_(["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"])
-        ).all()
+        genomes = (
+            db.query(GenomeRegistry)
+            .filter(
+                GenomeRegistry.stage.in_(
+                    ["DRAFT", "SHADOW", "PAPER", "LIVE", "BREEDING"]
+                )
+            )
+            .all()
+        )
 
         killed = 0
         for genome in genomes:
             raw_metrics = genome.fitness_metrics  # dict via hybrid_property
-            metrics_obj = FitnessMetrics(**{k: v for k, v in raw_metrics.items() if k in FitnessMetrics.model_fields})
+            metrics_obj = FitnessMetrics(
+                **{
+                    k: v
+                    for k, v in raw_metrics.items()
+                    if k in FitnessMetrics.model_fields
+                }
+            )
             fitness = calculate_fitness(metrics_obj)
             genome.fitness_score = fitness
             genome.fitness_updated_at = datetime.now(timezone.utc)
@@ -990,7 +1117,11 @@ def full_population_review_job() -> None:
                 genome.trade_count = raw_metrics.get("total_trades", 0)
                 genome.last_evaluated_at = datetime.now(timezone.utc)
 
-            if fitness < 0.30 and raw_metrics and raw_metrics.get("total_trades", 0) >= 20:
+            if (
+                fitness < 0.30
+                and raw_metrics
+                and raw_metrics.get("total_trades", 0) >= 20
+            ):
                 genome.stage = "GRAVEYARD"
                 action = EvolutionAction(
                     action_type="kill",
@@ -998,13 +1129,18 @@ def full_population_review_job() -> None:
                     strategy_name=genome.strategy_name,
                     from_stage=genome.stage,
                     to_stage="GRAVEYARD",
-                    details={"fitness_score": fitness, "reason": "below_kill_threshold"},
+                    details={
+                        "fitness_score": fitness,
+                        "reason": "below_kill_threshold",
+                    },
                 )
                 log_evolution_action(action, db)
                 killed += 1
 
         db.commit()
-        logger.info(f"Population review completed: {len(genomes)} genomes, {killed} killed")
+        logger.info(
+            f"Population review completed: {len(genomes)} genomes, {killed} killed"
+        )
 
 
 def legend_evaluation_job() -> None:
@@ -1017,17 +1153,28 @@ def legend_evaluation_job() -> None:
     logger.info("Starting legend evaluation job")
     with _get_db_session() as db:
         from datetime import timedelta
+
         cutoff = datetime.now(timezone.utc) - timedelta(days=60)
 
-        live_genomes = db.query(GenomeRegistry).filter(
-            GenomeRegistry.stage == "LIVE",
-            GenomeRegistry.created_at <= cutoff,
-        ).all()
+        live_genomes = (
+            db.query(GenomeRegistry)
+            .filter(
+                GenomeRegistry.stage == "LIVE",
+                GenomeRegistry.created_at <= cutoff,
+            )
+            .all()
+        )
 
         legends = 0
         for genome in live_genomes:
             raw_metrics = genome.fitness_metrics  # dict via hybrid_property
-            metrics_obj = FitnessMetrics(**{k: v for k, v in raw_metrics.items() if k in FitnessMetrics.model_fields})
+            metrics_obj = FitnessMetrics(
+                **{
+                    k: v
+                    for k, v in raw_metrics.items()
+                    if k in FitnessMetrics.model_fields
+                }
+            )
             fitness = calculate_fitness(metrics_obj)
             if fitness > 0.85 and raw_metrics.get("profit_factor", 0) > 2.0:
                 genome.stage = "LEGEND"
@@ -1041,11 +1188,14 @@ def legend_evaluation_job() -> None:
                     details={"fitness_score": fitness, "legend_criteria_met": True},
                 )
                 log_evolution_action(action, db)
-                publish_event("genome_promoted", {
-                    "genome_id": genome.genome_id,
-                    "from": "LIVE",
-                    "to": "LEGEND",
-                })
+                publish_event(
+                    "genome_promoted",
+                    {
+                        "genome_id": genome.genome_id,
+                        "from": "LIVE",
+                        "to": "LEGEND",
+                    },
+                )
                 legends += 1
 
         db.commit()
@@ -1070,7 +1220,9 @@ def targeted_mutation(genome_id: str, chrom_name: str, db) -> None:
             return
 
         # Only mutate the flagged chromosome
-        mutated, _ = mutate_genome(genome, market_regime="neutral", targeted_chrom=chrom_name)
+        mutated, _ = mutate_genome(
+            genome, market_regime="neutral", targeted_chrom=chrom_name
+        )
         if mutated and mutated.genome_id != genome.genome_id:
             mutated.fitness_score = calculate_fitness(mutated.fitness_metrics)
             mutated.total_pnl = mutated.fitness_metrics.total_pnl or 0.0
@@ -1089,13 +1241,17 @@ def targeted_mutation(genome_id: str, chrom_name: str, db) -> None:
                 details={
                     "parent_genome_id": genome.genome_id,
                     "targeted_chrom": chrom_name,
-                    "mutation_strategy": "targeted_tweak"
+                    "mutation_strategy": "targeted_tweak",
                 },
                 from_stage=genome.stage,
                 to_stage=genome.stage,
             )
             log_evolution_action(action, db)
 
-            logger.info(f"Targeted mutation applied: {genome.strategy_name} -> {mutated.strategy_name} (chrom={chrom_name})")
+            logger.info(
+                f"Targeted mutation applied: {genome.strategy_name} -> {mutated.strategy_name} (chrom={chrom_name})"
+            )
     except Exception as e:
-        logger.error(f"Targeted mutation failed for genome {genome_id}: {e}", exc_info=True)
+        logger.error(
+            f"Targeted mutation failed for genome {genome_id}: {e}", exc_info=True
+        )

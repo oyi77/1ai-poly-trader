@@ -8,7 +8,11 @@ from typing import Any, Optional
 from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker, Session
 
-from backend.core.agi_types import KGEntity as KGEntityType, KGRelation as KGRelationType, MarketRegime
+from backend.core.agi_types import (
+    KGEntity as KGEntityType,
+    KGRelation as KGRelationType,
+    MarketRegime,
+)
 from loguru import logger
 from backend.models.kg_models import (
     KGEntity as KGEntityModel,
@@ -31,6 +35,7 @@ class KnowledgeGraph:
             self._owns_session = False
         else:
             from backend.models.database import Base
+
             self._engine = create_engine(db_url)
             Base.metadata.create_all(self._engine)
             self._session = sessionmaker(bind=self._engine)()
@@ -42,8 +47,14 @@ class KnowledgeGraph:
         if self._owns_session:
             self._session.close()
 
-    def add_entity(self, entity_type: str, entity_id: str, properties: dict[str, Any] | None = None) -> KGEntityType:
-        existing = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == entity_id).first()
+    def add_entity(
+        self, entity_type: str, entity_id: str, properties: dict[str, Any] | None = None
+    ) -> KGEntityType:
+        existing = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == entity_id)
+            .first()
+        )
         if existing:
             if properties:
                 existing.properties = properties
@@ -70,7 +81,11 @@ class KnowledgeGraph:
         )
 
     def get_entity(self, entity_id: str) -> KGEntityType | None:
-        model = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == entity_id).first()
+        model = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == entity_id)
+            .first()
+        )
         if model is None:
             return None
         return KGEntityType(
@@ -87,8 +102,16 @@ class KnowledgeGraph:
         weight: float,
         confidence: float,
     ) -> KGRelationType | None:
-        from_model = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == from_entity_id).first()
-        to_model = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == to_entity_id).first()
+        from_model = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == from_entity_id)
+            .first()
+        )
+        to_model = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == to_entity_id)
+            .first()
+        )
         if from_model is None or to_model is None:
             return None
         model = KGRelationModel(
@@ -109,11 +132,19 @@ class KnowledgeGraph:
             timestamp=model.created_at,
         )
 
-    def get_related(self, entity_id: str, relation_type: str | None = None) -> list[KGEntityType]:
-        entity_model = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == entity_id).first()
+    def get_related(
+        self, entity_id: str, relation_type: str | None = None
+    ) -> list[KGEntityType]:
+        entity_model = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == entity_id)
+            .first()
+        )
         if entity_model is None:
             return []
-        query = self._session.query(KGRelationModel).filter(KGRelationModel.from_entity_id == entity_model.id)
+        query = self._session.query(KGRelationModel).filter(
+            KGRelationModel.from_entity_id == entity_model.id
+        )
         if relation_type:
             query = query.filter(KGRelationModel.relation_type == relation_type)
         relations = query.all()
@@ -122,18 +153,24 @@ class KnowledgeGraph:
         if not to_entity_ids:
             return []
 
-        related_entities = self._session.query(KGEntityModel).filter(KGEntityModel.id.in_(to_entity_ids)).all()
+        related_entities = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.id.in_(to_entity_ids))
+            .all()
+        )
         related_dict = {entity.id: entity for entity in related_entities}
 
         results = []
         for rel in relations:
             related = related_dict.get(rel.to_entity_id)
             if related:
-                results.append(KGEntityType(
-                    entity_type=related.entity_type,
-                    entity_id=related.entity_id,
-                    properties=related.properties or {},
-                ))
+                results.append(
+                    KGEntityType(
+                        entity_type=related.entity_type,
+                        entity_id=related.entity_id,
+                        properties=related.properties or {},
+                    )
+                )
         return results
 
     def find_pattern(self, pattern: str) -> list[KGEntityType]:
@@ -142,82 +179,120 @@ class KnowledgeGraph:
             return []
         relation_type = "_".join(parts[:-1]) if len(parts) > 2 else parts[0]
         target_name = parts[-1]
-        target = self._session.query(KGEntityModel).filter(
-            KGEntityModel.entity_id.ilike(f"%{target_name}%")
-        ).first()
+        target = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id.ilike(f"%{target_name}%"))
+            .first()
+        )
         if target is None:
             return []
-        relations = self._session.query(KGRelationModel).filter(
-            KGRelationModel.to_entity_id == target.id,
-            KGRelationModel.relation_type == relation_type,
-        ).all()
+        relations = (
+            self._session.query(KGRelationModel)
+            .filter(
+                KGRelationModel.to_entity_id == target.id,
+                KGRelationModel.relation_type == relation_type,
+            )
+            .all()
+        )
 
         # ⚡ Bolt Optimization: Replace N+1 queries with bulk fetch
         source_entity_ids = [rel.from_entity_id for rel in relations]
         if not source_entity_ids:
             return []
 
-        sources = self._session.query(KGEntityModel).filter(KGEntityModel.id.in_(source_entity_ids)).all()
+        sources = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.id.in_(source_entity_ids))
+            .all()
+        )
         source_dict = {source.id: source for source in sources}
 
         results = []
         for rel in relations:
             source = source_dict.get(rel.from_entity_id)
             if source:
-                results.append(KGEntityType(
-                    entity_type=source.entity_type,
-                    entity_id=source.entity_id,
-                    properties=source.properties or {},
-                ))
+                results.append(
+                    KGEntityType(
+                        entity_type=source.entity_type,
+                        entity_id=source.entity_id,
+                        properties=source.properties or {},
+                    )
+                )
         return results
 
     def get_strategies_for_regime(self, regime: MarketRegime) -> list[KGEntityType]:
-        regime_entity = self._session.query(KGEntityModel).filter(
-            KGEntityModel.entity_type == "regime",
-            KGEntityModel.entity_id.ilike(f"%{regime.value}%"),
-        ).first()
+        regime_entity = (
+            self._session.query(KGEntityModel)
+            .filter(
+                KGEntityModel.entity_type == "regime",
+                KGEntityModel.entity_id.ilike(f"%{regime.value}%"),
+            )
+            .first()
+        )
         if regime_entity is None:
             return []
-        relations = self._session.query(KGRelationModel).filter(
-            KGRelationModel.to_entity_id == regime_entity.id,
-            KGRelationModel.relation_type == "performs_well_in",
-        ).all()
+        relations = (
+            self._session.query(KGRelationModel)
+            .filter(
+                KGRelationModel.to_entity_id == regime_entity.id,
+                KGRelationModel.relation_type == "performs_well_in",
+            )
+            .all()
+        )
 
         # ⚡ Bolt Optimization: Replace N+1 queries with bulk fetch
         strategy_ids = [rel.from_entity_id for rel in relations]
         if not strategy_ids:
             return []
 
-        strategies = self._session.query(KGEntityModel).filter(KGEntityModel.id.in_(strategy_ids)).all()
+        strategies = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.id.in_(strategy_ids))
+            .all()
+        )
         strategy_dict = {strat.id: strat for strat in strategies}
 
         results = []
         for rel in relations:
             strategy = strategy_dict.get(rel.from_entity_id)
             if strategy:
-                results.append(KGEntityType(
-                    entity_type=strategy.entity_type,
-                    entity_id=strategy.entity_id,
-                    properties=strategy.properties or {},
-                ))
+                results.append(
+                    KGEntityType(
+                        entity_type=strategy.entity_type,
+                        entity_id=strategy.entity_id,
+                        properties=strategy.properties or {},
+                    )
+                )
         return results
 
     def get_regime_performance(self, strategy: str) -> dict[str, dict[str, Any]]:
-        strategy_entity = self._session.query(KGEntityModel).filter(
-            KGEntityModel.entity_id == strategy,
-        ).first()
+        strategy_entity = (
+            self._session.query(KGEntityModel)
+            .filter(
+                KGEntityModel.entity_id == strategy,
+            )
+            .first()
+        )
         if strategy_entity is None:
             return {}
-        relations = self._session.query(KGRelationModel).filter(
-            KGRelationModel.from_entity_id == strategy_entity.id,
-        ).all()
+        relations = (
+            self._session.query(KGRelationModel)
+            .filter(
+                KGRelationModel.from_entity_id == strategy_entity.id,
+            )
+            .all()
+        )
 
         # ⚡ Bolt Optimization: Replace N+1 queries with bulk fetch
         regime_ids = [rel.to_entity_id for rel in relations]
         if not regime_ids:
             return {}
 
-        regimes = self._session.query(KGEntityModel).filter(KGEntityModel.id.in_(regime_ids)).all()
+        regimes = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.id.in_(regime_ids))
+            .all()
+        )
         regime_dict = {r.id: r for r in regimes}
 
         performance = {}
@@ -232,16 +307,26 @@ class KnowledgeGraph:
         return performance
 
     def rollback_to(self, timestamp: datetime) -> int:
-        relations_deleted = self._session.query(KGRelationModel).filter(
-            KGRelationModel.created_at > timestamp,
-        ).delete()
-        entities_deleted = self._session.query(KGEntityModel).filter(
-            KGEntityModel.created_at > timestamp,
-        ).delete()
+        relations_deleted = (
+            self._session.query(KGRelationModel)
+            .filter(
+                KGRelationModel.created_at > timestamp,
+            )
+            .delete()
+        )
+        entities_deleted = (
+            self._session.query(KGEntityModel)
+            .filter(
+                KGEntityModel.created_at > timestamp,
+            )
+            .delete()
+        )
         self._session.commit()
         return relations_deleted + entities_deleted
 
-    def validate_entity(self, entity_type: str, entity_id: str, properties: dict[str, Any] | None = None) -> list[str]:
+    def validate_entity(
+        self, entity_type: str, entity_id: str, properties: dict[str, Any] | None = None
+    ) -> list[str]:
         errors = []
         if not entity_type or not entity_type.strip():
             errors.append("entity_type is required")
@@ -274,10 +359,18 @@ class KnowledgeGraph:
             errors.append("confidence must be >= 0.1 (minimum evidence threshold)")
         if from_entity_id == to_entity_id:
             errors.append("self-loops are not allowed (from_entity == to_entity)")
-        from_exists = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == from_entity_id).first()
+        from_exists = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == from_entity_id)
+            .first()
+        )
         if not from_exists:
             errors.append(f"from_entity '{from_entity_id}' does not exist")
-        to_exists = self._session.query(KGEntityModel).filter(KGEntityModel.entity_id == to_entity_id).first()
+        to_exists = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == to_entity_id)
+            .first()
+        )
         if not to_exists:
             errors.append(f"to_entity '{to_entity_id}' does not exist")
         return errors
@@ -294,7 +387,14 @@ class KnowledgeGraph:
             "entity_count": entity_count,
             "relation_count": relation_count,
             "entities": [{"id": e.entity_id, "type": e.entity_type} for e in entities],
-            "relations": [{"from": r.from_entity_id, "to": r.to_entity_id, "type": r.relation_type} for r in relations],
+            "relations": [
+                {
+                    "from": r.from_entity_id,
+                    "to": r.to_entity_id,
+                    "type": r.relation_type,
+                }
+                for r in relations
+            ],
         }
         audit_entry = DecisionAuditLog(
             timestamp=datetime.now(timezone.utc),
@@ -323,17 +423,31 @@ class KnowledgeGraph:
         snapshot_time = snapshot_entry.timestamp
         if isinstance(snapshot_time, str):
             snapshot_time = datetime.fromisoformat(snapshot_time)
-        relations_deleted = self._session.query(KGRelationModel).filter(
-            KGRelationModel.created_at > snapshot_time
-        ).delete()
-        entities_deleted = self._session.query(KGEntityModel).filter(
-            KGEntityModel.created_at > snapshot_time
-        ).delete()
+        relations_deleted = (
+            self._session.query(KGRelationModel)
+            .filter(KGRelationModel.created_at > snapshot_time)
+            .delete()
+        )
+        entities_deleted = (
+            self._session.query(KGEntityModel)
+            .filter(KGEntityModel.created_at > snapshot_time)
+            .delete()
+        )
         rollback_audit = DecisionAuditLog(
             timestamp=datetime.now(timezone.utc),
             decision_type="kg_rollback",
-            input_data={"snapshot_id": snapshot_id, "snapshot_time": snapshot_time.isoformat() if isinstance(snapshot_time, datetime) else snapshot_time},
-            output_data={"relations_deleted": relations_deleted, "entities_deleted": entities_deleted},
+            input_data={
+                "snapshot_id": snapshot_id,
+                "snapshot_time": (
+                    snapshot_time.isoformat()
+                    if isinstance(snapshot_time, datetime)
+                    else snapshot_time
+                ),
+            },
+            output_data={
+                "relations_deleted": relations_deleted,
+                "entities_deleted": entities_deleted,
+            },
             confidence=1.0,
             reasoning=f"Rolled back to snapshot {snapshot_id}",
         )
@@ -341,12 +455,20 @@ class KnowledgeGraph:
         self._session.commit()
         return relations_deleted + entities_deleted
 
-    def persist_entity(self, entity: KGEntityType, db: Optional[Session] = None) -> KGEntityType:
+    def persist_entity(
+        self, entity: KGEntityType, db: Optional[Session] = None
+    ) -> KGEntityType:
         session = db or self._session
-        errors = self.validate_entity(entity.entity_type, entity.entity_id, entity.properties)
+        errors = self.validate_entity(
+            entity.entity_type, entity.entity_id, entity.properties
+        )
         if errors:
             raise ValueError(f"Entity validation failed: {errors}")
-        existing = session.query(KGEntityModel).filter(KGEntityModel.entity_id == entity.entity_id).first()
+        existing = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == entity.entity_id)
+            .first()
+        )
         if existing:
             existing.properties = entity.properties
             existing.updated_at = datetime.now(timezone.utc)
@@ -361,7 +483,10 @@ class KnowledgeGraph:
             timestamp=datetime.now(timezone.utc),
             agent_name="KnowledgeGraph",
             decision_type="kg_persist_entity",
-            input_data={"entity_id": entity.entity_id, "entity_type": entity.entity_type},
+            input_data={
+                "entity_id": entity.entity_id,
+                "entity_type": entity.entity_type,
+            },
             output_data={"status": "persisted"},
             confidence=1.0,
             reasoning=f"Persisted entity {entity.entity_id}",
@@ -370,15 +495,29 @@ class KnowledgeGraph:
         session.commit()
         return entity
 
-    def persist_relation(self, relation: KGRelationType, db: Optional[Session] = None) -> KGRelationType:
+    def persist_relation(
+        self, relation: KGRelationType, db: Optional[Session] = None
+    ) -> KGRelationType:
         session = db or self._session
         errors = self.validate_relation(
-            relation.from_entity, relation.to_entity, relation.relation_type, relation.weight, relation.confidence
+            relation.from_entity,
+            relation.to_entity,
+            relation.relation_type,
+            relation.weight,
+            relation.confidence,
         )
         if errors:
             raise ValueError(f"Relation validation failed: {errors}")
-        from_model = session.query(KGEntityModel).filter(KGEntityModel.entity_id == relation.from_entity).first()
-        to_model = session.query(KGEntityModel).filter(KGEntityModel.entity_id == relation.to_entity).first()
+        from_model = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == relation.from_entity)
+            .first()
+        )
+        to_model = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == relation.to_entity)
+            .first()
+        )
         if not from_model or not to_model:
             raise ValueError("From/to entities must exist before persisting relation")
         model = KGRelationModel(
@@ -393,7 +532,11 @@ class KnowledgeGraph:
             timestamp=datetime.now(timezone.utc),
             agent_name="KnowledgeGraph",
             decision_type="kg_persist_relation",
-            input_data={"from": relation.from_entity, "to": relation.to_entity, "type": relation.relation_type},
+            input_data={
+                "from": relation.from_entity,
+                "to": relation.to_entity,
+                "type": relation.relation_type,
+            },
             output_data={"status": "persisted"},
             confidence=relation.confidence,
             reasoning=f"Persisted relation {relation.from_entity} -> {relation.to_entity}",
@@ -402,9 +545,15 @@ class KnowledgeGraph:
         session.commit()
         return relation
 
-    def load_entity(self, entity_id: str, db: Optional[Session] = None) -> Optional[KGEntityType]:
+    def load_entity(
+        self, entity_id: str, db: Optional[Session] = None
+    ) -> Optional[KGEntityType]:
         session = db or self._session
-        model = session.query(KGEntityModel).filter(KGEntityModel.entity_id == entity_id).first()
+        model = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == entity_id)
+            .first()
+        )
         if not model:
             return None
         return KGEntityType(
@@ -414,13 +563,22 @@ class KnowledgeGraph:
         )
 
     def load_relations(
-        self, entity_id: str, relation_type: Optional[str] = None, db: Optional[Session] = None
+        self,
+        entity_id: str,
+        relation_type: Optional[str] = None,
+        db: Optional[Session] = None,
     ) -> list[KGRelationType]:
         session = db or self._session
-        entity_model = session.query(KGEntityModel).filter(KGEntityModel.entity_id == entity_id).first()
+        entity_model = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == entity_id)
+            .first()
+        )
         if not entity_model:
             return []
-        query = session.query(KGRelationModel).filter(KGRelationModel.from_entity_id == entity_model.id)
+        query = session.query(KGRelationModel).filter(
+            KGRelationModel.from_entity_id == entity_model.id
+        )
         if relation_type:
             query = query.filter(KGRelationModel.relation_type == relation_type)
         relations = query.all()
@@ -430,40 +588,54 @@ class KnowledgeGraph:
         if not to_entity_ids:
             return []
 
-        to_models = session.query(KGEntityModel).filter(KGEntityModel.id.in_(to_entity_ids)).all()
+        to_models = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.id.in_(to_entity_ids))
+            .all()
+        )
         to_model_dict = {model.id: model for model in to_models}
 
         results = []
         for rel in relations:
             to_model = to_model_dict.get(rel.to_entity_id)
             if to_model:
-                results.append(KGRelationType(
-                    from_entity=entity_id,
-                    to_entity=to_model.entity_id,
-                    relation_type=rel.relation_type,
-                    weight=rel.weight,
-                    confidence=rel.confidence,
-                    timestamp=rel.created_at,
-                ))
+                results.append(
+                    KGRelationType(
+                        from_entity=entity_id,
+                        to_entity=to_model.entity_id,
+                        relation_type=rel.relation_type,
+                        weight=rel.weight,
+                        confidence=rel.confidence,
+                        timestamp=rel.created_at,
+                    )
+                )
         return results
 
     def query_regime_performance(
         self, strategy: str, db: Optional[Session] = None
     ) -> dict[MarketRegime, dict[str, Any]]:
         session = db or self._session
-        strategy_model = session.query(KGEntityModel).filter(KGEntityModel.entity_id == strategy).first()
+        strategy_model = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.entity_id == strategy)
+            .first()
+        )
         if not strategy_model:
             return {}
-        relations = session.query(KGRelationModel).filter(
-            KGRelationModel.from_entity_id == strategy_model.id
-        ).all()
+        relations = (
+            session.query(KGRelationModel)
+            .filter(KGRelationModel.from_entity_id == strategy_model.id)
+            .all()
+        )
 
         # ⚡ Bolt Optimization: Replace N+1 queries with bulk fetch
         regime_ids = [rel.to_entity_id for rel in relations]
         if not regime_ids:
             return {}
 
-        regimes = session.query(KGEntityModel).filter(KGEntityModel.id.in_(regime_ids)).all()
+        regimes = (
+            session.query(KGEntityModel).filter(KGEntityModel.id.in_(regime_ids)).all()
+        )
         regime_dict = {r.id: r for r in regimes}
 
         result = {}
@@ -486,52 +658,84 @@ class KnowledgeGraph:
     ) -> list[KGEntityType]:
         session = db or self._session
         regime_id = regime.value if isinstance(regime, MarketRegime) else str(regime)
-        regime_model = session.query(KGEntityModel).filter(
-            KGEntityModel.entity_type == "regime",
-            KGEntityModel.entity_id == regime_id,
-        ).first()
+        regime_model = (
+            session.query(KGEntityModel)
+            .filter(
+                KGEntityModel.entity_type == "regime",
+                KGEntityModel.entity_id == regime_id,
+            )
+            .first()
+        )
         if not regime_model:
             return []
-        relations = session.query(KGRelationModel).filter(
-            KGRelationModel.to_entity_id == regime_model.id,
-            KGRelationModel.relation_type == "performs_well_in",
-        ).order_by(KGRelationModel.weight.desc()).limit(limit).all()
+        relations = (
+            session.query(KGRelationModel)
+            .filter(
+                KGRelationModel.to_entity_id == regime_model.id,
+                KGRelationModel.relation_type == "performs_well_in",
+            )
+            .order_by(KGRelationModel.weight.desc())
+            .limit(limit)
+            .all()
+        )
 
         # ⚡ Bolt Optimization: Replace N+1 queries with bulk fetch
         strategy_ids = [rel.from_entity_id for rel in relations]
         if not strategy_ids:
             return []
 
-        strategies = session.query(KGEntityModel).filter(KGEntityModel.id.in_(strategy_ids)).all()
+        strategies = (
+            session.query(KGEntityModel)
+            .filter(KGEntityModel.id.in_(strategy_ids))
+            .all()
+        )
         strategy_dict = {strat.id: strat for strat in strategies}
 
         results = []
         for rel in relations:
             strategy_model = strategy_dict.get(rel.from_entity_id)
             if strategy_model:
-                results.append(KGEntityType(
-                    entity_type=strategy_model.entity_type,
-                    entity_id=strategy_model.entity_id,
-                    properties=strategy_model.properties or {},
-                ))
+                results.append(
+                    KGEntityType(
+                        entity_type=strategy_model.entity_type,
+                        entity_id=strategy_model.entity_id,
+                        properties=strategy_model.properties or {},
+                    )
+                )
         return results
 
-    def store_trade_memory(self, trade_id, strategy, market_id, signal_reasoning, outcome_pnl, outcome_correct):
+    def store_trade_memory(
+        self,
+        trade_id,
+        strategy,
+        market_id,
+        signal_reasoning,
+        outcome_pnl,
+        outcome_correct,
+    ):
         try:
             trade_entity_id = f"trade:{trade_id}"
-            self.add_entity("trade_memory", trade_entity_id, {
-                "trade_id": trade_id,
-                "strategy": strategy,
-                "market_id": str(market_id),
-                "reasoning": str(signal_reasoning)[:500],
-                "pnl": float(outcome_pnl or 0),
-                "correct": bool(outcome_correct),
-            })
-            self.add_relation(trade_entity_id, f"strategy:{strategy}", "executed_by", weight=1.0, confidence=1.0)
-        except Exception as e:
-            logger.error(
-                f"store_trade_memory failed for trade {trade_id}: {e}"
+            self.add_entity(
+                "trade_memory",
+                trade_entity_id,
+                {
+                    "trade_id": trade_id,
+                    "strategy": strategy,
+                    "market_id": str(market_id),
+                    "reasoning": str(signal_reasoning)[:500],
+                    "pnl": float(outcome_pnl or 0),
+                    "correct": bool(outcome_correct),
+                },
             )
+            self.add_relation(
+                trade_entity_id,
+                f"strategy:{strategy}",
+                "executed_by",
+                weight=1.0,
+                confidence=1.0,
+            )
+        except Exception as e:
+            logger.error(f"store_trade_memory failed for trade {trade_id}: {e}")
 
     def query_by_type(self, entity_type: str, limit: int = 50) -> list[KGEntityType]:
         """Return all entities of a given type, most recently created first."""
@@ -552,9 +756,7 @@ class KnowledgeGraph:
                 for r in rows
             ]
         except Exception as e:
-            logger.error(
-                "query_by_type failed for type '%s': %s", entity_type, e
-            )
+            logger.error("query_by_type failed for type '%s': %s", entity_type, e)
             return []
 
     def query_relations(
@@ -605,12 +807,19 @@ class KnowledgeGraph:
             )
             return []
 
-    def retrieve_similar_trades(self, strategy: str, market_context: str = "", limit: int = 5) -> list:
+    def retrieve_similar_trades(
+        self, strategy: str, market_context: str = "", limit: int = 5
+    ) -> list:
         try:
             from backend.models.kg_models import KGEntity
-            entities = self._session.query(KGEntity).filter(
-                KGEntity.entity_type == "trade_memory"
-            ).order_by(KGEntity.created_at.desc()).limit(limit * 3).all()
+
+            entities = (
+                self._session.query(KGEntity)
+                .filter(KGEntity.entity_type == "trade_memory")
+                .order_by(KGEntity.created_at.desc())
+                .limit(limit * 3)
+                .all()
+            )
             results = []
             for e in entities:
                 props = e.properties or {}
@@ -620,17 +829,20 @@ class KnowledgeGraph:
                         break
             return results
         except Exception as e:
-            logger.error(
-                f"retrieve_similar_trades failed for strategy {strategy}: {e}"
-            )
+            logger.error(f"retrieve_similar_trades failed for strategy {strategy}: {e}")
             return []
 
     # -------------------------------------------------------------------
     # Node/Edge API (migrated from application/agi/knowledge_graph.py)
     # -------------------------------------------------------------------
 
-    def add_node(self, node_id: str, node_type: str, label: str,
-                 properties: dict[str, Any] | None = None) -> KgNode:
+    def add_node(
+        self,
+        node_id: str,
+        node_type: str,
+        label: str,
+        properties: dict[str, Any] | None = None,
+    ) -> KgNode:
         """Add a node to the knowledge graph (KgNode table)."""
         node = KgNode(
             node_id=node_id or str(uuid.uuid4()),
@@ -643,8 +855,14 @@ class KnowledgeGraph:
         self._session.commit()
         return node
 
-    def add_edge(self, from_id: str, to_id: str, relationship: str,
-                 weight: float = 1.0, properties: dict[str, Any] | None = None) -> KgEdge:
+    def add_edge(
+        self,
+        from_id: str,
+        to_id: str,
+        relationship: str,
+        weight: float = 1.0,
+        properties: dict[str, Any] | None = None,
+    ) -> KgEdge:
         """Add an edge between two KgNode entries."""
         edge = KgEdge(
             edge_id=str(uuid.uuid4()),
@@ -659,8 +877,9 @@ class KnowledgeGraph:
         self._session.commit()
         return edge
 
-    def query_neighbors(self, node_id: str, relationship: str | None = None,
-                        direction: str = "outgoing") -> list[KgNode]:
+    def query_neighbors(
+        self, node_id: str, relationship: str | None = None, direction: str = "outgoing"
+    ) -> list[KgNode]:
         """Query neighbors of a KgNode."""
         if direction == "outgoing":
             q = self._session.query(KgEdge).filter(KgEdge.from_node_id == node_id)
@@ -677,9 +896,13 @@ class KnowledgeGraph:
 
         if not neighbor_ids:
             return []
-        return self._session.query(KgNode).filter(KgNode.node_id.in_(neighbor_ids)).all()
+        return (
+            self._session.query(KgNode).filter(KgNode.node_id.in_(neighbor_ids)).all()
+        )
 
-    def query_graph(self, query_name: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def query_graph(
+        self, query_name: str, params: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Run a pre-built named graph query."""
         query_func = _GRAPH_QUERIES.get(query_name)
         if query_func is None:
@@ -691,56 +914,79 @@ class KnowledgeGraph:
 # Pre-built graph queries (migrated from application/agi/knowledge_graph.py)
 # -------------------------------------------------------------------
 
-def _query_best_genes_volatile_regime(db: Session, params: dict[str, Any]) -> list[dict[str, Any]]:
+
+def _query_best_genes_volatile_regime(
+    db: Session, params: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Find genes performing best during volatile regimes on crypto markets."""
-    volatile_strategies = db.query(KgNode).filter(
-        and_(
-            KgNode.node_type == "strategy",
-            KgNode.properties_json.like('%"regime":"volatile"%'),
+    volatile_strategies = (
+        db.query(KgNode)
+        .filter(
+            and_(
+                KgNode.node_type == "strategy",
+                KgNode.properties_json.like('%"regime":"volatile"%'),
+            )
         )
-    ).all()
+        .all()
+    )
 
     result = []
     for strategy in volatile_strategies:
-        genes = db.query(KgNode).join(
-            KgEdge, KgEdge.to_node_id == KgNode.node_id
-        ).filter(
-            and_(
-                KgEdge.from_node_id == strategy.node_id,
-                KgEdge.relationship == "HAS_GENE",
-                KgNode.node_type == "gene",
+        genes = (
+            db.query(KgNode)
+            .join(KgEdge, KgEdge.to_node_id == KgNode.node_id)
+            .filter(
+                and_(
+                    KgEdge.from_node_id == strategy.node_id,
+                    KgEdge.relationship == "HAS_GENE",
+                    KgNode.node_type == "gene",
+                )
             )
-        ).all()
+            .all()
+        )
 
         for gene in genes:
             props = json.loads(gene.properties_json) if gene.properties_json else {}
-            result.append({
-                "strategy": strategy.label,
-                "gene": gene.label,
-                "gene_type": props.get("gene_type", "unknown"),
-            })
+            result.append(
+                {
+                    "strategy": strategy.label,
+                    "gene": gene.label,
+                    "gene_type": props.get("gene_type", "unknown"),
+                }
+            )
     return result
 
 
-def _query_martingale_lifespan(db: Session, params: dict[str, Any]) -> list[dict[str, Any]]:
+def _query_martingale_lifespan(
+    db: Session, params: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Calculate average lifespan of strategies with martingale risk_chromosome."""
-    martingale_strategies = db.query(KgNode).filter(
-        and_(
-            KgNode.node_type == "strategy",
-            KgNode.properties_json.like('%"risk_chromosome":"martingale"%'),
+    martingale_strategies = (
+        db.query(KgNode)
+        .filter(
+            and_(
+                KgNode.node_type == "strategy",
+                KgNode.properties_json.like('%"risk_chromosome":"martingale"%'),
+            )
         )
-    ).all()
+        .all()
+    )
 
     if not martingale_strategies:
         return [{"average_lifespan_days": 0, "count": 0}]
 
     genome_ids = [s.label for s in martingale_strategies]
-    logs = db.query(EvolutionLog).filter(
-        and_(
-            EvolutionLog.genome_id.in_(genome_ids),
-            EvolutionLog.event_type.in_(["promotion", "auto_killed", "retired"]),
+    logs = (
+        db.query(EvolutionLog)
+        .filter(
+            and_(
+                EvolutionLog.genome_id.in_(genome_ids),
+                EvolutionLog.event_type.in_(["promotion", "auto_killed", "retired"]),
+            )
         )
-    ).order_by(EvolutionLog.genome_id, EvolutionLog.timestamp.asc()).all()
+        .order_by(EvolutionLog.genome_id, EvolutionLog.timestamp.asc())
+        .all()
+    )
 
     lifespans: list[float] = []
     current_genome = None
@@ -750,75 +996,109 @@ def _query_martingale_lifespan(db: Session, params: dict[str, Any]) -> list[dict
             if created_at is not None:
                 lifespans.append(0)
             current_genome = log.genome_id
-            created_at = log.timestamp if log.event_type == "promotion" and log.from_stage == "DRAFT" else None
+            created_at = (
+                log.timestamp
+                if log.event_type == "promotion" and log.from_stage == "DRAFT"
+                else None
+            )
         if created_at and log.event_type in ("auto_killed", "retired"):
             days = (log.timestamp - created_at).total_seconds() / 86400
             lifespans.append(max(0.0, days))
             created_at = None
 
     avg_lifespan = sum(lifespans) / len(lifespans) if lifespans else 0
-    return [{"average_lifespan_days": round(avg_lifespan, 1), "count": len(martingale_strategies)}]
+    return [
+        {
+            "average_lifespan_days": round(avg_lifespan, 1),
+            "count": len(martingale_strategies),
+        }
+    ]
 
 
-def _query_highest_alpha_by_category(db: Session, params: dict[str, Any]) -> list[dict[str, Any]]:
+def _query_highest_alpha_by_category(
+    db: Session, params: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Find which market categories show highest alpha for statistical_arb genomes."""
-    stat_arb_strategies = db.query(KgNode).filter(
-        and_(
-            KgNode.node_type == "strategy",
-            KgNode.label.like('%statistical_arb%'),
+    stat_arb_strategies = (
+        db.query(KgNode)
+        .filter(
+            and_(
+                KgNode.node_type == "strategy",
+                KgNode.label.like("%statistical_arb%"),
+            )
         )
-    ).all()
+        .all()
+    )
 
     result = []
     for strategy in stat_arb_strategies:
-        markets = db.query(KgNode).join(
-            KgEdge, KgEdge.to_node_id == KgNode.node_id
-        ).filter(
-            and_(
-                KgEdge.from_node_id == strategy.node_id,
-                KgEdge.relationship == "TRADED_ON",
-                KgNode.node_type == "market",
+        markets = (
+            db.query(KgNode)
+            .join(KgEdge, KgEdge.to_node_id == KgNode.node_id)
+            .filter(
+                and_(
+                    KgEdge.from_node_id == strategy.node_id,
+                    KgEdge.relationship == "TRADED_ON",
+                    KgNode.node_type == "market",
+                )
             )
-        ).all()
+            .all()
+        )
 
         props = json.loads(strategy.properties_json) if strategy.properties_json else {}
         for market in markets:
-            result.append({
-                "strategy": strategy.label,
-                "market": market.label,
-                "alpha": props.get("alpha", 0.0),
-            })
+            result.append(
+                {
+                    "strategy": strategy.label,
+                    "market": market.label,
+                    "alpha": props.get("alpha", 0.0),
+                }
+            )
 
     result.sort(key=lambda x: x["alpha"], reverse=True)
     return result
 
 
-def _query_legend_mutation_path(db: Session, params: dict[str, Any]) -> list[dict[str, Any]]:
+def _query_legend_mutation_path(
+    db: Session, params: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Find what mutation sequence produced the most LEGEND strategies."""
-    legend_strategies = db.query(KgNode).filter(
-        and_(
-            KgNode.node_type == "strategy",
-            KgNode.properties_json.like('%"stage":"LEGEND"%'),
+    legend_strategies = (
+        db.query(KgNode)
+        .filter(
+            and_(
+                KgNode.node_type == "strategy",
+                KgNode.properties_json.like('%"stage":"LEGEND"%'),
+            )
         )
-    ).all()
+        .all()
+    )
 
     result = []
     for strategy in legend_strategies:
-        mutations = db.query(KgEdge).filter(
-            and_(
-                KgEdge.to_node_id == strategy.node_id,
-                KgEdge.relationship == "MUTATED_FROM",
+        mutations = (
+            db.query(KgEdge)
+            .filter(
+                and_(
+                    KgEdge.to_node_id == strategy.node_id,
+                    KgEdge.relationship == "MUTATED_FROM",
+                )
             )
-        ).all()
+            .all()
+        )
 
         for mutation in mutations:
-            parent = db.query(KgNode).filter(KgNode.node_id == mutation.from_node_id).first()
+            parent = (
+                db.query(KgNode).filter(KgNode.node_id == mutation.from_node_id).first()
+            )
             if parent:
-                result.append({
-                    "legend_strategy": strategy.label,
-                    "mutated_from": parent.label,
-                    "mutation_weight": mutation.weight,
-                })
+                result.append(
+                    {
+                        "legend_strategy": strategy.label,
+                        "mutated_from": parent.label,
+                        "mutation_weight": mutation.weight,
+                    }
+                )
 
     result.sort(key=lambda x: x["mutation_weight"], reverse=True)
     return result

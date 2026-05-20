@@ -4,28 +4,32 @@ Tests for CLOBWebSocket client.
 Covers: message parsing, subscription management, price update dispatch,
 reconnect back-off logic, and stop/cleanup.
 """
+
 import json
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
-
 
 # ============================================================================
 # Test PriceUpdate dataclass
 # ============================================================================
 
+
 class TestPriceUpdate:
     def test_spread_with_both_sides(self):
         from backend.data.ws_client import PriceUpdate
+
         p = PriceUpdate(token_id="t1", best_ask=0.60, best_bid=0.55, mid_price=0.575)
         assert abs(p.spread - 0.05) < 1e-9
 
     def test_spread_missing_side_returns_one(self):
         from backend.data.ws_client import PriceUpdate
+
         p = PriceUpdate(token_id="t1", best_ask=None, best_bid=0.55, mid_price=0.55)
         assert p.spread == 1.0
 
     def test_spread_no_prices_returns_one(self):
         from backend.data.ws_client import PriceUpdate
+
         p = PriceUpdate(token_id="t1")
         assert p.spread == 1.0
 
@@ -34,11 +38,13 @@ class TestPriceUpdate:
 # Test CLOBWebSocket._handle_message
 # ============================================================================
 
+
 class TestMessageParsing:
     """Test the WS message parser in isolation."""
 
     def _make_ws(self, received: list):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket(on_price=received.append)
         return ws
 
@@ -46,11 +52,13 @@ class TestMessageParsing:
         received = []
         ws = self._make_ws(received)
 
-        msg = json.dumps({
-            "asset_id": "token_abc",
-            "bids": [{"price": "0.55", "size": "100"}],
-            "asks": [{"price": "0.60", "size": "200"}],
-        })
+        msg = json.dumps(
+            {
+                "asset_id": "token_abc",
+                "bids": [{"price": "0.55", "size": "100"}],
+                "asks": [{"price": "0.60", "size": "200"}],
+            }
+        )
         ws._handle_message(msg)
 
         assert len(received) == 1
@@ -64,10 +72,20 @@ class TestMessageParsing:
         received = []
         ws = self._make_ws(received)
 
-        msg = json.dumps([
-            {"asset_id": "t1", "bids": [{"price": "0.40"}], "asks": [{"price": "0.50"}]},
-            {"asset_id": "t2", "bids": [{"price": "0.70"}], "asks": [{"price": "0.75"}]},
-        ])
+        msg = json.dumps(
+            [
+                {
+                    "asset_id": "t1",
+                    "bids": [{"price": "0.40"}],
+                    "asks": [{"price": "0.50"}],
+                },
+                {
+                    "asset_id": "t2",
+                    "bids": [{"price": "0.70"}],
+                    "asks": [{"price": "0.75"}],
+                },
+            ]
+        )
         ws._handle_message(msg)
         assert len(received) == 2
         assert received[0].token_id == "t1"
@@ -89,11 +107,15 @@ class TestMessageParsing:
         """When only bids present, mid = best bid."""
         received = []
         ws = self._make_ws(received)
-        ws._handle_message(json.dumps({
-            "asset_id": "t1",
-            "bids": [{"price": "0.60"}],
-            "asks": [],
-        }))
+        ws._handle_message(
+            json.dumps(
+                {
+                    "asset_id": "t1",
+                    "bids": [{"price": "0.60"}],
+                    "asks": [],
+                }
+            )
+        )
         assert len(received) == 1
         assert abs(received[0].mid_price - 0.60) < 1e-9
 
@@ -101,10 +123,14 @@ class TestMessageParsing:
         """No bids/asks — use top-level price field."""
         received = []
         ws = self._make_ws(received)
-        ws._handle_message(json.dumps({
-            "asset_id": "t1",
-            "price": "0.45",
-        }))
+        ws._handle_message(
+            json.dumps(
+                {
+                    "asset_id": "t1",
+                    "price": "0.45",
+                }
+            )
+        )
         assert len(received) == 1
         assert abs(received[0].mid_price - 0.45) < 1e-9
 
@@ -112,11 +138,15 @@ class TestMessageParsing:
         """token_id field is an acceptable alias for asset_id."""
         received = []
         ws = self._make_ws(received)
-        ws._handle_message(json.dumps({
-            "token_id": "fallback_token",
-            "bids": [{"price": "0.50"}],
-            "asks": [{"price": "0.55"}],
-        }))
+        ws._handle_message(
+            json.dumps(
+                {
+                    "token_id": "fallback_token",
+                    "bids": [{"price": "0.50"}],
+                    "asks": [{"price": "0.55"}],
+                }
+            )
+        )
         assert len(received) == 1
         assert received[0].token_id == "fallback_token"
 
@@ -125,10 +155,12 @@ class TestMessageParsing:
 # Test subscription management
 # ============================================================================
 
+
 class TestSubscriptions:
     @pytest.mark.asyncio
     async def test_subscribe_adds_token(self):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         await ws.subscribe("abc")
         assert "abc" in ws._subscribed
@@ -136,6 +168,7 @@ class TestSubscriptions:
     @pytest.mark.asyncio
     async def test_unsubscribe_removes_token(self):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         await ws.subscribe("abc")
         ws.unsubscribe("abc")
@@ -143,11 +176,13 @@ class TestSubscriptions:
 
     def test_unsubscribe_missing_token_noop(self):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         ws.unsubscribe("nonexistent")  # should not raise
 
     def test_is_connected_false_initially(self):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         assert ws.is_connected is False
 
@@ -155,6 +190,7 @@ class TestSubscriptions:
     async def test_subscribe_dispatches_task_when_connected(self):
         """When already connected, subscribe calls _send_subscribe directly."""
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         ws._connected = True
         ws._ws = MagicMock()
@@ -170,10 +206,12 @@ class TestSubscriptions:
 # Test stop sets stop event
 # ============================================================================
 
+
 class TestStop:
     @pytest.mark.asyncio
     async def test_stop_sets_running_false(self):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         ws._running = True
         await ws.stop()
@@ -182,6 +220,7 @@ class TestStop:
     @pytest.mark.asyncio
     async def test_stop_calls_ws_close(self):
         from backend.data.ws_client import CLOBWebSocket
+
         ws = CLOBWebSocket()
         ws._running = True
         mock_ws = AsyncMock()

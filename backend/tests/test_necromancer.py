@@ -7,7 +7,7 @@ from backend.application.agi.necromancer import (
     run_necromancy_analysis,
     NecromancyReport,
     find_genes_overrepresented_in,
-    generate_anti_patterns
+    generate_anti_patterns,
 )
 
 
@@ -52,9 +52,11 @@ def test_run_necromancy_analysis():
     """Test full necromancy analysis workflow."""
     db = MagicMock()
 
-    with patch('backend.application.agi.necromancer.load_graveyard', return_value=[]):
-        with patch('backend.application.agi.necromancer.load_legends', return_value=[]):
-            with patch('backend.application.agi.necromancer.publish_event') as mock_publish:
+    with patch("backend.application.agi.necromancer.load_graveyard", return_value=[]):
+        with patch("backend.application.agi.necromancer.load_legends", return_value=[]):
+            with patch(
+                "backend.application.agi.necromancer.publish_event"
+            ) as mock_publish:
                 report = run_necromancy_analysis(db)
 
                 assert isinstance(report, NecromancyReport)
@@ -75,7 +77,7 @@ def test_necromancy_report_structure():
         death_causes={"cause1": 5, "cause2": 3},
         high_risk_genes=[{"gene": "risk.high_leverage", "frequency": 0.8}],
         legend_genes=[{"gene": "meta.adaptive", "frequency": 0.9}],
-        new_anti_patterns=[{"pattern_name": "anti_slippage", "severity": "high"}]
+        new_anti_patterns=[{"pattern_name": "anti_slippage", "severity": "high"}],
     )
 
     assert report.date is not None

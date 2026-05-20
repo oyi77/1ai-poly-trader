@@ -32,7 +32,11 @@ def evaluate_entry_exit_timing(trade: Any, market_state: Dict[str, Any]) -> floa
     Uses fill ratio, hold time, and PnL efficiency.
     """
     _stored_ratio = getattr(trade, "fill_ratio", None)
-    fill_ratio = float(_stored_ratio) if isinstance(_stored_ratio, (int, float)) else (trade.filled_size / trade.size if trade.size > 0 else 1.0)
+    fill_ratio = (
+        float(_stored_ratio)
+        if isinstance(_stored_ratio, (int, float))
+        else (trade.filled_size / trade.size if trade.size > 0 else 1.0)
+    )
 
     # Normalize hold time (shorter is better for 5-min trades)
     hold_time_hours = trade.hold_time_seconds / 3600 if trade.hold_time_seconds else 0
@@ -43,7 +47,9 @@ def evaluate_entry_exit_timing(trade: Any, market_state: Dict[str, Any]) -> floa
     pnl_efficiency_score = min(1.0, abs(pnl_efficiency) / 100.0)  # Normalize
 
     # Composite: fill (30%), timing (40%), efficiency (30%)
-    score = (fill_ratio * 0.30) + (hold_time_score * 0.40) + (pnl_efficiency_score * 0.30)
+    score = (
+        (fill_ratio * 0.30) + (hold_time_score * 0.40) + (pnl_efficiency_score * 0.30)
+    )
     return max(0.0, min(1.0, score))
 
 
@@ -54,7 +60,11 @@ def evaluate_fill_quality(trade: Any) -> float:
     """
     slippage = trade.slippage or 0.0
     _stored_ratio = getattr(trade, "fill_ratio", None)
-    fill_ratio = float(_stored_ratio) if isinstance(_stored_ratio, (int, float)) else (trade.filled_size / trade.size if trade.size > 0 else 1.0)
+    fill_ratio = (
+        float(_stored_ratio)
+        if isinstance(_stored_ratio, (int, float))
+        else (trade.filled_size / trade.size if trade.size > 0 else 1.0)
+    )
 
     # Slippage penalty (inverse relationship)
     slippage_score = max(0.0, 1.0 - (slippage / 0.05))  # 5% slippage = 0 score
@@ -85,7 +95,9 @@ def evaluate_sizing_optimality(trade: Any, genome: StrategyGenome) -> float:
     return max(0.0, min(1.0, score))
 
 
-def evaluate_regime_alignment(genome: StrategyGenome, market_state: Dict[str, Any]) -> float:
+def evaluate_regime_alignment(
+    genome: StrategyGenome, market_state: Dict[str, Any]
+) -> float:
     """Score meta chromosome: regime alignment (0-1).
 
     Uses current regime vs. genome's optimal regime.
@@ -105,7 +117,7 @@ def evaluate_regime_alignment(genome: StrategyGenome, market_state: Dict[str, An
 def attribute_trade_to_chromosomes(
     trade: Any,  # Trade object from DB
     genome: StrategyGenome,
-    market_state: Dict[str, Any]
+    market_state: Dict[str, Any],
 ) -> Dict[str, float]:
     """Scores each chromosome's contribution to this trade outcome.
 
@@ -141,10 +153,13 @@ def attribute_trade_to_chromosomes(
                 genome.chromosomes["meta"] = {}
             genome.chromosomes["meta"]["next_mutation_target"] = chromosome
 
-            publish_event("chromosome_flagged", {
-                "genome_id": genome.genome_id,
-                "chromosome": chromosome,
-                "avg_score": sum(recent) / 5
-            })
+            publish_event(
+                "chromosome_flagged",
+                {
+                    "genome_id": genome.genome_id,
+                    "chromosome": chromosome,
+                    "avg_score": sum(recent) / 5,
+                },
+            )
 
     return attribution

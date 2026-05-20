@@ -1,6 +1,7 @@
 """
 Tests for backend.core.risk.sanity_checks — pre-trade market validation.
 """
+
 import time
 from backend.core.risk.sanity_checks import (
     MarketHealth,
@@ -9,10 +10,10 @@ from backend.core.risk.sanity_checks import (
     deep_sanity_check,
 )
 
-
 # ---------------------------------------------------------------------------
 # quick_sanity_check tests
 # ---------------------------------------------------------------------------
+
 
 class TestQuickSanityCheck:
     """quick_sanity_check: market health validation."""
@@ -165,6 +166,7 @@ class TestQuickSanityCheck:
 # ---------------------------------------------------------------------------
 # deep_sanity_check tests
 # ---------------------------------------------------------------------------
+
 
 class TestDeepSanityCheck:
     """deep_sanity_check: source wallet validation."""

@@ -5,6 +5,7 @@ import threading
 from typing import Any, Optional
 from sqlalchemy.orm import Session
 from loguru import logger
+
 # Thread-safe in-memory cache
 _settings_cache: dict[str, Any] = {}
 _cache_lock = threading.Lock()
@@ -31,6 +32,7 @@ def get_setting(key: str, default: Any = None, db: Optional[Session] = None) -> 
     if db:
         try:
             from backend.models.database import Setting
+
             setting = db.query(Setting).filter(Setting.key == key).first()
             if setting:
                 value = _coerce_type(setting.value, setting.type, default)
@@ -66,15 +68,14 @@ def reload_settings_from_db(db: Session) -> int:
     """
     try:
         from backend.models.database import Setting
+
         settings = db.query(Setting).all()
 
         with _cache_lock:
             _settings_cache.clear()
             for setting in settings:
                 _settings_cache[setting.key] = _coerce_type(
-                    setting.value,
-                    setting.type,
-                    None
+                    setting.value, setting.type, None
                 )
 
         logger.info(f"Reloaded {len(settings)} settings from database into cache")

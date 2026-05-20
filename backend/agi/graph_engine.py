@@ -1,4 +1,5 @@
 """Directed graph executor for AGI pipeline orchestration."""
+
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
 from collections import defaultdict
@@ -10,6 +11,7 @@ from backend.agi.node_registry import node_registry
 @dataclass
 class GraphDefinition:
     """Defines a directed acyclic graph of AGI nodes."""
+
     name: str
     nodes: List[str] = field(default_factory=list)
     edges: List[Tuple[str, str]] = field(default_factory=list)
@@ -89,7 +91,9 @@ class GraphEngine:
 
         return result
 
-    async def execute_graph(self, graph_name: str, initial_state: AgentState) -> AgentState:
+    async def execute_graph(
+        self, graph_name: str, initial_state: AgentState
+    ) -> AgentState:
         """Execute all nodes in a graph in topological order."""
         if graph_name not in self.graphs:
             raise ValueError(f"Graph '{graph_name}' not found")
@@ -119,7 +123,9 @@ class GraphEngine:
         # Check input availability
         if not node.can_execute(state):
             missing = [k for k in manifest.input_keys if k not in state.data]
-            state = state.with_error(node_name, ValueError(f"Missing inputs: {missing}"))
+            state = state.with_error(
+                node_name, ValueError(f"Missing inputs: {missing}")
+            )
             return state
 
         try:

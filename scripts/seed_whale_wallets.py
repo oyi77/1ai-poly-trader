@@ -81,28 +81,32 @@ def build_wallet_list(decision_addresses: list[str]) -> list[dict]:
     for addr in decision_addresses:
         if addr not in seen:
             seen.add(addr)
-            wallets.append({
-                "address": addr,
-                "pseudonym": None,
-                "source": "decision_log",
-                "tags": '["copy_trader", "whale"]',
-                "enabled": 1,
-                "notes": "Discovered via copy_trader FOLLOW decisions",
-                "whale_score": 0.0,
-            })
+            wallets.append(
+                {
+                    "address": addr,
+                    "pseudonym": None,
+                    "source": "decision_log",
+                    "tags": '["copy_trader", "whale"]',
+                    "enabled": 1,
+                    "notes": "Discovered via copy_trader FOLLOW decisions",
+                    "whale_score": 0.0,
+                }
+            )
     for whale in KNOWN_WHALES:
         addr = whale["address"].strip().lower()
         if addr not in seen:
             seen.add(addr)
-            wallets.append({
-                "address": addr,
-                "pseudonym": whale["pseudonym"],
-                "source": "seeded",
-                "tags": '["whale", "high_volume"]',
-                "enabled": 1,
-                "notes": whale["notes"],
-                "whale_score": 0.0,
-            })
+            wallets.append(
+                {
+                    "address": addr,
+                    "pseudonym": whale["pseudonym"],
+                    "source": "seeded",
+                    "tags": '["whale", "high_volume"]',
+                    "enabled": 1,
+                    "notes": whale["notes"],
+                    "whale_score": 0.0,
+                }
+            )
     return wallets
 
 
@@ -126,7 +130,9 @@ def seed_via_api(wallets: list[dict], api_url: str, dry_run: bool) -> int:
         try:
             resp = httpx.post(
                 f"{api_url}/api/v1/wallets/config",
-                json=payload, headers=headers, timeout=10.0,
+                json=payload,
+                headers=headers,
+                timeout=10.0,
             )
             if resp.status_code == 200:
                 logger.info(f"  + {w['address']} (source={w['source']})")
@@ -163,8 +169,15 @@ def seed_via_sqlite(wallets: list[dict], dry_run: bool) -> int:
                 "INSERT INTO wallet_config "
                 "(address, pseudonym, source, tags, enabled, notes, whale_score) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (w["address"], w["pseudonym"], w["source"], w["tags"],
-                 w["enabled"], w["notes"], w["whale_score"]),
+                (
+                    w["address"],
+                    w["pseudonym"],
+                    w["source"],
+                    w["tags"],
+                    w["enabled"],
+                    w["notes"],
+                    w["whale_score"],
+                ),
             )
             inserted += 1
             logger.info(f"  + {w['address']} (source={w['source']})")
@@ -183,10 +196,22 @@ def seed_via_sqlite(wallets: list[dict], dry_run: bool) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed whale wallets into wallet_config")
-    parser.add_argument("--dry-run", action="store_true", help="Preview inserts without committing")
-    parser.add_argument("--api-url", default=None, help="FastAPI base URL (default: settings.API_PORT with /api prefix)")
-    parser.add_argument("--fallback-sqlite", action="store_true", help="Use direct sqlite3 instead of API")
+    parser = argparse.ArgumentParser(
+        description="Seed whale wallets into wallet_config"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview inserts without committing"
+    )
+    parser.add_argument(
+        "--api-url",
+        default=None,
+        help="FastAPI base URL (default: settings.API_PORT with /api prefix)",
+    )
+    parser.add_argument(
+        "--fallback-sqlite",
+        action="store_true",
+        help="Use direct sqlite3 instead of API",
+    )
     args = parser.parse_args()
 
     conn = get_sqlite_connection()
@@ -195,7 +220,9 @@ def main() -> None:
     finally:
         conn.close()
 
-    logger.info(f"Found {len(decision_addresses)} unique whale addresses in decision_log")
+    logger.info(
+        f"Found {len(decision_addresses)} unique whale addresses in decision_log"
+    )
     wallets = build_wallet_list(decision_addresses)
     logger.info(
         f"Total wallets to insert: {len(wallets)} "
@@ -206,7 +233,7 @@ def main() -> None:
     if args.api_url is None:
         api_port = getattr(settings, "API_PORT", 8100)
         args.api_url = f"http://localhost:{api_port}"
-    
+
     if args.fallback_sqlite:
         count = seed_via_sqlite(wallets, args.dry_run)
     else:

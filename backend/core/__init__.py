@@ -23,6 +23,7 @@ def __getattr__(name: str):
     }
     if name in _subpackages:
         import importlib
+
         mod = importlib.import_module(f"backend.core.{name}")
         globals()[name] = mod
         return mod

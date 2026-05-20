@@ -1,4 +1,5 @@
 """Tests for market maker inventory validation."""
+
 from __future__ import annotations
 
 import pytest
@@ -24,7 +25,9 @@ def test_inventory_clamped_low(mm):
 def test_zero_quote_size_raises(mm):
     params = {**mm.default_params, "quote_size": 0}
     with pytest.raises(ValueError, match="quote_size must be > 0"):
-        mm.calculate_quotes(mid_price=0.5, spread=0.04, inventory_pct=0.0, params=params)
+        mm.calculate_quotes(
+            mid_price=0.5, spread=0.04, inventory_pct=0.0, params=params
+        )
 
 
 def test_valid_inputs(mm):

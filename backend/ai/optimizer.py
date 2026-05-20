@@ -9,6 +9,8 @@ import re
 from sqlalchemy.orm import Session
 
 from loguru import logger
+
+
 class ParameterOptimizer:
     """
     Analyzes trading bot performance and uses AI to suggest parameter improvements.
@@ -243,9 +245,15 @@ Provide specific numerical suggestions in JSON format:
                     tokens = response.usage.total_tokens if response.usage else 0
                     try:
                         from backend.core.llm_cost_tracker import LLMCostTracker
+
                         cost_tracker = LLMCostTracker()
                         cost_per_1k = 0.0002  # Groq approximate cost
-                        cost_tracker.record_call(model, tokens, cost_per_1k * max(tokens, 1) / 1000, "optimizer")
+                        cost_tracker.record_call(
+                            model,
+                            tokens,
+                            cost_per_1k * max(tokens, 1) / 1000,
+                            "optimizer",
+                        )
                     except Exception as ct_err:
                         logger.debug(f"Cost tracking failed: {ct_err}")
                     suggestions = self.parse_suggestions(raw)
@@ -281,9 +289,15 @@ Provide specific numerical suggestions in JSON format:
                     tokens = message.usage.input_tokens + message.usage.output_tokens
                     try:
                         from backend.core.llm_cost_tracker import LLMCostTracker
+
                         cost_tracker = LLMCostTracker()
                         cost_per_1k = 0.015  # Claude approximate cost
-                        cost_tracker.record_call(model, tokens, cost_per_1k * max(tokens, 1) / 1000, "optimizer")
+                        cost_tracker.record_call(
+                            model,
+                            tokens,
+                            cost_per_1k * max(tokens, 1) / 1000,
+                            "optimizer",
+                        )
                     except Exception as ct_err:
                         logger.debug(f"Cost tracking failed: {ct_err}")
                     suggestions = self.parse_suggestions(raw)

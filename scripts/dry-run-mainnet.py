@@ -32,7 +32,6 @@ from backend.data.polymarket_clob import PolymarketCLOB, CLOB_HOST, CHAIN_ID
 from backend.core.risk_manager import RiskManager
 from backend.core.market_scanner import fetch_all_active_markets
 
-
 PASSED = 0
 FAILED = 0
 SKIPPED = 0

@@ -4,7 +4,6 @@ import json
 import pytest
 from unittest.mock import AsyncMock, patch
 
-
 # ---------------------------------------------------------------------------
 # Helpers: build an LLMRouter with fake provider configs (no real API keys)
 # ---------------------------------------------------------------------------

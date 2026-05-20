@@ -12,7 +12,11 @@ from backend.core.agi_orchestrator import AGIOrchestrator
 from backend.core.agi_goal_engine import AGIGoalEngine
 from backend.core.strategy_composer import StrategyComposer
 from backend.core.knowledge_graph import KnowledgeGraph
-from backend.models.kg_models import DecisionAuditLog, ExperimentRecord, KGEntity as KGEntityModel
+from backend.models.kg_models import (
+    DecisionAuditLog,
+    ExperimentRecord,
+    KGEntity as KGEntityModel,
+)
 from loguru import logger
 
 router = APIRouter(tags=["AGI"])
@@ -21,6 +25,7 @@ router = APIRouter(tags=["AGI"])
 @router.get("/regime")
 async def get_regime(db: Session = Depends(get_db)):
     from backend.core.regime_detector import RegimeDetector
+
     detector = RegimeDetector()
     result = detector.detect_regime({})
     return {"regime": result.regime.value, "confidence": result.confidence}
@@ -32,6 +37,7 @@ async def get_goal(db: Session = Depends(get_db)):
     regime = None
     try:
         from backend.core.regime_detector import RegimeDetector
+
         detector = RegimeDetector()
         regime = detector.detect_regime(market_data={}).regime
     except Exception:
@@ -76,7 +82,11 @@ async def list_composed_strategies(db: Session = Depends(get_db)):
                 "id": str(r.id),
                 "name": r.name,
                 "status": r.status,
-                "blocks": r.strategy_composition.get("blocks", []) if r.strategy_composition else [],
+                "blocks": (
+                    r.strategy_composition.get("blocks", [])
+                    if r.strategy_composition
+                    else []
+                ),
                 "shadow_pnl": r.shadow_pnl,
                 "shadow_trades": r.shadow_trades,
                 "shadow_win_rate": r.shadow_win_rate,
@@ -94,6 +104,7 @@ async def compose_strategy(
     db: Session = Depends(get_db),
 ):
     from backend.core.agi_types import StrategyBlock
+
     composer = StrategyComposer(session=db)
     block_objs = [StrategyBlock(**b) for b in blocks]
     composed = composer.compose(block_objs, name=name)
@@ -175,6 +186,7 @@ async def override_goal(
     _: None = Depends(require_admin),
 ):
     from backend.core.agi_types import AGIGoal
+
     try:
         goal_enum = AGIGoal(goal)
     except ValueError:
@@ -186,29 +198,50 @@ async def override_goal(
 
 @router.get("/counterfactual/summary")
 async def counterfactual_summary(db: Session = Depends(get_db)):
-    from backend.models.outcome_tables import BlockedSignalCounterfactual, CounterfactualInsight
+    from backend.models.outcome_tables import (
+        BlockedSignalCounterfactual,
+        CounterfactualInsight,
+    )
     from sqlalchemy import func
 
     total = db.query(func.count(BlockedSignalCounterfactual.id)).scalar() or 0
-    scored = db.query(func.count(BlockedSignalCounterfactual.id)).filter(
-        BlockedSignalCounterfactual.scored.is_(True)
-    ).scalar() or 0
-    won = db.query(func.count(BlockedSignalCounterfactual.id)).filter(
-        BlockedSignalCounterfactual.would_have_won.is_(True)
-    ).scalar() or 0
-    lost = db.query(func.count(BlockedSignalCounterfactual.id)).filter(
-        BlockedSignalCounterfactual.would_have_won.is_(False)
-    ).scalar() or 0
-    hyp_pnl = db.query(func.sum(BlockedSignalCounterfactual.hypothetical_pnl)).filter(
-        BlockedSignalCounterfactual.scored.is_(True)
-    ).scalar() or 0.0
-    lost_profit = db.query(func.sum(BlockedSignalCounterfactual.hypothetical_pnl)).filter(
-        BlockedSignalCounterfactual.would_have_won.is_(True)
-    ).scalar() or 0.0
+    scored = (
+        db.query(func.count(BlockedSignalCounterfactual.id))
+        .filter(BlockedSignalCounterfactual.scored.is_(True))
+        .scalar()
+        or 0
+    )
+    won = (
+        db.query(func.count(BlockedSignalCounterfactual.id))
+        .filter(BlockedSignalCounterfactual.would_have_won.is_(True))
+        .scalar()
+        or 0
+    )
+    lost = (
+        db.query(func.count(BlockedSignalCounterfactual.id))
+        .filter(BlockedSignalCounterfactual.would_have_won.is_(False))
+        .scalar()
+        or 0
+    )
+    hyp_pnl = (
+        db.query(func.sum(BlockedSignalCounterfactual.hypothetical_pnl))
+        .filter(BlockedSignalCounterfactual.scored.is_(True))
+        .scalar()
+        or 0.0
+    )
+    lost_profit = (
+        db.query(func.sum(BlockedSignalCounterfactual.hypothetical_pnl))
+        .filter(BlockedSignalCounterfactual.would_have_won.is_(True))
+        .scalar()
+        or 0.0
+    )
 
-    insights = db.query(CounterfactualInsight).order_by(
-        CounterfactualInsight.lost_profit.desc()
-    ).limit(20).all()
+    insights = (
+        db.query(CounterfactualInsight)
+        .order_by(CounterfactualInsight.lost_profit.desc())
+        .limit(20)
+        .all()
+    )
 
     return {
         "total_blocked_signals": total,
@@ -237,18 +270,21 @@ async def counterfactual_summary(db: Session = Depends(get_db)):
 @router.get("/counterfactual/strategy/{strategy_name}")
 async def counterfactual_strategy(strategy_name: str, db: Session = Depends(get_db)):
     from backend.ai.counterfactual_scorer import get_strategy_counterfactual_stats
+
     return get_strategy_counterfactual_stats(db, strategy_name)
 
 
 @router.get("/counterfactual/recommendations")
 async def counterfactual_recommendations(db: Session = Depends(get_db)):
     from backend.ai.counterfactual_scorer import get_risk_calibration_recommendations
+
     return {"recommendations": get_risk_calibration_recommendations(db)}
 
 
 @router.post("/counterfactual/run")
 async def counterfactual_run(db: Session = Depends(get_db)):
     from backend.ai.counterfactual_scorer import run_counterfactual_cycle
+
     result = await run_counterfactual_cycle(db=db)
     return result
 
@@ -297,7 +333,9 @@ def _experiment_to_card(r: ExperimentRecord) -> dict:
 
 @router.get("/kanban")
 async def kanban_board(db: Session = Depends(get_db)):
-    experiments = db.query(ExperimentRecord).order_by(ExperimentRecord.created_at.desc()).all()
+    experiments = (
+        db.query(ExperimentRecord).order_by(ExperimentRecord.created_at.desc()).all()
+    )
     cards = [_experiment_to_card(r) for r in experiments]
 
     columns = {}

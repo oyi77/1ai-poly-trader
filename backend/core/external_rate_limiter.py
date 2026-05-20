@@ -45,8 +45,14 @@ class ExternalRateLimiter:
         """
         self.name = name
         self.max_calls_per_minute = max_calls_per_minute
-        self.backoff_base = backoff_base if backoff_base is not None else settings.RATE_LIMIT_BACKOFF_BASE
-        self.max_delay = max_delay if max_delay is not None else settings.RATE_LIMIT_MAX_DELAY
+        self.backoff_base = (
+            backoff_base
+            if backoff_base is not None
+            else settings.RATE_LIMIT_BACKOFF_BASE
+        )
+        self.max_delay = (
+            max_delay if max_delay is not None else settings.RATE_LIMIT_MAX_DELAY
+        )
 
         # Use provided circuit breaker or create one with settings-based defaults
         self._circuit_breaker = circuit_breaker or CircuitBreaker(
@@ -85,9 +91,7 @@ class ExternalRateLimiter:
             # We only handle seconds format for simplicity
             return float(retry_after)
         except (ValueError, TypeError):
-            logger.warning(
-                "Invalid Retry-After header value: %s", retry_after
-            )
+            logger.warning("Invalid Retry-After header value: %s", retry_after)
             return None
 
     def _calculate_backoff_delay(self, attempt: int) -> float:
@@ -118,9 +122,7 @@ class ExternalRateLimiter:
 
             # Refill tokens based on elapsed time
             tokens_to_add = (elapsed / 60.0) * self.max_calls_per_minute
-            self._tokens = min(
-                self._tokens + tokens_to_add, self.max_calls_per_minute
-            )
+            self._tokens = min(self._tokens + tokens_to_add, self.max_calls_per_minute)
             self._last_update = now
 
             # Wait if no tokens available
@@ -146,7 +148,10 @@ class ExternalRateLimiter:
                 self._last_update = now
 
     async def _handle_rate_limit(
-        self, response_headers: dict[str, str], attempt: int, retry_after: float | None = None
+        self,
+        response_headers: dict[str, str],
+        attempt: int,
+        retry_after: float | None = None,
     ) -> float:
         """
         Handle a 429 rate limit response.
@@ -229,7 +234,9 @@ class ExternalRateLimiter:
                     response_headers = e.details["headers"]
 
                 # Calculate wait time (uses Retry-After if available, or handles 429)
-                wait_time = await self._handle_rate_limit(response_headers, attempt, e.retry_after)
+                wait_time = await self._handle_rate_limit(
+                    response_headers, attempt, e.retry_after
+                )
 
                 # Rate limit errors are transient - don't trip circuit breaker permanently
                 # await self._circuit_breaker._on_failure()
@@ -240,7 +247,9 @@ class ExternalRateLimiter:
 
             except Exception:
                 # For non-rate-limit errors, let circuit breaker handle it
-                logger.exception(f"ExternalRateLimiter {self.name}: unexpected error during rate-limited call")
+                logger.exception(
+                    f"ExternalRateLimiter {self.name}: unexpected error during rate-limited call"
+                )
                 raise
 
         # Max attempts exhausted
@@ -299,9 +308,7 @@ def rate_limited(
                 # For sync functions, run in event loop
                 import asyncio
 
-                return asyncio.run(
-                    limiter.call(func, *args, **kwargs)
-                )
+                return asyncio.run(limiter.call(func, *args, **kwargs))
 
             return sync_wrapper
 
@@ -348,7 +355,9 @@ class TokenBucketRateLimiter:
             ]
 
         global_cutoff = now - self.global_window
-        self._global_timestamps = [t for t in self._global_timestamps if t > global_cutoff]
+        self._global_timestamps = [
+            t for t in self._global_timestamps if t > global_cutoff
+        ]
 
         # Check per-market limit
         market_count = len(self._market_timestamps.get(market_id, []))

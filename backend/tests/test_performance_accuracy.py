@@ -14,7 +14,6 @@ from backend.core.risk_manager import RiskManager
 from backend.strategies.loader import load_all_strategies
 from backend.strategies.registry import STRATEGY_REGISTRY
 
-
 TEST_ENGINE = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
@@ -35,10 +34,18 @@ def db():
     session.close()
 
 
-def _add_settled_trade(db, *, ticker: str = "TEST", direction: str = "up",
-                      entry_price: float = 0.50, size: float = 5.0,
-                      settlement_value: float = 1.0, pnl: float = 2.5,
-                      strategy: str = "test_strategy", ts: datetime = None):
+def _add_settled_trade(
+    db,
+    *,
+    ticker: str = "TEST",
+    direction: str = "up",
+    entry_price: float = 0.50,
+    size: float = 5.0,
+    settlement_value: float = 1.0,
+    pnl: float = 2.5,
+    strategy: str = "test_strategy",
+    ts: datetime = None,
+):
     if ts is None:
         ts = datetime(2024, 1, 15)
     trade = Trade(
@@ -120,7 +127,7 @@ def test_risk_manager_performance(db):
             current_exposure=50.0,
             bankroll=1000.0,
             confidence=0.75,
-            market_ticker=f"TEST-MARKET-{i}"
+            market_ticker=f"TEST-MARKET-{i}",
         )
         assert decision is not None
     end_time = time.time()
@@ -148,7 +155,7 @@ async def test_backtest_accuracy_winning(db):
         strategy_name="test_strategy",
         start_date=datetime(2024, 1, 1),
         end_date=datetime(2024, 1, 31),
-        initial_bankroll=1000.0
+        initial_bankroll=1000.0,
     )
 
     engine = BacktestEngine(config)
@@ -191,7 +198,7 @@ async def test_backtest_accuracy_mixed(db):
         strategy_name="test_strategy",
         start_date=datetime(2024, 1, 1),
         end_date=datetime(2024, 1, 31),
-        initial_bankroll=1000.0
+        initial_bankroll=1000.0,
     )
 
     engine = BacktestEngine(config)
@@ -200,8 +207,8 @@ async def test_backtest_accuracy_mixed(db):
     assert result.total_trades == 50
     assert result.winning_trades == 30
     assert abs(result.win_rate - 0.6) < 0.01
-    assert hasattr(result, 'total_pnl')
-    assert hasattr(result, 'final_bankroll')
+    assert hasattr(result, "total_pnl")
+    assert hasattr(result, "final_bankroll")
 
 
 def test_full_system_performance(db):
@@ -239,7 +246,7 @@ def test_full_system_performance(db):
         strategy_name="general_scanner",
         start_date=datetime(2024, 1, 1),
         end_date=datetime(2024, 1, 31),
-        initial_bankroll=1000.0
+        initial_bankroll=1000.0,
     )
 
     engine = BacktestEngine(config)
@@ -261,29 +268,37 @@ def test_large_dataset_bulk_insert_performance(db):
 
     trades = []
     for i in range(5000):
-        trades.append(Trade(
-            market_ticker=f"LARGE-{i % 100}",
-            platform="polymarket",
-            direction="up" if i % 3 == 0 else "down",
-            entry_price=0.40 + (i % 50) * 0.01,
-            size=5.0 + (i % 20) * 0.5,
-            model_probability=0.50 + (i % 30) * 0.01,
-            market_price_at_entry=0.40 + (i % 50) * 0.01,
-            edge_at_entry=0.05 + (i % 15) * 0.005,
-            trading_mode="paper",
-            strategy=["btc_5min", "weather_emos", "general_scanner"][i % 3],
-            confidence=0.60 + (i % 20) * 0.01,
-            result="win" if i % 3 == 0 else "loss",
-            settled=True,
-            settlement_value=1.0 if i % 3 == 0 else 0.0,
-            pnl=(0.40 + (i % 50) * 0.01) * (5.0 + (i % 20) * 0.5) if i % 3 == 0 else -(5.0 + (i % 20) * 0.5) * (1 - (0.40 + (i % 50) * 0.01)),
-            timestamp=datetime(2024, 1, 1) + timedelta(hours=i),
-        ))
+        trades.append(
+            Trade(
+                market_ticker=f"LARGE-{i % 100}",
+                platform="polymarket",
+                direction="up" if i % 3 == 0 else "down",
+                entry_price=0.40 + (i % 50) * 0.01,
+                size=5.0 + (i % 20) * 0.5,
+                model_probability=0.50 + (i % 30) * 0.01,
+                market_price_at_entry=0.40 + (i % 50) * 0.01,
+                edge_at_entry=0.05 + (i % 15) * 0.005,
+                trading_mode="paper",
+                strategy=["btc_5min", "weather_emos", "general_scanner"][i % 3],
+                confidence=0.60 + (i % 20) * 0.01,
+                result="win" if i % 3 == 0 else "loss",
+                settled=True,
+                settlement_value=1.0 if i % 3 == 0 else 0.0,
+                pnl=(
+                    (0.40 + (i % 50) * 0.01) * (5.0 + (i % 20) * 0.5)
+                    if i % 3 == 0
+                    else -(5.0 + (i % 20) * 0.5) * (1 - (0.40 + (i % 50) * 0.01))
+                ),
+                timestamp=datetime(2024, 1, 1) + timedelta(hours=i),
+            )
+        )
     db.bulk_save_objects(trades)
     db.commit()
 
     insert_duration = time.time() - start_time
-    assert insert_duration < 5.0, f"Bulk insert of 5000 trades took {insert_duration:.2f}s"
+    assert (
+        insert_duration < 5.0
+    ), f"Bulk insert of 5000 trades took {insert_duration:.2f}s"
 
     start_time = time.time()
     count = db.query(Trade).count()
@@ -296,7 +311,10 @@ def test_large_dataset_bulk_insert_performance(db):
 
     start_time = time.time()
     from sqlalchemy import func
-    _avg_pnl = db.query(func.avg(Trade.pnl)).filter(Trade.strategy == "btc_5min").scalar()
+
+    _avg_pnl = (
+        db.query(func.avg(Trade.pnl)).filter(Trade.strategy == "btc_5min").scalar()
+    )
     agg_duration = time.time() - start_time
     assert agg_duration < 0.2, f"Aggregation query took {agg_duration:.3f}s"
 
@@ -309,7 +327,7 @@ def test_risk_manager_edge_cases():
         current_exposure=50.0,
         bankroll=1000.0,
         confidence=0.80,
-        market_ticker="EDGE-CASE-ZERO"
+        market_ticker="EDGE-CASE-ZERO",
     )
     assert zero_decision is not None
 
@@ -318,7 +336,7 @@ def test_risk_manager_edge_cases():
         current_exposure=99999.0,
         bankroll=100.0,
         confidence=0.99,
-        market_ticker="EDGE-CASE-MAX"
+        market_ticker="EDGE-CASE-MAX",
     )
     assert max_decision is not None
 
@@ -327,7 +345,7 @@ def test_risk_manager_edge_cases():
         current_exposure=0.0,
         bankroll=1000.0,
         confidence=0.01,
-        market_ticker="EDGE-CASE-LOW-CONF"
+        market_ticker="EDGE-CASE-LOW-CONF",
     )
     assert low_conf_decision is not None
 
@@ -336,7 +354,7 @@ def test_risk_manager_edge_cases():
         current_exposure=0.0,
         bankroll=1000.0,
         confidence=1.0,
-        market_ticker="EDGE-CASE-HIGH-CONF"
+        market_ticker="EDGE-CASE-HIGH-CONF",
     )
     assert high_conf_decision is not None
 

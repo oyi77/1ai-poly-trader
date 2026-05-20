@@ -40,10 +40,12 @@ class _FakeDB:
 async def test_whale_discovery_closes_snapshot_session_before_fetch_history():
     from backend.core.whale_discovery import WhaleDiscovery
 
-    read_db = _FakeDB([
-        SimpleNamespace(address="0xabc"),
-        SimpleNamespace(address="0xdef"),
-    ])
+    read_db = _FakeDB(
+        [
+            SimpleNamespace(address="0xabc"),
+            SimpleNamespace(address="0xdef"),
+        ]
+    )
     write_rows = [
         SimpleNamespace(address="0xabc", whale_score=None),
     ]
@@ -60,13 +62,18 @@ async def test_whale_discovery_closes_snapshot_session_before_fetch_history():
 
     async def fake_fetch_history(wallet: str):
         assert read_db.closed is True
-        return [{"pnl": 10.0, "size": 20.0, "timestamp": 1}] if wallet == "0xabc" else []
+        return (
+            [{"pnl": 10.0, "size": 20.0, "timestamp": 1}] if wallet == "0xabc" else []
+        )
 
     discovery = WhaleDiscovery()
-    with patch("backend.db.utils.get_db_session", fake_get_db_session), patch.object(
-        discovery,
-        "_fetch_history",
-        side_effect=fake_fetch_history,
+    with (
+        patch("backend.db.utils.get_db_session", fake_get_db_session),
+        patch.object(
+            discovery,
+            "_fetch_history",
+            side_effect=fake_fetch_history,
+        ),
     ):
         results = await discovery.discover(min_trades=1)
 
@@ -113,10 +120,14 @@ async def test_whale_frontrun_resolves_tokens_after_db_close():
     strategy = WhaleFrontrun()
     strategy.register_with_event_bus = AsyncMock()
 
-    with patch("backend.db.utils.get_db_session", fake_get_db_session), patch(
-        "backend.modules.data_feeds.whale_frontrun.httpx.AsyncClient",
-        _FakeAsyncClient,
-    ), patch("backend.modules.data_feeds.whale_frontrun.asyncio.sleep", AsyncMock()):
+    with (
+        patch("backend.db.utils.get_db_session", fake_get_db_session),
+        patch(
+            "backend.modules.data_feeds.whale_frontrun.httpx.AsyncClient",
+            _FakeAsyncClient,
+        ),
+        patch("backend.modules.data_feeds.whale_frontrun.asyncio.sleep", AsyncMock()),
+    ):
         await strategy._resolve_whale_tokens()
 
     assert strategy.subscribed_tokens == {"token-1"}
@@ -127,10 +138,12 @@ async def test_whale_frontrun_resolves_tokens_after_db_close():
 async def test_copy_trader_get_active_wallets_uses_short_lived_snapshot_session():
     from backend.modules.execution.copy_trader import CopyTraderStrategy
 
-    snapshot_db = _FakeDB([
-        SimpleNamespace(address="0xuser1"),
-        SimpleNamespace(address="0xuser2"),
-    ])
+    snapshot_db = _FakeDB(
+        [
+            SimpleNamespace(address="0xuser1"),
+            SimpleNamespace(address="0xuser2"),
+        ]
+    )
 
     @contextmanager
     def fake_get_db_session():
@@ -145,13 +158,17 @@ async def test_copy_trader_get_active_wallets_uses_short_lived_snapshot_session(
     ]
 
     strategy = CopyTraderStrategy(max_wallets=5, min_score=30.0)
-    strategy._engine._scorer = SimpleNamespace(fetch_and_score=AsyncMock(return_value=traders))
+    strategy._engine._scorer = SimpleNamespace(
+        fetch_and_score=AsyncMock(return_value=traders)
+    )
     ctx = SimpleNamespace(
         params={"max_wallets": 5, "min_score": 30.0},
         logger=MagicMock(),
         db=MagicMock(),
     )
-    ctx.db.query.side_effect = AssertionError("_get_active_wallets should not use ctx.db for wallet snapshot")
+    ctx.db.query.side_effect = AssertionError(
+        "_get_active_wallets should not use ctx.db for wallet snapshot"
+    )
 
     with patch("backend.db.utils.get_db_session", fake_get_db_session):
         wallets = await strategy._get_active_wallets(ctx)
@@ -219,7 +236,9 @@ async def test_auto_add_profitable_wallets_rolls_back_before_leaderboard_await()
         "backend.core.wallet_auto_discovery.auto_suggest_wallets_to_copy",
         side_effect=fake_auto_suggest,
     ):
-        result = await auto_add_profitable_wallets(db=db, max_wallets=1, auto_enable=True)
+        result = await auto_add_profitable_wallets(
+            db=db, max_wallets=1, auto_enable=True
+        )
 
     assert result["added_count"] == 1
     assert db.committed is True
@@ -241,19 +260,27 @@ async def test_strategy_composer_closes_read_session_before_llm_await():
         return {"strategy_name": "demo", "code": "print('x')"}
 
     composer = StrategyComposer()
-    with patch("backend.ai.strategy_composer.SessionLocal", side_effect=fake_session_local), patch.object(
-        composer,
-        "_generate_with_claude",
-        side_effect=fake_generate,
-    ), patch.object(
-        composer,
-        "_validate_and_register",
-        return_value={"strategy_name": "demo"},
-    ) as validate_mock:
+    with (
+        patch(
+            "backend.ai.strategy_composer.SessionLocal", side_effect=fake_session_local
+        ),
+        patch.object(
+            composer,
+            "_generate_with_claude",
+            side_effect=fake_generate,
+        ),
+        patch.object(
+            composer,
+            "_validate_and_register",
+            return_value={"strategy_name": "demo"},
+        ) as validate_mock,
+    ):
         result = await composer.compose_new_strategy(db=write_db)
 
     assert result == {"strategy_name": "demo"}
-    validate_mock.assert_called_once_with({"strategy_name": "demo", "code": "print('x')"}, write_db)
+    validate_mock.assert_called_once_with(
+        {"strategy_name": "demo", "code": "print('x')"}, write_db
+    )
 
 
 def test_strategy_composer_parses_compilable_template():

@@ -1,4 +1,5 @@
 """Tests for CognitiveCoreAdapter — MockCore round-trip, DegradedCore, ABC contract."""
+
 from __future__ import annotations
 
 import pytest
@@ -10,10 +11,10 @@ from backend.core.cognitive_core import (
     create_cognitive_core,
 )
 
-
 # ---------------------------------------------------------------------------
 # MockCore round-trip tests
 # ---------------------------------------------------------------------------
+
 
 class TestMockCoreRememberRecall:
     def test_remember_and_recall_basic(self):
@@ -92,7 +93,9 @@ class TestMockCorePersonality:
 
     def test_set_personality(self):
         core = MockCore()
-        core.set_personality({"mode": "aggressive", "risk_tolerance": 0.9, "learning_rate": 0.5})
+        core.set_personality(
+            {"mode": "aggressive", "risk_tolerance": 0.9, "learning_rate": 0.5}
+        )
         p = core.get_personality()
         assert p["mode"] == "aggressive"
 
@@ -145,6 +148,7 @@ class TestMockCoreCallLog:
 # DegradedCore tests
 # ---------------------------------------------------------------------------
 
+
 class TestDegradedCore:
     def test_health_is_amnesia(self):
         core = DegradedCore()
@@ -191,6 +195,7 @@ class TestDegradedCore:
 # ABC contract tests
 # ---------------------------------------------------------------------------
 
+
 class TestABCContract:
     def test_mock_core_is_subclass(self):
         assert issubclass(MockCore, CognitiveCoreAdapter)
@@ -207,6 +212,7 @@ class TestABCContract:
 # Factory tests
 # ---------------------------------------------------------------------------
 
+
 class TestCreateCognitiveCore:
     def test_no_url_returns_degraded(self):
         core = create_cognitive_core(hub_url="")
@@ -220,6 +226,7 @@ class TestCreateCognitiveCore:
 # ---------------------------------------------------------------------------
 # CoreHealth dataclass
 # ---------------------------------------------------------------------------
+
 
 class TestCoreHealth:
     def test_defaults(self):

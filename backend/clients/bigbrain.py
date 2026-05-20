@@ -172,9 +172,11 @@ def get_bigbrain() -> BigBrain:
 async def close_bigbrain():
     global _bigbrain_instance
     if _bigbrain_instance is not None:
-        await (
-            _bigbrain_instance._client.aclose()
-        ) if _bigbrain_instance._client else None
+        (
+            await _bigbrain_instance._client.aclose()
+            if _bigbrain_instance._client
+            else None
+        )
         _bigbrain_instance = None
 
 

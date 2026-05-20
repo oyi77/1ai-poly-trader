@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from backend.models.database import get_db, Signal, CopyTraderEntry
 from backend.config import settings
 from loguru import logger
+
 router = APIRouter(prefix="/copy", tags=["copy_trading"])
 
 
@@ -146,6 +147,7 @@ async def get_copy_signals(limit: int = 20):
     """Return recent copy trade signals from the DB."""
     limit = min(limit, 500)
     from backend.db.utils import get_db_session
+
     try:
         with get_db_session() as db:
             signals = (

@@ -1,4 +1,5 @@
 """Tests for LearningPipeline — ADR-013 trade outcome feedback loop."""
+
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -12,10 +13,10 @@ from backend.core.learning_pipeline import (
 )
 from backend.core.cognitive_core import MockCore
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_core():
@@ -25,12 +26,14 @@ def mock_core():
 @pytest.fixture
 def mock_forensics():
     forensics = MagicMock()
-    forensics.analyze_losing_trade = AsyncMock(return_value={
-        "root_cause": "low_confidence_signal",
-        "confidence": 0.6,
-        "contributing_factors": ["signal confidence 48%"],
-        "suggestions": ["Raise AUTO_APPROVE_MIN_CONFIDENCE"],
-    })
+    forensics.analyze_losing_trade = AsyncMock(
+        return_value={
+            "root_cause": "low_confidence_signal",
+            "confidence": 0.6,
+            "contributing_factors": ["signal confidence 48%"],
+            "suggestions": ["Raise AUTO_APPROVE_MIN_CONFIDENCE"],
+        }
+    )
     return forensics
 
 
@@ -46,6 +49,7 @@ def pipeline(mock_core, mock_forensics):
 # PipelineMetrics
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineMetrics:
     def test_initial_state(self):
         m = PipelineMetrics()
@@ -54,7 +58,9 @@ class TestPipelineMetrics:
         assert m.avg_processing_ms == 0.0
 
     def test_to_dict(self):
-        m = PipelineMetrics(total_processed=5, lessons_stored=3, total_processing_ms=150.0)
+        m = PipelineMetrics(
+            total_processed=5, lessons_stored=3, total_processing_ms=150.0
+        )
         d = m.to_dict()
         assert d["total_processed"] == 5
         assert d["lessons_stored"] == 3
@@ -65,13 +71,17 @@ class TestPipelineMetrics:
 # TradeLesson
 # ---------------------------------------------------------------------------
 
+
 class TestTradeLesson:
     def test_to_dict(self):
         lesson = TradeLesson(
             cause="low_confidence_signal: signal confidence 48%",
             effect="lost $25.00",
             confidence=0.6,
-            applicability={"strategies": ["btc_oracle"], "root_cause": "low_confidence_signal"},
+            applicability={
+                "strategies": ["btc_oracle"],
+                "root_cause": "low_confidence_signal",
+            },
             source_trade_id=42,
             strategy_name="btc_oracle",
             outcome="loss",
@@ -87,6 +97,7 @@ class TestTradeLesson:
 # ---------------------------------------------------------------------------
 # LessonExtractor
 # ---------------------------------------------------------------------------
+
 
 class TestLessonExtractor:
     def test_extract_from_forensics_loss(self):
@@ -141,6 +152,7 @@ class TestLessonExtractor:
 # LearningPipeline — full flow
 # ---------------------------------------------------------------------------
 
+
 class TestLearningPipeline:
     @pytest.mark.asyncio
     async def test_process_winning_trade(self, pipeline, mock_core):
@@ -168,7 +180,9 @@ class TestLearningPipeline:
         assert pipeline.metrics.lessons_stored == 1
 
     @pytest.mark.asyncio
-    async def test_process_losing_trade_with_forensics(self, pipeline, mock_core, mock_forensics):
+    async def test_process_losing_trade_with_forensics(
+        self, pipeline, mock_core, mock_forensics
+    ):
         lesson = await pipeline.process_settlement(
             trade_id=2,
             strategy_name="momentum",
@@ -295,7 +309,9 @@ class TestLearningPipeline:
                 mock_genome.total_pnl = 100.0
 
                 mock_db = MagicMock()
-                mock_db.query.return_value.filter.return_value.first.return_value = mock_genome
+                mock_db.query.return_value.filter.return_value.first.return_value = (
+                    mock_genome
+                )
                 mock_session.return_value.__enter__ = MagicMock(return_value=mock_db)
                 mock_session.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -327,6 +343,7 @@ class TestLearningPipeline:
 # ---------------------------------------------------------------------------
 # Singleton management
 # ---------------------------------------------------------------------------
+
 
 class TestSingleton:
     def test_get_creates_default(self):

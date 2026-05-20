@@ -7,6 +7,8 @@ or division-by-zero errors downstream.
 
 from __future__ import annotations
 from loguru import logger
+
+
 def clamp_probability(p: float, epsilon: float = 0.01) -> float:
     """Clamp a probability to [epsilon, 1.0 - epsilon].
 
@@ -25,6 +27,9 @@ def clamp_probability(p: float, epsilon: float = 0.01) -> float:
     if clamped != p:
         logger.warning(
             "clamp_probability: %.6f outside [%.4f, %.4f], clamped to %.6f",
-            p, epsilon, 1.0 - epsilon, clamped,
+            p,
+            epsilon,
+            1.0 - epsilon,
+            clamped,
         )
     return clamped

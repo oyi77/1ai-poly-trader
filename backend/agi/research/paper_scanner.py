@@ -15,7 +15,6 @@ from typing import List, Optional
 import httpx
 from loguru import logger
 
-
 POLYMARKET_DOCS_RSS = "https://docs.polymarket.com/changelog"
 ARXIV_API_URL = "http://export.arxiv.org/api/query"
 
@@ -55,9 +54,7 @@ class PaperAlert:
 
     @property
     def fingerprint(self) -> str:
-        return hashlib.sha256(
-            (self.title + self.source).encode()
-        ).hexdigest()
+        return hashlib.sha256((self.title + self.source).encode()).hexdigest()
 
 
 def _classify_alert(title: str, summary: str) -> tuple[str, float]:
@@ -166,18 +163,22 @@ class PaperScanner:
                 published_el = entry.find("atom:published", ns)
                 entries.append(
                     {
-                        "title": title_el.text.strip().replace("\n", " ")
-                        if title_el is not None and title_el.text
-                        else "",
-                        "summary": summary_el.text.strip().replace("\n", " ")
-                        if summary_el is not None and summary_el.text
-                        else "",
-                        "link": link_el.get("href", "")
-                        if link_el is not None
-                        else "",
-                        "published": published_el.text.strip()
-                        if published_el is not None and published_el.text
-                        else "",
+                        "title": (
+                            title_el.text.strip().replace("\n", " ")
+                            if title_el is not None and title_el.text
+                            else ""
+                        ),
+                        "summary": (
+                            summary_el.text.strip().replace("\n", " ")
+                            if summary_el is not None and summary_el.text
+                            else ""
+                        ),
+                        "link": link_el.get("href", "") if link_el is not None else "",
+                        "published": (
+                            published_el.text.strip()
+                            if published_el is not None and published_el.text
+                            else ""
+                        ),
                     }
                 )
         except ET.ParseError as exc:
@@ -194,9 +195,7 @@ class PaperScanner:
                     follow_redirects=True,
                 )
                 if resp.status_code != 200:
-                    logger.debug(
-                        "Polymarket docs returned %d", resp.status_code
-                    )
+                    logger.debug("Polymarket docs returned %d", resp.status_code)
                     return alerts
 
                 text = resp.text[:10000]

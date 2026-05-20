@@ -2,6 +2,7 @@
 
 Simple cosine-similarity based retrieval. Upgrade path: FAISS or ChromaDB.
 """
+
 from __future__ import annotations
 
 import math
@@ -12,6 +13,7 @@ from typing import Dict, List, Tuple
 @dataclass
 class Document:
     """A document chunk with embedding and metadata."""
+
     text: str
     embedding: List[float] = field(default_factory=list)
     metadata: Dict[str, str] = field(default_factory=dict)
@@ -41,7 +43,9 @@ class VectorStore:
         for doc in docs:
             self.add(doc)
 
-    def search(self, query_embedding: List[float], top_k: int = 5) -> List[Tuple[Document, float]]:
+    def search(
+        self, query_embedding: List[float], top_k: int = 5
+    ) -> List[Tuple[Document, float]]:
         """Search for most similar documents by cosine similarity."""
         if not self._documents or not query_embedding:
             return []

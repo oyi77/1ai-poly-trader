@@ -15,6 +15,8 @@ from typing import Optional, Dict, Tuple
 from fastapi import WebSocket
 
 from loguru import logger
+
+
 class ConnectionLimiter:
     """Tracks and enforces connection limits per IP and globally."""
 
@@ -46,12 +48,15 @@ class ConnectionLimiter:
 
         try:
             import redis.asyncio as redis
+
             self._redis_client = await redis.from_url(redis_url, decode_responses=True)
             await self._redis_client.ping()
             self._redis_enabled = True
             logger.info("Redis connection tracking initialized")
         except Exception as e:
-            logger.warning(f"Redis initialization failed: {e}. Using in-memory fallback")
+            logger.warning(
+                f"Redis initialization failed: {e}. Using in-memory fallback"
+            )
             self._redis_enabled = False
 
     def _get_client_ip(self, websocket: WebSocket) -> str:
@@ -87,7 +92,10 @@ class ConnectionLimiter:
                 await self._redis_client.decr(f"ws:ip:{client_ip}")
             else:
                 self._ws_connections[client_ip] -= 1
-            return False, f"Too many connections from this IP ({count}/{self.WS_LIMIT_PER_IP})"
+            return (
+                False,
+                f"Too many connections from this IP ({count}/{self.WS_LIMIT_PER_IP})",
+            )
 
         # Check global limit
         if self._redis_enabled:
@@ -127,12 +135,16 @@ class ConnectionLimiter:
             await self._redis_client.decr(f"ws:ip:{client_ip}")
             await self._redis_client.decr("ws:global")
         else:
-            self._ws_connections[client_ip] = max(0, self._ws_connections[client_ip] - 1)
+            self._ws_connections[client_ip] = max(
+                0, self._ws_connections[client_ip] - 1
+            )
             self._global_ws_count = max(0, self._global_ws_count - 1)
 
         logger.debug(f"WebSocket connection released for {client_ip}")
 
-    def check_http_limit(self, client_ip: str, endpoint: str) -> Tuple[bool, Optional[str]]:
+    def check_http_limit(
+        self, client_ip: str, endpoint: str
+    ) -> Tuple[bool, Optional[str]]:
         """Check if HTTP request is allowed (50 per minute per IP).
 
         Returns:
@@ -153,7 +165,10 @@ class ConnectionLimiter:
                 f"HTTP rate limit exceeded for {client_ip} on {endpoint}: "
                 f"{request_count}/{self.HTTP_LIMIT_PER_IP} requests"
             )
-            return False, f"Rate limit exceeded ({request_count}/{self.HTTP_LIMIT_PER_IP})"
+            return (
+                False,
+                f"Rate limit exceeded ({request_count}/{self.HTTP_LIMIT_PER_IP})",
+            )
 
         # Record this request
         self._http_requests[client_ip].append((now, endpoint))
@@ -178,7 +193,9 @@ class ConnectionLimiter:
                 if count > 0:
                     ws_per_ip[ip] = count
         else:
-            ws_per_ip = {ip: count for ip, count in self._ws_connections.items() if count > 0}
+            ws_per_ip = {
+                ip: count for ip, count in self._ws_connections.items() if count > 0
+            }
             global_ws = self._global_ws_count
 
         http_per_ip = {}

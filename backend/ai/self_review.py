@@ -17,7 +17,6 @@ from backend.ai.llm_router import LLMRouter
 from backend.clients.bigbrain import BigBrainClient
 from backend.models.database import SessionLocal, Trade
 
-
 # ── Configuration defaults ────────────────────────────────────────────────
 
 # Edge-size buckets (upper-exclusive boundaries)
@@ -438,6 +437,7 @@ class SelfReview:
             rejection_proposals = []
             try:
                 from backend.ai.rejection_learner import generate_rejection_proposals
+
                 rejection_proposals = generate_rejection_proposals()
             except Exception as e:
                 logger.debug("Rejection learning skipped: %s", e)
@@ -460,35 +460,55 @@ class SelfReview:
         try:
             from backend.models.database import StrategyProposal, StrategyConfig
             from backend.models.outcome_tables import StrategyOutcome
+
             strategies = session.query(StrategyOutcome.strategy).distinct().all()
             generated = 0
             for (strategy_name,) in strategies:
                 if strategy_name in ("unknown", "?"):
                     continue
-                outcomes = session.query(StrategyOutcome).filter(
-                    StrategyOutcome.strategy == strategy_name
-                ).order_by(StrategyOutcome.settled_at.desc()).limit(20).all()
+                outcomes = (
+                    session.query(StrategyOutcome)
+                    .filter(StrategyOutcome.strategy == strategy_name)
+                    .order_by(StrategyOutcome.settled_at.desc())
+                    .limit(20)
+                    .all()
+                )
                 if len(outcomes) < 10:
                     continue
-                wins = sum(1 for o in outcomes if o.result == 'win')
+                wins = sum(1 for o in outcomes if o.result == "win")
                 win_rate = wins / len(outcomes)
                 if win_rate < 0.40:
-                    cfg = session.query(StrategyConfig).filter(
-                        StrategyConfig.strategy_name == strategy_name
-                    ).first()
-                    current_params = (cfg.params if cfg and cfg.params else None) or {"kelly_fraction": 0.2, "min_edge": 0.05, "confidence_threshold": 0.5}
+                    cfg = (
+                        session.query(StrategyConfig)
+                        .filter(StrategyConfig.strategy_name == strategy_name)
+                        .first()
+                    )
+                    current_params = (cfg.params if cfg and cfg.params else None) or {
+                        "kelly_fraction": 0.2,
+                        "min_edge": 0.05,
+                        "confidence_threshold": 0.5,
+                    }
                     if isinstance(current_params, str):
                         try:
                             import json
+
                             current_params = json.loads(current_params)
                         except Exception:
                             logger.exception("Failed to parse strategy params JSON")
-                            current_params = {"kelly_fraction": 0.2, "min_edge": 0.05, "confidence_threshold": 0.5}
+                            current_params = {
+                                "kelly_fraction": 0.2,
+                                "min_edge": 0.05,
+                                "confidence_threshold": 0.5,
+                            }
                     proposed = {}
                     for k, v in current_params.items():
                         if isinstance(v, (int, float)) and not isinstance(v, bool):
                             deviation = 0.15
-                            proposed[k] = round(v * (1 + deviation if win_rate < 0.5 else 1 - deviation), 4)
+                            proposed[k] = round(
+                                v
+                                * (1 + deviation if win_rate < 0.5 else 1 - deviation),
+                                4,
+                            )
                     if proposed:
                         proposal = StrategyProposal(
                             strategy_name=strategy_name,
@@ -503,7 +523,9 @@ class SelfReview:
                         generated += 1
             if generated:
                 session.commit()
-                logger.info(f"Self-review: generated {generated} auto-proposals for bleeders")
+                logger.info(
+                    f"Self-review: generated {generated} auto-proposals for bleeders"
+                )
         except Exception as e:
             logger.warning(f"Self-review proposal generation failed: {e}")
             if close:

@@ -1,5 +1,6 @@
 """Auto-trader: routes high-confidence signals to immediate execution,
 low-confidence signals to a manual approval queue."""
+
 import asyncio
 
 from dataclasses import dataclass
@@ -8,8 +9,13 @@ from typing import Any, Dict, Optional
 
 from backend.config import settings
 from backend.models.database import PendingApproval
-from backend.monitoring.hft_metrics import record_signal, signals_routed_total, trade_execution_latency
+from backend.monitoring.hft_metrics import (
+    record_signal,
+    signals_routed_total,
+    trade_execution_latency,
+)
 from backend.monitoring.metrics import increment_trade_execution
+
 
 @dataclass
 class ExecutionResult:
@@ -27,9 +33,14 @@ class AutoTrader:
         self.wallet_router = wallet_router
 
     async def execute_signal(
-        self, signal: Dict[str, Any], bankroll: float, current_exposure: float, mode: str
+        self,
+        signal: Dict[str, Any],
+        bankroll: float,
+        current_exposure: float,
+        mode: str,
     ) -> ExecutionResult:
         import time as _time
+
         _exec_start = _time.monotonic()
         strategy = signal.get("strategy", "unknown")
 
@@ -60,6 +71,7 @@ class AutoTrader:
                 existing = db.query(Trade).filter(*filters).first()
                 if existing:
                     from loguru import logger
+
                     logger.info(
                         f"[auto_trader] Duplicate position blocked for {market_ticker}/{event_slug}: "
                         f"existing trade {existing.id} still open"
@@ -68,10 +80,11 @@ class AutoTrader:
                     return ExecutionResult(
                         False,
                         False,
-                        f"Duplicate open position on {market_ticker or event_slug} (trade {existing.id})"
+                        f"Duplicate open position on {market_ticker or event_slug} (trade {existing.id})",
                     )
         except Exception as e:
             from loguru import logger
+
             logger.error(f"[auto_trader] Error checking for duplicate position: {e}")
 
         decision = self.risk.validate_trade(
@@ -85,6 +98,7 @@ class AutoTrader:
         if not decision.allowed:
             strategy = signal.get("strategy", "unknown")
             from backend.core.event_bus import publish_event
+
             publish_event(
                 "trade_rejected",
                 {
@@ -97,7 +111,9 @@ class AutoTrader:
                 },
             )
             record_signal(strategy=strategy, signal_type="rejected")
-            signals_routed_total.labels(strategy=strategy, outcome="risk_rejected").inc()
+            signals_routed_total.labels(
+                strategy=strategy, outcome="risk_rejected"
+            ).inc()
             _observe_latency()
             return ExecutionResult(False, False, decision.reason)
 
@@ -106,7 +122,9 @@ class AutoTrader:
                 # In auto_approve or auto_deny mode, skip low-confidence signals instead of queuing
                 strategy = signal.get("strategy", "unknown")
                 record_signal(strategy=strategy, signal_type="rejected_low_confidence")
-                signals_routed_total.labels(strategy=strategy, outcome="low_confidence").inc()
+                signals_routed_total.labels(
+                    strategy=strategy, outcome="low_confidence"
+                ).inc()
                 _observe_latency()
                 return ExecutionResult(
                     False,
@@ -116,7 +134,9 @@ class AutoTrader:
             pending_id = self._create_pending(signal, decision.adjusted_size)
             strategy = signal.get("strategy", "unknown")
             record_signal(strategy=strategy, signal_type="pending_approval")
-            signals_routed_total.labels(strategy=strategy, outcome="pending_approval").inc()
+            signals_routed_total.labels(
+                strategy=strategy, outcome="pending_approval"
+            ).inc()
             _observe_latency()
             return ExecutionResult(
                 False,
@@ -130,7 +150,9 @@ class AutoTrader:
         if mode == "paper" or self.clob_factory is None:
             record_signal(strategy=strategy, signal_type="auto_approved")
             increment_trade_execution(strategy=strategy, result="paper")
-            signals_routed_total.labels(strategy=strategy, outcome="paper_executed").inc()
+            signals_routed_total.labels(
+                strategy=strategy, outcome="paper_executed"
+            ).inc()
             _observe_latency()
             return ExecutionResult(
                 True,
@@ -153,14 +175,21 @@ class AutoTrader:
                 )
                 if not child_orders:
                     _observe_latency()
-                    return ExecutionResult(False, False, "no active wallets for strategy")
+                    return ExecutionResult(
+                        False, False, "no active wallets for strategy"
+                    )
 
                 record_signal(strategy=strategy, signal_type="auto_approved_fanout")
                 increment_trade_execution(strategy=strategy, result="live_fanout")
-                signals_routed_total.labels(strategy=strategy, outcome="live_fanout").inc()
+                signals_routed_total.labels(
+                    strategy=strategy, outcome="live_fanout"
+                ).inc()
                 _observe_latency()
                 return ExecutionResult(
-                    True, False, f"live auto-execute fan-out to {len(child_orders)} wallets", order_id=f"fanout-{datetime.now(timezone.utc).timestamp()}"
+                    True,
+                    False,
+                    f"live auto-execute fan-out to {len(child_orders)} wallets",
+                    order_id=f"fanout-{datetime.now(timezone.utc).timestamp()}",
                 )
             except Exception as e:
                 logger.exception("auto_trader live fan-out error")
@@ -182,13 +211,17 @@ class AutoTrader:
             if result.success:
                 record_signal(strategy=strategy, signal_type="auto_approved")
                 increment_trade_execution(strategy=strategy, result="live")
-                signals_routed_total.labels(strategy=strategy, outcome="live_executed").inc()
+                signals_routed_total.labels(
+                    strategy=strategy, outcome="live_executed"
+                ).inc()
                 _observe_latency()
                 return ExecutionResult(
                     True, False, "live auto-execute", order_id=result.order_id
                 )
             record_signal(strategy=strategy, signal_type="rejected_clob")
-            signals_routed_total.labels(strategy=strategy, outcome="clob_rejected").inc()
+            signals_routed_total.labels(
+                strategy=strategy, outcome="clob_rejected"
+            ).inc()
             _observe_latency()
             return ExecutionResult(False, False, f"clob rejected: {result.error}")
         except Exception as e:
@@ -199,6 +232,7 @@ class AutoTrader:
 
     def _create_pending(self, signal: Dict[str, Any], size: float) -> Optional[int]:
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
             row = PendingApproval(
                 market_id=str(signal.get("market_id", "unknown")),

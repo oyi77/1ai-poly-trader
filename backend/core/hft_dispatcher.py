@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from loguru import logger
+
+
 class TaskStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -90,7 +92,8 @@ class HFTDispatcher:
         return dt
 
     async def dispatch_many(
-        self, calls: list[tuple[Callable, tuple, dict]],
+        self,
+        calls: list[tuple[Callable, tuple, dict]],
         timeout: Optional[float] = None,
     ) -> list[DispatchedTask]:
         """Dispatch multiple tasks in parallel."""

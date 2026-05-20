@@ -16,7 +16,14 @@ from backend.core.wallet_analyzer import (
 WALLET = "0xabcdef1234567890abcdef1234567890abcdef12"
 
 
-def _pos(pnl: float, volume: float = 100.0, title: str = "Test", outcome: str = "Yes", ts: float = 1700000000.0, **extra) -> dict:
+def _pos(
+    pnl: float,
+    volume: float = 100.0,
+    title: str = "Test",
+    outcome: str = "Yes",
+    ts: float = 1700000000.0,
+    **extra,
+) -> dict:
     """Build a fake closed-position dict."""
     d = {
         "realizedPnl": pnl,

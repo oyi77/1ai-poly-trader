@@ -1,13 +1,16 @@
 """Background monitoring job for system health checks."""
+
 from backend.core.alert_manager import AlertManager, get_system_metrics
 from backend.core.circuit_breaker_pybreaker import (
     db_breaker,
     polymarket_breaker,
     kalshi_breaker,
-    redis_breaker
+    redis_breaker,
 )
 
 from loguru import logger
+
+
 async def run_monitoring_check():
     """
     Run periodic system monitoring checks and trigger alerts.
@@ -20,6 +23,7 @@ async def run_monitoring_check():
     - Database connection pool
     """
     from backend.db.utils import get_db_session
+
     try:
         with get_db_session() as db:
             manager = AlertManager(db)
@@ -29,12 +33,13 @@ async def run_monitoring_check():
             manager.check_memory_usage(metrics["memory_percent"])
             manager.check_disk_space(metrics["disk_percent_free"])
             manager.check_connection_pool(
-                metrics["pool_size"],
-                metrics["active_connections"]
+                metrics["pool_size"], metrics["active_connections"]
             )
 
             manager.check_circuit_breaker("database", db_breaker.current_state)
-            manager.check_circuit_breaker("polymarket_api", polymarket_breaker.current_state)
+            manager.check_circuit_breaker(
+                "polymarket_api", polymarket_breaker.current_state
+            )
             manager.check_circuit_breaker("kalshi_api", kalshi_breaker.current_state)
             manager.check_circuit_breaker("redis", redis_breaker.current_state)
 

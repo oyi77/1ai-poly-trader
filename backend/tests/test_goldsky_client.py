@@ -1,4 +1,5 @@
 """Tests for backend/data/goldsky_client.py."""
+
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,10 +14,10 @@ from backend.data.goldsky_client import (
     save_cursor,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_event(
     *,
@@ -26,8 +27,8 @@ def _make_event(
     taker: str = "0xbbbb",
     maker_asset_id: str = "0",
     taker_asset_id: str = "0xtoken123",
-    maker_amount: int = 10_000_000,   # 10 USDC in raw units
-    taker_amount: int = 20_000_000,   # 20 tokens in raw units
+    maker_amount: int = 10_000_000,  # 10 USDC in raw units
+    taker_amount: int = 20_000_000,  # 20 tokens in raw units
     tx_hash: str = "0xhash",
 ) -> dict:
     return {
@@ -47,12 +48,13 @@ def _make_event(
 # 1. Maker buys: makerAssetId == "0"
 # ---------------------------------------------------------------------------
 
+
 def test_process_trade_event_buy():
     """When makerAssetId is '0', maker is the buyer (USDC -> token)."""
     event = _make_event(
         maker_asset_id="0",
         taker_asset_id="0xtoken456",
-        maker_amount=50_000_000,   # 50 USDC
+        maker_amount=50_000_000,  # 50 USDC
         taker_amount=100_000_000,  # 100 tokens
     )
     result = process_trade_event(event)
@@ -70,13 +72,14 @@ def test_process_trade_event_buy():
 # 2. Maker sells: takerAssetId == "0"
 # ---------------------------------------------------------------------------
 
+
 def test_process_trade_event_sell():
     """When takerAssetId is '0', maker is the seller (token -> USDC)."""
     event = _make_event(
         maker_asset_id="0xtoken789",
         taker_asset_id="0",
         maker_amount=200_000_000,  # 200 tokens
-        taker_amount=80_000_000,   # 80 USDC
+        taker_amount=80_000_000,  # 80 USDC
     )
     result = process_trade_event(event)
 
@@ -92,6 +95,7 @@ def test_process_trade_event_sell():
 # ---------------------------------------------------------------------------
 # 3. Platform wallet exclusion
 # ---------------------------------------------------------------------------
+
 
 def test_platform_wallet_excluded():
     """Events involving platform wallets must return None."""
@@ -113,6 +117,7 @@ def test_platform_wallet_excluded():
 # ---------------------------------------------------------------------------
 # 4. Cursor round-trip persistence
 # ---------------------------------------------------------------------------
+
 
 def test_save_and_load_cursor(tmp_path: Path, monkeypatch):
     """Cursor saved via save_cursor() must be retrievable via load_cursor()."""
@@ -142,6 +147,7 @@ def test_load_cursor_missing(tmp_path: Path, monkeypatch):
 # 5. Sticky-cursor logic
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_sticky_cursor_logic(tmp_path: Path, monkeypatch):
     """When all events in a batch share the same timestamp, the cursor should
@@ -154,8 +160,18 @@ async def test_sticky_cursor_logic(tmp_path: Path, monkeypatch):
 
     # First batch: two events with the same timestamp (full batch)
     batch1 = [
-        _make_event(event_id="id-1", timestamp=shared_ts, maker_amount=10_000_000, taker_amount=20_000_000),
-        _make_event(event_id="id-2", timestamp=shared_ts, maker_amount=10_000_000, taker_amount=20_000_000),
+        _make_event(
+            event_id="id-1",
+            timestamp=shared_ts,
+            maker_amount=10_000_000,
+            taker_amount=20_000_000,
+        ),
+        _make_event(
+            event_id="id-2",
+            timestamp=shared_ts,
+            maker_amount=10_000_000,
+            taker_amount=20_000_000,
+        ),
     ]
     # Second batch: empty — signals end of data
     batch2: list[dict] = []
@@ -169,7 +185,9 @@ async def test_sticky_cursor_logic(tmp_path: Path, monkeypatch):
             return batch1
         return batch2
 
-    monkeypatch.setattr("backend.data.goldsky_client.fetch_order_filled_events", mock_fetch)
+    monkeypatch.setattr(
+        "backend.data.goldsky_client.fetch_order_filled_events", mock_fetch
+    )
 
     total = await ingest_historical_trades(max_batches=5)
 
@@ -177,17 +195,18 @@ async def test_sticky_cursor_logic(tmp_path: Path, monkeypatch):
 
     # After sticky batch the cursor timestamp must stay the same; id advances
     saved_ts, saved_id = load_cursor()
-    assert saved_ts == shared_ts   # timestamp NOT moved forward
-    assert saved_id == "id-2"      # id advanced to last event id
+    assert saved_ts == shared_ts  # timestamp NOT moved forward
+    assert saved_id == "id-2"  # id advanced to last event id
 
 
 # ---------------------------------------------------------------------------
 # 6. USDC amount normalisation (10^6 division)
 # ---------------------------------------------------------------------------
 
+
 def test_normalize_amounts():
     """Raw amounts must be divided by 1_000_000 for USDC normalisation."""
-    raw_usdc = 5_000_000   # should become 5.0
+    raw_usdc = 5_000_000  # should become 5.0
     raw_tokens = 10_000_000  # should become 10.0
 
     event = _make_event(
@@ -208,6 +227,7 @@ def test_normalize_amounts():
 # 7. fetch_order_filled_events — mocked HTTP
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_fetch_order_filled_events_success():
     """fetch_order_filled_events should return the events list from the response."""
@@ -215,15 +235,21 @@ async def test_fetch_order_filled_events_success():
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(return_value={"data": {"orderFilledEvents": fake_events}})
+    mock_response.json = MagicMock(
+        return_value={"data": {"orderFilledEvents": fake_events}}
+    )
 
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("backend.data.goldsky_client.httpx.AsyncClient", return_value=mock_client):
-        result = await fetch_order_filled_events(after_timestamp=0, after_id="", batch_size=10)
+    with patch(
+        "backend.data.goldsky_client.httpx.AsyncClient", return_value=mock_client
+    ):
+        result = await fetch_order_filled_events(
+            after_timestamp=0, after_id="", batch_size=10
+        )
 
     assert result == fake_events
 
@@ -240,7 +266,9 @@ async def test_fetch_order_filled_events_graphql_errors():
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("backend.data.goldsky_client.httpx.AsyncClient", return_value=mock_client):
+    with patch(
+        "backend.data.goldsky_client.httpx.AsyncClient", return_value=mock_client
+    ):
         result = await fetch_order_filled_events()
 
     assert result == []

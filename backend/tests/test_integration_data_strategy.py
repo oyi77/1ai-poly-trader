@@ -13,7 +13,11 @@ from datetime import datetime, timezone
 from backend.data.base_source import DataType
 from backend.data.source_registry import DataSourceRegistry
 from backend.data.sources.mock_source import MockDataSource
-from backend.data.aggregator import DataAggregator, SourceResult, DataSource as AggSource
+from backend.data.aggregator import (
+    DataAggregator,
+    SourceResult,
+    DataSource as AggSource,
+)
 
 
 class TestDataSourceRegistryIntegration:
@@ -70,18 +74,20 @@ class TestDataAggregatorIntegration:
 
     def test_register_and_fetch_single_source(self):
         """Test fetching from a single registered source."""
+
         async def fetch_price():
-            return {"price": 100.50, "timestamp": datetime.now(timezone.utc).timestamp()}
+            return {
+                "price": 100.50,
+                "timestamp": datetime.now(timezone.utc).timestamp(),
+            }
 
         source = AggSource(
-            name="test_source",
-            fetch_fn=fetch_price,
-            priority=0,
-            enabled=True
+            name="test_source", fetch_fn=fetch_price, priority=0, enabled=True
         )
         self.aggregator.register_source("price_feed", source)
 
         import asyncio
+
         result = asyncio.run(self.aggregator.fetch("price_feed"))
         assert isinstance(result, SourceResult)
         assert result.source == "test_source"
@@ -89,18 +95,22 @@ class TestDataAggregatorIntegration:
 
     def test_multiple_sources_priority_order(self):
         """Test that higher priority sources are tried first."""
+
         async def fetch_priority_0():
             return {"price": 100.0, "source": "high_priority"}
 
         async def fetch_priority_1():
             return {"price": 101.0, "source": "low_priority"}
 
-        self.aggregator.register_source("price_feed",
-            AggSource("high_priority", fetch_priority_0, priority=0))
-        self.aggregator.register_source("price_feed",
-            AggSource("low_priority", fetch_priority_1, priority=1))
+        self.aggregator.register_source(
+            "price_feed", AggSource("high_priority", fetch_priority_0, priority=0)
+        )
+        self.aggregator.register_source(
+            "price_feed", AggSource("low_priority", fetch_priority_1, priority=1)
+        )
 
         import asyncio
+
         result = asyncio.run(self.aggregator.fetch("price_feed"))
         assert result.source == "high_priority"
         assert result.data["price"] == 100.0
@@ -117,12 +127,15 @@ class TestDataAggregatorIntegration:
             call_count["secondary"] += 1
             return {"price": 99.50}
 
-        self.aggregator.register_source("price_feed",
-            AggSource("primary", fetch_fails, priority=0))
-        self.aggregator.register_source("price_feed",
-            AggSource("secondary", fetch_succeeds, priority=1))
+        self.aggregator.register_source(
+            "price_feed", AggSource("primary", fetch_fails, priority=0)
+        )
+        self.aggregator.register_source(
+            "price_feed", AggSource("secondary", fetch_succeeds, priority=1)
+        )
 
         import asyncio
+
         result = asyncio.run(self.aggregator.fetch("price_feed"))
         assert call_count["primary"] == 1
         assert call_count["secondary"] == 1
@@ -170,10 +183,12 @@ class TestStrategyDataFlowIntegration:
         async def fetch_data():
             return {"price": 50000.0, "volume": 1000}
 
-        aggregator.register_source("btc_price",
-            AggSource("mock_provider", fetch_data, priority=0))
+        aggregator.register_source(
+            "btc_price", AggSource("mock_provider", fetch_data, priority=0)
+        )
 
         import asyncio
+
         result = asyncio.run(aggregator.fetch("btc_price"))
         assert result.data["price"] == 50000.0
         assert result.data["volume"] == 1000
@@ -184,8 +199,12 @@ class TestStrategyDataFlowIntegration:
         registry = DataSourceRegistry("persistence_test")
         registry.register(MockDataSource)
         source = registry.get("mock")
-        data1 = await source.fetch(DataType.CANDLES, {"market": "BTC-USD", "interval": "5m"})
-        data2 = await source.fetch(DataType.CANDLES, {"market": "BTC-USD", "interval": "5m"})
+        data1 = await source.fetch(
+            DataType.CANDLES, {"market": "BTC-USD", "interval": "5m"}
+        )
+        data2 = await source.fetch(
+            DataType.CANDLES, {"market": "BTC-USD", "interval": "5m"}
+        )
 
         assert data1 is not None
         assert data2 is not None

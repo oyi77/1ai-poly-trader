@@ -1,4 +1,5 @@
 """Tests for LongshotBiasStrategy — price filtering, EV calculation, Kelly sizing."""
+
 import pytest
 
 from backend.strategies.longshot_bias import LongshotBiasStrategy
@@ -28,14 +29,46 @@ class TestMarketFilter:
 
         s = LongshotBiasStrategy()
         markets = [
-            MarketInfo(ticker="A", slug="a", category="test", end_date=None,
-                       volume=1000, liquidity=500, yes_price=0.25, no_price=0.75),
-            MarketInfo(ticker="B", slug="b", category="test", end_date=None,
-                       volume=1000, liquidity=500, yes_price=0.15, no_price=0.85),
-            MarketInfo(ticker="C", slug="c", category="test", end_date=None,
-                       volume=1000, liquidity=500, yes_price=0.55, no_price=0.45),
-            MarketInfo(ticker="D", slug="d", category="test", end_date=None,
-                       volume=1000, liquidity=500, yes_price=0.30, no_price=0.70),
+            MarketInfo(
+                ticker="A",
+                slug="a",
+                category="test",
+                end_date=None,
+                volume=1000,
+                liquidity=500,
+                yes_price=0.25,
+                no_price=0.75,
+            ),
+            MarketInfo(
+                ticker="B",
+                slug="b",
+                category="test",
+                end_date=None,
+                volume=1000,
+                liquidity=500,
+                yes_price=0.15,
+                no_price=0.85,
+            ),
+            MarketInfo(
+                ticker="C",
+                slug="c",
+                category="test",
+                end_date=None,
+                volume=1000,
+                liquidity=500,
+                yes_price=0.55,
+                no_price=0.45,
+            ),
+            MarketInfo(
+                ticker="D",
+                slug="d",
+                category="test",
+                end_date=None,
+                volume=1000,
+                liquidity=500,
+                yes_price=0.30,
+                no_price=0.70,
+            ),
         ]
         filtered = await s.market_filter(markets)
         # Should include A (0.25) and B (0.15), exclude C (0.55) and D (0.30, not <)
@@ -49,10 +82,26 @@ class TestMarketFilter:
 
         s = LongshotBiasStrategy()
         markets = [
-            MarketInfo(ticker="Z", slug="z", category="test", end_date=None,
-                       volume=1000, liquidity=500, yes_price=0.0, no_price=1.0),
-            MarketInfo(ticker="G", slug="g", category="test", end_date=None,
-                       volume=1000, liquidity=500, yes_price=0.10, no_price=0.90),
+            MarketInfo(
+                ticker="Z",
+                slug="z",
+                category="test",
+                end_date=None,
+                volume=1000,
+                liquidity=500,
+                yes_price=0.0,
+                no_price=1.0,
+            ),
+            MarketInfo(
+                ticker="G",
+                slug="g",
+                category="test",
+                end_date=None,
+                volume=1000,
+                liquidity=500,
+                yes_price=0.10,
+                no_price=0.90,
+            ),
         ]
         filtered = await s.market_filter(markets)
         assert len(filtered) == 1

@@ -1,7 +1,10 @@
 """Portfolio optimizer using risk-parity allocation based on Sharpe ratios."""
+
 from dataclasses import dataclass
 
 from loguru import logger
+
+
 @dataclass
 class StrategyMetrics:
     name: str
@@ -54,7 +57,9 @@ class PortfolioOptimizer:
                 reasoning.append(
                     f"{m.name}: excluded (Sharpe={m.sharpe_ratio:.3f} <= 0)"
                 )
-                logger.debug("Excluding %s: non-positive Sharpe %.3f", m.name, m.sharpe_ratio)
+                logger.debug(
+                    "Excluding %s: non-positive Sharpe %.3f", m.name, m.sharpe_ratio
+                )
             else:
                 eligible.append(m)
 
@@ -86,7 +91,11 @@ class PortfolioOptimizer:
                 break
 
             # Redistribute surplus from capped strategies to uncapped ones
-            capped_total = sum(min(w, self.max_per_strategy) for n, w in raw.items() if n not in uncapped)
+            capped_total = sum(
+                min(w, self.max_per_strategy)
+                for n, w in raw.items()
+                if n not in uncapped
+            )
             uncapped_sum = sum(uncapped.values())
             surplus = self.max_total_exposure - capped_total - uncapped_sum
 
@@ -122,7 +131,9 @@ class PortfolioOptimizer:
             )
 
         total_exposure = sum(allocations.values())
-        reasoning.append(f"Total exposure: {total_exposure:.4f} of bankroll ${bankroll:.2f}")
+        reasoning.append(
+            f"Total exposure: {total_exposure:.4f} of bankroll ${bankroll:.2f}"
+        )
 
         return AllocationResult(
             allocations=allocations,

@@ -1,4 +1,5 @@
 """Tests for FinancialKnowledgeManager — register/query/store methods."""
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -150,7 +151,9 @@ class TestTradeMemory:
         assert entity.properties["strategy"] == "longshot_bias"
         assert entity.properties["regime"] == "sideways"
         assert "price_spike" in entity.properties["events"]
-        assert entity.properties["lesson"] == "Longshot NO bias works best in calm markets"
+        assert (
+            entity.properties["lesson"] == "Longshot NO bias works best in calm markets"
+        )
 
     def test_store_trade_creates_relations(self, fkm, kg):
         fkm.store_trade_with_context("t2", "momentum", "bull", [], "test lesson")
@@ -185,7 +188,9 @@ class TestTradeMemory:
         assert len(results) == 5
 
     def test_get_lesson_for_context(self, fkm):
-        fkm.store_trade_with_context("lg1", "test_strat", "bull", [], "important lesson")
+        fkm.store_trade_with_context(
+            "lg1", "test_strat", "bull", [], "important lesson"
+        )
         lesson = fkm.get_lesson_for_context("test_strat", "bull")
         assert lesson == "important lesson"
 
@@ -207,7 +212,9 @@ class TestCrossDomainReasoning:
         )
         kg.add_entity("regime", "regime:bull")
         kg.add_entity("strategy", "strategy:alpha_strat")
-        kg.add_relation("strategy:alpha_strat", "regime:bull", "performs_well_in", 0.9, 0.8)
+        kg.add_relation(
+            "strategy:alpha_strat", "regime:bull", "performs_well_in", 0.9, 0.8
+        )
 
         suggestions = fkm.suggest_strategy_for_conditions("bull", "BTC")
         assert len(suggestions) >= 1

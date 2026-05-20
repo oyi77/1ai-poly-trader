@@ -1,5 +1,6 @@
 from backend.agi.multi_objective_optimizer import MultiObjectiveOptimizer, Goal
 
+
 class TestMultiObjectiveOptimizer:
     """Unit tests for MultiObjectiveOptimizer (Task 28 of agi-evolution.md)"""
 
@@ -7,8 +8,20 @@ class TestMultiObjectiveOptimizer:
         """Test that optimizer respects daily bankroll cap."""
         optimizer = MultiObjectiveOptimizer(daily_bankroll_cap=0.8)
         goals = [
-            Goal(goal_id="g1", expected_return=0.2, risk_score=0.1, time_horizon="medium_term", bankroll_allocation_requested=0.5),
-            Goal(goal_id="g2", expected_return=0.15, risk_score=0.08, time_horizon="short_term", bankroll_allocation_requested=0.5),
+            Goal(
+                goal_id="g1",
+                expected_return=0.2,
+                risk_score=0.1,
+                time_horizon="medium_term",
+                bankroll_allocation_requested=0.5,
+            ),
+            Goal(
+                goal_id="g2",
+                expected_return=0.15,
+                risk_score=0.08,
+                time_horizon="short_term",
+                bankroll_allocation_requested=0.5,
+            ),
         ]
 
         allocation = optimizer.optimize_allocation(goals)
@@ -21,8 +34,20 @@ class TestMultiObjectiveOptimizer:
         """Test that no single goal gets more than domain diversification limit."""
         optimizer = MultiObjectiveOptimizer(domain_diversification_limit=0.3)
         goals = [
-            Goal(goal_id="g1", expected_return=0.25, risk_score=0.05, time_horizon="long_term", bankroll_allocation_requested=0.5),
-            Goal(goal_id="g2", expected_return=0.15, risk_score=0.1, time_horizon="medium_term", bankroll_allocation_requested=0.5),
+            Goal(
+                goal_id="g1",
+                expected_return=0.25,
+                risk_score=0.05,
+                time_horizon="long_term",
+                bankroll_allocation_requested=0.5,
+            ),
+            Goal(
+                goal_id="g2",
+                expected_return=0.15,
+                risk_score=0.1,
+                time_horizon="medium_term",
+                bankroll_allocation_requested=0.5,
+            ),
         ]
 
         allocation = optimizer.optimize_allocation(goals)
@@ -34,8 +59,20 @@ class TestMultiObjectiveOptimizer:
         """Test that optimizer balances between short-term and long-term goals."""
         optimizer = MultiObjectiveOptimizer(daily_bankroll_cap=1.0)
         goals = [
-            Goal(goal_id="short", expected_return=0.2, risk_score=0.1, time_horizon="short_term", bankroll_allocation_requested=0.5),
-            Goal(goal_id="long", expected_return=0.18, risk_score=0.08, time_horizon="long_term", bankroll_allocation_requested=0.5),
+            Goal(
+                goal_id="short",
+                expected_return=0.2,
+                risk_score=0.1,
+                time_horizon="short_term",
+                bankroll_allocation_requested=0.5,
+            ),
+            Goal(
+                goal_id="long",
+                expected_return=0.18,
+                risk_score=0.08,
+                time_horizon="long_term",
+                bankroll_allocation_requested=0.5,
+            ),
         ]
 
         allocation = optimizer.optimize_allocation(goals)
@@ -45,17 +82,44 @@ class TestMultiObjectiveOptimizer:
         assert allocation["long"] > 0, "Long-term goal got no allocation"
 
         # Long-term should get less due to time horizon penalty
-        assert allocation["long"] < allocation["short"], \
-            "Long-term should have less allocation due to time horizon penalty"
+        assert (
+            allocation["long"] < allocation["short"]
+        ), "Long-term should have less allocation due to time horizon penalty"
 
     def test_domain_diversification_limit_scenario(self):
         """Test QA scenario: diversification prevents single-domain overallocation."""
-        optimizer = MultiObjectiveOptimizer(daily_bankroll_cap=1.0, domain_diversification_limit=0.3)
+        optimizer = MultiObjectiveOptimizer(
+            daily_bankroll_cap=1.0, domain_diversification_limit=0.3
+        )
         goals = [
-            Goal(goal_id="domain_a", expected_return=0.2, risk_score=0.15, time_horizon="medium_term", bankroll_allocation_requested=0.4),
-            Goal(goal_id="domain_b", expected_return=0.18, risk_score=0.12, time_horizon="medium_term", bankroll_allocation_requested=0.4),
-            Goal(goal_id="domain_c", expected_return=0.15, risk_score=0.1, time_horizon="short_term", bankroll_allocation_requested=0.2),
-            Goal(goal_id="domain_d", expected_return=0.12, risk_score=0.08, time_horizon="long_term", bankroll_allocation_requested=0.1),
+            Goal(
+                goal_id="domain_a",
+                expected_return=0.2,
+                risk_score=0.15,
+                time_horizon="medium_term",
+                bankroll_allocation_requested=0.4,
+            ),
+            Goal(
+                goal_id="domain_b",
+                expected_return=0.18,
+                risk_score=0.12,
+                time_horizon="medium_term",
+                bankroll_allocation_requested=0.4,
+            ),
+            Goal(
+                goal_id="domain_c",
+                expected_return=0.15,
+                risk_score=0.1,
+                time_horizon="short_term",
+                bankroll_allocation_requested=0.2,
+            ),
+            Goal(
+                goal_id="domain_d",
+                expected_return=0.12,
+                risk_score=0.08,
+                time_horizon="long_term",
+                bankroll_allocation_requested=0.1,
+            ),
         ]
 
         allocation = optimizer.optimize_allocation(goals)
@@ -84,12 +148,24 @@ class TestMultiObjectiveOptimizer:
         """Test that health metrics are returned correctly."""
         optimizer = MultiObjectiveOptimizer()
         goals = [
-            Goal(goal_id="g1", expected_return=0.2, risk_score=0.1, time_horizon="short_term", bankroll_allocation_requested=0.5),
-            Goal(goal_id="g2", expected_return=0.15, risk_score=0.08, time_horizon="long_term", bankroll_allocation_requested=0.5),
+            Goal(
+                goal_id="g1",
+                expected_return=0.2,
+                risk_score=0.1,
+                time_horizon="short_term",
+                bankroll_allocation_requested=0.5,
+            ),
+            Goal(
+                goal_id="g2",
+                expected_return=0.15,
+                risk_score=0.08,
+                time_horizon="long_term",
+                bankroll_allocation_requested=0.5,
+            ),
         ]
         allocation = optimizer.optimize_allocation(goals)
         metrics = optimizer.get_health_metrics(allocation, goals)
 
-        assert 'allocation_efficiency' in metrics
-        assert 'risk_concentration' in metrics
-        assert 'time_diversification' in metrics
+        assert "allocation_efficiency" in metrics
+        assert "risk_concentration" in metrics
+        assert "time_diversification" in metrics

@@ -1,4 +1,5 @@
 """Sandbox manager for isolated strategy validation."""
+
 import uuid
 import os
 import tempfile
@@ -13,6 +14,7 @@ from backend.agi.sandbox.results import SandboxResult
 from backend.agi.node_registry import node_registry
 
 logger = logging.getLogger(__name__)
+
 
 class SandboxManager:
     """Manages isolated strategy validation in sandbox mode with production hardening.
@@ -92,6 +94,7 @@ class SandboxManager:
                 # Use the same Python interpreter (venv) so installed packages are available.
                 # -S is not used: isolation comes from resource limits + temp dir + env scrubbing.
                 import sys
+
                 process = subprocess.Popen(
                     [sys.executable, "-u", code_file],
                     cwd=tmp_dir,
@@ -99,7 +102,7 @@ class SandboxManager:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     preexec_fn=self._set_resource_limits,
-                    text=True
+                    text=True,
                 )
 
                 try:
@@ -131,8 +134,8 @@ class SandboxManager:
                     status=status,
                     output=output,
                     execution_time_ms=(end_time - start_time) * 1000,
-                    cpu_ms=(end_time - start_time) * 1000, # Proxy
-                    mem_kb=0.0, # Actual mem requires external monitoring or /proc
+                    cpu_ms=(end_time - start_time) * 1000,  # Proxy
+                    mem_kb=0.0,  # Actual mem requires external monitoring or /proc
                     killed=killed,
                     gates_passed=validation_result.gates_passed,
                     gates_failed=validation_result.gates_failed,
@@ -146,13 +149,16 @@ class SandboxManager:
                 logger.error(f"Sandbox execution crash: {e}")
                 return SandboxResult(run_id=run_id, status="error", errors=[str(e)])
 
-    async def validate_strategy(self, code: str, scenario: str = "default") -> SandboxResult:
+    async def validate_strategy(
+        self, code: str, scenario: str = "default"
+    ) -> SandboxResult:
         """Validate a strategy through the 4-gate pipeline and execute in hardened sandbox."""
         return await self.execute_code(code, scenario)
 
     async def validate_node(self, node_name: str, state: dict) -> SandboxResult:
         """Validate a single AGI node in sandbox context."""
         import time
+
         start = time.time()
         run_id = str(uuid.uuid4())[:8]
 
@@ -162,16 +168,20 @@ class SandboxManager:
 
             errors = []
             if manifest.requires_db:
-                errors.append(f"Node '{node_name}' requires database access - not allowed in sandbox")
+                errors.append(
+                    f"Node '{node_name}' requires database access - not allowed in sandbox"
+                )
             if manifest.requires_live_data:
-                errors.append(f"Node '{node_name}' requires live data - not allowed in sandbox")
+                errors.append(
+                    f"Node '{node_name}' requires live data - not allowed in sandbox"
+                )
 
             status = "passed" if not errors else "failed"
             return SandboxResult(
                 run_id=run_id,
                 status=status,
                 errors=errors,
-                execution_time_ms=(time.time() - start) * 1000
+                execution_time_ms=(time.time() - start) * 1000,
             )
         except Exception as e:
             return SandboxResult(run_id=run_id, status="error", errors=[str(e)])

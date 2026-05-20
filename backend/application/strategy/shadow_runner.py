@@ -97,7 +97,12 @@ class DBSessionShadowRunner:
         finally:
             self._close_db()
 
-    def settle(self, market_ticker: str, settlement_value: float, actual_outcome: Optional[float] = None) -> None:
+    def settle(
+        self,
+        market_ticker: str,
+        settlement_value: float,
+        actual_outcome: Optional[float] = None,
+    ) -> None:
         """Settle all unsettled shadow trades for this ticker, calculating P&L and accuracy."""
         db = self._get_db()
         try:
@@ -106,7 +111,7 @@ class DBSessionShadowRunner:
                 db.query(ShadowTrade)
                 .filter(
                     ShadowTrade.market_ticker == market_ticker,
-                    ShadowTrade.settled.is_(False)
+                    ShadowTrade.settled.is_(False),
                 )
                 .all()
             )
@@ -117,15 +122,19 @@ class DBSessionShadowRunner:
 
                 # Calculate P&L
                 direction_won = (
-                    (trade.direction == "up" and settlement_value == 1.0)
-                    or (trade.direction == "down" and settlement_value == 0.0)
-                )
+                    trade.direction == "up" and settlement_value == 1.0
+                ) or (trade.direction == "down" and settlement_value == 0.0)
                 from backend.config import settings
-                fee_rate = getattr(settings, 'TAKER_FEE_RATE', 0.02)
+
+                fee_rate = getattr(settings, "TAKER_FEE_RATE", 0.02)
                 if direction_won:
-                    trade.pnl = round((1.0 - trade.entry_price) * trade.size * (1.0 - fee_rate), 2)
+                    trade.pnl = round(
+                        (1.0 - trade.entry_price) * trade.size * (1.0 - fee_rate), 2
+                    )
                 else:
-                    trade.pnl = round(-trade.entry_price * trade.size * (1.0 + fee_rate), 2)
+                    trade.pnl = round(
+                        -trade.entry_price * trade.size * (1.0 + fee_rate), 2
+                    )
 
                 # Calculate accuracy score if we have predicted and actual outcomes
                 if trade.predicted_outcome is not None and actual_outcome is not None:
@@ -178,7 +187,12 @@ class DBSessionShadowRunner:
             settled_trades = [t for t in trades if t.settled]
 
             total_pnl = sum(t.pnl or 0 for t in settled_trades)
-            win_rate = len([t for t in settled_trades if t.pnl and t.pnl > 0]) / len(settled_trades) if settled_trades else 0.0
+            win_rate = (
+                len([t for t in settled_trades if t.pnl and t.pnl > 0])
+                / len(settled_trades)
+                if settled_trades
+                else 0.0
+            )
 
             # Calculate average edge: model_probability - entry_price
             edges = []
@@ -192,7 +206,9 @@ class DBSessionShadowRunner:
             strategy_breakdown = {}
             for t in settled_trades:
                 if t.strategy:
-                    strategy_breakdown[t.strategy] = strategy_breakdown.get(t.strategy, 0.0) + (t.pnl or 0.0)
+                    strategy_breakdown[t.strategy] = strategy_breakdown.get(
+                        t.strategy, 0.0
+                    ) + (t.pnl or 0.0)
 
             return ShadowPerformance(
                 total_trades=len(trades),
@@ -200,7 +216,7 @@ class DBSessionShadowRunner:
                 total_pnl=total_pnl,
                 win_rate=win_rate,
                 avg_edge=avg_edge,
-                strategy_breakdown=strategy_breakdown
+                strategy_breakdown=strategy_breakdown,
             )
         finally:
             self._close_db()
@@ -230,7 +246,7 @@ class DBSessionShadowRunner:
                 FROM shadow_trade
                 WHERE genome_id = :genome_id AND timestamp >= datetime('now', '-30 days')
                 """),
-                {"genome_id": genome_id}
+                {"genome_id": genome_id},
             )
 
             row = result.fetchone()
@@ -241,7 +257,7 @@ class DBSessionShadowRunner:
                     "accuracy": 0.0,
                     "days_active": 0.0,
                     "eligible": False,
-                    "reason": "No trades in the last 30 days"
+                    "reason": "No trades in the last 30 days",
                 }
 
             total_trades = row.total_trades
@@ -262,7 +278,7 @@ class DBSessionShadowRunner:
                 "accuracy": accuracy,
                 "days_active": days_active,
                 "eligible": eligible,
-                "reason": reason
+                "reason": reason,
             }
         finally:
             self._close_db()

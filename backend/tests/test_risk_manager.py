@@ -118,12 +118,9 @@ class TestStrategyAllocation:
 
         # Mock database with BotState containing AGI allocation
         mock_bot_state = MagicMock()
-        mock_bot_state.misc_data = json.dumps({
-            "allocations": {
-                "BTC Momentum": 500.0,
-                "Market Maker": 1500.0
-            }
-        })
+        mock_bot_state.misc_data = json.dumps(
+            {"allocations": {"BTC Momentum": 500.0, "Market Maker": 1500.0}}
+        )
 
         mock_db = MagicMock()
         mock_db.query.return_value.first.return_value = mock_bot_state
@@ -146,11 +143,9 @@ class TestStrategyAllocation:
 
         # Mock database with BotState but no allocation for this strategy
         mock_bot_state = MagicMock()
-        mock_bot_state.misc_data = json.dumps({
-            "allocations": {
-                "Market Maker": 1500.0  # But not BTC Momentum
-            }
-        })
+        mock_bot_state.misc_data = json.dumps(
+            {"allocations": {"Market Maker": 1500.0}}  # But not BTC Momentum
+        )
 
         mock_db = MagicMock()
 
@@ -160,7 +155,9 @@ class TestStrategyAllocation:
 
         # Mock for StrategyConfig query (second call)
         mock_strategy_query = MagicMock()
-        mock_strategy_query.filter.return_value.count.return_value = 3  # 3 enabled strategies
+        mock_strategy_query.filter.return_value.count.return_value = (
+            3  # 3 enabled strategies
+        )
 
         # Set up side effect to return different mocks for different queries
         mock_db.query.side_effect = [mock_bot_state_query, mock_strategy_query]
@@ -250,7 +247,7 @@ class TestDrawdownFloors:
 
         # For now, test that the method exists and can be called
         # Full integration test would require mocking the database
-        assert hasattr(rm, 'check_drawdown_floors')
+        assert hasattr(rm, "check_drawdown_floors")
 
     def test_weekly_loss_floor_triggers_paper_mode(self):
         """Test that weekly loss floor triggers reversion to PAPER mode for 7 days."""
@@ -265,7 +262,7 @@ class TestDrawdownFloors:
         # This should trigger paper mode reversion
 
         # For now, test that the method exists
-        assert hasattr(rm, 'check_drawdown_floors')
+        assert hasattr(rm, "check_drawdown_floors")
 
     def test_drawdown_floors_respect_env_overrides(self):
         """Test that drawdown floors respect environment variable overrides."""
@@ -289,11 +286,12 @@ class TestImmutableSafetyRules:
         s = MockSettings()
         import os
         from unittest.mock import patch
+
         with patch.dict(os.environ, clear=True):
             rm = RiskManager(settings_obj=s)
 
         # Check that safety rules are loaded
-        assert hasattr(rm, '_safety_rules')
+        assert hasattr(rm, "_safety_rules")
         assert rm._safety_rules["max_total_exposure"] == 0.95
         assert rm._safety_rules["max_single_strategy_pct"] == 0.25
         assert rm._safety_rules["daily_loss_floor"] == -0.10
@@ -337,7 +335,9 @@ class TestImmutableSafetyRules:
 
     def test_regime_multiplier_volatile_strategy(self):
         """Test that BTC Momentum strategy gets 1.25x multiplier in volatile regime."""
-        with patch("backend.application.meta.regime_router.RegimeConfidenceRouter") as MockRouter:
+        with patch(
+            "backend.application.meta.regime_router.RegimeConfidenceRouter"
+        ) as MockRouter:
             MockRouter.return_value.get_multiplier.return_value = 1.25
             s = MockSettings()
             s.AUTO_APPROVE_MIN_CONFIDENCE = 0.50
@@ -351,7 +351,9 @@ class TestImmutableSafetyRules:
 
     def test_regime_multiplier_sideways_strategy(self):
         """Test that Market Maker strategy gets 0.85x multiplier in sideways regime."""
-        with patch("backend.application.meta.regime_router.RegimeConfidenceRouter") as MockRouter:
+        with patch(
+            "backend.application.meta.regime_router.RegimeConfidenceRouter"
+        ) as MockRouter:
             MockRouter.return_value.get_multiplier.return_value = 0.85
             s = MockSettings()
             s.AUTO_APPROVE_MIN_CONFIDENCE = 0.60
@@ -365,7 +367,9 @@ class TestImmutableSafetyRules:
 
     def test_regime_multiplier_unknown_strategy(self):
         """Test that unknown strategy gets default 1.0x multiplier."""
-        with patch("backend.application.meta.regime_router.RegimeConfidenceRouter") as MockRouter:
+        with patch(
+            "backend.application.meta.regime_router.RegimeConfidenceRouter"
+        ) as MockRouter:
             MockRouter.return_value.get_multiplier.return_value = 1.0
             s = MockSettings()
             s.AUTO_APPROVE_MIN_CONFIDENCE = 0.50
@@ -379,7 +383,9 @@ class TestImmutableSafetyRules:
 
     def test_regime_multiplier_capped_at_095(self):
         """Test that regime multiplier is capped at 0.95."""
-        with patch("backend.application.meta.regime_router.RegimeConfidenceRouter") as MockRouter:
+        with patch(
+            "backend.application.meta.regime_router.RegimeConfidenceRouter"
+        ) as MockRouter:
             MockRouter.return_value.get_multiplier.return_value = 2.0
             s = MockSettings()
             s.AUTO_APPROVE_MIN_CONFIDENCE = 0.80
@@ -395,7 +401,9 @@ class TestImmutableSafetyRules:
         """Risk manager must cap any trade size to settings.MAX_TRADE_SIZE."""
         s = MockSettings()
         s.MAX_TRADE_SIZE = 50.0  # Set a known ceiling
-        s.MAX_POSITION_FRACTION = 0.50  # Allow large fraction to isolate MAX_TRADE_SIZE effect
+        s.MAX_POSITION_FRACTION = (
+            0.50  # Allow large fraction to isolate MAX_TRADE_SIZE effect
+        )
         rm = RiskManager(settings_obj=s)
 
         # Request a size far above MAX_TRADE_SIZE
@@ -471,8 +479,10 @@ class TestEdgeFilter:
 
     def test_check_edge_raises_on_low_edge(self):
         from backend.core.risk_manager import EdgeFilterError
+
         rm = RiskManager(settings_obj=self._settings_with_edge(5.0))
         import pytest
+
         with pytest.raises(EdgeFilterError):
             rm.check_edge(market_price=0.50, signal_win_rate=0.52, market_id="X")
 
@@ -483,8 +493,10 @@ class TestEdgeFilter:
 
     def test_check_edge_rejects_longshot_without_huge_edge(self):
         from backend.core.risk_manager import EdgeFilterError
+
         rm = RiskManager(settings_obj=self._settings_with_edge(5.0))
         import pytest
+
         with pytest.raises(EdgeFilterError):
             rm.check_edge(market_price=0.25, signal_win_rate=0.30, market_id="X")
 

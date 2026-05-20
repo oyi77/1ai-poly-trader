@@ -78,9 +78,23 @@ class TestUniversalScanner:
         # Mock debate to return consensus_probability that creates edge
         mock_debate = MagicMock()
         mock_debate.consensus_probability = 0.90  # edge = 0.90 - 0.80 = 0.10
-        with patch("backend.strategies.universal_scanner._run_debate_gate", new_callable=AsyncMock, return_value=mock_debate), \
-             patch("backend.strategies.universal_scanner._fetch_web_context", new_callable=AsyncMock, return_value=None), \
-             patch("backend.strategies.universal_scanner._fetch_brain_context", new_callable=AsyncMock, return_value=None):
+        with (
+            patch(
+                "backend.strategies.universal_scanner._run_debate_gate",
+                new_callable=AsyncMock,
+                return_value=mock_debate,
+            ),
+            patch(
+                "backend.strategies.universal_scanner._fetch_web_context",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "backend.strategies.universal_scanner._fetch_brain_context",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
             signal = await scanner.analyze_market(market)
         assert signal is not None
         assert signal["ticker"] == "test-1"
@@ -107,9 +121,23 @@ class TestUniversalScanner:
         # Mock debate to return consensus close to market price (edge < min_edge)
         mock_debate = MagicMock()
         mock_debate.consensus_probability = 0.52  # edge = 0.52 - 0.51 = 0.01 < min_edge
-        with patch("backend.strategies.universal_scanner._run_debate_gate", new_callable=AsyncMock, return_value=mock_debate), \
-             patch("backend.strategies.universal_scanner._fetch_web_context", new_callable=AsyncMock, return_value=None), \
-             patch("backend.strategies.universal_scanner._fetch_brain_context", new_callable=AsyncMock, return_value=None):
+        with (
+            patch(
+                "backend.strategies.universal_scanner._run_debate_gate",
+                new_callable=AsyncMock,
+                return_value=mock_debate,
+            ),
+            patch(
+                "backend.strategies.universal_scanner._fetch_web_context",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "backend.strategies.universal_scanner._fetch_brain_context",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
             signal = await scanner.analyze_market(market)
         assert signal is None
 
@@ -136,7 +164,9 @@ class TestUniversalScanner:
     @pytest.mark.asyncio
     async def test_scan_all_mocks_gamma_api(self):
         scanner = UniversalScanner()
-        all_markets = [make_market(yes_price=0.60, no_price=0.40) for _ in range(PAGE_SIZE * 2)]
+        all_markets = [
+            make_market(yes_price=0.60, no_price=0.40) for _ in range(PAGE_SIZE * 2)
+        ]
 
         async def mock_fetch(client, offset, semaphore, retry_count=0, breaker=None):
             start = offset
@@ -146,7 +176,7 @@ class TestUniversalScanner:
         with patch("backend.strategies.universal_scanner.httpx.AsyncClient"):
             with patch(
                 "backend.strategies.universal_scanner._fetch_page_with_retry",
-                mock_fetch
+                mock_fetch,
             ):
                 markets = await scanner.scan_all()
 
@@ -158,6 +188,7 @@ class TestUniversalScanner:
 
         async def mock_scan_all():
             from backend.strategies.base import MarketInfo
+
             return [
                 MarketInfo(
                     ticker="sig-1",
@@ -201,7 +232,7 @@ class TestStressScenarios:
         with patch("backend.strategies.universal_scanner.httpx.AsyncClient"):
             with patch(
                 "backend.strategies.universal_scanner._fetch_page_with_retry",
-                mock_fetch
+                mock_fetch,
             ):
                 markets = await scanner.scan_all()
 
@@ -220,7 +251,7 @@ class TestStressScenarios:
         with patch("backend.strategies.universal_scanner.httpx.AsyncClient"):
             with patch(
                 "backend.strategies.universal_scanner._fetch_page_with_retry",
-                mock_fetch
+                mock_fetch,
             ):
                 markets = await scanner.scan_all()
 
@@ -248,9 +279,23 @@ class TestStressScenarios:
         mock_debate.consensus_probability = 0.90
 
         async def concurrent_analyze():
-            with patch("backend.strategies.universal_scanner._run_debate_gate", new_callable=AsyncMock, return_value=mock_debate), \
-                 patch("backend.strategies.universal_scanner._fetch_web_context", new_callable=AsyncMock, return_value=None), \
-                 patch("backend.strategies.universal_scanner._fetch_brain_context", new_callable=AsyncMock, return_value=None):
+            with (
+                patch(
+                    "backend.strategies.universal_scanner._run_debate_gate",
+                    new_callable=AsyncMock,
+                    return_value=mock_debate,
+                ),
+                patch(
+                    "backend.strategies.universal_scanner._fetch_web_context",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ),
+                patch(
+                    "backend.strategies.universal_scanner._fetch_brain_context",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ),
+            ):
                 return await scanner.analyze_market(market)
 
         results = await asyncio.gather(concurrent_analyze(), concurrent_analyze())

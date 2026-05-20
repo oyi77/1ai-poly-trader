@@ -3,6 +3,7 @@
 Fetches prediction-market news from multiple sources and chunks them
 for embedding and vector storage.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -22,6 +23,7 @@ HF_NEWS_API = "https://datasets-server.huggingface.co/rows"
 @dataclass
 class NewsArticle:
     """A raw news article before chunking."""
+
     title: str
     text: str
     source: str = "unknown"
@@ -38,6 +40,7 @@ class NewsArticle:
 @dataclass
 class NewsChunk:
     """A chunk of a news article ready for embedding."""
+
     text: str
     article_id: str
     chunk_index: int
@@ -106,12 +109,14 @@ class NewsIngester:
                         continue
                     text = _extract_text_from_html(resp.text)
                     if text:
-                        articles.append(NewsArticle(
-                            title=_extract_title(resp.text),
-                            text=text,
-                            source=url.split("/")[2] if "/" in url else url,
-                            url=url,
-                        ))
+                        articles.append(
+                            NewsArticle(
+                                title=_extract_title(resp.text),
+                                text=text,
+                                source=url.split("/")[2] if "/" in url else url,
+                                url=url,
+                            )
+                        )
                 except Exception as e:
                     logger.debug(f"Failed to fetch {url}: {e}")
         logger.info(f"news_ingester: fetched {len(articles)} articles from URLs")
@@ -125,12 +130,40 @@ class NewsIngester:
             if not text:
                 continue
             # Split on sentence boundaries when possible
-            sentences = re.split(r'(?<=[.!?])\s+', text)
+            sentences = re.split(r"(?<=[.!?])\s+", text)
             current_chunk = ""
             chunk_idx = 0
             for sentence in sentences:
-                if len(current_chunk) + len(sentence) > self.chunk_size and current_chunk:
-                    chunks.append(NewsChunk(
+                if (
+                    len(current_chunk) + len(sentence) > self.chunk_size
+                    and current_chunk
+                ):
+                    chunks.append(
+                        NewsChunk(
+                            text=current_chunk.strip(),
+                            article_id=article.article_id,
+                            chunk_index=chunk_idx,
+                            metadata={
+                                "title": article.title,
+                                "source": article.source,
+                                "url": article.url,
+                                **article.metadata,
+                            },
+                        )
+                    )
+                    chunk_idx += 1
+                    # Keep overlap
+                    overlap_text = (
+                        current_chunk[-self.chunk_overlap :]
+                        if self.chunk_overlap
+                        else ""
+                    )
+                    current_chunk = overlap_text + " " + sentence
+                else:
+                    current_chunk = (current_chunk + " " + sentence).strip()
+            if current_chunk.strip():
+                chunks.append(
+                    NewsChunk(
                         text=current_chunk.strip(),
                         article_id=article.article_id,
                         chunk_index=chunk_idx,
@@ -140,41 +173,28 @@ class NewsIngester:
                             "url": article.url,
                             **article.metadata,
                         },
-                    ))
-                    chunk_idx += 1
-                    # Keep overlap
-                    overlap_text = current_chunk[-self.chunk_overlap:] if self.chunk_overlap else ""
-                    current_chunk = overlap_text + " " + sentence
-                else:
-                    current_chunk = (current_chunk + " " + sentence).strip()
-            if current_chunk.strip():
-                chunks.append(NewsChunk(
-                    text=current_chunk.strip(),
-                    article_id=article.article_id,
-                    chunk_index=chunk_idx,
-                    metadata={
-                        "title": article.title,
-                        "source": article.source,
-                        "url": article.url,
-                        **article.metadata,
-                    },
-                ))
-        logger.info(f"news_ingester: created {len(chunks)} chunks from {len(articles)} articles")
+                    )
+                )
+        logger.info(
+            f"news_ingester: created {len(chunks)} chunks from {len(articles)} articles"
+        )
         return chunks
 
 
 def _extract_text_from_html(html: str) -> str:
     """Simple HTML text extraction (no external deps)."""
     # Remove script/style tags and their content
-    html = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(
+        r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE
+    )
     # Remove HTML tags
-    text = re.sub(r'<[^>]+>', ' ', html)
+    text = re.sub(r"<[^>]+>", " ", html)
     # Collapse whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
 def _extract_title(html: str) -> str:
     """Extract title from HTML."""
-    match = re.search(r'<title[^>]*>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+    match = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
     return match.group(1).strip() if match else ""

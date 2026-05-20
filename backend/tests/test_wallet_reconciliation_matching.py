@@ -1,4 +1,5 @@
 """T17: Wallet reconciliation condition_id matching + orphan logging [#49]."""
+
 import logging
 import pytest
 from unittest.mock import MagicMock
@@ -10,6 +11,7 @@ from backend.models.database import Base, Trade
 def test_db():
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -18,7 +20,9 @@ def test_db():
     db.close()
 
 
-def _make_trade(db, market_ticker, direction="up", entry_price=0.50, size=10.0, trading_mode="paper"):
+def _make_trade(
+    db, market_ticker, direction="up", entry_price=0.50, size=10.0, trading_mode="paper"
+):
     trade = Trade(
         market_ticker=market_ticker,
         direction=direction,

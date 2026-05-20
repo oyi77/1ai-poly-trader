@@ -1,4 +1,5 @@
 """Codebase scanner AGI node — wraps CodebaseScanner for the graph engine."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -28,18 +29,25 @@ class CodebaseScannerNode(BaseAGINode):
             graph = scanner.scan_all()
             analyzer = ImprovementAnalyzer(scanner)
             candidates = analyzer.find_candidates()
-            return state.evolve(data={
-                "modules": len(graph.all_modules()),
-                "candidates": [{
-                    "category": c.category,
-                    "file_path": c.file_path,
-                    "severity": c.severity,
-                    "description": c.description,
-                } for c in candidates[:50]],
-                "health_metrics": {
-                    "total_modules": len(graph.all_modules()),
-                    "total_lines": sum(m.lines for m in graph.all_modules()),
-                    "total_candidates": len(candidates),
-                },
-            })
-        return state.with_error(self.manifest().name, ValueError(f"Unknown action: {action}"))
+            return state.evolve(
+                data={
+                    "modules": len(graph.all_modules()),
+                    "candidates": [
+                        {
+                            "category": c.category,
+                            "file_path": c.file_path,
+                            "severity": c.severity,
+                            "description": c.description,
+                        }
+                        for c in candidates[:50]
+                    ],
+                    "health_metrics": {
+                        "total_modules": len(graph.all_modules()),
+                        "total_lines": sum(m.lines for m in graph.all_modules()),
+                        "total_candidates": len(candidates),
+                    },
+                }
+            )
+        return state.with_error(
+            self.manifest().name, ValueError(f"Unknown action: {action}")
+        )

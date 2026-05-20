@@ -3,6 +3,7 @@
 Loads a trained model and provides probability predictions for
 market outcomes based on engineered features.
 """
+
 from __future__ import annotations
 
 import os
@@ -23,9 +24,10 @@ DEFAULT_MODEL_PATH = os.path.join(
 @dataclass
 class Prediction:
     """A market outcome prediction."""
+
     market_id: str
     probability: float  # P(YES)
-    confidence: float   # model confidence (distance from 0.5)
+    confidence: float  # model confidence (distance from 0.5)
     features: Dict[str, float]
     model_type: str = ""
 
@@ -42,6 +44,7 @@ class MLPredictor:
     def load(self) -> bool:
         """Load the trained model from disk. Returns False if not found."""
         import joblib
+
         if not os.path.exists(self.model_path):
             logger.warning(f"ml_predictor: model not found at {self.model_path}")
             return False
@@ -65,8 +68,11 @@ class MLPredictor:
         if not self.is_loaded:
             if not self.load():
                 return Prediction(
-                    market_id=market_id, probability=0.5, confidence=0.0,
-                    features={}, model_type="none",
+                    market_id=market_id,
+                    probability=0.5,
+                    confidence=0.0,
+                    features={},
+                    model_type="none",
                 )
 
         features = self.fe.transform_one(market_row)
@@ -89,7 +95,12 @@ class MLPredictor:
         if not self.is_loaded:
             if not self.load():
                 return [
-                    Prediction(market_id=mid or "", probability=0.5, confidence=0.0, features={})
+                    Prediction(
+                        market_id=mid or "",
+                        probability=0.5,
+                        confidence=0.0,
+                        features={},
+                    )
                     for mid in (market_ids or [""] * len(market_rows))
                 ]
 
@@ -100,11 +111,13 @@ class MLPredictor:
         predictions = []
         for i, (prob, features) in enumerate(zip(probs, features_list)):
             mid = market_ids[i] if market_ids and i < len(market_ids) else ""
-            predictions.append(Prediction(
-                market_id=mid,
-                probability=float(prob),
-                confidence=abs(float(prob) - 0.5) * 2,
-                features=features,
-                model_type=self._model_type,
-            ))
+            predictions.append(
+                Prediction(
+                    market_id=mid,
+                    probability=float(prob),
+                    confidence=abs(float(prob) - 0.5) * 2,
+                    features=features,
+                    model_type=self._model_type,
+                )
+            )
         return predictions

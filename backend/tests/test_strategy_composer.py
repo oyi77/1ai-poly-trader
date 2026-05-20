@@ -1,4 +1,3 @@
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -225,7 +224,9 @@ class TestStrategyComposerRegister:
         ]
         composed = composer.compose(blocks, name="btc_momentum")
         experiment_id = composer.register_composed(composed)
-        record = session.query(ExperimentRecord).filter_by(id=int(experiment_id)).first()
+        record = (
+            session.query(ExperimentRecord).filter_by(id=int(experiment_id)).first()
+        )
         assert record is not None
         assert record.name == "btc_momentum"
         assert record.status == "shadow"

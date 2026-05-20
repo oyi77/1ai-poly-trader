@@ -1,4 +1,5 @@
 """Forensics AGI node - wraps existing trade forensics."""
+
 from backend.agi.base_node import BaseAGINode, NodeManifest
 from backend.agi.agent_state import AgentState
 from backend.agi.node_registry import node_registry
@@ -25,7 +26,9 @@ class ForensicsNode(BaseAGINode):
 
         loss_trades = state.get("loss_trades", [])
         if not loss_trades:
-            return state.with_error(self.manifest().name, ValueError("No loss trades provided"))
+            return state.with_error(
+                self.manifest().name, ValueError("No loss trades provided")
+            )
 
         try:
             forensics = TradeForensics()

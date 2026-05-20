@@ -1,4 +1,5 @@
 """Tests for backend.core.dispute_tracker."""
+
 import pytest
 
 from backend.core.dispute_tracker import (

@@ -1,4 +1,3 @@
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -64,11 +63,11 @@ class TestStrategySynthesizerValidateSyntax:
 class TestStrategySynthesizerValidateTypes:
     def test_valid_types_pass(self):
         synthesizer, _, _ = make_synthesizer_session()
-        code = '''
+        code = """
 class MyStrategy(BaseStrategy):
     def __init__(self):
         self.risk = RiskManager()
-'''
+"""
         result = synthesizer.validate_types(code)
         assert result.valid
 
@@ -83,10 +82,10 @@ class MyStrategy(BaseStrategy):
         # validate_types only checks for BaseStrategy inheritance; RiskManager
         # is no longer a hard requirement at the type-check gate.
         synthesizer, _, _ = make_synthesizer_session()
-        code = '''
+        code = """
 class MyStrategy(BaseStrategy):
     pass
-'''
+"""
         result = synthesizer.validate_types(code)
         assert result.valid
 
@@ -117,11 +116,11 @@ class TestStrategySynthesizerLintCode:
 class TestStrategySynthesizerSafeImport:
     def test_safe_import_succeeds(self):
         synthesizer, _, _ = make_synthesizer_session()
-        code = '''
+        code = """
 class GeneratedStrategy:
     def run(self):
         return []
-'''
+"""
         result = synthesizer.safe_import_test(code)
         assert result.valid
 
@@ -144,7 +143,9 @@ class TestStrategySynthesizerRegister:
         )
         experiment_id = synthesizer.register_generated(generated)
         assert experiment_id is not None
-        record = session.query(ExperimentRecord).filter_by(id=int(experiment_id)).first()
+        record = (
+            session.query(ExperimentRecord).filter_by(id=int(experiment_id)).first()
+        )
         assert record is not None
         assert record.status == "shadow"
 

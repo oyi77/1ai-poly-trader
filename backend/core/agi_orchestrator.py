@@ -83,6 +83,7 @@ class AGIOrchestrator:
             self._core = cognitive_core
         else:
             from backend.core.cognitive_core import DegradedCore
+
             self._core = DegradedCore()
 
     def close(self):
@@ -102,10 +103,13 @@ class AGIOrchestrator:
 
         try:
             from backend.mesh.health import SourceHealthMonitor
+
             monitor = SourceHealthMonitor()
             source_mult = monitor.global_risk_multiplier()
             if source_mult < 1.0:
-                logger.warning(f"DataMesh health degraded: risk_multiplier={source_mult}")
+                logger.warning(
+                    f"DataMesh health degraded: risk_multiplier={source_mult}"
+                )
         except Exception as e:
             logger.debug(f"DataMesh health check skipped: {e}")
             source_mult = 1.0
@@ -113,6 +117,7 @@ class AGIOrchestrator:
         try:
             from backend.core.regime_detector import RegimeDetector
             from backend.data.crypto import fetch_binance_klines
+
             detector = RegimeDetector()
 
             # Fetch real BTC prices to feed the RegimeDetector
@@ -126,21 +131,33 @@ class AGIOrchestrator:
                     market_data["prices"] = closes
                     market_data["volumes"] = volumes
                     # Calculate simple SMA
-                    market_data["sma_50"] = sum(closes[-50:]) / 50 if len(closes) >= 50 else closes[-1]
-                    market_data["sma_200"] = sum(closes[-200:]) / 200 if len(closes) >= 200 else closes[-1]
+                    market_data["sma_50"] = (
+                        sum(closes[-50:]) / 50 if len(closes) >= 50 else closes[-1]
+                    )
+                    market_data["sma_200"] = (
+                        sum(closes[-200:]) / 200 if len(closes) >= 200 else closes[-1]
+                    )
                     # Estimate volatility (ATR percent) and drawdown
                     max_price = max(closes)
-                    market_data["drawdown"] = (max_price - closes[-1]) / max_price if max_price > 0 else 0.0
+                    market_data["drawdown"] = (
+                        (max_price - closes[-1]) / max_price if max_price > 0 else 0.0
+                    )
                     if len(closes) >= 15:
-                        trs = [abs(closes[-i] - closes[-i-1]) for i in range(1, 15)]
+                        trs = [abs(closes[-i] - closes[-i - 1]) for i in range(1, 15)]
                         atr = sum(trs) / len(trs)
-                        market_data["atr_percentile"] = atr / closes[-1] if closes[-1] > 0 else 0.0
+                        market_data["atr_percentile"] = (
+                            atr / closes[-1] if closes[-1] > 0 else 0.0
+                        )
                     else:
                         market_data["atr_percentile"] = 0.0
                     if len(volumes) >= 20:
                         vol_recent = sum(volumes[-10:]) / 10
                         vol_prior = sum(volumes[-20:-10]) / 10
-                        market_data["volume_trend"] = (vol_recent - vol_prior) / vol_prior if vol_prior > 0 else 0.0
+                        market_data["volume_trend"] = (
+                            (vol_recent - vol_prior) / vol_prior
+                            if vol_prior > 0
+                            else 0.0
+                        )
                     else:
                         market_data["volume_trend"] = 0.0
             except Exception as e:
@@ -155,6 +172,7 @@ class AGIOrchestrator:
 
         try:
             from backend.core.agi_goal_engine import AGIGoalEngine
+
             goal_engine = AGIGoalEngine(session=self._session)
             goal = goal_engine.get_current_goal(regime)
             self._current_goal = goal
@@ -169,14 +187,20 @@ class AGIOrchestrator:
             from backend.core.knowledge_graph import KnowledgeGraph
             from backend.db.utils import get_db_session
             from backend.models.database import StrategyConfig
+
             kg = KnowledgeGraph(session=self._session)
             allocator = RegimeAwareAllocator(kg=kg)
             with get_db_session() as db:
-                active = [r[0] for r in db.query(StrategyConfig.strategy_name).filter(
-                    StrategyConfig.enabled.is_(True)
-                ).all()]
+                active = [
+                    r[0]
+                    for r in db.query(StrategyConfig.strategy_name)
+                    .filter(StrategyConfig.enabled.is_(True))
+                    .all()
+                ]
             strategy_names = active if active else ["btc_oracle", "weather_emos"]
-            allocations = allocator.allocate(strategy_names, regime, capital=10000.0 * source_mult)
+            allocations = allocator.allocate(
+                strategy_names, regime, capital=10000.0 * source_mult
+            )
             actions += 1
         except Exception as e:
             errors.append(f"Allocation failed: {e}")
@@ -186,20 +210,32 @@ class AGIOrchestrator:
         if kg is not None:
             try:
                 _cycle_id = f"cycle_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{id(self)}"
-                kg.add_entity("regime", f"regime:{regime.value}", {
-                    "value": regime.value,
-                    "detected_at": datetime.now(timezone.utc).isoformat(),
-                })
-                kg.add_entity("goal", f"goal:{goal.value}", {
-                    "value": goal.value,
-                    "set_at": datetime.now(timezone.utc).isoformat(),
-                })
+                kg.add_entity(
+                    "regime",
+                    f"regime:{regime.value}",
+                    {
+                        "value": regime.value,
+                        "detected_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+                kg.add_entity(
+                    "goal",
+                    f"goal:{goal.value}",
+                    {
+                        "value": goal.value,
+                        "set_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
                 for strat_name, amount in allocations.items():
-                    kg.add_entity("strategy", f"strategy:{strat_name}", {
-                        "name": strat_name,
-                        "allocated_capital": amount,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    })
+                    kg.add_entity(
+                        "strategy",
+                        f"strategy:{strat_name}",
+                        {
+                            "name": strat_name,
+                            "allocated_capital": amount,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                    )
                     kg.add_relation(
                         f"regime:{regime.value}",
                         f"strategy:{strat_name}",
@@ -225,7 +261,9 @@ class AGIOrchestrator:
                 # Recent regime history (last 10 detected regimes)
                 recent_regimes = kg.query_by_type("regime", limit=10)
                 kg_context["recent_regimes"] = [
-                    e.properties.get("value") for e in recent_regimes if e.properties.get("value")
+                    e.properties.get("value")
+                    for e in recent_regimes
+                    if e.properties.get("value")
                 ]
                 # Best strategies for current regime
                 best_strats = kg.query_best_strategies(regime, limit=5)
@@ -245,6 +283,7 @@ class AGIOrchestrator:
         try:
             from backend.core.strategy_composer import StrategyComposer
             from backend.core.agi_types import StrategyBlock
+
             composer = StrategyComposer(session=self._session)
             signal_source = {
                 MarketRegime.BULL: "btc_momentum_signal",
@@ -275,7 +314,9 @@ class AGIOrchestrator:
                 exit_rule="take_profit_10pct",
             )
             composed_name = f"auto_{regime.value}_{goal.value}"
-            composed = composer.compose([block], name=composed_name, kg_context=kg_context)
+            composed = composer.compose(
+                [block], name=composed_name, kg_context=kg_context
+            )
             composer.register_composed(composed)
             actions += 1
         except Exception as e:
@@ -315,7 +356,9 @@ class AGIOrchestrator:
             self._session.add(audit)
             self._session.commit()
         except Exception:
-            logger.exception("AGIOrchestrator.emergency_stop: failed to log audit record")
+            logger.exception(
+                "AGIOrchestrator.emergency_stop: failed to log audit record"
+            )
             try:
                 self._session.rollback()
             except Exception:
@@ -370,6 +413,7 @@ def _get_httpx_transient() -> tuple[type[BaseException], ...]:
     if not _httpx_checked:
         try:
             import httpx
+
             _httpx_transient = (httpx.TimeoutException, httpx.HTTPStatusError)
         except ImportError:
             _httpx_transient = ()
@@ -400,14 +444,13 @@ def classify_exception(exc: BaseException) -> ErrorType:
     return ErrorType.BENIGN
 
 
-
-
-
 # Module-level circuit breaker state for TRANSIENT-failure tracking across cycles.
 _consecutive_failures: int = 0
 _circuit_open: bool = False
 _TRANSIENT_FAILURE_THRESHOLD: int = 3
-_STATS_REPORT_CRITICAL_ERRORS: bool = os.getenv("STATS_REPORT_CRITICAL_ERRORS", "false").lower() in ("true", "1", "yes")
+_STATS_REPORT_CRITICAL_ERRORS: bool = os.getenv(
+    "STATS_REPORT_CRITICAL_ERRORS", "false"
+).lower() in ("true", "1", "yes")
 
 
 def _open_circuit() -> None:
@@ -424,13 +467,16 @@ def _alert_permanent_failure(stage: str, exc: BaseException) -> None:
     """Send a ProductionMonitor alert for a PERMANENT stage failure."""
     try:
         from backend.core.monitoring import ProductionMonitor
+
         ProductionMonitor().send_alert(
             severity="critical",
             message=f"AGI cycle PERMANENT failure in stage '{stage}': {exc}",
             details={"stage": stage, "error_type": "PERMANENT", "exception": str(exc)},
         )
     except Exception as alert_err:
-        logger.warning("[agi_improvement_cycle] ProductionMonitor alert failed: %s", alert_err)
+        logger.warning(
+            "[agi_improvement_cycle] ProductionMonitor alert failed: %s", alert_err
+        )
 
 
 def _record_transient_failure(stage: str, exc: BaseException) -> None:
@@ -505,6 +551,7 @@ async def agi_improvement_cycle_job() -> None:
 
     try:
         from backend.ai.feedback_tracker import measure_recent_changes
+
         result = measure_recent_changes()
         stats["feedback_measured"] = result.get("measured", 0)
         stats["stage_results"]["feedback"] = "ok"
@@ -513,7 +560,9 @@ async def agi_improvement_cycle_job() -> None:
         stats["stage_results"]["feedback"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] feedback stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] feedback stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("feedback", e)
             stats["errors"].append(f"feedback: {e}")
@@ -523,12 +572,15 @@ async def agi_improvement_cycle_job() -> None:
             stats["errors"].append(f"feedback: {e}")
             raise
         logger.warning(
-            "[agi_improvement_cycle] feedback stage failed (BENIGN): %s", e, exc_info=True,
+            "[agi_improvement_cycle] feedback stage failed (BENIGN): %s",
+            e,
+            exc_info=True,
         )
         stats["errors"].append(f"feedback: {e}")
 
     try:
         from backend.ai.meta_learner import MetaLearner
+
         stats["meta_learned"] = MetaLearner().update_from_feedback()
         stats["stage_results"]["meta_learning"] = "ok"
     except Exception as e:
@@ -536,7 +588,9 @@ async def agi_improvement_cycle_job() -> None:
         stats["stage_results"]["meta_learning"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] meta_learn stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] meta_learn stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("meta_learning", e)
             stats["errors"].append(f"meta_learn: {e}")
@@ -546,12 +600,15 @@ async def agi_improvement_cycle_job() -> None:
             stats["errors"].append(f"meta_learn: {e}")
             raise
         logger.warning(
-            "[agi_improvement_cycle] meta_learn stage failed (BENIGN): %s", e, exc_info=True,
+            "[agi_improvement_cycle] meta_learn stage failed (BENIGN): %s",
+            e,
+            exc_info=True,
         )
         stats["errors"].append(f"meta_learn: {e}")
 
     try:
         from backend.agents.autoresearch.evolver import StrategyEvolver
+
         stats["evolution_variants"] = len(StrategyEvolver().run_evolution_cycle())
         stats["stage_results"]["evolution"] = "ok"
     except Exception as e:
@@ -559,7 +616,9 @@ async def agi_improvement_cycle_job() -> None:
         stats["stage_results"]["evolution"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] evolution stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] evolution stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("evolution", e)
             stats["errors"].append(f"evolution: {e}")
@@ -569,26 +628,34 @@ async def agi_improvement_cycle_job() -> None:
             stats["errors"].append(f"evolution: {e}")
             raise
         logger.warning(
-            "[agi_improvement_cycle] evolution stage failed (BENIGN): %s", e, exc_info=True,
+            "[agi_improvement_cycle] evolution stage failed (BENIGN): %s",
+            e,
+            exc_info=True,
         )
         stats["errors"].append(f"evolution: {e}")
 
     try:
         from backend.ai.proposal_generator import auto_promote_eligible_proposals
+
         auto_promote_eligible_proposals()
         from backend.models.database import StrategyProposal
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
-            stats["proposals_promoted"] = db.query(StrategyProposal).filter(
-                StrategyProposal.admin_decision == "auto_approved"
-            ).count()
+            stats["proposals_promoted"] = (
+                db.query(StrategyProposal)
+                .filter(StrategyProposal.admin_decision == "auto_approved")
+                .count()
+            )
         stats["stage_results"]["promotion"] = "ok"
     except Exception as e:
         etype = classify_exception(e)
         stats["stage_results"]["promotion"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] proposals stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] proposals stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("promotion", e)
             stats["errors"].append(f"proposals: {e}")
@@ -601,14 +668,21 @@ async def agi_improvement_cycle_job() -> None:
         from backend.models.database import StrategyConfig
         from backend.models.outcome_tables import StrategyHealthRecord
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
-            killed = db.query(StrategyHealthRecord).filter(
-                StrategyHealthRecord.status == "killed",
-            ).all()
+            killed = (
+                db.query(StrategyHealthRecord)
+                .filter(
+                    StrategyHealthRecord.status == "killed",
+                )
+                .all()
+            )
             for hr in killed:
-                config = db.query(StrategyConfig).filter(
-                    StrategyConfig.strategy_name == hr.strategy
-                ).first()
+                config = (
+                    db.query(StrategyConfig)
+                    .filter(StrategyConfig.strategy_name == hr.strategy)
+                    .first()
+                )
                 if config and config.enabled:
                     config.enabled = False
                     stats["strategies_replaced"] += 1
@@ -620,7 +694,9 @@ async def agi_improvement_cycle_job() -> None:
         stats["stage_results"]["replacement"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] replacement stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] replacement stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("replacement", e)
             stats["errors"].append(f"replacement: {e}")
@@ -651,7 +727,10 @@ async def agi_improvement_cycle_job() -> None:
                     ],
                 }
         except Exception as _kg_err:
-            logger.debug("[agi_improvement_cycle] KG context fetch failed (non-fatal): %s", _kg_err)
+            logger.debug(
+                "[agi_improvement_cycle] KG context fetch failed (non-fatal): %s",
+                _kg_err,
+            )
 
         with get_db_session() as synth_db:
             synthesizer = StrategySynthesizer(session=synth_db)
@@ -666,22 +745,30 @@ async def agi_improvement_cycle_job() -> None:
                 stats["stage_results"]["composition"] = "ok"
                 logger.info(
                     "[agi_improvement_cycle] Synthesized strategy '%s' passed all gates → SHADOW (exp_id=%s)",
-                    generated.name, exp_id,
+                    generated.name,
+                    exp_id,
                 )
             else:
                 stats["strategies_composed"] = 0
-                failed_gates = [k for k, v in generated.gate_results.items() if not v.get("passed", True)]
+                failed_gates = [
+                    k
+                    for k, v in generated.gate_results.items()
+                    if not v.get("passed", True)
+                ]
                 stats["stage_results"]["composition"] = f"gate_failed:{failed_gates}"
                 logger.warning(
                     "[agi_improvement_cycle] Synthesized strategy '%s' failed gates: %s",
-                    generated.name, failed_gates,
+                    generated.name,
+                    failed_gates,
                 )
     except Exception as e:
         etype = classify_exception(e)
         stats["stage_results"]["composition"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] composition stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] composition stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("composition", e)
             stats["errors"].append(f"composition: {e}")
@@ -692,16 +779,21 @@ async def agi_improvement_cycle_job() -> None:
 
     try:
         from backend.ai.counterfactual_scorer import run_counterfactual_cycle
+
         cf_result = await run_counterfactual_cycle()
         stats["counterfactual_scored"] = cf_result.get("scoring", {}).get("scored", 0)
-        stats["counterfactual_insights"] = cf_result.get("insights", {}).get("insights", 0)
+        stats["counterfactual_insights"] = cf_result.get("insights", {}).get(
+            "insights", 0
+        )
         stats["stage_results"]["counterfactual"] = "ok"
     except Exception as e:
         etype = classify_exception(e)
         stats["stage_results"]["counterfactual"] = f"error:{etype.value}"
         if etype == ErrorType.PERMANENT:
             logger.critical(
-                "[agi_improvement_cycle] counterfactual stage PERMANENT failure: %s", e, exc_info=True,
+                "[agi_improvement_cycle] counterfactual stage PERMANENT failure: %s",
+                e,
+                exc_info=True,
             )
             _alert_permanent_failure("counterfactual", e)
             stats["errors"].append(f"counterfactual: {e}")
@@ -711,7 +803,9 @@ async def agi_improvement_cycle_job() -> None:
             stats["errors"].append(f"counterfactual: {e}")
             raise
         logger.warning(
-            "[agi_improvement_cycle] counterfactual stage failed (BENIGN): %s", e, exc_info=True,
+            "[agi_improvement_cycle] counterfactual stage failed (BENIGN): %s",
+            e,
+            exc_info=True,
         )
         stats["errors"].append(f"counterfactual: {e}")
 
@@ -719,7 +813,8 @@ async def agi_improvement_cycle_job() -> None:
         _reset_circuit()
     else:
         logger.warning(
-            "[agi_improvement_cycle] cycle completed with %d error(s)", len(stats["errors"]),
+            "[agi_improvement_cycle] cycle completed with %d error(s)",
+            len(stats["errors"]),
         )
 
     if len(stats["errors"]) >= 4:
@@ -731,6 +826,7 @@ async def agi_improvement_cycle_job() -> None:
             try:
                 from backend.core.monitoring import ProductionMonitor
                 from backend.db.utils import get_db_session
+
                 with get_db_session() as db:
                     ProductionMonitor(db).send_alert(
                         severity="critical",
@@ -738,7 +834,9 @@ async def agi_improvement_cycle_job() -> None:
                         details={"errors": stats["errors"]},
                     )
             except Exception:
-                logger.exception("[agi_improvement_cycle] failed to send critical alert via ProductionMonitor")
+                logger.exception(
+                    "[agi_improvement_cycle] failed to send critical alert via ProductionMonitor"
+                )
 
     logger.info(
         "[agi_improvement_cycle] feedback=%d meta=%d evolved=%d promoted=%d composed=%d replaced=%d cf_scored=%d errors=%d",

@@ -1,4 +1,5 @@
 """Tests for HuggingFace Dataset Collector."""
+
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +19,7 @@ class TestHFDatasetCollector:
 
     def teardown_method(self):
         import shutil
+
         cache = Path("/tmp/test_hf_cache")
         if cache.exists():
             shutil.rmtree(cache)
@@ -46,6 +48,7 @@ class TestHFDatasetCollector:
         p.write_text("data")
         old_time = time.time() - 100 * 3600
         import os
+
         os.utime(p, (old_time, old_time))
         assert self.collector._cache_valid(p) is False
 
@@ -66,6 +69,7 @@ class TestHFDatasetCollector:
     @patch("backend.data.hf_dataset_collector.HFDatasetCollector._download")
     def test_fetch_caches_result(self, mock_download, tmp_path):
         import pandas as pd
+
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         mock_download.return_value = df
 
@@ -83,6 +87,7 @@ class TestHFDatasetCollector:
     @patch("backend.data.hf_dataset_collector.HFDatasetCollector._download")
     def test_fetch_force_refresh(self, mock_download, tmp_path):
         import pandas as pd
+
         df = pd.DataFrame({"x": [1]})
         mock_download.return_value = df
 
@@ -95,6 +100,7 @@ class TestHFDatasetCollector:
     @patch("backend.data.hf_dataset_collector.HFDatasetCollector._download")
     def test_list_cached_after_fetch(self, mock_download, tmp_path):
         import pandas as pd
+
         df = pd.DataFrame({"x": [1, 2]})
         mock_download.return_value = df
 
@@ -109,6 +115,7 @@ class TestHFDatasetCollector:
 class TestGetHFCollector:
     def test_singleton(self):
         import backend.data.hf_dataset_collector as mod
+
         mod._collector = None
         c1 = get_hf_collector()
         c2 = get_hf_collector()

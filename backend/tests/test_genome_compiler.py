@@ -15,7 +15,7 @@ from backend.application.strategy.genome_compiler import (
     DEFAULT_MAX_TRADE_SIZE,
     DEFAULT_CONFIDENCE_BASELINE,
     MARKET_LIMIT,
-    TOP_MARKETS_TO_PROCESS
+    TOP_MARKETS_TO_PROCESS,
 )
 from backend.domain.genome.models import StrategyGenome
 from backend.strategies.base import StrategyContext, CycleResult, MarketInfo
@@ -43,19 +43,24 @@ class TestGenomeCompiler:
                     "entry_logic": {
                         "trigger_type": "threshold_cross",
                         "conditions": [
-                            {"indicator": "rsi", "operator": ">=", "value": 0.5, "weight": 1.0}
+                            {
+                                "indicator": "rsi",
+                                "operator": ">=",
+                                "value": 0.5,
+                                "weight": 1.0,
+                            }
                         ],
-                        "min_confidence": 0.6
+                        "min_confidence": 0.6,
                     }
                 },
                 "execution": {"order_type": "limit"},
                 "risk": {
                     "kelly_fraction": 0.3,
                     "max_position_fraction": 0.1,
-                    "max_total_exposure_fraction": 0.8
+                    "max_total_exposure_fraction": 0.8,
                 },
-                "meta": {"self_optimization_enabled": True}
-            }
+                "meta": {"self_optimization_enabled": True},
+            },
         )
 
     @pytest.fixture
@@ -90,18 +95,28 @@ class TestGenomeCompiler:
 
     def test_chromosome_normalization_handles_pydantic_models(self, valid_genome):
         """Test that _normalize_chromosome_section works with Pydantic models."""
-        from backend.domain.genome.models import CognitionChromosome, EntryLogic, EntryCondition, ExitLogic, MarketSelector
+        from backend.domain.genome.models import (
+            CognitionChromosome,
+            EntryLogic,
+            EntryCondition,
+            ExitLogic,
+            MarketSelector,
+        )
 
         strategy = GenomeStrategy(valid_genome)
 
         real_pydantic = CognitionChromosome(
             entry_logic=EntryLogic(
                 trigger_type="threshold_cross",
-                conditions=[EntryCondition(indicator="rsi", operator=">=", value=0.5, weight=1.0)],
-                min_confidence=0.6
+                conditions=[
+                    EntryCondition(
+                        indicator="rsi", operator=">=", value=0.5, weight=1.0
+                    )
+                ],
+                min_confidence=0.6,
             ),
             exit_logic=ExitLogic(trigger_type="stop_loss"),
-            market_selector=MarketSelector()
+            market_selector=MarketSelector(),
         )
 
         result = strategy._normalize_chromosome_section(real_pydantic)
@@ -120,7 +135,9 @@ class TestGenomeCompiler:
 
         assert strategy._perception == {"indicators": ["rsi", "volume"]}
 
-    def test_chromosome_normalization_handles_unexpected_types(self, valid_genome, caplog):
+    def test_chromosome_normalization_handles_unexpected_types(
+        self, valid_genome, caplog
+    ):
         """Test that _normalize_chromosome_section handles unexpected types gracefully."""
         strategy = GenomeStrategy(valid_genome)
 
@@ -136,7 +153,7 @@ class TestGenomeCompiler:
             genome_id="test-123",
             strategy_name="test_strategy",
             archetype="test",
-            chromosomes={}
+            chromosomes={},
         )
         strategy = GenomeStrategy(genome)
 
@@ -144,12 +161,16 @@ class TestGenomeCompiler:
         assert strategy._normalize_chromosome_section(None) == {}
 
         # Test dict
-        assert strategy._normalize_chromosome_section({"key": "value"}) == {"key": "value"}
+        assert strategy._normalize_chromosome_section({"key": "value"}) == {
+            "key": "value"
+        }
 
         # Test Pydantic model
         mock_model = MagicMock()
         mock_model.model_dump.return_value = {"pydantic": "data"}
-        assert strategy._normalize_chromosome_section(mock_model) == {"pydantic": "data"}
+        assert strategy._normalize_chromosome_section(mock_model) == {
+            "pydantic": "data"
+        }
 
         # Test convertible object
         class Convertible:
@@ -164,7 +185,7 @@ class TestGenomeCompiler:
             genome_id="test-123",
             strategy_name="test_strategy",
             archetype="test",
-            chromosomes={}
+            chromosomes={},
         )
         strategy = GenomeStrategy(genome)
 
@@ -190,8 +211,8 @@ class TestGenomeCompiler:
                 "cognition": {},
                 "execution": {},
                 "risk": {},  # Empty risk section
-                "meta": {}
-            }
+                "meta": {},
+            },
         )
 
         strategy = GenomeStrategy(minimal_genome)
@@ -215,19 +236,25 @@ class TestGenomeCompiler:
         assert params["execution"]["slippage_tolerance"] == 0.02
 
     @pytest.mark.asyncio
-    async def test_fetch_markets_handles_empty_response(self, valid_genome, mock_context):
+    async def test_fetch_markets_handles_empty_response(
+        self, valid_genome, mock_context
+    ):
         """Test that _fetch_markets handles empty API responses."""
         strategy = GenomeStrategy(valid_genome)
 
         # Mock fetch_markets to return empty list
-        with patch('backend.data.gamma.fetch_markets', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "backend.data.gamma.fetch_markets", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = []
 
             markets = await strategy._fetch_markets(mock_context)
             assert markets == []
 
     @pytest.mark.asyncio
-    async def test_fetch_markets_handles_malformed_data(self, valid_genome, mock_context, caplog):
+    async def test_fetch_markets_handles_malformed_data(
+        self, valid_genome, mock_context, caplog
+    ):
         """Test that _fetch_markets handles malformed market data gracefully."""
         strategy = GenomeStrategy(valid_genome)
 
@@ -237,7 +264,9 @@ class TestGenomeCompiler:
             {"ticker": "TEST3", "outcomePrices": [0.6]},
         ]
 
-        with patch('backend.data.gamma.fetch_markets', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "backend.data.gamma.fetch_markets", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = malformed_data
 
             with caplog.at_level("WARNING"):
@@ -254,11 +283,15 @@ class TestGenomeCompiler:
             assert markets[2].yes_price == 0.6
 
     @pytest.mark.asyncio
-    async def test_fetch_markets_logs_exceptions(self, valid_genome, mock_context, caplog):
+    async def test_fetch_markets_logs_exceptions(
+        self, valid_genome, mock_context, caplog
+    ):
         """Test that _fetch_markets logs exceptions appropriately."""
         strategy = GenomeStrategy(valid_genome)
 
-        with patch('backend.data.gamma.fetch_markets', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "backend.data.gamma.fetch_markets", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.side_effect = Exception("API Error")
 
             with caplog.at_level("WARNING"):
@@ -267,7 +300,9 @@ class TestGenomeCompiler:
             assert markets == []
             assert "Failed to fetch markets" in caplog.text
 
-    def test_evaluate_market_returns_none_for_missing_cognition(self, valid_genome, mock_context):
+    def test_evaluate_market_returns_none_for_missing_cognition(
+        self, valid_genome, mock_context
+    ):
         """Test that _evaluate_market returns None when cognition is missing."""
         # Create genome with empty cognition
         genome_no_cognition = StrategyGenome(
@@ -279,8 +314,8 @@ class TestGenomeCompiler:
                 "cognition": {},  # Empty cognition
                 "execution": {},
                 "risk": {},
-                "meta": {}
-            }
+                "meta": {},
+            },
         )
 
         strategy = GenomeStrategy(genome_no_cognition)
@@ -293,7 +328,7 @@ class TestGenomeCompiler:
             liquidity=500.0,
             yes_price=0.6,
             no_price=0.4,
-            metadata={}
+            metadata={},
         )
 
         result = strategy._evaluate_market(market, mock_context)
@@ -311,19 +346,24 @@ class TestGenomeCompiler:
                     "entry_logic": {
                         "trigger_type": "threshold_cross",
                         "conditions": [
-                            {"indicator": "rsi", "operator": ">", "value": 0.99, "weight": 1.0}
+                            {
+                                "indicator": "rsi",
+                                "operator": ">",
+                                "value": 0.99,
+                                "weight": 1.0,
+                            }
                         ],
-                        "min_confidence": 0.6
+                        "min_confidence": 0.6,
                     }
                 },
                 "execution": {"order_type": "limit"},
                 "risk": {
                     "kelly_fraction": 0.3,
                     "max_position_fraction": 0.1,
-                    "max_total_exposure_fraction": 0.8
+                    "max_total_exposure_fraction": 0.8,
                 },
-                "meta": {"self_optimization_enabled": True}
-            }
+                "meta": {"self_optimization_enabled": True},
+            },
         )
         strategy = GenomeStrategy(genome_high_threshold)
         market = MarketInfo(
@@ -335,13 +375,15 @@ class TestGenomeCompiler:
             liquidity=500.0,
             yes_price=0.3,
             no_price=0.7,
-            metadata={}
+            metadata={},
         )
 
         result = strategy._evaluate_market(market, mock_context)
         assert result is None
 
-    def test_evaluate_market_returns_signal_for_valid_conditions(self, valid_genome, mock_context):
+    def test_evaluate_market_returns_signal_for_valid_conditions(
+        self, valid_genome, mock_context
+    ):
         """Test that _evaluate_market returns a signal for valid market conditions."""
         strategy = GenomeStrategy(valid_genome)
         market = MarketInfo(
@@ -353,7 +395,7 @@ class TestGenomeCompiler:
             liquidity=500.0,
             yes_price=0.7,
             no_price=0.3,
-            metadata={}
+            metadata={},
         )
 
         result = strategy._evaluate_market(market, mock_context)
@@ -377,7 +419,7 @@ class TestGenomeCompiler:
             liquidity=500.0,
             yes_price=0.5,
             no_price=0.5,
-            metadata={}
+            metadata={},
         )
 
         confidence = strategy._calculate_confidence(market, [])
@@ -395,10 +437,12 @@ class TestGenomeCompiler:
             liquidity=500.0,
             yes_price=0.7,
             no_price=0.3,
-            metadata={}
+            metadata={},
         )
 
-        conditions = [{"indicator": "volume", "operator": ">", "value": 0.01, "weight": 1.0}]
+        conditions = [
+            {"indicator": "volume", "operator": ">", "value": 0.01, "weight": 1.0}
+        ]
         confidence = strategy._calculate_confidence(market, conditions)
 
         assert confidence == 1.0
@@ -416,6 +460,7 @@ class TestGenomeCompiler:
 
         # Should have proper inheritance
         from backend.strategies.base import BaseStrategy
+
         assert issubclass(StrategyClass, BaseStrategy)
 
     def test_compile_genome_sets_class_name(self, valid_genome):
@@ -427,7 +472,9 @@ class TestGenomeCompiler:
         assert StrategyClass.__qualname__ == expected_name
 
     @pytest.mark.asyncio
-    async def test_compile_register_and_run_cycle_integration(self, valid_genome, mock_context):
+    async def test_compile_register_and_run_cycle_integration(
+        self, valid_genome, mock_context
+    ):
         """Integration: compile -> registry lookup -> instantiate -> run cycle."""
         strategy_name = f"genome_{valid_genome.genome_id[:8]}"
         try:
@@ -439,7 +486,9 @@ class TestGenomeCompiler:
             strategy = create_strategy(strategy_name)
             assert strategy.genome.genome_id == valid_genome.genome_id
 
-            with patch("backend.data.gamma.fetch_markets", new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "backend.data.gamma.fetch_markets", new_callable=AsyncMock
+            ) as mock_fetch:
                 mock_fetch.return_value = [
                     {
                         "ticker": "GENOME-TST",
@@ -457,7 +506,8 @@ class TestGenomeCompiler:
             assert result.trades_attempted >= 1
             assert result.errors == []
             assert result.decisions[0]["size"] <= min(
-                mock_context.bankroll * valid_genome.chromosomes["risk"]["max_position_fraction"],
+                mock_context.bankroll
+                * valid_genome.chromosomes["risk"]["max_position_fraction"],
                 DEFAULT_MAX_TRADE_SIZE,
             )
         finally:
@@ -470,7 +520,9 @@ class TestGenomeCompiler:
         strategy = GenomeStrategy(valid_genome)
 
         # Mock empty market fetch
-        with patch.object(strategy, '_fetch_markets', new_callable=AsyncMock) as mock_fetch:
+        with patch.object(
+            strategy, "_fetch_markets", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = []
 
             result = await strategy.run_cycle(mock_context)
@@ -481,7 +533,9 @@ class TestGenomeCompiler:
             assert len(result.errors) == 0
 
     @pytest.mark.asyncio
-    async def test_run_cycle_processes_markets_up_to_limit(self, valid_genome, mock_context):
+    async def test_run_cycle_processes_markets_up_to_limit(
+        self, valid_genome, mock_context
+    ):
         """Test that run_cycle processes markets up to TOP_MARKETS_TO_PROCESS limit."""
         strategy = GenomeStrategy(valid_genome)
 
@@ -496,12 +550,14 @@ class TestGenomeCompiler:
                 liquidity=500.0,
                 yes_price=0.7,
                 no_price=0.3,
-                metadata={}
+                metadata={},
             )
             for i in range(TOP_MARKETS_TO_PROCESS + 5)  # More than limit
         ]
 
-        with patch.object(strategy, '_fetch_markets', new_callable=AsyncMock) as mock_fetch:
+        with patch.object(
+            strategy, "_fetch_markets", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = markets
 
             result = await strategy.run_cycle(mock_context)

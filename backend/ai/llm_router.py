@@ -84,15 +84,20 @@ def _discover_providers() -> dict[str, dict]:
             logger.warning("LLMRouter: failed to parse LLM_PROVIDERS: {}", e)
 
     # ENV-var based: LLM_OPENAI_API_KEY + LLM_OPENAI_BASE_URL + LLM_OPENAI_MODEL
-    openai_key = os.getenv("LLM_OPENAI_API_KEY") or getattr(settings, "LLM_OPENAI_API_KEY", None)
+    openai_key = os.getenv("LLM_OPENAI_API_KEY") or getattr(
+        settings, "LLM_OPENAI_API_KEY", None
+    )
     if openai_key and "openai" not in providers:
-        providers["openai"] = _build_openai_provider("openai", {
-            "api_key": openai_key,
-            "model": getattr(settings, "LLM_OPENAI_MODEL", "gpt-4o-mini"),
-            "base_url": getattr(settings, "LLM_OPENAI_BASE_URL", None),
-            "max_tokens": getattr(settings, "LLM_OPENAI_MAX_TOKENS", 250),
-            "temperature": getattr(settings, "LLM_OPENAI_TEMPERATURE", 0.2),
-        })
+        providers["openai"] = _build_openai_provider(
+            "openai",
+            {
+                "api_key": openai_key,
+                "model": getattr(settings, "LLM_OPENAI_MODEL", "gpt-4o-mini"),
+                "base_url": getattr(settings, "LLM_OPENAI_BASE_URL", None),
+                "max_tokens": getattr(settings, "LLM_OPENAI_MAX_TOKENS", 250),
+                "temperature": getattr(settings, "LLM_OPENAI_TEMPERATURE", 0.2),
+            },
+        )
 
     return providers
 
@@ -220,6 +225,7 @@ class LLMRouter:
         cost_tracker = getattr(self, "_cost_tracker", None)
         if cost_tracker is None:
             from backend.core.llm_cost_tracker import LLMCostTracker
+
             cost_tracker = LLMCostTracker()
             self._cost_tracker = cost_tracker
 
@@ -227,10 +233,14 @@ class LLMRouter:
         for provider_name in self._fallback_order(primary):
             config = self.providers[provider_name]
             # Estimate cost before calling
-            est_cost_per_1k = _PROVIDER_COST_PER_1K.get(config.get("provider_type", provider_name), 0.002)
+            est_cost_per_1k = _PROVIDER_COST_PER_1K.get(
+                config.get("provider_type", provider_name), 0.002
+            )
             est_cost = est_cost_per_1k * (config.get("max_tokens", 250) + 500) / 1000
             if not cost_tracker.can_spend(est_cost):
-                logger.warning(f"LLMRouter: daily budget exhausted, skipping {provider_name}")
+                logger.warning(
+                    f"LLMRouter: daily budget exhausted, skipping {provider_name}"
+                )
                 continue
             try:
                 text, tokens = await self._dispatch(

@@ -1,11 +1,15 @@
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.core.knowledge_graph import KnowledgeGraph
 from backend.core.agi_types import KGEntity, KGRelation, MarketRegime
-from backend.models.kg_models import Base, KGEntity as KGEntityModel, KGRelation as KGRelationModel, DecisionAuditLog
+from backend.models.kg_models import (
+    Base,
+    KGEntity as KGEntityModel,
+    KGRelation as KGRelationModel,
+    DecisionAuditLog,
+)
 
 
 def make_db_session():
@@ -24,7 +28,9 @@ def make_kg_with_session():
 class TestKGPersistEntity:
     def test_persist_new_entity(self):
         kg, session, _ = make_kg_with_session()
-        entity = KGEntity(entity_type="strategy", entity_id="s:test1", properties={"win_rate": 0.6})
+        entity = KGEntity(
+            entity_type="strategy", entity_id="s:test1", properties={"win_rate": 0.6}
+        )
         result = kg.persist_entity(entity, db=session)
         assert result.entity_id == "s:test1"
         assert result.properties["win_rate"] == 0.6
@@ -34,9 +40,13 @@ class TestKGPersistEntity:
 
     def test_persist_updates_existing_entity(self):
         kg, session, _ = make_kg_with_session()
-        entity = KGEntity(entity_type="strategy", entity_id="s:test1", properties={"v": 1})
+        entity = KGEntity(
+            entity_type="strategy", entity_id="s:test1", properties={"v": 1}
+        )
         kg.persist_entity(entity, db=session)
-        entity2 = KGEntity(entity_type="strategy", entity_id="s:test1", properties={"v": 2})
+        entity2 = KGEntity(
+            entity_type="strategy", entity_id="s:test1", properties={"v": 2}
+        )
         result = kg.persist_entity(entity2, db=session)
         assert result.properties["v"] == 2
         count = session.query(KGEntityModel).filter_by(entity_id="s:test1").count()
@@ -46,7 +56,11 @@ class TestKGPersistEntity:
         kg, session, _ = make_kg_with_session()
         entity = KGEntity(entity_type="regime", entity_id="r:bull", properties={})
         kg.persist_entity(entity, db=session)
-        audit = session.query(DecisionAuditLog).filter_by(decision_type="kg_persist_entity").first()
+        audit = (
+            session.query(DecisionAuditLog)
+            .filter_by(decision_type="kg_persist_entity")
+            .first()
+        )
         assert audit is not None
         assert "s:test1" in str(audit.input_data) or "r:bull" in str(audit.input_data)
 
@@ -58,7 +72,13 @@ class TestKGPersistRelation:
         e2 = KGEntity(entity_type="regime", entity_id="r:bull", properties={})
         kg.persist_entity(e1, db=session)
         kg.persist_entity(e2, db=session)
-        rel = KGRelation(from_entity="s:a", to_entity="r:bull", relation_type="performs_well_in", weight=0.8, confidence=0.9)
+        rel = KGRelation(
+            from_entity="s:a",
+            to_entity="r:bull",
+            relation_type="performs_well_in",
+            weight=0.8,
+            confidence=0.9,
+        )
         result = kg.persist_relation(rel, db=session)
         assert result.from_entity == "s:a"
         assert result.to_entity == "r:bull"
@@ -69,7 +89,13 @@ class TestKGPersistRelation:
 
     def test_persist_relation_missing_entity(self):
         kg, session, _ = make_kg_with_session()
-        rel = KGRelation(from_entity="s:nonexistent", to_entity="r:bull", relation_type="x", weight=0.5, confidence=0.5)
+        rel = KGRelation(
+            from_entity="s:nonexistent",
+            to_entity="r:bull",
+            relation_type="x",
+            weight=0.5,
+            confidence=0.5,
+        )
         with pytest.raises(ValueError, match="does not exist"):
             kg.persist_relation(rel, db=session)
 
@@ -77,7 +103,9 @@ class TestKGPersistRelation:
 class TestKGLoadEntity:
     def test_load_existing_entity(self):
         kg, session, _ = make_kg_with_session()
-        entity = KGEntity(entity_type="strategy", entity_id="s:load1", properties={"key": "val"})
+        entity = KGEntity(
+            entity_type="strategy", entity_id="s:load1", properties={"key": "val"}
+        )
         kg.persist_entity(entity, db=session)
         loaded = kg.load_entity("s:load1", db=session)
         assert loaded is not None
@@ -99,11 +127,25 @@ class TestKGLoadRelations:
         kg.persist_entity(e1, db=session)
         kg.persist_entity(e2, db=session)
         kg.persist_entity(e3, db=session)
-        rel1 = KGRelation(from_entity="s:a", to_entity="r:bull", relation_type="performs_well_in", weight=0.8, confidence=0.9)
-        rel2 = KGRelation(from_entity="s:a", to_entity="r:bear", relation_type="performs_poorly_in", weight=0.3, confidence=0.8)
+        rel1 = KGRelation(
+            from_entity="s:a",
+            to_entity="r:bull",
+            relation_type="performs_well_in",
+            weight=0.8,
+            confidence=0.9,
+        )
+        rel2 = KGRelation(
+            from_entity="s:a",
+            to_entity="r:bear",
+            relation_type="performs_poorly_in",
+            weight=0.3,
+            confidence=0.8,
+        )
         kg.persist_relation(rel1, db=session)
         kg.persist_relation(rel2, db=session)
-        bull_rels = kg.load_relations("s:a", relation_type="performs_well_in", db=session)
+        bull_rels = kg.load_relations(
+            "s:a", relation_type="performs_well_in", db=session
+        )
         assert len(bull_rels) == 1
         assert bull_rels[0].to_entity == "r:bull"
         all_rels = kg.load_relations("s:a", db=session)
@@ -120,7 +162,11 @@ class TestKGSnapshotAndRollback:
     def test_snapshot_audit_entry(self):
         kg, session, _ = make_kg_with_session()
         snap_id = kg.create_snapshot()
-        audit = session.query(DecisionAuditLog).filter_by(decision_type="kg_snapshot").first()
+        audit = (
+            session.query(DecisionAuditLog)
+            .filter_by(decision_type="kg_snapshot")
+            .first()
+        )
         assert audit is not None
         assert snap_id in str(audit.output_data) or snap_id in str(audit.input_data)
 
@@ -133,7 +179,13 @@ class TestKGSnapshotAndRollback:
         # Add post-snapshot data
         e2 = KGEntity(entity_type="strategy", entity_id="s:after", properties={"v": 2})
         kg.persist_entity(e2, db=session)
-        rel = KGRelation(from_entity="s:before", to_entity="s:after", relation_type="related", weight=0.5, confidence=0.8)
+        rel = KGRelation(
+            from_entity="s:before",
+            to_entity="s:after",
+            relation_type="related",
+            weight=0.5,
+            confidence=0.8,
+        )
         kg.persist_relation(rel, db=session)
         # Verify post-snapshot data exists
         assert kg.load_entity("s:after", db=session) is not None
@@ -152,7 +204,11 @@ class TestKGSnapshotAndRollback:
         e2 = KGEntity(entity_type="strategy", entity_id="s:y", properties={})
         kg.persist_entity(e2, db=session)
         kg.rollback_to_snapshot(snap_id)
-        audit = session.query(DecisionAuditLog).filter_by(decision_type="kg_rollback").first()
+        audit = (
+            session.query(DecisionAuditLog)
+            .filter_by(decision_type="kg_rollback")
+            .first()
+        )
         assert audit is not None
         assert snap_id in str(audit.input_data)
 
@@ -192,7 +248,13 @@ class TestKGValidationEnhanced:
         kg, session, _ = make_kg_with_session()
         e1 = KGEntity(entity_type="strategy", entity_id="s:a", properties={})
         kg.persist_entity(e1, db=session)
-        rel = KGRelation(from_entity="s:a", to_entity="s:a", relation_type="related", weight=0.5, confidence=0.5)
+        rel = KGRelation(
+            from_entity="s:a",
+            to_entity="s:a",
+            relation_type="related",
+            weight=0.5,
+            confidence=0.5,
+        )
         with pytest.raises(ValueError, match="self-loop"):
             kg.persist_relation(rel, db=session)
 
@@ -202,7 +264,13 @@ class TestKGValidationEnhanced:
         e2 = KGEntity(entity_type="regime", entity_id="r:bull", properties={})
         kg.persist_entity(e1, db=session)
         kg.persist_entity(e2, db=session)
-        rel = KGRelation(from_entity="s:a", to_entity="r:bull", relation_type="x", weight=0.5, confidence=0.05)
+        rel = KGRelation(
+            from_entity="s:a",
+            to_entity="r:bull",
+            relation_type="x",
+            weight=0.5,
+            confidence=0.05,
+        )
         with pytest.raises(ValueError, match="0.1"):
             kg.persist_relation(rel, db=session)
 
@@ -214,7 +282,13 @@ class TestKGQueryRegimePerformance:
         e2 = KGEntity(entity_type="regime", entity_id="bull", properties={})
         kg.persist_entity(e1, db=session)
         kg.persist_entity(e2, db=session)
-        rel = KGRelation(from_entity="s:test", to_entity="bull", relation_type="performs_well_in", weight=0.8, confidence=0.9)
+        rel = KGRelation(
+            from_entity="s:test",
+            to_entity="bull",
+            relation_type="performs_well_in",
+            weight=0.8,
+            confidence=0.9,
+        )
         kg.persist_relation(rel, db=session)
         perf = kg.query_regime_performance("s:test", db=session)
         assert MarketRegime.BULL in perf
@@ -236,7 +310,13 @@ class TestKGQueryBestStrategies:
         for i, w in enumerate([0.9, 0.6, 0.8]):
             s = KGEntity(entity_type="strategy", entity_id=f"s:strat{i}", properties={})
             kg.persist_entity(s, db=session)
-            rel = KGRelation(from_entity=f"s:strat{i}", to_entity="bull", relation_type="performs_well_in", weight=w, confidence=0.9)
+            rel = KGRelation(
+                from_entity=f"s:strat{i}",
+                to_entity="bull",
+                relation_type="performs_well_in",
+                weight=w,
+                confidence=0.9,
+            )
             kg.persist_relation(rel, db=session)
         best = kg.query_best_strategies(MarketRegime.BULL, db=session, limit=2)
         assert len(best) <= 2
@@ -255,7 +335,11 @@ class TestKGConcurrentAccess:
         # Simulate concurrent writes by creating entities in sequence
         entities = []
         for i in range(5):
-            e = KGEntity(entity_type="strategy", entity_id=f"s:concurrent{i}", properties={"i": i})
+            e = KGEntity(
+                entity_type="strategy",
+                entity_id=f"s:concurrent{i}",
+                properties={"i": i},
+            )
             result = kg.persist_entity(e, db=session)
             entities.append(result)
         count = session.query(KGEntityModel).count()
@@ -269,7 +353,13 @@ class TestKGConcurrentAccess:
             kg.persist_entity(e, db=session)
         # Create relations
         for i in range(2):
-            rel = KGRelation(from_entity=f"s:cr{i}", to_entity=f"s:cr{i+1}", relation_type="next", weight=0.5, confidence=0.8)
+            rel = KGRelation(
+                from_entity=f"s:cr{i}",
+                to_entity=f"s:cr{i+1}",
+                relation_type="next",
+                weight=0.5,
+                confidence=0.8,
+            )
             kg.persist_relation(rel, db=session)
         count = session.query(KGRelationModel).count()
         assert count == 2

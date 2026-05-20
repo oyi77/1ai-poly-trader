@@ -1,4 +1,5 @@
 """Shared pytest fixtures for PolyEdge root-level integration tests."""
+
 import sys
 from unittest.mock import MagicMock
 
@@ -29,7 +30,9 @@ from backend.models.database import Base  # noqa: E402
 
 # Ensure all ORM models are registered with Base.metadata before create_all()
 try:
-    from backend.core.strategy_performance_registry import StrategyPerformanceSnapshot  # noqa: F401
+    from backend.core.strategy_performance_registry import (
+        StrategyPerformanceSnapshot,
+    )  # noqa: F401
 except Exception:
     pass
 
@@ -51,15 +54,19 @@ _seed_db = TestSessionLocal()
 try:
     for mode in ["paper", "testnet", "live"]:
         if not _seed_db.query(BotState).filter_by(mode=mode).first():
-            initial_bankroll = _settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
-            _seed_db.add(BotState(
-                mode=mode,
-                bankroll=initial_bankroll,
-                total_trades=0,
-                winning_trades=0,
-                total_pnl=0.0,
-                is_running=True,
-            ))
+            initial_bankroll = (
+                _settings.INITIAL_BANKROLL if mode != "testnet" else 100.0
+            )
+            _seed_db.add(
+                BotState(
+                    mode=mode,
+                    bankroll=initial_bankroll,
+                    total_trades=0,
+                    winning_trades=0,
+                    total_pnl=0.0,
+                    is_running=True,
+                )
+            )
     _seed_db.commit()
 finally:
     _seed_db.close()
@@ -96,6 +103,7 @@ def test_app():
 def mock_mirofish():
     """Mock MiroFish API responses."""
     from unittest.mock import AsyncMock
+
     mock = AsyncMock()
     mock.get_signals = AsyncMock(return_value=[])
     mock.get_market_data = AsyncMock(return_value={})
@@ -109,6 +117,7 @@ def test_settings(monkeypatch):
     monkeypatch.setenv("SHADOW_MODE", "true")
     monkeypatch.setenv("INITIAL_BANKROLL", "10000.0")
     from backend.config import settings
+
     return settings
 
 

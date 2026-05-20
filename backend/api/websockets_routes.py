@@ -49,7 +49,10 @@ class WebSocketMessageRateLimiter:
 
         # Check if limit exceeded
         if len(timestamps) >= self.MAX_MESSAGES_PER_SEC:
-            return False, f"Rate limit exceeded: max {self.MAX_MESSAGES_PER_SEC} messages per second"
+            return (
+                False,
+                f"Rate limit exceeded: max {self.MAX_MESSAGES_PER_SEC} messages per second",
+            )
 
         # Record this message
         timestamps.append(now)
@@ -64,7 +67,8 @@ class WebSocketMessageRateLimiter:
         """Remove entries with no recent activity to prevent memory leaks."""
         now = time.time()
         stale_ids = [
-            ws_id for ws_id, timestamps in self._message_timestamps.items()
+            ws_id
+            for ws_id, timestamps in self._message_timestamps.items()
             if not timestamps or (now - timestamps[-1]) > 300  # 5 min idle
         ]
         for ws_id in stale_ids:
@@ -72,6 +76,7 @@ class WebSocketMessageRateLimiter:
 
 
 _message_rate_limiter = WebSocketMessageRateLimiter()
+
 
 @router.websocket("/ws/markets")
 async def ws_markets(websocket: WebSocket, token: str = Query(None)):
@@ -194,7 +199,9 @@ async def ws_activities(websocket: WebSocket, token: str = Query(None)):
     except WebSocketDisconnect:
         await topic_manager.disconnect(websocket)
     except Exception as e:
-        logger.exception(f"[api.websockets.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}")
+        logger.exception(
+            f"[api.websockets.ws_activities] {type(e).__name__}: Activity WebSocket error: {e}"
+        )
         await topic_manager.disconnect(websocket)
     finally:
         _message_rate_limiter.cleanup(websocket)
@@ -234,7 +241,9 @@ async def ws_brain(websocket: WebSocket, token: str = ""):
     except WebSocketDisconnect:
         await topic_manager.disconnect(websocket)
     except Exception as e:
-        logger.exception(f"[api.websockets.ws_brain] {type(e).__name__}: Brain WebSocket error: {e}")
+        logger.exception(
+            f"[api.websockets.ws_brain] {type(e).__name__}: Brain WebSocket error: {e}"
+        )
         await topic_manager.disconnect(websocket)
     finally:
         _message_rate_limiter.cleanup(websocket)
@@ -287,7 +296,9 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
 
                 current_events = get_recent_events(200)
                 if len(current_events) > last_event_count:
-                    new_events = current_events[last_event_count - len(current_events) :]
+                    new_events = current_events[
+                        last_event_count - len(current_events) :
+                    ]
                     for event in new_events:
                         await websocket.send_json(event)
                     last_event_count = len(current_events)
@@ -311,8 +322,6 @@ async def websocket_events(websocket: WebSocket, token: str = ""):
         await connection_limiter.release_ws_connection(websocket)
 
 
-
-
 @router.websocket("/ws/livestream")
 async def websocket_livestream(websocket: WebSocket, token: str = ""):
     if not authorize_realtime_access(
@@ -334,6 +343,7 @@ async def websocket_livestream(websocket: WebSocket, token: str = ""):
         await websocket.send_json({"type": "subscribed", "topic": "livestream"})
 
         from backend.api_websockets.livestream import broadcast_livestream_snapshot
+
         await broadcast_livestream_snapshot()
 
         while True:
@@ -386,7 +396,9 @@ async def ws_dashboard_data(websocket: WebSocket, token: str = Query(None)):
         db = SessionLocal()
         try:
             stats = await get_stats(db)
-            await websocket.send_json({"type": "stats_update", "data": stats.model_dump()})
+            await websocket.send_json(
+                {"type": "stats_update", "data": stats.model_dump()}
+            )
         except Exception:
             logger.debug("Failed to send initial dashboard stats")
         finally:
@@ -398,7 +410,9 @@ async def ws_dashboard_data(websocket: WebSocket, token: str = Query(None)):
             db = SessionLocal()
             try:
                 stats = await get_stats(db)
-                await websocket.send_json({"type": "stats_update", "data": stats.model_dump()})
+                await websocket.send_json(
+                    {"type": "stats_update", "data": stats.model_dump()}
+                )
             except Exception:
                 logger.debug("Failed to send dashboard stats update")
             finally:

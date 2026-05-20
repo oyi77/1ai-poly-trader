@@ -1,18 +1,26 @@
 import pytest
 from datetime import datetime
 from backend.domain.genome.models import (
-    LineageData, PerceptionChromosome, EntryCondition, EntryLogic, ExitLogic,
-    MarketSelector, CognitionChromosome, ExecutionChromosome, RiskChromosome,
-    MetaChromosome, FitnessMetrics, StrategyGenome, DeathCertificate
+    LineageData,
+    PerceptionChromosome,
+    EntryCondition,
+    EntryLogic,
+    ExitLogic,
+    MarketSelector,
+    CognitionChromosome,
+    ExecutionChromosome,
+    RiskChromosome,
+    MetaChromosome,
+    FitnessMetrics,
+    StrategyGenome,
+    DeathCertificate,
 )
 
 
 def test_lineage_data_creation():
     """Test LineageData model creation and validation."""
     lineage = LineageData(
-        parent_genome_ids=["parent1", "parent2"],
-        generation=2,
-        creator="crossover"
+        parent_genome_ids=["parent1", "parent2"], generation=2, creator="crossover"
     )
     assert lineage.parent_genome_ids == ["parent1", "parent2"]
     assert lineage.generation == 2
@@ -32,12 +40,7 @@ def test_perception_chromosome_defaults():
 def test_entry_condition_validation():
     """Test EntryCondition field validation."""
     # Valid condition
-    condition = EntryCondition(
-        indicator="rsi",
-        operator=">",
-        value=70.0,
-        weight=0.8
-    )
+    condition = EntryCondition(indicator="rsi", operator=">", value=70.0, weight=0.8)
     assert condition.indicator == "rsi"
     assert condition.weight == 0.8
 
@@ -54,7 +57,7 @@ def test_entry_logic_validation():
         trigger_type="momentum_breakout",
         conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         conjunction="AND",
-        min_confidence=0.6
+        min_confidence=0.6,
     )
     assert entry_logic.trigger_type == "momentum_breakout"
     assert len(entry_logic.conditions) == 1
@@ -63,9 +66,7 @@ def test_entry_logic_validation():
 def test_exit_logic_validation():
     """Test ExitLogic trigger types."""
     exit_logic = ExitLogic(
-        trigger_type="profit_target",
-        profit_target_pct=0.20,
-        stop_loss_pct=0.10
+        trigger_type="profit_target", profit_target_pct=0.20, stop_loss_pct=0.10
     )
     assert exit_logic.trigger_type == "profit_target"
     assert exit_logic.profit_target_pct == 0.20
@@ -84,10 +85,10 @@ def test_cognition_chromosome_integration():
     cognition = CognitionChromosome(
         entry_logic=EntryLogic(
             trigger_type="threshold_cross",
-            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)]
+            conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)],
         ),
         exit_logic=ExitLogic(trigger_type="profit_target"),
-        market_selector=MarketSelector()
+        market_selector=MarketSelector(),
     )
     assert hasattr(cognition, "entry_logic")
     assert hasattr(cognition, "exit_logic")
@@ -97,9 +98,7 @@ def test_cognition_chromosome_integration():
 def test_execution_chromosome_validation():
     """Test ExecutionChromosome field constraints."""
     execution = ExecutionChromosome(
-        order_type="limit",
-        slippage_tolerance=0.03,
-        execution_speed_target_ms=300
+        order_type="limit", slippage_tolerance=0.03, execution_speed_target_ms=300
     )
     assert execution.order_type == "limit"
     assert execution.slippage_tolerance == 0.03
@@ -116,7 +115,7 @@ def test_risk_chromosome_validation():
     risk = RiskChromosome(
         position_sizing_model="kelly_fraction",
         kelly_fraction=0.25,
-        max_position_fraction=0.10
+        max_position_fraction=0.10,
     )
     assert risk.position_sizing_model == "kelly_fraction"
 
@@ -156,15 +155,17 @@ def test_strategy_genome_creation():
             "cognition": CognitionChromosome(
                 entry_logic=EntryLogic(
                     trigger_type="threshold_cross",
-                    conditions=[EntryCondition(indicator="rsi", operator=">", value=70.0)]
+                    conditions=[
+                        EntryCondition(indicator="rsi", operator=">", value=70.0)
+                    ],
                 ),
                 exit_logic=ExitLogic(trigger_type="profit_target"),
-                market_selector=MarketSelector()
+                market_selector=MarketSelector(),
             ),
             "execution": ExecutionChromosome(),
             "risk": RiskChromosome(),
-            "meta": MetaChromosome()
-        }
+            "meta": MetaChromosome(),
+        },
     )
     assert genome.strategy_name == "Test Strategy"
     assert genome.archetype == "test_archetype"
@@ -186,7 +187,7 @@ def test_death_certificate_creation():
         total_trades=50,
         regime_at_death="volatile",
         killer_condition="max_drawdown_pct > 0.50",
-        rehabilitation_eligible=False
+        rehabilitation_eligible=False,
     )
     assert cert.genome_id == "test123"
     assert cert.reason == "auto_kill_drawdown"

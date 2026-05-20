@@ -28,9 +28,7 @@ from typing import Optional
 from loguru import logger
 from sqlalchemy.orm import Session
 
-_FERNET_KEY_GEN_CMD = (
-    "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
-)
+_FERNET_KEY_GEN_CMD = 'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
 
 
 def _env_key(provider_name: str, config_key: str) -> str:
@@ -60,7 +58,9 @@ class ProviderConfigStore:
     """
 
     def __init__(self) -> None:
-        self._table_ready: bool = False  # flips True once the table is confirmed to exist
+        self._table_ready: bool = (
+            False  # flips True once the table is confirmed to exist
+        )
 
     def _ensure_table_ready(self, db: Optional["Session"] = None) -> bool:
         """Return True if the provider_credentials table is accessible.
@@ -144,7 +144,7 @@ class ProviderConfigStore:
         prefix = f"{provider_name.upper()}_"
         for env_key_raw, env_value in os.environ.items():
             if env_key_raw.startswith(prefix):
-                cfg_key = env_key_raw[len(prefix):].lower()
+                cfg_key = env_key_raw[len(prefix) :].lower()
                 result[cfg_key] = env_value
 
         # --- 2. DB rows (override ENV vars) ---
@@ -303,7 +303,8 @@ class ProviderConfigStore:
             return f.decrypt(value.encode()).decode()
         except Exception as exc:
             logger.error(
-                "ProviderConfigStore: decryption failed (bad WALLET_FERNET_KEY?) — {}", exc
+                "ProviderConfigStore: decryption failed (bad WALLET_FERNET_KEY?) — {}",
+                exc,
             )
             return value
 

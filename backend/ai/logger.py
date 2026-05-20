@@ -1,4 +1,5 @@
 """AI call logging for monitoring and debugging."""
+
 import json
 from loguru import logger
 from datetime import datetime, timezone
@@ -40,7 +41,10 @@ class AICallLogger:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.log_to_db = log_to_db
-        self._log_file = self.log_dir / f"ai_calls_{datetime.now(timezone.utc).strftime('%Y%m%d')}.jsonl"
+        self._log_file = (
+            self.log_dir
+            / f"ai_calls_{datetime.now(timezone.utc).strftime('%Y%m%d')}.jsonl"
+        )
 
     def estimate_cost(self, model: str, tokens_used: int) -> float:
         if model not in self.COSTS:
@@ -62,7 +66,7 @@ class AICallLogger:
         related_market: Optional[str] = None,
         call_type: str = "unknown",
         success: bool = True,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ) -> AICallRecord:
         cost_usd = self.estimate_cost(model, tokens_used)
 
@@ -78,7 +82,7 @@ class AICallLogger:
             related_market=related_market,
             call_type=call_type,
             success=success,
-            error=error
+            error=error,
         )
 
         self._write_to_file(record)
@@ -108,6 +112,7 @@ class AICallLogger:
         try:
             from backend.models.database import AILog
             from backend.db.utils import get_db_session
+
             with get_db_session() as db:
                 db_record = AILog(
                     timestamp=datetime.fromisoformat(record.timestamp),
@@ -144,7 +149,7 @@ class AICallLogger:
                 latency_ms=record.latency_ms,
                 tokens_used=record.tokens_used,
                 cost_usd=record.cost_usd,
-                related_market=record.related_market
+                related_market=record.related_market,
             )
             db_session.add(db_record)
             db_session.commit()
@@ -159,7 +164,7 @@ class AICallLogger:
             "avg_latency_ms": 0.0,
             "by_provider": {},
             "by_call_type": {},
-            "errors": 0
+            "errors": 0,
         }
 
         try:

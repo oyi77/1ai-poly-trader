@@ -12,10 +12,10 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
-
 @dataclass
 class DepthLevel:
     """Single level in the order book depth analysis."""
+
     price: float
     size: float
     cumulative_size: float
@@ -25,6 +25,7 @@ class DepthLevel:
 @dataclass
 class SpreadAnalysis:
     """Bid-ask spread analysis results."""
+
     best_bid: float
     best_ask: float
     spread: float
@@ -37,6 +38,7 @@ class SpreadAnalysis:
 @dataclass
 class DepthAnalysis:
     """Order book depth analysis results."""
+
     bid_depth: list[DepthLevel]
     ask_depth: list[DepthLevel]
     total_bid_size: float
@@ -50,6 +52,7 @@ class DepthAnalysis:
 @dataclass
 class LiquidityMetrics:
     """Comprehensive liquidity metrics for a market."""
+
     market_id: str
     spread: SpreadAnalysis
     depth: DepthAnalysis
@@ -62,6 +65,7 @@ class LiquidityMetrics:
 @dataclass
 class MarketMakingOpportunity:
     """A detected market-making opportunity."""
+
     market_id: str
     bid_price: float
     ask_price: float
@@ -175,18 +179,22 @@ class MarketMakingAnalyzer:
 
         if spread_capture > 0 and fill_prob > 0.3:
             confidence = fill_prob * (1 - risk) * min(1.0, spread_capture / 0.02)
-            opportunities.append(MarketMakingOpportunity(
-                market_id=market_id,
-                bid_price=round(bid_price, 4),
-                ask_price=round(ask_price, 4),
-                expected_spread_capture=round(spread_capture, 4),
-                estimated_fill_prob=round(fill_prob, 3),
-                risk_score=round(risk, 3),
-                recommended_size=round(recommended_size, 2),
-                confidence=round(confidence, 3),
-            ))
+            opportunities.append(
+                MarketMakingOpportunity(
+                    market_id=market_id,
+                    bid_price=round(bid_price, 4),
+                    ask_price=round(ask_price, 4),
+                    expected_spread_capture=round(spread_capture, 4),
+                    estimated_fill_prob=round(fill_prob, 3),
+                    risk_score=round(risk, 3),
+                    recommended_size=round(recommended_size, 2),
+                    confidence=round(confidence, 3),
+                )
+            )
 
-        opportunities.sort(key=lambda o: o.expected_spread_capture * o.confidence, reverse=True)
+        opportunities.sort(
+            key=lambda o: o.expected_spread_capture * o.confidence, reverse=True
+        )
         return opportunities
 
     def get_spread_history(self, market_id: str) -> list[dict]:
@@ -216,8 +224,13 @@ class MarketMakingAnalyzer:
         """Analyze bid-ask spread."""
         if not bids or not asks:
             return SpreadAnalysis(
-                best_bid=0, best_ask=0, spread=0, spread_pct=0,
-                mid_price=0, micro_price=0, time_since_last_trade_s=0,
+                best_bid=0,
+                best_ask=0,
+                spread=0,
+                spread_pct=0,
+                mid_price=0,
+                micro_price=0,
+                time_since_last_trade_s=0,
             )
 
         best_bid = max(float(b.get("price", 0)) for b in bids)
@@ -226,12 +239,21 @@ class MarketMakingAnalyzer:
         mid = (best_bid + best_ask) / 2
         spread_pct = spread / mid if mid > 0 else 0
 
-        bid_size = sum(float(b.get("size", 0)) for b in bids if float(b.get("price", 0)) == best_bid)
-        ask_size = sum(float(a.get("size", 0)) for a in asks if float(a.get("price", 0)) == best_ask)
+        bid_size = sum(
+            float(b.get("size", 0))
+            for b in bids
+            if float(b.get("price", 0)) == best_bid
+        )
+        ask_size = sum(
+            float(a.get("size", 0))
+            for a in asks
+            if float(a.get("price", 0)) == best_ask
+        )
         total_size = bid_size + ask_size
         micro_price = (
             (best_bid * ask_size + best_ask * bid_size) / total_size
-            if total_size > 0 else mid
+            if total_size > 0
+            else mid
         )
 
         time_since = (time.time() - last_time) if last_time else 0
@@ -253,7 +275,10 @@ class MarketMakingAnalyzer:
 
         mid = 0
         if sorted_bids and sorted_asks:
-            mid = (float(sorted_bids[0].get("price", 0)) + float(sorted_asks[0].get("price", 0))) / 2
+            mid = (
+                float(sorted_bids[0].get("price", 0))
+                + float(sorted_asks[0].get("price", 0))
+            ) / 2
 
         bid_levels: list[DepthLevel] = []
         cum_bid = 0.0
@@ -264,10 +289,14 @@ class MarketMakingAnalyzer:
             size = float(b.get("size", 0))
             cum_bid += size
             dist = ((mid - price) / mid * 100) if mid > 0 else 0
-            bid_levels.append(DepthLevel(
-                price=price, size=size, cumulative_size=cum_bid,
-                distance_from_mid_pct=dist,
-            ))
+            bid_levels.append(
+                DepthLevel(
+                    price=price,
+                    size=size,
+                    cumulative_size=cum_bid,
+                    distance_from_mid_pct=dist,
+                )
+            )
             if size > wall_bid_size:
                 wall_bid_size = size
                 wall_bid_price = price
@@ -281,10 +310,14 @@ class MarketMakingAnalyzer:
             size = float(a.get("size", 0))
             cum_ask += size
             dist = ((price - mid) / mid * 100) if mid > 0 else 0
-            ask_levels.append(DepthLevel(
-                price=price, size=size, cumulative_size=cum_ask,
-                distance_from_mid_pct=dist,
-            ))
+            ask_levels.append(
+                DepthLevel(
+                    price=price,
+                    size=size,
+                    cumulative_size=cum_ask,
+                    distance_from_mid_pct=dist,
+                )
+            )
             if size > wall_ask_size:
                 wall_ask_size = size
                 wall_ask_price = price
@@ -313,12 +346,22 @@ class MarketMakingAnalyzer:
             return 0.5
 
         recent_spreads = [m.spread.spread_pct for m in history[-20:]]
-        recent_depths = [m.depth.total_bid_size + m.depth.total_ask_size for m in history[-20:]]
+        recent_depths = [
+            m.depth.total_bid_size + m.depth.total_ask_size for m in history[-20:]
+        ]
 
-        spread_stability = 1.0 - min(1.0, statistics.stdev(recent_spreads) / max(statistics.mean(recent_spreads), 0.001))
-        depth_stability = 1.0 - min(1.0, statistics.stdev(recent_depths) / max(statistics.mean(recent_depths), 0.001))
+        spread_stability = 1.0 - min(
+            1.0,
+            statistics.stdev(recent_spreads)
+            / max(statistics.mean(recent_spreads), 0.001),
+        )
+        depth_stability = 1.0 - min(
+            1.0,
+            statistics.stdev(recent_depths)
+            / max(statistics.mean(recent_depths), 0.001),
+        )
 
-        return (spread_stability * 0.5 + depth_stability * 0.5)
+        return spread_stability * 0.5 + depth_stability * 0.5
 
     def _compute_toxicity(
         self, spread: SpreadAnalysis, depth: DepthAnalysis, last_price: Optional[float]
@@ -326,7 +369,9 @@ class MarketMakingAnalyzer:
         """Compute adverse selection / toxicity score (0-1)."""
         factors: list[float] = []
 
-        spread_factor = min(1.0, spread.spread_pct / 0.05) if spread.spread_pct > 0 else 0
+        spread_factor = (
+            min(1.0, spread.spread_pct / 0.05) if spread.spread_pct > 0 else 0
+        )
         factors.append(spread_factor * 0.3)
 
         total_depth = depth.total_bid_size + depth.total_ask_size
@@ -349,7 +394,7 @@ class MarketMakingAnalyzer:
         balance_score = 1.0 - abs(depth.depth_imbalance)
         safety_score = 1.0 - toxicity
 
-        return (spread_score * 0.4 + balance_score * 0.3 + safety_score * 0.3)
+        return spread_score * 0.4 + balance_score * 0.3 + safety_score * 0.3
 
     def _estimate_fill_probability(self, metrics: LiquidityMetrics) -> float:
         """Estimate probability of both sides filling."""

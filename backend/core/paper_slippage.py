@@ -8,6 +8,7 @@ Settings are read with priority: SystemSettings DB > app_settings > default.
 The DB check enables cross-process config changes (API writes SystemSettings,
 bot process reads them on next fill).
 """
+
 import math
 import random
 from typing import Any, Literal, Optional
@@ -15,6 +16,8 @@ from sqlalchemy.orm import Session
 from backend.config import settings as app_settings
 
 from loguru import logger
+
+
 class PaperSlippageSimulator:
     """Simulates realistic slippage, fees, and liquidity for paper trades."""
 
@@ -34,12 +37,17 @@ class PaperSlippageSimulator:
         if db is not None:
             try:
                 from backend.models.database import SystemSettings
+
                 row = db.query(SystemSettings).filter(SystemSettings.key == key).first()
                 if row is not None:
                     val = row.value
                     # Coerce to match default type
                     if isinstance(default, bool):
-                        return str(val).lower() in ("true", "1", "yes") if isinstance(val, str) else bool(val)
+                        return (
+                            str(val).lower() in ("true", "1", "yes")
+                            if isinstance(val, str)
+                            else bool(val)
+                        )
                     elif isinstance(default, float):
                         return float(val)
                     elif isinstance(default, int):
@@ -52,7 +60,11 @@ class PaperSlippageSimulator:
         val = getattr(app_settings, key, None)
         if val is not None:
             if isinstance(default, bool):
-                return str(val).lower() in ("true", "1", "yes") if isinstance(val, str) else bool(val)
+                return (
+                    str(val).lower() in ("true", "1", "yes")
+                    if isinstance(val, str)
+                    else bool(val)
+                )
             elif isinstance(default, float):
                 return float(val)
             elif isinstance(default, int):
@@ -68,7 +80,7 @@ class PaperSlippageSimulator:
         direction: Literal["BUY", "SELL"],
         market_ticker: str = "",
         orderbook_depth_usd: float = 0,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
     ) -> dict:
         """
         Simulate a paper trade fill with realistic conditions.
@@ -87,7 +99,9 @@ class PaperSlippageSimulator:
         # Read all settings at call time (enables runtime configuration changes)
         base_slippage_bps = float(self._get_setting("PAPER_SLIPPAGE_BPS", 0.0, db))
         min_slippage_bps = float(self._get_setting("PAPER_MIN_SLIPPAGE_BPS", 5.0, db))
-        size_impact_factor = float(self._get_setting("PAPER_SIZE_IMPACT_FACTOR", 0.5, db))
+        size_impact_factor = float(
+            self._get_setting("PAPER_SIZE_IMPACT_FACTOR", 0.5, db)
+        )
         min_depth_usd = float(self._get_setting("PAPER_MIN_DEPTH_USD", 0.0, db))
         random_slippage = bool(self._get_setting("PAPER_RANDOM_SLIPPAGE", False, db))
 
@@ -99,18 +113,22 @@ class PaperSlippageSimulator:
                 "fee_usd": 0.0,
                 "effective_size": size,
                 "rejected": False,
-                "rejection_reason": ""
+                "rejection_reason": "",
             }
 
         # Check liquidity constraints (only reject when we have depth data)
-        if min_depth_usd > 0 and orderbook_depth_usd > 0 and orderbook_depth_usd < min_depth_usd:
+        if (
+            min_depth_usd > 0
+            and orderbook_depth_usd > 0
+            and orderbook_depth_usd < min_depth_usd
+        ):
             return {
                 "fill_price": entry_price,
                 "slippage_bps": 0.0,
                 "fee_usd": 0.0,
                 "effective_size": 0.0,
                 "rejected": True,
-                "rejection_reason": "INSUFFICIENT_LIQUIDITY"
+                "rejection_reason": "INSUFFICIENT_LIQUIDITY",
             }
 
         # Calculate slippage based on size impact
@@ -142,7 +160,7 @@ class PaperSlippageSimulator:
             "fee_usd": fee_usd,
             "effective_size": size,
             "rejected": False,
-            "rejection_reason": ""
+            "rejection_reason": "",
         }
 
 

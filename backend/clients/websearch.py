@@ -273,13 +273,17 @@ class WebSearchClient:
                 try:
                     return await search_methods[fallback](query, max_results)
                 except Exception as fallback_err:
-                    logger.warning(f"Fallback search ({fallback}) failed: {fallback_err}")
+                    logger.warning(
+                        f"Fallback search ({fallback}) failed: {fallback_err}"
+                    )
 
             if provider != "duckduckgo":
                 try:
                     return await self._search_duckduckgo(query, max_results)
                 except Exception as ddg_err:
-                    logger.warning(f"All search providers failed. Last error: {ddg_err}")
+                    logger.warning(
+                        f"All search providers failed. Last error: {ddg_err}"
+                    )
 
             return WebSearchResponse(query=query, results=[], source="failed")
 

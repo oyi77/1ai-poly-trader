@@ -59,7 +59,9 @@ class ExperimentRunner:
     MIN_WIN_RATE = 0.45
     MAX_DRAWDOWN_PCT = 0.25
 
-    def __init__(self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"):
+    def __init__(
+        self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"
+    ):
         if session is not None:
             self._session = session
             self._owns_session = False
@@ -95,6 +97,7 @@ class ExperimentRunner:
         total_pnl = 0.0
         try:
             from backend.models.database import Trade
+
             cutoff = datetime.now(timezone.utc) - timedelta(days=duration_days)
             shadow_trades = (
                 self._session.query(Trade)
@@ -110,7 +113,9 @@ class ExperimentRunner:
             wins = sum(1 for t in shadow_trades if t.result == "win")
             total_pnl = sum(float(t.pnl or 0) for t in shadow_trades)
         except Exception as e:
-            logger.warning(f"[ExperimentRunner] Shadow query failed for {strategy_name}: {e}")
+            logger.warning(
+                f"[ExperimentRunner] Shadow query failed for {strategy_name}: {e}"
+            )
 
         win_rate = wins / trades if trades > 0 else 0.0
 
@@ -159,9 +164,7 @@ class ExperimentRunner:
 
         win_rate = experiment.shadow_win_rate or 0.0
         if win_rate < self.MIN_WIN_RATE:
-            reasons.append(
-                f"Win rate too low: {win_rate:.2f} < {self.MIN_WIN_RATE}"
-            )
+            reasons.append(f"Win rate too low: {win_rate:.2f} < {self.MIN_WIN_RATE}")
             meets = False
 
         return EvaluationResult(

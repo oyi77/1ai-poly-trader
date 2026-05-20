@@ -1,4 +1,5 @@
 """AGI node abstract base class and manifest."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, TYPE_CHECKING
@@ -12,6 +13,7 @@ from backend.core.plugin_registry import BasePlugin
 @dataclass
 class NodeManifest:
     """Declarative metadata for an AGI node plugin."""
+
     name: str
     version: str
     description: str

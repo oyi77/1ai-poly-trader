@@ -35,7 +35,7 @@ def sample_activities(test_db):
             decision_type="entry",
             data={"market": "BTC_UP", "price": 50000},
             confidence_score=0.75,
-            mode="paper"
+            mode="paper",
         ),
         ActivityLog(
             timestamp=now - timedelta(days=5),
@@ -43,7 +43,7 @@ def sample_activities(test_db):
             decision_type="entry",
             data={"market": "BTC_DOWN", "price": 48000},
             confidence_score=0.85,
-            mode="paper"
+            mode="paper",
         ),
         ActivityLog(
             timestamp=now - timedelta(days=2),
@@ -51,8 +51,8 @@ def sample_activities(test_db):
             decision_type="hold",
             data={"market": "TEMP_NYC", "forecast": 72},
             confidence_score=0.60,
-            mode="paper"
-        )
+            mode="paper",
+        ),
     ]
 
     for activity in activities:
@@ -77,7 +77,7 @@ def sample_trades(test_db):
             settled=True,
             result="win",
             pnl=25.0,
-            trading_mode="paper"
+            trading_mode="paper",
         ),
         Trade(
             market_ticker="BTC_UP",
@@ -89,7 +89,7 @@ def sample_trades(test_db):
             settled=True,
             result="loss",
             pnl=-15.0,
-            trading_mode="paper"
+            trading_mode="paper",
         ),
         Trade(
             market_ticker="BTC_DOWN",
@@ -101,7 +101,7 @@ def sample_trades(test_db):
             settled=True,
             result="win",
             pnl=40.0,
-            trading_mode="paper"
+            trading_mode="paper",
         ),
         Trade(
             market_ticker="BTC_DOWN",
@@ -113,7 +113,7 @@ def sample_trades(test_db):
             settled=True,
             result="win",
             pnl=30.0,
-            trading_mode="paper"
+            trading_mode="paper",
         ),
         Trade(
             market_ticker="TEMP_NYC",
@@ -125,8 +125,8 @@ def sample_trades(test_db):
             settled=True,
             result="loss",
             pnl=-10.0,
-            trading_mode="paper"
-        )
+            trading_mode="paper",
+        ),
     ]
 
     for trade in trades:
@@ -157,7 +157,7 @@ def sample_signals(test_db):
             executed=True,
             outcome_correct=True,
             settlement_value=1.0,
-            settled_at=now - timedelta(days=11)
+            settled_at=now - timedelta(days=11),
         ),
         Signal(
             market_ticker="BTC_DOWN",
@@ -175,8 +175,8 @@ def sample_signals(test_db):
             executed=True,
             outcome_correct=True,
             settlement_value=1.0,
-            settled_at=now - timedelta(days=3)
-        )
+            settled_at=now - timedelta(days=3),
+        ),
     ]
 
     for signal in signals:
@@ -197,7 +197,7 @@ def sample_proposals(test_db):
             expected_impact="Increase win rate by 5%",
             admin_decision="approved",
             executed_at=now - timedelta(days=8),
-            created_at=now - timedelta(days=9)
+            created_at=now - timedelta(days=9),
         ),
         StrategyProposal(
             strategy_name="btc_oracle",
@@ -205,8 +205,8 @@ def sample_proposals(test_db):
             expected_impact="Reduce false positives",
             admin_decision="approved",
             executed_at=now - timedelta(days=6),
-            created_at=now - timedelta(days=7)
-        )
+            created_at=now - timedelta(days=7),
+        ),
     ]
 
     for proposal in proposals:
@@ -216,7 +216,9 @@ def sample_proposals(test_db):
     return proposals
 
 
-def test_feature_2_activity_to_trade_correlation(test_db, correlator, sample_activities, sample_trades):
+def test_feature_2_activity_to_trade_correlation(
+    test_db, correlator, sample_activities, sample_trades
+):
     impacts = correlator.get_feature_impact(db=test_db, feature_id="feature_2")
 
     assert len(impacts) == 1
@@ -232,7 +234,9 @@ def test_feature_2_activity_to_trade_correlation(test_db, correlator, sample_act
     assert impact.confidence_level > 0.0
 
 
-def test_feature_3_debate_to_signal_accuracy(test_db, correlator, sample_activities, sample_signals, sample_trades):
+def test_feature_3_debate_to_signal_accuracy(
+    test_db, correlator, sample_activities, sample_signals, sample_trades
+):
     impacts = correlator.get_feature_impact(db=test_db, feature_id="feature_3")
 
     assert len(impacts) == 1
@@ -245,7 +249,9 @@ def test_feature_3_debate_to_signal_accuracy(test_db, correlator, sample_activit
     assert impact.win_rate_after >= 0.0
 
 
-def test_feature_4_proposal_to_strategy_pnl(test_db, correlator, sample_proposals, sample_trades):
+def test_feature_4_proposal_to_strategy_pnl(
+    test_db, correlator, sample_proposals, sample_trades
+):
     impacts = correlator.get_feature_impact(db=test_db, feature_id="feature_4")
 
     assert len(impacts) == 1
@@ -259,7 +265,9 @@ def test_feature_4_proposal_to_strategy_pnl(test_db, correlator, sample_proposal
     assert impact.pnl_delta is not None
 
 
-def test_win_rate_delta_calculation(test_db, correlator, sample_activities, sample_trades):
+def test_win_rate_delta_calculation(
+    test_db, correlator, sample_activities, sample_trades
+):
     impacts = correlator.get_feature_impact(db=test_db, feature_id="feature_2")
 
     if impacts:
@@ -268,12 +276,17 @@ def test_win_rate_delta_calculation(test_db, correlator, sample_activities, samp
         assert abs(impact.win_rate_delta - expected_delta) < 0.001
 
 
-def test_sharpe_ratio_calculation(test_db, correlator, sample_activities, sample_trades):
+def test_sharpe_ratio_calculation(
+    test_db, correlator, sample_activities, sample_trades
+):
     impacts = correlator.get_feature_impact(db=test_db, feature_id="feature_2")
 
     if impacts:
         impact = impacts[0]
-        if impact.sharpe_ratio_before is not None and impact.sharpe_ratio_after is not None:
+        if (
+            impact.sharpe_ratio_before is not None
+            and impact.sharpe_ratio_after is not None
+        ):
             assert impact.sharpe_ratio_delta is not None
         else:
             assert impact.sample_size_before < 2 or impact.sample_size_after < 2
@@ -295,9 +308,7 @@ def test_date_range_filtering(test_db, correlator, sample_activities, sample_tra
     end_date = now - timedelta(days=3)
 
     impacts = correlator.get_feature_impact(
-        db=test_db,
-        feature_id="feature_2",
-        date_range=(start_date, end_date)
+        db=test_db, feature_id="feature_2", date_range=(start_date, end_date)
     )
 
     assert isinstance(impacts, list)
@@ -305,15 +316,15 @@ def test_date_range_filtering(test_db, correlator, sample_activities, sample_tra
 
 def test_metric_type_filtering(test_db, correlator, sample_activities, sample_trades):
     impacts = correlator.get_feature_impact(
-        db=test_db,
-        feature_id="feature_2",
-        metric_type="win_rate"
+        db=test_db, feature_id="feature_2", metric_type="win_rate"
     )
 
     assert isinstance(impacts, list)
 
 
-def test_activity_correlations_basic(test_db, correlator, sample_activities, sample_trades):
+def test_activity_correlations_basic(
+    test_db, correlator, sample_activities, sample_trades
+):
     correlations = correlator.get_activity_correlations(db=test_db)
 
     assert isinstance(correlations, list)
@@ -330,10 +341,11 @@ def test_activity_correlations_basic(test_db, correlator, sample_activities, sam
         assert 0.0 <= corr.correlation_score <= 1.0
 
 
-def test_activity_correlations_strategy_filter(test_db, correlator, sample_activities, sample_trades):
+def test_activity_correlations_strategy_filter(
+    test_db, correlator, sample_activities, sample_trades
+):
     correlations = correlator.get_activity_correlations(
-        db=test_db,
-        strategy_name="btc_momentum"
+        db=test_db, strategy_name="btc_momentum"
     )
 
     assert isinstance(correlations, list)
@@ -342,7 +354,9 @@ def test_activity_correlations_strategy_filter(test_db, correlator, sample_activ
         assert corr.strategy_name == "btc_momentum"
 
 
-def test_activity_correlations_limit(test_db, correlator, sample_activities, sample_trades):
+def test_activity_correlations_limit(
+    test_db, correlator, sample_activities, sample_trades
+):
     correlations = correlator.get_activity_correlations(db=test_db, limit=2)
 
     assert len(correlations) <= 2
@@ -363,7 +377,9 @@ def test_empty_database(test_db, correlator):
     assert correlations == []
 
 
-def test_confidence_level_calculation(test_db, correlator, sample_activities, sample_trades):
+def test_confidence_level_calculation(
+    test_db, correlator, sample_activities, sample_trades
+):
     impacts = correlator.get_feature_impact(db=test_db, feature_id="feature_2")
 
     if impacts:
@@ -377,7 +393,14 @@ def test_confidence_level_calculation(test_db, correlator, sample_activities, sa
             assert impact.confidence_level >= 0.7
 
 
-def test_all_features_impact(test_db, correlator, sample_activities, sample_trades, sample_signals, sample_proposals):
+def test_all_features_impact(
+    test_db,
+    correlator,
+    sample_activities,
+    sample_trades,
+    sample_signals,
+    sample_proposals,
+):
     impacts = correlator.get_feature_impact(db=test_db)
 
     assert isinstance(impacts, list)

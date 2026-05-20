@@ -34,7 +34,7 @@ class ActivityLogger:
         data: Dict[str, Any],
         confidence: float,
         mode: str = "paper",
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
     ) -> Optional[int]:
         """
         Log a strategy decision to the database.
@@ -68,7 +68,7 @@ class ActivityLogger:
                         decision_type=decision_type,
                         data=data,
                         confidence_score=confidence,
-                        mode=mode
+                        mode=mode,
                     )
                     db.add(activity)
                     db.commit()
@@ -85,7 +85,7 @@ class ActivityLogger:
                     if attempt < max_retries - 1:
                         # Rollback to clear the session state before retrying
                         db.rollback()
-                        delay_ms = base_delay_ms * (2 ** attempt)
+                        delay_ms = base_delay_ms * (2**attempt)
                         logger.warning(
                             f"ActivityLogger: Database locked, retrying in {delay_ms}ms "
                             f"(attempt {attempt + 1}/{max_retries})"
@@ -108,7 +108,7 @@ class ActivityLogger:
         limit: int = 100,
         strategy: Optional[str] = None,
         days: Optional[int] = None,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve activity logs with optional filtering.
@@ -149,19 +149,23 @@ class ActivityLogger:
             # Convert to dictionaries
             result = []
             for activity in activities:
-                result.append({
-                    "id": activity.id,
-                    "timestamp": activity.timestamp.isoformat(),
-                    "strategy_name": activity.strategy_name,
-                    "decision_type": activity.decision_type,
-                    "data": activity.data,
-                    "confidence_score": activity.confidence_score,
-                    "mode": activity.mode
-                })
+                result.append(
+                    {
+                        "id": activity.id,
+                        "timestamp": activity.timestamp.isoformat(),
+                        "strategy_name": activity.strategy_name,
+                        "decision_type": activity.decision_type,
+                        "data": activity.data,
+                        "confidence_score": activity.confidence_score,
+                        "mode": activity.mode,
+                    }
+                )
 
             return result
         except Exception as e:
-            logger.error(f"ActivityLogger: Failed to retrieve activities: {e}", exc_info=True)
+            logger.error(
+                f"ActivityLogger: Failed to retrieve activities: {e}", exc_info=True
+            )
             return []
         finally:
             if should_close:
@@ -184,7 +188,9 @@ class ActivityLogger:
 
         try:
             # Get retention policy from settings (default 90 days)
-            retention_days = get_setting("ACTIVITY_LOG_RETENTION_DAYS", default=90, db=db)
+            retention_days = get_setting(
+                "ACTIVITY_LOG_RETENTION_DAYS", default=90, db=db
+            )
 
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
@@ -194,9 +200,11 @@ class ActivityLogger:
 
             for attempt in range(max_retries):
                 try:
-                    deleted = db.query(ActivityLog).filter(
-                        ActivityLog.timestamp < cutoff
-                    ).delete()
+                    deleted = (
+                        db.query(ActivityLog)
+                        .filter(ActivityLog.timestamp < cutoff)
+                        .delete()
+                    )
                     db.commit()
 
                     if deleted > 0:
@@ -212,7 +220,7 @@ class ActivityLogger:
                     if attempt < max_retries - 1:
                         # Rollback to clear the session state before retrying
                         db.rollback()
-                        delay_ms = base_delay_ms * (2 ** attempt)
+                        delay_ms = base_delay_ms * (2**attempt)
                         logger.warning(
                             f"ActivityLogger: Database locked during cleanup, retrying in {delay_ms}ms "
                             f"(attempt {attempt + 1}/{max_retries})"
@@ -223,7 +231,9 @@ class ActivityLogger:
                         # Re-raise if out of retries
                         raise
         except Exception as e:
-            logger.error(f"ActivityLogger: Failed to cleanup old activities: {e}", exc_info=True)
+            logger.error(
+                f"ActivityLogger: Failed to cleanup old activities: {e}", exc_info=True
+            )
             db.rollback()
             return 0
         finally:

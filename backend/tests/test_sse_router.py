@@ -1,4 +1,5 @@
 """Tests for SSE event router with channel filtering."""
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 import pytest
@@ -23,8 +24,9 @@ def test_event_channel_map_contains_all_required_events():
         "genome_ready_for_paper",  # New event from shadow_validation
     }
 
-    assert required_events.issubset(EVENT_CHANNEL_MAP.keys()), \
-        f"Missing required events: {required_events - EVENT_CHANNEL_MAP.keys()}"
+    assert required_events.issubset(
+        EVENT_CHANNEL_MAP.keys()
+    ), f"Missing required events: {required_events - EVENT_CHANNEL_MAP.keys()}"
 
 
 def test_event_channel_map_channels():
@@ -33,14 +35,20 @@ def test_event_channel_map_channels():
     assert set(EVENT_CHANNEL_MAP["trade_executed"]) == {"dashboard", "control_room"}
     assert set(EVENT_CHANNEL_MAP["settlement_completed"]) == {"dashboard", "overview"}
     assert set(EVENT_CHANNEL_MAP["strategy_health_killed"]) == {"dashboard", "admin"}
-    assert set(EVENT_CHANNEL_MAP["autonomous_promotion"]) == {"dashboard", "agi_control"}
+    assert set(EVENT_CHANNEL_MAP["autonomous_promotion"]) == {
+        "dashboard",
+        "agi_control",
+    }
     assert set(EVENT_CHANNEL_MAP["arbitrage_fired"]) == {"dashboard", "control_room"}
     assert set(EVENT_CHANNEL_MAP["regime_shift"]) == {"dashboard", "agi_control"}
     assert set(EVENT_CHANNEL_MAP["chromosome_flagged"]) == {"agi_control"}
     assert set(EVENT_CHANNEL_MAP["strategy_param_mutated"]) == {"agi_control", "admin"}
     assert set(EVENT_CHANNEL_MAP["genome_killed"]) == {"agi_control"}
     assert set(EVENT_CHANNEL_MAP["genome_promoted"]) == {"agi_control"}
-    assert set(EVENT_CHANNEL_MAP["genome_ready_for_paper"]) == {"dashboard", "agi_control"}
+    assert set(EVENT_CHANNEL_MAP["genome_ready_for_paper"]) == {
+        "dashboard",
+        "agi_control",
+    }
 
 
 @pytest.mark.asyncio
@@ -197,9 +205,18 @@ async def test_sse_stream_multiple_channels():
     # Add test events to history
     test_events = [
         {"type": "trade_executed", "data": {"trade_id": 1}},  # dashboard, control_room
-        {"type": "autonomous_promotion", "data": {"strategy_id": 1}},  # dashboard, agi_control
-        {"type": "chromosome_flagged", "data": {"chromosome_id": 1}},  # agi_control only
-        {"type": "settlement_completed", "data": {"settlement_id": 1}},  # dashboard, overview
+        {
+            "type": "autonomous_promotion",
+            "data": {"strategy_id": 1},
+        },  # dashboard, agi_control
+        {
+            "type": "chromosome_flagged",
+            "data": {"chromosome_id": 1},
+        },  # agi_control only
+        {
+            "type": "settlement_completed",
+            "data": {"settlement_id": 1},
+        },  # dashboard, overview
     ]
 
     for event in test_events:
@@ -220,6 +237,11 @@ async def test_sse_stream_multiple_channels():
     # Should receive trade_executed, autonomous_promotion, chromosome_flagged, settlement_completed
     # (all except those that don't match any of the requested channels)
     assert len(filtered_events) == 4  # All these events match dashboard or agi_control
-    expected_types = {"trade_executed", "autonomous_promotion", "chromosome_flagged", "settlement_completed"}
+    expected_types = {
+        "trade_executed",
+        "autonomous_promotion",
+        "chromosome_flagged",
+        "settlement_completed",
+    }
     received_types = {event["type"] for event in filtered_events}
     assert received_types == expected_types

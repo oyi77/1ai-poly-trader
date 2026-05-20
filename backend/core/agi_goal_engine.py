@@ -9,7 +9,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from backend.core.agi_types import AGIGoal, MarketRegime, DecisionAuditEntry
 from backend.models.kg_models import Base, DecisionAuditLog
 
-
 REGIME_GOAL_MAP = {
     MarketRegime.BULL: AGIGoal.MAXIMIZE_PNL,
     MarketRegime.BEAR: AGIGoal.PRESERVE_CAPITAL,
@@ -30,7 +29,13 @@ class GoalPerformance:
 
 
 class DiagnosisResult:
-    def __init__(self, error_type: str, recoverable: bool, suggestion: str, context: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        error_type: str,
+        recoverable: bool,
+        suggestion: str,
+        context: dict[str, Any] | None = None,
+    ):
         self.error_type = error_type
         self.recoverable = recoverable
         self.suggestion = suggestion
@@ -45,7 +50,9 @@ class RecoveryResult:
 
 
 class AGIGoalEngine:
-    def __init__(self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"):
+    def __init__(
+        self, session: Optional[Session] = None, db_url: str = "sqlite:///:memory:"
+    ):
         self._current_goal = None
         self._goal_reason = None
         if session is not None:
@@ -75,7 +82,11 @@ class AGIGoalEngine:
             timestamp=datetime.now(timezone.utc),
             agent_name="AGIGoalEngine",
             decision_type="goal_change",
-            input_data={"old_goal": old_goal.value if old_goal else None, "new_goal": goal.value, "reason": reason},
+            input_data={
+                "old_goal": old_goal.value if old_goal else None,
+                "new_goal": goal.value,
+                "reason": reason,
+            },
             output_data={"status": "success"},
             confidence=1.0,
             reasoning=f"Goal changed from {old_goal} to {goal}: {reason}",
@@ -85,7 +96,13 @@ class AGIGoalEngine:
 
         return DecisionAuditEntry(
             timestamp=audit.timestamp,
-            regime=regime if isinstance((regime := getattr(self, '_last_regime', None)), MarketRegime) else MarketRegime.UNKNOWN,
+            regime=(
+                regime
+                if isinstance(
+                    (regime := getattr(self, "_last_regime", None)), MarketRegime
+                )
+                else MarketRegime.UNKNOWN
+            ),
             goal=goal,
             strategy="",
             signal={},
@@ -93,7 +110,9 @@ class AGIGoalEngine:
             outcome="success",
         )
 
-    def evaluate_goal_performance(self, goal: AGIGoal, trades: list[dict[str, Any]]) -> GoalPerformance:
+    def evaluate_goal_performance(
+        self, goal: AGIGoal, trades: list[dict[str, Any]]
+    ) -> GoalPerformance:
         total = len(trades)
         wins = sum(1 for t in trades if t.get("result") == "win")
         pnl = sum(t.get("pnl", 0.0) for t in trades)

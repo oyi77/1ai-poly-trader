@@ -51,7 +51,9 @@ class TestSandboxResult:
         assert isinstance(result_dict["created_at"], str)
 
     def test_to_dict_serializes_datetime(self):
-        result = SandboxResult(run_id="test", status="passed", created_at=datetime(2024, 1, 1, 12, 0, 0))
+        result = SandboxResult(
+            run_id="test", status="passed", created_at=datetime(2024, 1, 1, 12, 0, 0)
+        )
 
         result_dict = result.to_dict()
 

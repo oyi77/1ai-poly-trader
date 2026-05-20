@@ -8,7 +8,11 @@ import json
 from sqlalchemy.orm import Session
 
 from backend.models.database import (
-    ActivityLog, StrategyProposal, Trade, StrategyConfig, MiroFishSignal,
+    ActivityLog,
+    StrategyProposal,
+    Trade,
+    StrategyConfig,
+    MiroFishSignal,
     DecisionLog,
 )
 
@@ -169,9 +173,7 @@ class TestProposalEdgeCases:
         db.add(proposal)
         db.commit()
 
-        pending = db.query(StrategyProposal).filter_by(
-            admin_decision="pending"
-        ).all()
+        pending = db.query(StrategyProposal).filter_by(admin_decision="pending").all()
         assert len(pending) >= 1
 
     def test_proposal_state_machine(self, db: Session):
@@ -301,9 +303,7 @@ class TestMiroFishSignalEdgeCases:
         signal.reasoning = "Updated prediction"
         db.commit()
 
-        updated = db.query(MiroFishSignal).filter_by(
-            market_id="update-test"
-        ).first()
+        updated = db.query(MiroFishSignal).filter_by(market_id="update-test").first()
         assert updated.prediction == 0.7
         assert updated.confidence == 0.85
 
@@ -322,9 +322,7 @@ class TestStrategyConfigEdgeCases:
         db.add(config)
         db.commit()
 
-        stored = db.query(StrategyConfig).filter_by(
-            strategy_name="test_empty"
-        ).first()
+        stored = db.query(StrategyConfig).filter_by(strategy_name="test_empty").first()
         assert json.loads(stored.params) == {}
 
     def test_config_params_json_parsing(self, db: Session):
@@ -339,9 +337,7 @@ class TestStrategyConfigEdgeCases:
         db.add(config)
         db.commit()
 
-        stored = db.query(StrategyConfig).filter_by(
-            strategy_name="test_json"
-        ).first()
+        stored = db.query(StrategyConfig).filter_by(strategy_name="test_json").first()
         parsed = json.loads(stored.params)
         assert parsed["max_pos"] == 5000
         assert parsed["min_edge"] == 0.05
@@ -358,9 +354,7 @@ class TestStrategyConfigEdgeCases:
         db.add(config)
         db.commit()
 
-        stored = db.query(StrategyConfig).filter_by(
-            strategy_name="test_mode"
-        ).first()
+        stored = db.query(StrategyConfig).filter_by(strategy_name="test_mode").first()
         assert stored.mode == "paper"
 
 
@@ -447,9 +441,7 @@ class TestConcurrentStateViolations:
             p.admin_decision = "approved"
         db.commit()
 
-        approved = db.query(StrategyProposal).filter_by(
-            admin_decision="approved"
-        ).all()
+        approved = db.query(StrategyProposal).filter_by(admin_decision="approved").all()
         assert len(approved) == 3
 
     def test_activity_concurrent_logging(self, db: Session):
@@ -465,9 +457,7 @@ class TestConcurrentStateViolations:
             db.add(activity)
         db.commit()
 
-        activities = db.query(ActivityLog).order_by(
-            ActivityLog.timestamp
-        ).all()
+        activities = db.query(ActivityLog).order_by(ActivityLog.timestamp).all()
         assert len(activities) >= 5
 
 
@@ -489,9 +479,7 @@ class TestDataLossScenarios:
         proposal.admin_decision_reason = "Too aggressive"
         db.commit()
 
-        stored = db.query(StrategyProposal).filter_by(
-            admin_decision="rejected"
-        ).first()
+        stored = db.query(StrategyProposal).filter_by(admin_decision="rejected").first()
         assert stored is not None
         assert stored.change_details["pos"] == 10000
 
@@ -536,9 +524,7 @@ class TestDataLossScenarios:
         config.params = json.dumps({"v": 2})
         db.commit()
 
-        final = db.query(StrategyConfig).filter_by(
-            strategy_name="test_history"
-        ).first()
+        final = db.query(StrategyConfig).filter_by(strategy_name="test_history").first()
         assert json.loads(final.params)["v"] == 2
 
 
@@ -576,10 +562,7 @@ class TestMissingDataScenarios:
 
     def test_activity_with_large_data_payload(self, db: Session):
         """Activity with large data structure."""
-        large_data = {
-            f"key_{i}": {"nested": i, "value": i * 100}
-            for i in range(100)
-        }
+        large_data = {f"key_{i}": {"nested": i, "value": i * 100} for i in range(100)}
         activity = ActivityLog(
             strategy_name="test_strat",
             decision_type="entry",

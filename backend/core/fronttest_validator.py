@@ -10,9 +10,12 @@ from backend.config import settings
 from backend.models.database import SessionLocal, StrategyProposal, Trade
 
 from loguru import logger
+
+
 def _get_strategy_risk_tier(strategy_name: str, db: Session) -> str:
     """Return the risk_tier for a strategy, defaulting to 'moderate'."""
     from backend.models.database import StrategyConfig
+
     cfg = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
     return (getattr(cfg, "risk_tier", None) or "moderate") if cfg else "moderate"
 
@@ -21,21 +24,30 @@ class FronttestValidator:
     """Validates that a parameter change survives a paper-trial period before going live."""
 
     def __init__(self, trial_days: int = None, min_trades: int = None):
-        self.trial_days = trial_days if trial_days is not None else settings.AGI_FRONTTEST_DAYS
-        self.min_trades = min_trades if min_trades is not None else settings.AGI_FRONTTEST_MIN_TRADES
+        self.trial_days = (
+            trial_days if trial_days is not None else settings.AGI_FRONTTEST_DAYS
+        )
+        self.min_trades = (
+            min_trades if min_trades is not None else settings.AGI_FRONTTEST_MIN_TRADES
+        )
 
     def can_go_live(self, proposal_id: int, db: Optional[Session] = None) -> dict:
         _owned = db is None
         db = db or SessionLocal()
         try:
-            proposal = db.query(StrategyProposal).filter(
-                StrategyProposal.id == proposal_id
-            ).first()
+            proposal = (
+                db.query(StrategyProposal)
+                .filter(StrategyProposal.id == proposal_id)
+                .first()
+            )
             if not proposal:
                 return {"approved": False, "reason": "proposal not found"}
 
             if proposal.admin_decision not in ("approved", "executed"):
-                return {"approved": False, "reason": f"proposal status is {proposal.admin_decision}"}
+                return {
+                    "approved": False,
+                    "reason": f"proposal status is {proposal.admin_decision}",
+                }
 
             executed = proposal.executed_at
             if not executed:
@@ -102,7 +114,9 @@ class FronttestValidator:
                 "pnl": pnl,
             }
         except Exception as e:
-            logger.error("Fronttest validation failed for proposal %d: %s", proposal_id, e)
+            logger.error(
+                "Fronttest validation failed for proposal %d: %s", proposal_id, e
+            )
             return {"approved": False, "reason": f"validation error: {e}"}
         finally:
             if _owned:
@@ -113,10 +127,14 @@ class FronttestValidator:
         db = db or SessionLocal()
         results = []
         try:
-            proposals = db.query(StrategyProposal).filter(
-                StrategyProposal.admin_decision == "executed",
-                StrategyProposal.executed_at.isnot(None),
-            ).all()
+            proposals = (
+                db.query(StrategyProposal)
+                .filter(
+                    StrategyProposal.admin_decision == "executed",
+                    StrategyProposal.executed_at.isnot(None),
+                )
+                .all()
+            )
 
             for p in proposals:
                 result = self.can_go_live(p.id, db=db)

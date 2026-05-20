@@ -48,7 +48,8 @@ class PolymarketSDKClient:
                 private_key=private_key or os.environ.get("POLYMARKET_PRIVATE_KEY", ""),
                 api_key=api_key or os.environ.get("POLYMARKET_API_KEY", ""),
                 api_secret=api_secret or os.environ.get("POLYMARKET_API_SECRET", ""),
-                passphrase=api_passphrase or os.environ.get("POLYMARKET_API_PASSPHRASE", ""),
+                passphrase=api_passphrase
+                or os.environ.get("POLYMARKET_API_PASSPHRASE", ""),
                 chain_id=chain_id,
             )
             self._configured = True

@@ -12,6 +12,7 @@ from backend.models.database import get_db, SystemSettings
 from backend.config import settings as app_settings
 
 from loguru import logger
+
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
@@ -74,11 +75,15 @@ async def get_settings(db: Session = Depends(get_db)):
         mirofish_api_url = _get_setting(db, "mirofish_api_url", None)
         mirofish_api_key = _get_setting(db, "mirofish_api_key", None)
         strategies = _get_setting(db, "strategies_enabled", {})
-        risk_params = _get_setting(db, "risk_params", {
-            "max_position_size": app_settings.MAX_TRADE_SIZE,
-            "max_daily_loss": app_settings.DAILY_LOSS_LIMIT,
-            "max_total_pending": app_settings.MAX_TOTAL_PENDING_TRADES,
-        })
+        risk_params = _get_setting(
+            db,
+            "risk_params",
+            {
+                "max_position_size": app_settings.MAX_TRADE_SIZE,
+                "max_daily_loss": app_settings.DAILY_LOSS_LIMIT,
+                "max_total_pending": app_settings.MAX_TOTAL_PENDING_TRADES,
+            },
+        )
         trading_mode = _get_setting(db, "trading_mode", app_settings.TRADING_MODE)
 
         return SettingsResponse(
@@ -98,7 +103,7 @@ async def get_settings(db: Session = Depends(get_db)):
 async def update_settings(
     updates: SettingsUpdateRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    _: None = Depends(require_admin),
 ):
     from backend.models.audit_logger import log_audit_event
 
@@ -109,7 +114,10 @@ async def update_settings(
         if updates.mirofish_enabled is not None:
             old_value = _get_setting(db, "mirofish_enabled", False)
             _set_setting(db, "mirofish_enabled", updates.mirofish_enabled)
-            changes["mirofish_enabled"] = {"old": old_value, "new": updates.mirofish_enabled}
+            changes["mirofish_enabled"] = {
+                "old": old_value,
+                "new": updates.mirofish_enabled,
+            }
 
         if updates.mirofish_api_url is not None:
             old_value = _get_setting(db, "mirofish_api_url", None)
@@ -124,7 +132,10 @@ async def update_settings(
         if updates.strategies is not None:
             old_value = _get_setting(db, "strategies_enabled", {})
             _set_setting(db, "strategies_enabled", updates.strategies)
-            changes["strategies_enabled"] = {"old": old_value, "new": updates.strategies}
+            changes["strategies_enabled"] = {
+                "old": old_value,
+                "new": updates.strategies,
+            }
 
         if updates.risk_params is not None:
             old_value = _get_setting(db, "risk_params", {})
@@ -180,8 +191,7 @@ class BulkSettingUpdateRequest(BaseModel):
 
 @router.get("/list", response_model=list[SettingItemResponse])
 async def list_all_settings(
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     """Return all SystemSettings rows as an array for the SettingsEditor UI."""
     rows = db.query(SystemSettings).order_by(SystemSettings.key).all()
@@ -196,16 +206,18 @@ async def list_all_settings(
             stype = "float"
         else:
             stype = "string"
-        result.append(SettingItemResponse(
-            id=row.id,
-            key=row.key,
-            value=str(val) if not isinstance(val, str) else val,
-            description=None,
-            type=stype,
-            created_at=str(row.updated_at) if row.updated_at else None,
-            updated_at=str(row.updated_at) if row.updated_at else None,
-            updated_by_user_id="admin",
-        ))
+        result.append(
+            SettingItemResponse(
+                id=row.id,
+                key=row.key,
+                value=str(val) if not isinstance(val, str) else val,
+                description=None,
+                type=stype,
+                created_at=str(row.updated_at) if row.updated_at else None,
+                updated_at=str(row.updated_at) if row.updated_at else None,
+                updated_by_user_id="admin",
+            )
+        )
     return result
 
 
@@ -213,16 +225,23 @@ async def list_all_settings(
 async def bulk_update_settings(
     body: BulkSettingUpdateRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    _: None = Depends(require_admin),
 ):
     """Bulk update settings from array of {key, value} pairs."""
 
     # Keys that should be propagated to app_settings at runtime
     RUNTIME_MUTABLE_KEYS = {
-        "PAPER_SLIPPAGE_BPS", "PAPER_MIN_SLIPPAGE_BPS", "PAPER_SIZE_IMPACT_FACTOR",
-        "PAPER_CLOB_FEE_RATE", "PAPER_MIN_DEPTH_USD", "PAPER_RANDOM_SLIPPAGE",
-        "MIROFISH_ENABLED", "MIROFISH_API_URL", "MIROFISH_API_KEY",
-        "TRADING_MODE", "SIGNAL_APPROVAL_MODE",
+        "PAPER_SLIPPAGE_BPS",
+        "PAPER_MIN_SLIPPAGE_BPS",
+        "PAPER_SIZE_IMPACT_FACTOR",
+        "PAPER_CLOB_FEE_RATE",
+        "PAPER_MIN_DEPTH_USD",
+        "PAPER_RANDOM_SLIPPAGE",
+        "MIROFISH_ENABLED",
+        "MIROFISH_API_URL",
+        "MIROFISH_API_KEY",
+        "TRADING_MODE",
+        "SIGNAL_APPROVAL_MODE",
     }
 
     updated = 0
@@ -243,12 +262,20 @@ async def bulk_update_settings(
                 try:
                     value = int(value)
                 except (ValueError, TypeError):
-                    logger.warning("Setting %s: could not convert '%s' to int, keeping as string", key, value)
+                    logger.warning(
+                        "Setting %s: could not convert '%s' to int, keeping as string",
+                        key,
+                        value,
+                    )
             elif isinstance(row.value, float):
                 try:
                     value = float(value)
                 except (ValueError, TypeError):
-                    logger.warning("Setting %s: could not convert '%s' to float, keeping as string", key, value)
+                    logger.warning(
+                        "Setting %s: could not convert '%s' to float, keeping as string",
+                        key,
+                        value,
+                    )
             row.value = value
             row.updated_at = datetime.now(timezone.utc)
         else:
@@ -260,7 +287,11 @@ async def bulk_update_settings(
             try:
                 current_val = getattr(app_settings, key)
                 if isinstance(current_val, bool):
-                    coerced = value in ("true", "True", "1", True) if isinstance(value, str) else bool(value)
+                    coerced = (
+                        value in ("true", "True", "1", True)
+                        if isinstance(value, str)
+                        else bool(value)
+                    )
                 elif isinstance(current_val, int):
                     coerced = int(value)
                 elif isinstance(current_val, float):
@@ -278,6 +309,7 @@ async def bulk_update_settings(
     if mutated_app_settings:
         try:
             from backend.core.config_service import _settings_cache, _cache_lock
+
             with _cache_lock:
                 for key, _ in mutated_app_settings:
                     _settings_cache.pop(key, None)
@@ -285,13 +317,16 @@ async def bulk_update_settings(
             pass
         logger.info(f"Runtime settings updated: {mutated_app_settings}")
 
-    return {"status": "ok", "message": f"Updated {updated} settings", "updated": updated}
+    return {
+        "status": "ok",
+        "message": f"Updated {updated} settings",
+        "updated": updated,
+    }
 
 
 @router.post("/mirofish/toggle", response_model=ToggleResponse)
 async def toggle_mirofish(
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     from backend.models.audit_logger import log_audit_event
 
@@ -318,7 +353,7 @@ async def toggle_mirofish(
 
         return ToggleResponse(
             enabled=new_state,
-            message=f"MiroFish {'enabled' if new_state else 'disabled'}"
+            message=f"MiroFish {'enabled' if new_state else 'disabled'}",
         )
     except Exception as e:
         db.rollback()
@@ -328,9 +363,7 @@ async def toggle_mirofish(
 
 @router.post("/strategy/{name}/toggle", response_model=ToggleResponse)
 async def toggle_strategy(
-    name: str,
-    db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    name: str, db: Session = Depends(get_db), _: None = Depends(require_admin)
 ):
     from backend.models.audit_logger import log_audit_event
 
@@ -357,19 +390,21 @@ async def toggle_strategy(
 
         return ToggleResponse(
             enabled=new_state,
-            message=f"Strategy '{name}' {'enabled' if new_state else 'disabled'}"
+            message=f"Strategy '{name}' {'enabled' if new_state else 'disabled'}",
         )
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to toggle strategy '{name}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to toggle strategy '{name}'")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to toggle strategy '{name}'"
+        )
 
 
 @router.post("/test-mirofish", response_model=TestMiroFishResponse)
 async def test_mirofish(
     request: TestMiroFishRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin)
+    _: None = Depends(require_admin),
 ):
     """Test MiroFish API connection with provided credentials.
 
@@ -381,16 +416,12 @@ async def test_mirofish(
 
         logger.info(f"Testing MiroFish connection: {request.api_url}")
 
-        client = MiroFishClient(
-            api_url=request.api_url,
-            api_key=request.api_key
-        )
+        client = MiroFishClient(api_url=request.api_url, api_key=request.api_key)
 
         # Test fetch_signals with timeout
         try:
             signals = await asyncio.wait_for(
-                client.fetch_signals(market="polymarket"),
-                timeout=10.0
+                client.fetch_signals(market="polymarket"), timeout=10.0
             )
 
             logger.info(f"MiroFish test successful: {len(signals)} signals fetched")
@@ -398,7 +429,7 @@ async def test_mirofish(
             return TestMiroFishResponse(
                 success=True,
                 message=f"Connection successful. Fetched {len(signals)} signals.",
-                signals_count=len(signals)
+                signals_count=len(signals),
             )
 
         except asyncio.TimeoutError:
@@ -406,7 +437,7 @@ async def test_mirofish(
             return TestMiroFishResponse(
                 success=False,
                 message="Connection test timed out after 10 seconds",
-                error="timeout"
+                error="timeout",
             )
         except Exception as e:
             error_msg = str(e)
@@ -417,31 +448,30 @@ async def test_mirofish(
                 return TestMiroFishResponse(
                     success=False,
                     message="Authentication failed. Check your API key.",
-                    error="authentication"
+                    error="authentication",
                 )
             elif "404" in error_msg or "not found" in error_msg.lower():
                 return TestMiroFishResponse(
                     success=False,
                     message="API endpoint not found. Check your API URL.",
-                    error="not_found"
+                    error="not_found",
                 )
             elif "connection" in error_msg.lower():
                 return TestMiroFishResponse(
                     success=False,
                     message="Connection failed. Check your API URL and network.",
-                    error="connection"
+                    error="connection",
                 )
             else:
                 return TestMiroFishResponse(
                     success=False,
                     message="Connection test failed. Please check your credentials.",
-                    error=error_msg
+                    error=error_msg,
                 )
     except Exception as e:
         logger.error(f"Unexpected error during MiroFish test: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail="Failed to test MiroFish connection"
+            status_code=500, detail="Failed to test MiroFish connection"
         )
 
 
@@ -455,6 +485,7 @@ class ServiceActionResponse(BaseModel):
 @router.get("/mirofish/status")
 async def get_mirofish_service_status():
     from backend.services.mirofish_service import get_mirofish_service
+
     service = get_mirofish_service()
     return service.get_status()
 
@@ -518,9 +549,9 @@ def _find_process_by_port(port: int) -> Optional[int]:
     """Find PID listening on a given port."""
     try:
         import subprocess
+
         result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True, timeout=5
+            ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0 and result.stdout.strip():
             pids = result.stdout.strip().split("\n")
@@ -534,6 +565,7 @@ def _find_process_by_port(port: int) -> Optional[int]:
 def _kill_process(pid: int):
     """Kill a process by PID."""
     import subprocess
+
     try:
         subprocess.run(["kill", str(pid)], timeout=5)
     except Exception:
@@ -543,6 +575,7 @@ def _kill_process(pid: int):
 def _start_mirofish_backend():
     import subprocess
     import os
+
     venv_python = os.path.join(MIROFISH_BACKEND_DIR, "venv", "bin", "python")
     env = {**os.environ}
     # E-96: Pipe stderr to PIPE so startup errors are not silently swallowed
@@ -557,6 +590,7 @@ def _start_mirofish_backend():
 
 def _start_mirofish_frontend():
     import subprocess
+
     # E-96: Pipe stderr to PIPE so startup errors are not silently swallowed
     return subprocess.Popen(
         ["npx", "vite", "preview", "--port", str(MIROFISH_FRONTEND_PORT), "--host"],
@@ -751,13 +785,14 @@ def _profile_to_response(p) -> RiskProfileResponse:
         weekly_drawdown_limit_pct=p.weekly_drawdown_limit_pct,
         slippage_tolerance=p.slippage_tolerance,
         auto_approve_min_confidence=p.auto_approve_min_confidence,
-        is_preset=getattr(p, 'is_preset', False),
+        is_preset=getattr(p, "is_preset", False),
     )
 
 
 @router.get("/risk/profile", response_model=RiskProfileListResponse)
 async def get_risk_profiles(_: None = Depends(require_admin)):
     from backend.core.risk_profiles import list_profiles, get_active_profile_name
+
     active = get_active_profile_name()
     profiles = {k: _profile_to_response(p) for k, p in list_profiles().items()}
     return RiskProfileListResponse(active=active, profiles=profiles)
@@ -769,12 +804,20 @@ async def set_risk_profile(
     _: None = Depends(require_admin),
 ):
     from backend.core.risk_profiles import list_profiles, apply_profile
+
     all_profiles = list_profiles()
     if body.profile not in all_profiles:
-        raise HTTPException(status_code=400, detail=f"Unknown profile: {body.profile}. Available: {list(all_profiles.keys())}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown profile: {body.profile}. Available: {list(all_profiles.keys())}",
+        )
     profile = apply_profile(body.profile)
     logger.info("Risk profile changed to '%s'", profile.display_name)
-    return {"status": "ok", "active_profile": profile.name, "display_name": profile.display_name}
+    return {
+        "status": "ok",
+        "active_profile": profile.name,
+        "display_name": profile.display_name,
+    }
 
 
 @router.put("/risk/profile/{name}")
@@ -784,6 +827,7 @@ async def update_risk_profile(
     _: None = Depends(require_admin),
 ):
     from backend.core.risk_profiles import update_profile
+
     try:
         updates = {k: v for k, v in body.model_dump().items() if v is not None}
         if not updates:
@@ -800,6 +844,7 @@ async def create_risk_profile(
     _: None = Depends(require_admin),
 ):
     from backend.core.risk_profiles import create_profile, RiskProfile
+
     try:
         profile = RiskProfile(
             name=body.name,
@@ -827,14 +872,23 @@ async def delete_risk_profile(
     _: None = Depends(require_admin),
 ):
     from backend.core.risk_profiles import delete_profile
+
     deleted = delete_profile(name)
     if not deleted:
-        raise HTTPException(status_code=400, detail=f"Cannot delete preset profile or profile not found: {name}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete preset profile or profile not found: {name}",
+        )
     return {"status": "ok", "deleted": name}
 
 
 @router.get("/mirofish/signals")
-async def get_mirofish_signals(market: str = "polymarket", question: str = "", db: Session = Depends(get_db), _: None = Depends(require_admin)):
+async def get_mirofish_signals(
+    market: str = "polymarket",
+    question: str = "",
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+):
     """Get AI-powered trading signals — routes to external MiroFish or built-in debate engine.
 
     Behaviour controlled by MIROFISH_ENABLED and MIROFISH_API_URL in settings:
@@ -847,22 +901,32 @@ async def get_mirofish_signals(market: str = "polymarket", question: str = "", d
     if app.MIROFISH_ENABLED and app.MIROFISH_API_URL:
         try:
             from backend.ai.mirofish_client import MiroFishClient
+
             client = MiroFishClient()
             raw_signals = await client.fetch_signals(market=market, question=question)
             if raw_signals:
-                signals = [{
-                    "market_id": s.market_id,
-                    "market_question": getattr(s, "market_question", ""),
-                    "prediction": s.prediction,
-                    "confidence": s.confidence,
-                    "reasoning": s.reasoning,
-                    "source": s.source,
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
-                    "signal_id": f"mirofish_{hash(s.market_id) % 100000:05d}",
-                } for s in raw_signals]
-                return {"signals": signals, "count": len(signals), "source": "external_mirofish"}
+                signals = [
+                    {
+                        "market_id": s.market_id,
+                        "market_question": getattr(s, "market_question", ""),
+                        "prediction": s.prediction,
+                        "confidence": s.confidence,
+                        "reasoning": s.reasoning,
+                        "source": s.source,
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "signal_id": f"mirofish_{hash(s.market_id) % 100000:05d}",
+                    }
+                    for s in raw_signals
+                ]
+                return {
+                    "signals": signals,
+                    "count": len(signals),
+                    "source": "external_mirofish",
+                }
         except Exception as e:
-            logger.warning(f"External MiroFish failed, falling back to debate engine: {e}")
+            logger.warning(
+                f"External MiroFish failed, falling back to debate engine: {e}"
+            )
 
     from backend.ai.debate_engine import run_debate
     from backend.data.gamma import fetch_markets
@@ -874,7 +938,11 @@ async def get_mirofish_signals(market: str = "polymarket", question: str = "", d
             question = m.get("question", "Unknown market")
             prices_str = m.get("outcomePrices", "[]")
             try:
-                prices = _json.loads(prices_str) if isinstance(prices_str, str) else prices_str
+                prices = (
+                    _json.loads(prices_str)
+                    if isinstance(prices_str, str)
+                    else prices_str
+                )
                 yes_price = float(prices[0]) if prices else 0.5
             except (_json.JSONDecodeError, IndexError, ValueError, TypeError):
                 yes_price = 0.5
@@ -888,41 +956,49 @@ async def get_mirofish_signals(market: str = "polymarket", question: str = "", d
                 max_rounds=1,
             )
             if result:
-                bull_reasoning = result.bull_arguments[0].reasoning if result.bull_arguments else ""
-                bear_reasoning = result.bear_arguments[0].reasoning if result.bear_arguments else ""
-                signals.append({
-                    "market_id": str(m.get("id", "")),
-                    "market_question": question,
-                    "market_type": m.get("category", "crypto"),
-                    "prediction": result.consensus_probability,
-                    "confidence": result.confidence,
-                    "edge": abs(result.consensus_probability - yes_price),
-                    "fair_value": result.consensus_probability,
-                    "current_price": yes_price,
-                    "reasoning": result.reasoning,
-                    "bull_args": bull_reasoning,
-                    "bear_args": bear_reasoning,
-                    "sources": result.data_sources or ["debate_engine"],
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
-                    "signal_id": f"debate_{hash(question) % 100000:05d}",
-                    "latency_ms": result.latency_ms,
-                    "rounds": result.rounds_completed,
-                })
+                bull_reasoning = (
+                    result.bull_arguments[0].reasoning if result.bull_arguments else ""
+                )
+                bear_reasoning = (
+                    result.bear_arguments[0].reasoning if result.bear_arguments else ""
+                )
+                signals.append(
+                    {
+                        "market_id": str(m.get("id", "")),
+                        "market_question": question,
+                        "market_type": m.get("category", "crypto"),
+                        "prediction": result.consensus_probability,
+                        "confidence": result.confidence,
+                        "edge": abs(result.consensus_probability - yes_price),
+                        "fair_value": result.consensus_probability,
+                        "current_price": yes_price,
+                        "reasoning": result.reasoning,
+                        "bull_args": bull_reasoning,
+                        "bear_args": bear_reasoning,
+                        "sources": result.data_sources or ["debate_engine"],
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "signal_id": f"debate_{hash(question) % 100000:05d}",
+                        "latency_ms": result.latency_ms,
+                        "rounds": result.rounds_completed,
+                    }
+                )
             else:
-                signals.append({
-                    "market_id": str(m.get("id", "")),
-                    "market_question": question,
-                    "market_type": m.get("category", "crypto"),
-                    "prediction": yes_price,
-                    "confidence": 0.3,
-                    "edge": 0.0,
-                    "fair_value": yes_price,
-                    "current_price": yes_price,
-                    "reasoning": "Debate engine returned no result",
-                    "sources": ["debate_engine"],
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
-                    "signal_id": f"nodata_{hash(question) % 100000:05d}",
-                })
+                signals.append(
+                    {
+                        "market_id": str(m.get("id", "")),
+                        "market_question": question,
+                        "market_type": m.get("category", "crypto"),
+                        "prediction": yes_price,
+                        "confidence": 0.3,
+                        "edge": 0.0,
+                        "fair_value": yes_price,
+                        "current_price": yes_price,
+                        "reasoning": "Debate engine returned no result",
+                        "sources": ["debate_engine"],
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "signal_id": f"nodata_{hash(question) % 100000:05d}",
+                    }
+                )
 
         return {"signals": signals, "count": len(signals), "source": "debate_engine"}
     except Exception as e:

@@ -35,7 +35,10 @@ from backend.api.copy_trading import router as copy_trading_router
 from backend.api.arbitrage import router as arbitrage_router
 from backend.api.market_intel import router as market_intel_router
 from backend.api.auto_trader import router as auto_trader_router
-from backend.api.system import health_check as system_liveness_check, router as system_router
+from backend.api.system import (
+    health_check as system_liveness_check,
+    router as system_router,
+)
 from backend.api.backtest import router as backtest_router
 from backend.api.wallets import router as wallets_router
 from backend.api.wallet_allocations import router as wallet_allocations_router
@@ -69,15 +72,9 @@ from loguru import logger
 from fastapi.responses import JSONResponse
 from backend.api.calibration_routes import router as calibration_router
 
-
 # Wallet creation warning (after imports)
 if Account is None:
     _import_logger.warning("eth_account not available - wallet creation disabled")
-
-
-
-
-
 
 
 app = FastAPI(
@@ -91,6 +88,7 @@ app = FastAPI(
 @app.exception_handler(Exception)
 async def production_exception_handler(request: Request, exc: Exception):
     from loguru import logger as _err_logger
+
     _err_logger.opt(exception=exc).error(
         "Unhandled exception on {method} {path}: {exc}",
         method=request.method,
@@ -101,6 +99,7 @@ async def production_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
+
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
@@ -115,12 +114,14 @@ app.add_middleware(
 
 try:
     from backend.api.rate_limiter import RateLimiterMiddleware  # noqa: E402
+
     app.add_middleware(RateLimiterMiddleware, requests_per_minute=100)
 except ImportError:
     logger.warning("RateLimiterMiddleware not available — skipping")
 
 try:
     from backend.api.timeout_middleware import TimeoutMiddleware  # noqa: E402
+
     app.add_middleware(TimeoutMiddleware)
 except ImportError:
     logger.warning("TimeoutMiddleware not available — skipping")
@@ -160,12 +161,15 @@ app.include_router(provider_credentials_router, prefix="/api/v1")
 
 # Knowledge Graph router for Wave 10
 from backend.api.agi.kg_router import kg_router  # noqa: E402
+
 app.include_router(kg_router, prefix="/api/v1")
 
 from backend.api.dashboard import router as dashboard_router  # noqa: E402
+
 app.include_router(dashboard_router, prefix="/api/v1")
 
 from backend.api.sync import router as sync_router  # noqa: E402
+
 app.include_router(sync_router, prefix="/api/v1")
 
 from backend.api.websockets_routes import router as websockets_router  # noqa: E402
@@ -190,6 +194,7 @@ async def prometheus_metrics():
 
     data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+
 
 # Add metrics middleware for automatic tracking
 @app.middleware("http")
@@ -250,8 +255,6 @@ class FrontendBacktestRequest(BaseModel):
     initial_bankroll: float = 10000.0
 
 
-
-
 # Core endpoints
 @app.get("/api/v1/health/dependencies")
 async def health_check(db: Session = Depends(get_db)):
@@ -267,7 +270,7 @@ async def health_check(db: Session = Depends(get_db)):
         overall_status = "degraded"
         logger.error(
             f"[api.main.health_check] {type(e).__name__}: Database health check failed: {e}",
-            exc_info=True
+            exc_info=True,
         )
 
     redis_url = getattr(settings, "JOB_QUEUE_URL", "")
@@ -285,7 +288,7 @@ async def health_check(db: Session = Depends(get_db)):
                 overall_status = "degraded"
             logger.warning(
                 f"[api.main.health_check] {type(e).__name__}: Redis health check failed: {e}",
-                exc_info=True
+                exc_info=True,
             )
     else:
         checks["redis"] = {"status": "not_configured", "fallback": "sqlite"}
@@ -327,7 +330,10 @@ async def health_check(db: Session = Depends(get_db)):
                 if overall_status == "ok":
                     overall_status = "degraded"
     except asyncio.TimeoutError:
-        checks["polymarket_clob"] = {"status": "error", "error": "health check timed out"}
+        checks["polymarket_clob"] = {
+            "status": "error",
+            "error": "health check timed out",
+        }
         if overall_status == "ok":
             overall_status = "degraded"
         logger.warning("Polymarket CLOB health check timed out")
@@ -353,13 +359,14 @@ async def health_check(db: Session = Depends(get_db)):
         healths = []
         logger.warning(
             f"[api.main.health_check] {type(e).__name__}: Failed to get strategy health: {e}",
-            exc_info=True
+            exc_info=True,
         )
         if overall_status == "ok":
             overall_status = "degraded"
 
     try:
         from backend.models.database import engine
+
         pool = engine.pool
         checks["db_pool"] = {
             "status": "ok",
@@ -376,6 +383,7 @@ async def health_check(db: Session = Depends(get_db)):
     agi_health = {}
     try:
         from backend.core.agi_event_handlers import check_agi_health
+
         agi_health = check_agi_health()
     except Exception as e:
         agi_health = {"status": "error", "error": "agi health unavailable"}
@@ -384,6 +392,7 @@ async def health_check(db: Session = Depends(get_db)):
     cognitive_core_health = {}
     try:
         from backend.core.cognitive_core import create_cognitive_core
+
         _core = create_cognitive_core()
         _ch = _core.health_check()
         cognitive_core_health = {
@@ -395,13 +404,17 @@ async def health_check(db: Session = Depends(get_db)):
         if _ch.status == "amnesia" and overall_status == "ok":
             overall_status = "degraded"
     except Exception as e:
-        cognitive_core_health = {"status": "error", "error": "cognitive core unavailable"}
+        cognitive_core_health = {
+            "status": "error",
+            "error": "cognitive core unavailable",
+        }
         logger.warning(f"Failed to get cognitive core health: {e}")
 
     # ── Agent Council ──
     agent_council_health = {}
     try:
         from backend.core.agent_council import AgentCouncil
+
         _council = AgentCouncil()
         _council.register_default_agents()
         _agent_statuses = _council.get_agent_status()
@@ -422,6 +435,7 @@ async def health_check(db: Session = Depends(get_db)):
     evolution_harness_health = {}
     try:
         from backend.core.evolution_harness import create_evolution_backend
+
         _backend = create_evolution_backend()
         evolution_harness_health = {
             "status": "ok",
@@ -436,13 +450,17 @@ async def health_check(db: Session = Depends(get_db)):
     learning_pipeline_health = {}
     try:
         from backend.core.learning_pipeline import get_learning_pipeline
+
         _lp = get_learning_pipeline()
         _m = _lp.metrics
         error_rate = 0.0
         if _m.total_processed > 0:
             total_errors = (
-                _m.forensics_errors + _m.extraction_errors
-                + _m.brain_errors + _m.genome_errors + _m.kg_errors
+                _m.forensics_errors
+                + _m.extraction_errors
+                + _m.brain_errors
+                + _m.genome_errors
+                + _m.kg_errors
             )
             error_rate = total_errors / _m.total_processed
         learning_pipeline_health = {
@@ -460,6 +478,7 @@ async def health_check(db: Session = Depends(get_db)):
     correlation_monitor_health = {}
     try:
         from backend.core.correlation_monitor import MARKET_CATEGORIES
+
         correlation_monitor_health = {
             "status": "ok",
             "categories_tracked": len(MARKET_CATEGORIES),
@@ -472,8 +491,12 @@ async def health_check(db: Session = Depends(get_db)):
     # ── Sell Signal Monitor ──
     sell_signal_health = {}
     try:
-        from backend.core.position_monitor import detect_sell_signals, _get_open_positions
+        from backend.core.position_monitor import (
+            detect_sell_signals,
+            _get_open_positions,
+        )
         from backend.db.utils import get_db_session
+
         with get_db_session() as _pm_db:
             _open = _get_open_positions(_pm_db)
             _signals = detect_sell_signals(_pm_db)
@@ -503,9 +526,6 @@ async def health_check(db: Session = Depends(get_db)):
     }
     db.rollback()
     return response
-
-
-
 
 
 # =========================================================================
@@ -543,12 +563,6 @@ class CopySignalResponse(BaseModel):
 # =========================================================================
 
 
-
-
-
-
-
-
 if __name__ == "__main__":
     import uvicorn
     from backend.core.config_service import get_setting
@@ -556,4 +570,3 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(get_setting("PORT", default="8100")))
 
 app.include_router(calibration_router, prefix="/api/v1")
-

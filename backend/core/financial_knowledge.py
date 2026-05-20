@@ -4,6 +4,7 @@ Provides typed methods for registering alpha signals, strategy templates,
 trade memories, and performing cross-domain reasoning using the existing
 KnowledgeGraph infrastructure and CognitiveCoreAdapter.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -52,7 +53,9 @@ class FinancialKnowledgeManager:
                 importance=kwargs.get("importance", 0.5),
             )
         except Exception as exc:
-            logger.debug("CognitiveCore remember failed for alpha {}: {}", signal_id, exc)
+            logger.debug(
+                "CognitiveCore remember failed for alpha {}: {}", signal_id, exc
+            )
         return entity
 
     def get_alphas_for_regime(self, regime_type: str) -> list[KGEntity]:
@@ -76,7 +79,9 @@ class FinancialKnowledgeManager:
         entity_id = f"alpha:{signal_id}"
         existing = self._kg.get_entity(entity_id)
         if existing is None:
-            logger.warning("Alpha signal {} not found for performance update", signal_id)
+            logger.warning(
+                "Alpha signal {} not found for performance update", signal_id
+            )
             return
         props = dict(existing.properties)
         props["ic"] = ic
@@ -106,7 +111,9 @@ class FinancialKnowledgeManager:
             "description": kwargs.get("description", ""),
         }
         props.update(kwargs)
-        entity = self._kg.add_entity("strategy_template", f"template:{template_id}", props)
+        entity = self._kg.add_entity(
+            "strategy_template", f"template:{template_id}", props
+        )
         try:
             self._core.remember(
                 namespace="strategy_templates",
@@ -115,7 +122,9 @@ class FinancialKnowledgeManager:
                 importance=0.6,
             )
         except Exception as exc:
-            logger.debug("CognitiveCore remember failed for template {}: {}", template_id, exc)
+            logger.debug(
+                "CognitiveCore remember failed for template {}: {}", template_id, exc
+            )
         return entity
 
     def get_templates_for_regime(self, regime_type: str) -> list[KGEntity]:
@@ -154,12 +163,16 @@ class FinancialKnowledgeManager:
         strategy_entity_id = f"strategy:{strategy}"
         if self._kg.get_entity(strategy_entity_id) is None:
             self._kg.add_entity("strategy", strategy_entity_id)
-        self._kg.add_relation(entity_id, strategy_entity_id, "executed_by", weight=1.0, confidence=1.0)
+        self._kg.add_relation(
+            entity_id, strategy_entity_id, "executed_by", weight=1.0, confidence=1.0
+        )
         # Link to regime
         regime_entity_id = f"regime:{regime}"
         if self._kg.get_entity(regime_entity_id) is None:
             self._kg.add_entity("regime", regime_entity_id)
-        self._kg.add_relation(entity_id, regime_entity_id, "occurred_in", weight=1.0, confidence=0.8)
+        self._kg.add_relation(
+            entity_id, regime_entity_id, "occurred_in", weight=1.0, confidence=0.8
+        )
         # Store in cognitive core for recall
         try:
             self._core.remember(
@@ -169,7 +182,9 @@ class FinancialKnowledgeManager:
                 importance=0.7,
             )
         except Exception as exc:
-            logger.debug("CognitiveCore remember failed for trade {}: {}", trade_id, exc)
+            logger.debug(
+                "CognitiveCore remember failed for trade {}: {}", trade_id, exc
+            )
 
     def find_similar_trades(
         self, strategy: str, regime: str, limit: int = 10
@@ -215,26 +230,39 @@ class FinancialKnowledgeManager:
         # Check templates for regime
         templates = self.get_templates_for_regime(regime)
         for t in templates:
-            suggestions.append({
-                "source": "template",
-                "template_id": t.entity_id,
-                "strategy_class": t.properties.get("strategy_class", ""),
-                "effectiveness": t.properties.get("regime_effectiveness", {}).get(regime, 0.0),
-                "description": t.properties.get("description", ""),
-            })
+            suggestions.append(
+                {
+                    "source": "template",
+                    "template_id": t.entity_id,
+                    "strategy_class": t.properties.get("strategy_class", ""),
+                    "effectiveness": t.properties.get("regime_effectiveness", {}).get(
+                        regime, 0.0
+                    ),
+                    "description": t.properties.get("description", ""),
+                }
+            )
         # Check KG for strategies linked to regime
         regime_entity = self._kg.get_entity(f"regime:{regime}")
         if regime_entity:
-            related = self._kg.get_related(f"regime:{regime}", relation_type="performs_well_in")
+            related = self._kg.get_related(
+                f"regime:{regime}", relation_type="performs_well_in"
+            )
             for r in related:
                 if r.entity_type in ("strategy", "alpha_signal"):
-                    suggestions.append({
-                        "source": "knowledge_graph",
-                        "entity_id": r.entity_id,
-                        "properties": r.properties,
-                    })
+                    suggestions.append(
+                        {
+                            "source": "knowledge_graph",
+                            "entity_id": r.entity_id,
+                            "properties": r.properties,
+                        }
+                    )
         # Sort by effectiveness / weight
-        suggestions.sort(key=lambda s: s.get("effectiveness", s.get("properties", {}).get("weight", 0)), reverse=True)
+        suggestions.sort(
+            key=lambda s: s.get(
+                "effectiveness", s.get("properties", {}).get("weight", 0)
+            ),
+            reverse=True,
+        )
         return suggestions
 
     def get_knowledge_gaps(self) -> list[str]:
@@ -242,15 +270,23 @@ class FinancialKnowledgeManager:
         gaps: list[str] = []
         alphas = self._kg.query_by_type("alpha_signal", limit=100)
         if len(alphas) < 3:
-            gaps.append(f"Only {len(alphas)} alpha signals registered; need more diversification")
+            gaps.append(
+                f"Only {len(alphas)} alpha signals registered; need more diversification"
+            )
         templates = self._kg.query_by_type("strategy_template", limit=100)
         if len(templates) < 2:
-            gaps.append(f"Only {len(templates)} strategy templates; need more regime coverage")
+            gaps.append(
+                f"Only {len(templates)} strategy templates; need more regime coverage"
+            )
         trades = self._kg.query_by_type("trade_memory", limit=100)
         if len(trades) < 10:
-            gaps.append(f"Only {len(trades)} trade memories; need more settled trades for learning")
+            gaps.append(
+                f"Only {len(trades)} trade memories; need more settled trades for learning"
+            )
         # Check regime coverage
         regimes = self._kg.query_by_type("regime", limit=20)
         if len(regimes) < 3:
-            gaps.append(f"Only {len(regimes)} regimes tracked; need broader regime classification")
+            gaps.append(
+                f"Only {len(regimes)} regimes tracked; need broader regime classification"
+            )
         return gaps

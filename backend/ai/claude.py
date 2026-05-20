@@ -98,6 +98,7 @@ class ClaudeAnalyzer(BaseAIClient):
                 from datetime import datetime
 
                 from backend.db.utils import get_db_session
+
                 with get_db_session() as db:
                     db_record = AILog(
                         timestamp=datetime.fromisoformat(record.timestamp),
@@ -165,6 +166,7 @@ class ClaudeAnalyzer(BaseAIClient):
                 from datetime import datetime
 
                 from backend.db.utils import get_db_session
+
                 with get_db_session() as db:
                     db_record = AILog(
                         timestamp=datetime.fromisoformat(record.timestamp),
@@ -235,6 +237,7 @@ Categories: weather, crypto, politics, economics, sports, other"""
                 from datetime import datetime
 
                 from backend.db.utils import get_db_session
+
                 with get_db_session() as db:
                     db_record = AILog(
                         timestamp=datetime.fromisoformat(record.timestamp),
@@ -318,9 +321,11 @@ Be concise (1-2 sentences per anomaly)."""
                     ):
                         anomalies.append(
                             AnomalyReport(
-                                market_ticker=line.split(":")[0].strip()
-                                if ":" in line
-                                else "Unknown",
+                                market_ticker=(
+                                    line.split(":")[0].strip()
+                                    if ":" in line
+                                    else "Unknown"
+                                ),
                                 anomaly_type="ai_detected",
                                 severity="medium",
                                 description=line.strip(),

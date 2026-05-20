@@ -1,14 +1,15 @@
 """Tests for backend.core.preflight — geoblock and connectivity checks."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
 from backend.core.preflight import check_geoblock
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_response(status_code: int = 200, json_data: dict | None = None) -> MagicMock:
     """Build a mock httpx.Response."""
@@ -25,6 +26,7 @@ def _mock_response(status_code: int = 200, json_data: dict | None = None) -> Mag
 # ---------------------------------------------------------------------------
 # check_geoblock
 # ---------------------------------------------------------------------------
+
 
 async def test_geoblock_not_blocked():
     """When Polymarket returns blocked=false the result status is OK."""

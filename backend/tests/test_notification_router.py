@@ -1,4 +1,5 @@
 """Tests for backend.bot.notification_router."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,7 +77,9 @@ async def test_discord_webhook_called(router):
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("backend.bot.notification_router.httpx.AsyncClient", return_value=mock_client):
+    with patch(
+        "backend.bot.notification_router.httpx.AsyncClient", return_value=mock_client
+    ):
         await router._send_discord(webhook_url, message)
 
     mock_client.post.assert_awaited_once_with(webhook_url, json={"content": message})

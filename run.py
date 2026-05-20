@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run the trading bot backend server."""
+
 import uvicorn
 from backend.models.database import init_db
 from backend.config_extensions import settings

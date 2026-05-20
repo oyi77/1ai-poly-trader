@@ -20,6 +20,7 @@ from loguru import logger
 @dataclass
 class StrategyComparisonResult:
     """Result of comparing multiple strategies on the same data."""
+
     strategy_name: str
     total_trades: int
     winning_trades: int
@@ -38,6 +39,7 @@ class StrategyComparisonResult:
 @dataclass
 class WalkForwardResult:
     """Result of walk-forward validation for a single strategy."""
+
     strategy_name: str
     folds: list[StrategyComparisonResult]
     avg_sharpe: float
@@ -49,6 +51,7 @@ class WalkForwardResult:
 @dataclass
 class MonteCarloResult:
     """Monte Carlo simulation output."""
+
     strategy_name: str
     simulations: int
     mean_pnl: float
@@ -64,13 +67,12 @@ class MonteCarloResult:
 @dataclass
 class EnhancedBacktestConfig:
     """Configuration for enhanced backtesting."""
+
     strategies: list[str]
     start_date: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=90)
     )
-    end_date: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    end_date: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     initial_bankroll: float = 100.0
     kelly_fraction: float = 0.0625
     max_trade_size: float = 10.0
@@ -126,9 +128,21 @@ class EnhancedBacktestEngine:
         return WalkForwardResult(
             strategy_name=strategy_name,
             folds=fold_results,
-            avg_sharpe=statistics.mean(r.sharpe_ratio for r in fold_results) if fold_results else 0.0,
-            avg_win_rate=statistics.mean(r.win_rate for r in fold_results) if fold_results else 0.0,
-            avg_pnl=statistics.mean(r.total_pnl for r in fold_results) if fold_results else 0.0,
+            avg_sharpe=(
+                statistics.mean(r.sharpe_ratio for r in fold_results)
+                if fold_results
+                else 0.0
+            ),
+            avg_win_rate=(
+                statistics.mean(r.win_rate for r in fold_results)
+                if fold_results
+                else 0.0
+            ),
+            avg_pnl=(
+                statistics.mean(r.total_pnl for r in fold_results)
+                if fold_results
+                else 0.0
+            ),
             consistency_score=profitable / len(fold_results) if fold_results else 0.0,
         )
 
@@ -141,10 +155,14 @@ class EnhancedBacktestEngine:
             return MonteCarloResult(
                 strategy_name=strategy_name,
                 simulations=0,
-                mean_pnl=0, median_pnl=0, std_pnl=0,
-                percentile_5=0, percentile_95=0,
+                mean_pnl=0,
+                median_pnl=0,
+                std_pnl=0,
+                percentile_5=0,
+                percentile_95=0,
                 probability_of_profit=0,
-                max_drawdown_mean=0, max_drawdown_95=0,
+                max_drawdown_mean=0,
+                max_drawdown_95=0,
             )
 
         pnls = [s.get("pnl", 0.0) for s in signals if s.get("pnl") is not None]
@@ -258,7 +276,11 @@ class EnhancedBacktestEngine:
     ) -> StrategyComparisonResult:
         """Simulate trades from signals and compute metrics."""
         bankroll = self.config.initial_bankroll
-        equity = [{"timestamp": signals[0].get("timestamp"), "bankroll": bankroll}] if signals else []
+        equity = (
+            [{"timestamp": signals[0].get("timestamp"), "bankroll": bankroll}]
+            if signals
+            else []
+        )
         trades: list[dict] = []
         wins = 0
         total_costs = 0.0
@@ -283,10 +305,12 @@ class EnhancedBacktestEngine:
             if net_pnl > 0:
                 wins += 1
             trades.append({"pnl": net_pnl, "size": size, "edge": edge})
-            equity.append({
-                "timestamp": sig.get("timestamp"),
-                "bankroll": bankroll,
-            })
+            equity.append(
+                {
+                    "timestamp": sig.get("timestamp"),
+                    "bankroll": bankroll,
+                }
+            )
 
         n = len(trades)
         if n == 0:
@@ -301,7 +325,7 @@ class EnhancedBacktestEngine:
         # Sharpe ratio (annualized, assuming daily)
         mean_ret = statistics.mean(pnl_values)
         std_ret = statistics.stdev(pnl_values) if n > 1 else 1.0
-        sharpe = (mean_ret / std_ret) * (252 ** 0.5) if std_ret > 0 else 0.0
+        sharpe = (mean_ret / std_ret) * (252**0.5) if std_ret > 0 else 0.0
 
         # Max drawdown
         peak = self.config.initial_bankroll
@@ -328,7 +352,9 @@ class EnhancedBacktestEngine:
             profit_factor=profit_factor,
             avg_trade_size=avg_size,
             avg_edge=avg_edge,
-            return_pct=(bankroll - self.config.initial_bankroll) / self.config.initial_bankroll * 100,
+            return_pct=(bankroll - self.config.initial_bankroll)
+            / self.config.initial_bankroll
+            * 100,
             equity_curve=equity,
             transaction_costs=total_costs,
         )

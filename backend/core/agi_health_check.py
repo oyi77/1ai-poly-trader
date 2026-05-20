@@ -7,9 +7,17 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.config import settings
-from backend.models.database import SessionLocal, Trade, StrategyConfig, BotState, for_update
+from backend.models.database import (
+    SessionLocal,
+    Trade,
+    StrategyConfig,
+    BotState,
+    for_update,
+)
 
 from loguru import logger
+
+
 class AGIHealthChecker:
     """Runs periodic system health checks for the AGI autonomy loop."""
 
@@ -35,7 +43,11 @@ class AGIHealthChecker:
             }
 
             if not results["summary"]["all_healthy"]:
-                issues = [k for k, v in results.items() if k != "summary" and not v.get("healthy", False)]
+                issues = [
+                    k
+                    for k, v in results.items()
+                    if k != "summary" and not v.get("healthy", False)
+                ]
                 logger.warning("[AGIHealth] Issues detected: %s", issues)
             else:
                 logger.info("[AGIHealth] All checks passed")
@@ -43,7 +55,10 @@ class AGIHealthChecker:
             return results
         except Exception as e:
             logger.error("[AGIHealth] Health check failed: %s", e)
-            return {"error": str(e), "summary": {"passed": 0, "total": 0, "all_healthy": False}}
+            return {
+                "error": str(e),
+                "summary": {"passed": 0, "total": 0, "all_healthy": False},
+            }
         finally:
             if _owned:
                 db.close()
@@ -75,7 +90,9 @@ class AGIHealthChecker:
 
     def _check_data_freshness(self, db: Session) -> dict:
         try:
-            latest_signal = db.query(Trade.timestamp).order_by(Trade.timestamp.desc()).first()
+            latest_signal = (
+                db.query(Trade.timestamp).order_by(Trade.timestamp.desc()).first()
+            )
             if not latest_signal or not latest_signal[0]:
                 return {"healthy": True, "note": "no trades yet"}
 
@@ -97,27 +114,50 @@ class AGIHealthChecker:
 
             unhealthy_modes = []
             for mode in settings.active_modes_set:
-                bot = for_update(db, db.query(BotState).filter(
-                    BotState.mode == mode
-                )).first()
+                bot = for_update(
+                    db, db.query(BotState).filter(BotState.mode == mode)
+                ).first()
                 if not bot:
-                    unhealthy_modes.append({"mode": mode, "reason": "no BotState found"})
+                    unhealthy_modes.append(
+                        {"mode": mode, "reason": "no BotState found"}
+                    )
                     continue
 
                 bankroll = bot.bankroll or 0.0
                 if bankroll <= 0:
-                    unhealthy_modes.append({"mode": mode, "reason": "bankroll depleted", "bankroll": bankroll})
+                    unhealthy_modes.append(
+                        {
+                            "mode": mode,
+                            "reason": "bankroll depleted",
+                            "bankroll": bankroll,
+                        }
+                    )
                     continue
 
                 daily_loss = bot.daily_pnl or 0.0
                 loss_limit = settings.DAILY_LOSS_LIMIT
-                near_limit = abs(daily_loss) > loss_limit * settings.AGI_HEALTH_BUDGET_NEAR_LIMIT_PCT if daily_loss < 0 else False
+                near_limit = (
+                    abs(daily_loss)
+                    > loss_limit * settings.AGI_HEALTH_BUDGET_NEAR_LIMIT_PCT
+                    if daily_loss < 0
+                    else False
+                )
 
                 if near_limit:
-                    unhealthy_modes.append({"mode": mode, "reason": "near daily loss limit", "daily_loss": daily_loss})
+                    unhealthy_modes.append(
+                        {
+                            "mode": mode,
+                            "reason": "near daily loss limit",
+                            "daily_loss": daily_loss,
+                        }
+                    )
 
             if unhealthy_modes:
-                return {"healthy": False, "reason": "budget issues in active modes", "modes": unhealthy_modes}
+                return {
+                    "healthy": False,
+                    "reason": "budget issues in active modes",
+                    "modes": unhealthy_modes,
+                }
             return {"healthy": True}
         except Exception as e:
             return {"healthy": False, "error": str(e)}
@@ -125,16 +165,23 @@ class AGIHealthChecker:
     def _check_scheduler(self) -> dict:
         try:
             from backend.core.scheduler import scheduler
+
             jobs = scheduler.get_jobs()
             if not jobs:
                 return {"healthy": False, "reason": "no scheduled jobs"}
             return {"healthy": True, "job_count": len(jobs)}
         except Exception as e:
-            return {"healthy": True, "note": "scheduler not accessible", "error": str(e)}
+            return {
+                "healthy": True,
+                "note": "scheduler not accessible",
+                "error": str(e),
+            }
 
     def _check_orphaned_positions(self, db: Session) -> dict:
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=settings.AGI_HEALTH_ORPHAN_MAX_AGE_DAYS)
+            cutoff = datetime.now(timezone.utc) - timedelta(
+                days=settings.AGI_HEALTH_ORPHAN_MAX_AGE_DAYS
+            )
             orphans = (
                 db.query(Trade)
                 .filter(
@@ -147,7 +194,6 @@ class AGIHealthChecker:
         except Exception as e:
             return {"healthy": False, "error": str(e)}
 
-
     def _check_disk_space(self) -> dict:
         """Check disk usage for the DB partition and data directories."""
         import shutil
@@ -155,12 +201,13 @@ class AGIHealthChecker:
 
         try:
             from backend.config import ROOT_DIR
+
             data_dir = str(ROOT_DIR)
 
             usage = shutil.disk_usage(data_dir)
             used_pct = (usage.used / usage.total) * 100
-            free_gb = usage.free / (1024 ** 3)
-            total_gb = usage.total / (1024 ** 3)
+            free_gb = usage.free / (1024**3)
+            total_gb = usage.total / (1024**3)
 
             warn_pct = getattr(settings, "DISK_SPACE_WARN_PCT", 90.0)
             healthy = used_pct < warn_pct
@@ -179,7 +226,7 @@ class AGIHealthChecker:
                 if not os.path.isabs(db_path):
                     db_path = os.path.join(data_dir, db_path)
                 if os.path.exists(db_path):
-                    db_size_mb = os.path.getsize(db_path) / (1024 ** 2)
+                    db_size_mb = os.path.getsize(db_path) / (1024**2)
                     max_db_mb = getattr(settings, "DISK_SPACE_MAX_DB_SIZE_MB", 5000.0)
                     result["db_size_mb"] = round(db_size_mb, 1)
                     result["max_db_size_mb"] = max_db_mb
@@ -190,7 +237,9 @@ class AGIHealthChecker:
             if not healthy:
                 logger.warning(
                     "[AGIHealth] Disk usage at %.1f%% (threshold: %.1f%%), free: %.1f GB",
-                    used_pct, warn_pct, free_gb,
+                    used_pct,
+                    warn_pct,
+                    free_gb,
                 )
 
             return result

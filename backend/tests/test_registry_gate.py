@@ -1,4 +1,5 @@
 """Tests for registry performance gate (REGISTRY_MIN_WIN_RATE / REGISTRY_MIN_ROI)."""
+
 from __future__ import annotations
 
 import pytest
@@ -46,6 +47,7 @@ def test_extract_win_rate():
 
 def test_performance_gate_rejects_bad_strategy():
     from backend.strategies.registry import _extract_metric, _extract_win_rate
+
     roi = _extract_metric("4W/11L, -49.5% ROI test strategy", "roi")
     win_rate = _extract_win_rate("4W/11L, -49.5% ROI test strategy")
     assert roi is not None and roi < -0.30

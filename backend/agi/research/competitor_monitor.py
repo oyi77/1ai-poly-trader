@@ -67,9 +67,7 @@ class CompetitorChange:
 
     @property
     def fingerprint(self) -> str:
-        return hashlib.sha256(
-            (self.repo_full_name + self.summary).encode()
-        ).hexdigest()
+        return hashlib.sha256((self.repo_full_name + self.summary).encode()).hexdigest()
 
 
 def _load_state(path: Path = COMPETITOR_DB_PATH) -> dict:
@@ -151,9 +149,7 @@ class CompetitorMonitor:
 
                     full_name = repo_info["full_name"]
                     prev = state.get(full_name, {})
-                    detected = await self._check_repo(
-                        client, repo_info, prev
-                    )
+                    detected = await self._check_repo(client, repo_info, prev)
                     changes.extend(detected)
 
                     # Update state
@@ -163,9 +159,11 @@ class CompetitorMonitor:
                         "description": repo_info.get("description", ""),
                         "stars": repo_info.get("stargazers_count", 0),
                         "language": repo_info.get("language"),
-                        "last_commit_sha": detected[0].summary.split(":")[0]
-                        if detected and detected[0].change_type == "new_commits"
-                        else prev.get("last_commit_sha", ""),
+                        "last_commit_sha": (
+                            detected[0].summary.split(":")[0]
+                            if detected and detected[0].change_type == "new_commits"
+                            else prev.get("last_commit_sha", "")
+                        ),
                         "last_checked": datetime.now(timezone.utc).isoformat(),
                     }
                 except Exception as exc:
@@ -280,9 +278,9 @@ class CompetitorMonitor:
             if resp.status_code == 200:
                 import base64
 
-                content = base64.b64decode(
-                    resp.json().get("content", "")
-                ).decode("utf-8", errors="replace")
+                content = base64.b64decode(resp.json().get("content", "")).decode(
+                    "utf-8", errors="replace"
+                )
                 win_rate_signals = _extract_strategy_signals(content)
                 if "win rate" in win_rate_signals or "profit" in win_rate_signals:
                     changes.append(

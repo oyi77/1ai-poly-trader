@@ -12,7 +12,6 @@ from backend.ai.debate_engine import (
 )
 from backend.models.database import MiroFishSignal
 
-
 BULL_R1 = "PROBABILITY: 0.75\nCONFIDENCE: 0.8\nREASONING: Strong momentum favors YES."
 BEAR_R1 = "PROBABILITY: 0.30\nCONFIDENCE: 0.7\nREASONING: Historical data says NO."
 JUDGE_RESP = "PROBABILITY: 0.55\nCONFIDENCE: 0.80\nREASONING: Both sides have merit, slight edge to YES."
@@ -109,9 +108,27 @@ async def test_mirofish_plus_two_positive_signals_still_requires_consensus():
     )
 
     signal_votes = [
-        SignalVote(source="mirofish", prediction=0.70, confidence=0.80, reasoning="Bullish", weight=1.0),
-        SignalVote(source="strategy_a", prediction=0.75, confidence=0.85, reasoning="Strong buy", weight=1.0),
-        SignalVote(source="strategy_b", prediction=0.68, confidence=0.78, reasoning="Positive", weight=1.0),
+        SignalVote(
+            source="mirofish",
+            prediction=0.70,
+            confidence=0.80,
+            reasoning="Bullish",
+            weight=1.0,
+        ),
+        SignalVote(
+            source="strategy_a",
+            prediction=0.75,
+            confidence=0.85,
+            reasoning="Strong buy",
+            weight=1.0,
+        ),
+        SignalVote(
+            source="strategy_b",
+            prediction=0.68,
+            confidence=0.78,
+            reasoning="Positive",
+            weight=1.0,
+        ),
     ]
 
     with patch("backend.ai.debate_engine._call_agent", side_effect=mock_fn):
@@ -137,8 +154,20 @@ async def test_mirofish_plus_negative_signal_debate_continues():
     )
 
     signal_votes = [
-        SignalVote(source="mirofish", prediction=0.70, confidence=0.80, reasoning="Bullish", weight=1.0),
-        SignalVote(source="strategy_a", prediction=0.25, confidence=0.90, reasoning="Strong sell", weight=1.0),
+        SignalVote(
+            source="mirofish",
+            prediction=0.70,
+            confidence=0.80,
+            reasoning="Bullish",
+            weight=1.0,
+        ),
+        SignalVote(
+            source="strategy_a",
+            prediction=0.25,
+            confidence=0.90,
+            reasoning="Strong sell",
+            weight=1.0,
+        ),
     ]
 
     with patch("backend.ai.debate_engine._call_agent", side_effect=mock_fn):
@@ -164,8 +193,20 @@ async def test_malformed_mirofish_signal_logged_and_skipped():
     )
 
     signal_votes = [
-        SignalVote(source="mirofish", prediction=1.5, confidence=0.80, reasoning="Invalid", weight=1.0),
-        SignalVote(source="valid_signal", prediction=0.60, confidence=0.75, reasoning="Valid", weight=1.0),
+        SignalVote(
+            source="mirofish",
+            prediction=1.5,
+            confidence=0.80,
+            reasoning="Invalid",
+            weight=1.0,
+        ),
+        SignalVote(
+            source="valid_signal",
+            prediction=0.60,
+            confidence=0.75,
+            reasoning="Valid",
+            weight=1.0,
+        ),
     ]
 
     with patch("backend.ai.debate_engine._call_agent", side_effect=mock_fn):
@@ -269,7 +310,13 @@ def test_update_debate_with_signals_appends_votes():
     )
 
     signal_votes = [
-        SignalVote(source="mirofish", prediction=0.65, confidence=0.75, reasoning="Test", weight=1.0),
+        SignalVote(
+            source="mirofish",
+            prediction=0.65,
+            confidence=0.75,
+            reasoning="Test",
+            weight=1.0,
+        ),
     ]
 
     updated = update_debate_with_signals(debate_result, signal_votes)
@@ -344,9 +391,27 @@ async def test_multiple_signals_with_mirofish_all_equal_weight():
     )
 
     signal_votes = [
-        SignalVote(source="mirofish", prediction=0.70, confidence=0.80, reasoning="AI", weight=1.0),
-        SignalVote(source="btc_oracle", prediction=0.65, confidence=0.75, reasoning="Oracle", weight=1.0),
-        SignalVote(source="weather_emos", prediction=0.60, confidence=0.70, reasoning="Weather", weight=1.0),
+        SignalVote(
+            source="mirofish",
+            prediction=0.70,
+            confidence=0.80,
+            reasoning="AI",
+            weight=1.0,
+        ),
+        SignalVote(
+            source="btc_oracle",
+            prediction=0.65,
+            confidence=0.75,
+            reasoning="Oracle",
+            weight=1.0,
+        ),
+        SignalVote(
+            source="weather_emos",
+            prediction=0.60,
+            confidence=0.70,
+            reasoning="Weather",
+            weight=1.0,
+        ),
     ]
 
     with patch("backend.ai.debate_engine._call_agent", side_effect=mock_fn):

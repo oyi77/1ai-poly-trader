@@ -1,10 +1,14 @@
 """Test suite for paper trading provider."""
+
 import pytest
 from decimal import Decimal
 
 from backend.markets.providers.paper_provider import PaperProvider
 from backend.markets.order_types import (
-    NormalizedOrder, OrderSide, OrderType, OrderStatus,
+    NormalizedOrder,
+    OrderSide,
+    OrderType,
+    OrderStatus,
 )
 
 

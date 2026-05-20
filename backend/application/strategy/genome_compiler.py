@@ -48,7 +48,9 @@ def compile_genome(genome: StrategyGenome) -> Type[BaseStrategy]:
         register_genome_strategy(strategy_name, genome.genome_id)
 
         compilation_time = time.time() - start_time
-        chromosome_count = len(genome.chromosomes) if isinstance(genome.chromosomes, dict) else 0
+        chromosome_count = (
+            len(genome.chromosomes) if isinstance(genome.chromosomes, dict) else 0
+        )
         logger.info(
             "Genome compilation completed | genome_id=%s | archetype=%s | strategy_name=%s | chromosomes=%s | compilation_time=%.3fs",
             genome.genome_id,

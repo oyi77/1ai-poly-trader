@@ -15,6 +15,7 @@ from loguru import logger
 @dataclass
 class RAGContext:
     """Retrieved context for a market query."""
+
     query: str
     documents: List[Document]
     scores: List[float]
@@ -64,7 +65,9 @@ class RAGPipeline:
         self.embedder = EmbeddingProvider(dim=embedding_dim)
         self.store = VectorStore()
 
-    async def ingest_hf_dataset(self, dataset: str = "prediction-market-news", limit: int = 100) -> int:
+    async def ingest_hf_dataset(
+        self, dataset: str = "prediction-market-news", limit: int = 100
+    ) -> int:
         """Ingest news from HuggingFace dataset into vector store."""
         articles = await self.ingester.fetch_hf_news(dataset=dataset, limit=limit)
         return await self._ingest_articles(articles)
@@ -102,7 +105,11 @@ class RAGPipeline:
             docs.append(doc)
 
         self.store.add_batch(docs)
-        logger.info("rag_pipeline: ingested %d chunks from %d articles", len(docs), len(articles))
+        logger.info(
+            "rag_pipeline: ingested %d chunks from %d articles",
+            len(docs),
+            len(articles),
+        )
         return len(docs)
 
     def query(self, question: str, top_k: int = 5) -> RAGContext:
@@ -117,7 +124,9 @@ class RAGPipeline:
         for doc, score in results:
             source = doc.metadata.get("source", "unknown")
             title = doc.metadata.get("title", "")
-            summary_parts.append("[%.2f] %s (%s): %s..." % (score, title, source, doc.text[:200]))
+            summary_parts.append(
+                "[%.2f] %s (%s): %s..." % (score, title, source, doc.text[:200])
+            )
 
         return RAGContext(
             query=question,
@@ -172,7 +181,13 @@ class RAGPipeline:
         for i, (doc, score) in enumerate(zip(rag_ctx.documents, rag_ctx.scores), 1):
             source = doc.metadata.get("source", "unknown")
             title = doc.metadata.get("title", "")
-            snippet = "\n[%d] (source=%s, relevance=%.2f) %s: %s" % (i, source, score, title, doc.text[:500])
+            snippet = "\n[%d] (source=%s, relevance=%.2f) %s: %s" % (
+                i,
+                source,
+                score,
+                title,
+                doc.text[:500],
+            )
             if total_chars + len(snippet) > max_chars:
                 break
             lines.append(snippet)

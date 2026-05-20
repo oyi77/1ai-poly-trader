@@ -5,6 +5,8 @@ from typing import Optional, Any
 from dataclasses import dataclass
 
 from loguru import logger
+
+
 @dataclass
 class LatencyBudget:
     scan_ms: float
@@ -52,7 +54,9 @@ class LatencyOptimizer:
     def enforce_hard_limit(self, elapsed_ms: float) -> bool:
         """Hard stop if latency exceeds hard_limit_ms."""
         if elapsed_ms > self.budget.hard_limit_ms:
-            logger.error(f"[latency_optimizer] HARD LIMIT EXCEEDED: {elapsed_ms:.1f}ms > {self.budget.hard_limit_ms}ms")
+            logger.error(
+                f"[latency_optimizer] HARD LIMIT EXCEEDED: {elapsed_ms:.1f}ms > {self.budget.hard_limit_ms}ms"
+            )
             return False
         return True
 

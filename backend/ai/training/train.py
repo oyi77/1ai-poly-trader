@@ -8,6 +8,7 @@ Pulls resolved Polymarket markets, builds features, trains a logistic
 regression baseline, evaluates with a hold-out split, and saves the
 model + metadata under ``backend/ai/models/``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +23,8 @@ from backend.ai.training.model_evaluator import ModelEvaluator
 from backend.ai.training.model_trainer import ModelTrainer
 
 from loguru import logger
+
+
 def _split(
     examples: List[TrainingExample], holdout_frac: float = 0.2, seed: int = 42
 ) -> Tuple[List[TrainingExample], List[TrainingExample]]:
@@ -34,6 +37,7 @@ def _split(
 
 async def main() -> None:
     from backend.core.log import configure_logging
+
     configure_logging()
 
     collector = DataCollector(page_size=100, max_pages=10)
@@ -113,7 +117,12 @@ async def run_training_pipeline(min_examples: int = 200) -> dict:
         collector = DataCollector(page_size=100, max_pages=10)
         examples = await collector.collect()
         if len(examples) < min_examples:
-            return {"status": "skipped", "reason": f"only {len(examples)} examples, need {min_examples}", "n_examples": len(examples), "accuracy": 0.0}
+            return {
+                "status": "skipped",
+                "reason": f"only {len(examples)} examples, need {min_examples}",
+                "n_examples": len(examples),
+                "accuracy": 0.0,
+            }
         train_set, eval_set = _split(examples, holdout_frac=0.2)
         trainer = ModelTrainer(metadata_extra={"synthetic_data": False})
         result = trainer.train(train_set)
@@ -126,8 +135,18 @@ async def run_training_pipeline(min_examples: int = 200) -> dict:
             bundle = joblib.load(fh)
         model = bundle["model"]
         X_eval = np.array([fe.to_vector(ex.features) for ex in eval_set], dtype=float)
-        accuracy = float(model.score(X_eval, [ex.label for ex in eval_set])) if len(X_eval) > 0 else result.train_accuracy
-        return {"status": "ok", "accuracy": accuracy, "n_examples": result.n_examples, "model_path": result.model_path, "train_accuracy": result.train_accuracy}
+        accuracy = (
+            float(model.score(X_eval, [ex.label for ex in eval_set]))
+            if len(X_eval) > 0
+            else result.train_accuracy
+        )
+        return {
+            "status": "ok",
+            "accuracy": accuracy,
+            "n_examples": result.n_examples,
+            "model_path": result.model_path,
+            "train_accuracy": result.train_accuracy,
+        }
     except Exception as e:
         logger.error(f"Training pipeline failed: {e}")
         return {"status": "error", "reason": str(e), "n_examples": 0, "accuracy": 0.0}

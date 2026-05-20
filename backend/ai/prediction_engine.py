@@ -2,6 +2,7 @@
 available; otherwise falls back to a deterministic logistic baseline so
 the end-to-end pipeline stays callable on a fresh checkout.
 """
+
 import math
 import os
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from typing import Any, Dict, List, Optional
 from backend.ai.probability_utils import clamp_probability
 
 from loguru import logger
+
+
 @dataclass
 class Prediction:
     probability_yes: float
@@ -29,9 +32,7 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
     "volume_log": 0.3,
 }
 
-DEFAULT_MODEL_PATH = os.path.join(
-    os.path.dirname(__file__), "models", "baseline.pkl"
-)
+DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "baseline.pkl")
 
 
 def _sigmoid(x: float) -> float:
@@ -82,7 +83,9 @@ class PredictionEngine:
             logger.warning(f"prediction_engine: failed to load model: {e}")
             self._sk_model = None
 
-    def extract_features(self, market: Dict[str, Any], signal_data: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+    def extract_features(
+        self, market: Dict[str, Any], signal_data: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, float]:
         signal_data = signal_data or {}
         volume = float(market.get("volume", 0.0))
         # Cap volume to prevent extreme values from dominating the logistic sum.
@@ -98,7 +101,9 @@ class PredictionEngine:
             "volume_log": math.log1p(volume_capped),
         }
 
-    def predict(self, features: Dict[str, float], strategy: Optional[str] = None) -> Prediction:
+    def predict(
+        self, features: Dict[str, float], strategy: Optional[str] = None
+    ) -> Prediction:
         if self._sk_model is not None:
             try:
                 vec = [[float(features.get(k, 0.0)) for k in self._feature_order]]
@@ -113,6 +118,7 @@ class PredictionEngine:
             try:
                 from backend.core.outcome_repository import get_strategy_stats
                 from backend.db.utils import get_db_session
+
                 with get_db_session() as db:
                     stats = get_strategy_stats(strategy, None, db)
                     if stats and stats.get("total_trades", 0) >= 30:

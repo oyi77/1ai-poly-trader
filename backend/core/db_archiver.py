@@ -11,7 +11,9 @@ from loguru import logger
 from backend.config import settings
 
 
-def archive_trades_to_parquet(db_path: str, parquet_path: str, days_back: int = 1) -> int:
+def archive_trades_to_parquet(
+    db_path: str, parquet_path: str, days_back: int = 1
+) -> int:
     engine = create_engine(f"sqlite:///{db_path}")
     since_time = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
     sql = (
@@ -51,7 +53,7 @@ def query_parquet_analytics(parquet_path: str, sql: str) -> list[dict]:
 def nightly_archive_job() -> None:
     raw_url = getattr(settings, "DATABASE_URL", "sqlite:///data/app.db")
     if raw_url.startswith("sqlite:///"):
-        db_path = raw_url[len("sqlite:///"):]
+        db_path = raw_url[len("sqlite:///") :]
     else:
         db_path = raw_url
 
@@ -62,4 +64,3 @@ def nightly_archive_job() -> None:
 
     count = archive_trades_to_parquet(db_path, parquet_path, days_back=1)
     logger.info("Archived %d trades → %s", count, parquet_path)
-

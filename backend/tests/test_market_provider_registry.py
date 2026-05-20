@@ -1,4 +1,5 @@
 """Test suite for market provider registry."""
+
 import os
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -7,12 +8,17 @@ from decimal import Decimal
 from backend.markets.base_provider import BaseMarketProvider, MarketProviderManifest
 from backend.markets.order_types import (
     NormalizedOrder,
-    NormalizedOrderResult, NormalizedBalance,
-    OrderSide, OrderStatus, OrderType, VenueCapability,
+    NormalizedOrderResult,
+    NormalizedBalance,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    VenueCapability,
 )
 from backend.markets.provider_registry import MarketProviderRegistry
 from backend.core.plugin_errors import (
-    PluginEnvVarMissing, MarketProviderNotFound,
+    PluginEnvVarMissing,
+    MarketProviderNotFound,
 )
 
 
@@ -255,7 +261,13 @@ async def test_kalshi_get_positions():
 
     provider = KalshiProvider(paper_mode=False)
     mock_raw = [
-        {"ticker": "FED-26MAY-T3.00", "side": "yes", "count": 5, "average_price": 0.65, "current_price": 0.70},
+        {
+            "ticker": "FED-26MAY-T3.00",
+            "side": "yes",
+            "count": 5,
+            "average_price": 0.65,
+            "current_price": 0.70,
+        },
         {"ticker": "BTC-100K", "side": "no", "count": 10, "average_price": 0.30},
     ]
     with patch.object(provider._client, "get_positions", return_value=mock_raw):
@@ -305,7 +317,9 @@ async def test_kalshi_get_positions_error_returns_empty():
         from backend.markets.providers.kalshi_provider import KalshiProvider
 
     provider = KalshiProvider(paper_mode=False)
-    with patch.object(provider._client, "get_positions", side_effect=Exception("API down")):
+    with patch.object(
+        provider._client, "get_positions", side_effect=Exception("API down")
+    ):
         positions = await provider.get_positions()
 
     assert positions == []
@@ -324,8 +338,24 @@ async def test_kalshi_search_markets():
     provider = KalshiProvider(paper_mode=False)
     mock_data = {
         "markets": [
-            {"ticker": "FED-26MAY", "title": "Fed rate cut", "category": "economics", "yes_bid": 65, "volume": 1000, "open_interest": 500, "status": "open"},
-            {"ticker": "BTC-100K", "title": "Bitcoin 100k", "category": "crypto", "yes_bid": 30, "volume": 5000, "open_interest": 2000, "status": "open"},
+            {
+                "ticker": "FED-26MAY",
+                "title": "Fed rate cut",
+                "category": "economics",
+                "yes_bid": 65,
+                "volume": 1000,
+                "open_interest": 500,
+                "status": "open",
+            },
+            {
+                "ticker": "BTC-100K",
+                "title": "Bitcoin 100k",
+                "category": "crypto",
+                "yes_bid": 30,
+                "volume": 5000,
+                "open_interest": 2000,
+                "status": "open",
+            },
         ]
     }
     with patch.object(provider._client, "get_markets", return_value=mock_data):
@@ -352,8 +382,22 @@ async def test_kalshi_search_markets_with_category():
     provider = KalshiProvider(paper_mode=False)
     mock_data = {
         "markets": [
-            {"ticker": "FED-26MAY", "title": "Fed rate", "category": "economics", "yes_bid": 65, "volume": 1000, "status": "open"},
-            {"ticker": "BTC-100K", "title": "Bitcoin 100k", "category": "crypto", "yes_bid": 30, "volume": 5000, "status": "open"},
+            {
+                "ticker": "FED-26MAY",
+                "title": "Fed rate",
+                "category": "economics",
+                "yes_bid": 65,
+                "volume": 1000,
+                "status": "open",
+            },
+            {
+                "ticker": "BTC-100K",
+                "title": "Bitcoin 100k",
+                "category": "crypto",
+                "yes_bid": 30,
+                "volume": 5000,
+                "status": "open",
+            },
         ]
     }
     with patch.object(provider._client, "get_markets", return_value=mock_data):
@@ -397,6 +441,7 @@ async def test_polymarket_search_markets():
         },
     ]
     import backend.data.gamma as gamma_mod
+
     with patch.object(gamma_mod, "fetch_markets", return_value=mock_gamma):
         markets = await provider.search_markets(query="btc")
 
@@ -420,10 +465,25 @@ async def test_polymarket_search_markets_with_category():
 
     provider = PolymarketProvider(paper_mode=False)
     mock_gamma = [
-        {"condition_id": "abc123", "question": "BTC?", "category": "crypto", "outcomePrices": "[0.65]", "volume": 1000, "active": True},
-        {"condition_id": "def456", "question": "Fed?", "category": "economics", "outcomePrices": "[0.40]", "volume": 2000, "active": True},
+        {
+            "condition_id": "abc123",
+            "question": "BTC?",
+            "category": "crypto",
+            "outcomePrices": "[0.65]",
+            "volume": 1000,
+            "active": True,
+        },
+        {
+            "condition_id": "def456",
+            "question": "Fed?",
+            "category": "economics",
+            "outcomePrices": "[0.40]",
+            "volume": 2000,
+            "active": True,
+        },
     ]
     import backend.data.gamma as gamma_mod
+
     with patch.object(gamma_mod, "fetch_markets", return_value=mock_gamma):
         markets = await provider.search_markets(category="economics")
 
@@ -447,7 +507,10 @@ async def test_polymarket_get_positions_no_wallet():
     mock_clob.__aenter__ = AsyncMock(return_value=mock_clob)
     mock_clob.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("backend.markets.providers.polymarket_provider.clob_from_settings", return_value=mock_clob):
+    with patch(
+        "backend.markets.providers.polymarket_provider.clob_from_settings",
+        return_value=mock_clob,
+    ):
         positions = await provider.get_positions()
 
     assert positions == []
@@ -467,14 +530,25 @@ async def test_polymarket_get_positions_with_wallet():
     mock_clob = AsyncMock()
     mock_clob._account = MagicMock()
     mock_clob._account.address = "0x1234"
-    mock_clob.get_trader_positions = AsyncMock(return_value=[
-        {"market_id": "mkt1", "outcome": "YES", "size": 100, "avg_price": 0.65, "current_price": 0.70},
-        {"market_id": "mkt2", "outcome": "NO", "size": 50, "avg_price": 0.30},
-    ])
+    mock_clob.get_trader_positions = AsyncMock(
+        return_value=[
+            {
+                "market_id": "mkt1",
+                "outcome": "YES",
+                "size": 100,
+                "avg_price": 0.65,
+                "current_price": 0.70,
+            },
+            {"market_id": "mkt2", "outcome": "NO", "size": 50, "avg_price": 0.30},
+        ]
+    )
     mock_clob.__aenter__ = AsyncMock(return_value=mock_clob)
     mock_clob.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("backend.markets.providers.polymarket_provider.clob_from_settings", return_value=mock_clob):
+    with patch(
+        "backend.markets.providers.polymarket_provider.clob_from_settings",
+        return_value=mock_clob,
+    ):
         positions = await provider.get_positions()
 
     assert len(positions) == 2
@@ -500,14 +574,19 @@ async def test_polymarket_get_positions_filter_by_market():
     mock_clob = AsyncMock()
     mock_clob._account = MagicMock()
     mock_clob._account.address = "0x1234"
-    mock_clob.get_trader_positions = AsyncMock(return_value=[
-        {"market_id": "mkt1", "outcome": "YES", "size": 100, "avg_price": 0.65},
-        {"market_id": "mkt2", "outcome": "NO", "size": 50, "avg_price": 0.30},
-    ])
+    mock_clob.get_trader_positions = AsyncMock(
+        return_value=[
+            {"market_id": "mkt1", "outcome": "YES", "size": 100, "avg_price": 0.65},
+            {"market_id": "mkt2", "outcome": "NO", "size": 50, "avg_price": 0.30},
+        ]
+    )
     mock_clob.__aenter__ = AsyncMock(return_value=mock_clob)
     mock_clob.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("backend.markets.providers.polymarket_provider.clob_from_settings", return_value=mock_clob):
+    with patch(
+        "backend.markets.providers.polymarket_provider.clob_from_settings",
+        return_value=mock_clob,
+    ):
         positions = await provider.get_positions(market_id="mkt1")
 
     assert len(positions) == 1

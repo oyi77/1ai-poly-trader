@@ -36,5 +36,7 @@ class PolymarketBacktestDataSource(BaseBacktestDataSource):
             provider = PolymarketDataProvider()
             return provider.health_check()
         except Exception:
-            logger.debug("Polymarket backtest data source health check failed", exc_info=True)
+            logger.debug(
+                "Polymarket backtest data source health check failed", exc_info=True
+            )
             return False

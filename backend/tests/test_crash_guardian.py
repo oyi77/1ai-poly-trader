@@ -1,4 +1,5 @@
 """Tests for crash_guardian.py -- G-01: auto-restart on crash."""
+
 import asyncio
 from unittest.mock import patch
 import pytest
@@ -12,13 +13,17 @@ def guardian():
     return g
 
 
-def _make_pm2_output(name="polyedge-bot", status="online", restarts=0, memory=50*1024*1024, cpu=5.0):
-    return [{
-        "name": name,
-        "pid": 12345,
-        "pm2_env": {"status": status, "restart_time": restarts},
-        "monit": {"memory": memory, "cpu": cpu},
-    }]
+def _make_pm2_output(
+    name="polyedge-bot", status="online", restarts=0, memory=50 * 1024 * 1024, cpu=5.0
+):
+    return [
+        {
+            "name": name,
+            "pid": 12345,
+            "pm2_env": {"status": status, "restart_time": restarts},
+            "monit": {"memory": memory, "cpu": cpu},
+        }
+    ]
 
 
 class TestProcessHealth:
@@ -46,7 +51,9 @@ class TestGetProcessHealth:
 
     @pytest.mark.asyncio
     async def test_returns_none_for_missing_process(self, guardian):
-        with patch.object(CrashGuardian, "_pm2_jlist", return_value=_make_pm2_output(name="other")):
+        with patch.object(
+            CrashGuardian, "_pm2_jlist", return_value=_make_pm2_output(name="other")
+        ):
             h = await guardian._get_process_health("polyedge-bot")
             assert h is None
 

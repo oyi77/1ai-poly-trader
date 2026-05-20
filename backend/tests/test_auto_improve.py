@@ -189,7 +189,9 @@ class TestCheckRollbackNeeded:
     def test_not_enough_trades_returns_false(self):
         self._setup_rollback_state()
         db = MagicMock()
-        query = db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        query = (
+            db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        )
         query.all.return_value = [_make_trade() for _ in range(5)]
         assert check_rollback_needed(db) is False
         assert self._KEY in auto_improve_mod._last_param_change
@@ -201,7 +203,9 @@ class TestCheckRollbackNeeded:
         trades = [_make_trade(result="win") for _ in range(8)] + [
             _make_trade(result="loss") for _ in range(2)
         ]
-        query = db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        query = (
+            db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        )
         query.all.return_value = trades
         result = check_rollback_needed(db, target_settings=s)
         assert result is False
@@ -215,7 +219,9 @@ class TestCheckRollbackNeeded:
         trades = [_make_trade(result="win") for _ in range(3)] + [
             _make_trade(result="loss") for _ in range(7)
         ]
-        query = db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        query = (
+            db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        )
         query.all.return_value = trades
         result = check_rollback_needed(db, target_settings=s)
         assert result is True
@@ -226,7 +232,9 @@ class TestCheckRollbackNeeded:
         self._setup_rollback_state(pre_win_rate=0.0)
         db = MagicMock()
         trades = [_make_trade(result="loss") for _ in range(ROLLBACK_TRADE_WINDOW)]
-        query = db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        query = (
+            db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        )
         query.all.return_value = trades
         result = check_rollback_needed(db)
         assert result is False
@@ -239,7 +247,9 @@ class TestCheckRollbackNeeded:
         trades = [_make_trade(result="win") for _ in range(win_count)] + [
             _make_trade(result="loss") for _ in range(ROLLBACK_TRADE_WINDOW - win_count)
         ]
-        query = db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        query = (
+            db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        )
         query.all.return_value = trades
         result = check_rollback_needed(db)
         assert result is False
@@ -345,8 +355,14 @@ class TestAutoImproveJob:
     @patch("backend.core.learning.auto_improve.get_bigbrain")
     @patch("backend.core.learning.auto_improve.SessionLocal")
     @patch("backend.core.learning.auto_improve.ParameterOptimizer")
-    @patch("backend.core.learning.auto_improve._write_outcomes_to_brain", new_callable=AsyncMock)
-    @patch("backend.core.learning.auto_improve._write_market_insights", new_callable=AsyncMock)
+    @patch(
+        "backend.core.learning.auto_improve._write_outcomes_to_brain",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "backend.core.learning.auto_improve._write_market_insights",
+        new_callable=AsyncMock,
+    )
     async def test_high_confidence_applies_params(
         self,
         mock_insights,
@@ -371,7 +387,9 @@ class TestAutoImproveJob:
         assert fake_s.KELLY_FRACTION == 0.12
         assert "__global__" in auto_improve_mod._last_param_change
         assert (
-            auto_improve_mod._last_param_change["__global__"]["applied_values"]["kelly_fraction"]
+            auto_improve_mod._last_param_change["__global__"]["applied_values"][
+                "kelly_fraction"
+            ]
             == 0.12
         )
 
@@ -379,8 +397,14 @@ class TestAutoImproveJob:
     @patch("backend.core.learning.auto_improve.get_bigbrain")
     @patch("backend.core.learning.auto_improve.SessionLocal")
     @patch("backend.core.learning.auto_improve.ParameterOptimizer")
-    @patch("backend.core.learning.auto_improve._write_outcomes_to_brain", new_callable=AsyncMock)
-    @patch("backend.core.learning.auto_improve._write_market_insights", new_callable=AsyncMock)
+    @patch(
+        "backend.core.learning.auto_improve._write_outcomes_to_brain",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "backend.core.learning.auto_improve._write_market_insights",
+        new_callable=AsyncMock,
+    )
     async def test_low_confidence_skips_apply(
         self,
         mock_insights,
@@ -401,13 +425,18 @@ class TestAutoImproveJob:
         assert fake_s.KELLY_FRACTION == 0.10
         assert "__global__" not in auto_improve_mod._last_param_change
 
-
     @pytest.mark.asyncio
     @patch("backend.core.learning.auto_improve.get_bigbrain")
     @patch("backend.core.learning.auto_improve.SessionLocal")
     @patch("backend.core.learning.auto_improve.ParameterOptimizer")
-    @patch("backend.core.learning.auto_improve._write_outcomes_to_brain", new_callable=AsyncMock)
-    @patch("backend.core.learning.auto_improve._write_market_insights", new_callable=AsyncMock)
+    @patch(
+        "backend.core.learning.auto_improve._write_outcomes_to_brain",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "backend.core.learning.auto_improve._write_market_insights",
+        new_callable=AsyncMock,
+    )
     async def test_excessive_suggestion_clamped_to_30pct(
         self,
         mock_insights,
@@ -440,7 +469,9 @@ class TestAutoImproveJob:
         assert fake_s.KELLY_FRACTION == 0.13
         assert "__global__" in auto_improve_mod._last_param_change
         assert (
-            auto_improve_mod._last_param_change["__global__"]["applied_values"]["kelly_fraction"]
+            auto_improve_mod._last_param_change["__global__"]["applied_values"][
+                "kelly_fraction"
+            ]
             == 0.13
         )
 
@@ -448,8 +479,14 @@ class TestAutoImproveJob:
     @patch("backend.core.learning.auto_improve.get_bigbrain")
     @patch("backend.core.learning.auto_improve.SessionLocal")
     @patch("backend.core.learning.auto_improve.ParameterOptimizer")
-    @patch("backend.core.learning.auto_improve._write_outcomes_to_brain", new_callable=AsyncMock)
-    @patch("backend.core.learning.auto_improve._write_market_insights", new_callable=AsyncMock)
+    @patch(
+        "backend.core.learning.auto_improve._write_outcomes_to_brain",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "backend.core.learning.auto_improve._write_market_insights",
+        new_callable=AsyncMock,
+    )
     async def test_pending_change_blocks_new_apply(
         self,
         mock_insights,
@@ -474,7 +511,9 @@ class TestAutoImproveJob:
         mock_bb.return_value = bb
 
         db = MagicMock()
-        db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = (
+            []
+        )
         MockSession.return_value = db
 
         MockOptimizer.return_value = _optimizer_mock(confidence="high")
@@ -488,8 +527,14 @@ class TestAutoImproveJob:
     @patch("backend.core.learning.auto_improve.get_bigbrain")
     @patch("backend.core.learning.auto_improve.SessionLocal")
     @patch("backend.core.learning.auto_improve.ParameterOptimizer")
-    @patch("backend.core.learning.auto_improve._write_outcomes_to_brain", new_callable=AsyncMock)
-    @patch("backend.core.learning.auto_improve._write_market_insights", new_callable=AsyncMock)
+    @patch(
+        "backend.core.learning.auto_improve._write_outcomes_to_brain",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "backend.core.learning.auto_improve._write_market_insights",
+        new_callable=AsyncMock,
+    )
     async def test_insufficient_trades_skips_optimization(
         self,
         mock_insights,
@@ -524,8 +569,14 @@ class TestAutoImproveJob:
     @patch("backend.core.learning.auto_improve.get_bigbrain")
     @patch("backend.core.learning.auto_improve.SessionLocal")
     @patch("backend.core.learning.auto_improve.ParameterOptimizer")
-    @patch("backend.core.learning.auto_improve._write_outcomes_to_brain", new_callable=AsyncMock)
-    @patch("backend.core.learning.auto_improve._write_market_insights", new_callable=AsyncMock)
+    @patch(
+        "backend.core.learning.auto_improve._write_outcomes_to_brain",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "backend.core.learning.auto_improve._write_market_insights",
+        new_callable=AsyncMock,
+    )
     async def test_medium_confidence_skips_apply(
         self,
         mock_insights,

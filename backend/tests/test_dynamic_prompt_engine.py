@@ -1,4 +1,3 @@
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -58,7 +57,9 @@ class TestDynamicPromptEngineGetPrompt:
         )
         session.add(entity)
         session.commit()
-        result = engine.get_prompt("test", context={"market": "BTC", "confidence": "0.8"})
+        result = engine.get_prompt(
+            "test", context={"market": "BTC", "confidence": "0.8"}
+        )
         assert "BTC" in result
         assert "0.8" in result
 
@@ -102,7 +103,9 @@ class TestDynamicPromptEngineEvolve:
         session.commit()
         outcomes = [{"result": "win"} for _ in range(5)]
         engine.evolve_prompt("test", outcomes)
-        versions = session.query(KGEntityModel).filter_by(entity_type="prompt_version").all()
+        versions = (
+            session.query(KGEntityModel).filter_by(entity_type="prompt_version").all()
+        )
         assert len(versions) == 2
 
     def test_evolve_creates_relation(self):
@@ -123,6 +126,7 @@ class TestDynamicPromptEngineEvolve:
         outcomes = [{"result": "win"} for _ in range(5)]
         engine.evolve_prompt("test", outcomes)
         from backend.models.kg_models import KGRelation as KGRelationModel
+
         relations = session.query(KGRelationModel).all()
         assert len(relations) >= 1
 
@@ -222,7 +226,9 @@ class TestDynamicPromptEngineRollback:
         session.commit()
         deleted = engine.rollback_prompt("test", "v1")
         assert deleted >= 1
-        remaining = session.query(KGEntityModel).filter_by(entity_type="prompt_version").count()
+        remaining = (
+            session.query(KGEntityModel).filter_by(entity_type="prompt_version").count()
+        )
         assert remaining == 1
 
     def test_rollback_nonexistent_version(self):
@@ -260,7 +266,9 @@ class TestPromptVersion:
 
 class TestPromptComparison:
     def test_comparison_creation(self):
-        pc = PromptComparison(version_a="va", version_b="vb", winner="vb", confidence=0.8)
+        pc = PromptComparison(
+            version_a="va", version_b="vb", winner="vb", confidence=0.8
+        )
         assert pc.version_a == "va"
         assert pc.winner == "vb"
         assert pc.confidence == 0.8

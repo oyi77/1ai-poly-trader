@@ -6,10 +6,10 @@ import pytest
 
 from backend.core.wallet_resolver import resolve_wallet
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_profile_html(eoa: str, proxy: str, username: str = "testuser") -> str:
     """Build a minimal Polymarket profile page HTML with __NEXT_DATA__."""
@@ -76,7 +76,9 @@ async def test_username_resolves_eoa_and_proxy(monkeypatch):
 
     import backend.core.wallet_resolver as mod
 
-    monkeypatch.setattr(mod, "httpx", type("H", (), {"AsyncClient": lambda **kw: FakeClient()}))
+    monkeypatch.setattr(
+        mod, "httpx", type("H", (), {"AsyncClient": lambda **kw: FakeClient()})
+    )
 
     info = await resolve_wallet("alice")
 
@@ -170,7 +172,9 @@ async def test_at_username_strips_at_and_resolves(monkeypatch):
 
     import backend.core.wallet_resolver as mod
 
-    monkeypatch.setattr(mod, "httpx", type("H", (), {"AsyncClient": lambda **kw: FakeClient()}))
+    monkeypatch.setattr(
+        mod, "httpx", type("H", (), {"AsyncClient": lambda **kw: FakeClient()})
+    )
 
     info = await resolve_wallet("@bob")
 
@@ -228,7 +232,9 @@ async def test_network_error_graceful_fallback(monkeypatch):
         async def get(self, url, **kw):
             raise ConnectionError("network down")
 
-    monkeypatch.setattr(mod, "httpx", type("H", (), {"AsyncClient": lambda **kw: FakeClient()}))
+    monkeypatch.setattr(
+        mod, "httpx", type("H", (), {"AsyncClient": lambda **kw: FakeClient()})
+    )
 
     info = await resolve_wallet("someuser")
 

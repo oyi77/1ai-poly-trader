@@ -3,16 +3,17 @@ Tests for order book engine: LiveOrderBook, OrderBookAnalyzer, slippage calculat
 
 WebSocket connection is not tested here — only data structures and calculations.
 """
+
 import pytest
 
 from backend.data.orderbook_ws import LiveOrderBook
 from backend.core.orderbook_analyzer import OrderBookAnalyzer
 from backend.core.slippage import calculate_slippage
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_book(
     bids: list | None = None,
@@ -32,6 +33,7 @@ def _make_book(
 # 1. mid_price
 # ---------------------------------------------------------------------------
 
+
 def test_live_order_book_mid_price():
     book = _make_book(bids=[[0.40, 100]], asks=[[0.60, 100]])
     assert book.mid_price == pytest.approx(0.50)
@@ -46,6 +48,7 @@ def test_live_order_book_mid_price_single_side():
 # 2. spread
 # ---------------------------------------------------------------------------
 
+
 def test_live_order_book_spread():
     book = _make_book(bids=[[0.40, 100]], asks=[[0.60, 100]])
     assert book.spread == pytest.approx(0.20)
@@ -55,6 +58,7 @@ def test_live_order_book_spread():
 # ---------------------------------------------------------------------------
 # 3. imbalance
 # ---------------------------------------------------------------------------
+
 
 def test_live_order_book_imbalance():
     # Equal bid/ask depth → imbalance = 0
@@ -79,6 +83,7 @@ def test_live_order_book_imbalance():
 # 4. apply_delta — add new level
 # ---------------------------------------------------------------------------
 
+
 def test_apply_delta_add_level():
     book = _make_book(bids=[[0.40, 100]], asks=[[0.60, 100]])
     book.apply_delta("BID", 0.38, 50)
@@ -92,6 +97,7 @@ def test_apply_delta_add_level():
 # 5. apply_delta — remove level (size=0)
 # ---------------------------------------------------------------------------
 
+
 def test_apply_delta_remove_level():
     book = _make_book(bids=[[0.40, 100], [0.38, 50]], asks=[[0.60, 100]])
     book.apply_delta("BID", 0.40, 0)
@@ -103,6 +109,7 @@ def test_apply_delta_remove_level():
 # ---------------------------------------------------------------------------
 # 6. apply_snapshot — full book replacement
 # ---------------------------------------------------------------------------
+
 
 def test_apply_snapshot():
     book = _make_book(bids=[[0.30, 999]], asks=[[0.70, 999]])
@@ -119,6 +126,7 @@ def test_apply_snapshot():
 # ---------------------------------------------------------------------------
 # 7. slippage — small order fits in first level
 # ---------------------------------------------------------------------------
+
 
 def test_slippage_small_order():
     book = _make_book(
@@ -138,6 +146,7 @@ def test_slippage_small_order():
 # 8. slippage — large order walks multiple levels
 # ---------------------------------------------------------------------------
 
+
 def test_slippage_large_order():
     book = _make_book(
         bids=[[0.49, 100], [0.48, 100], [0.47, 100]],
@@ -154,6 +163,7 @@ def test_slippage_large_order():
 # 9. slippage — insufficient liquidity (not fully filled)
 # ---------------------------------------------------------------------------
 
+
 def test_slippage_insufficient_liquidity():
     book = _make_book(
         bids=[[0.49, 10]],
@@ -169,11 +179,12 @@ def test_slippage_insufficient_liquidity():
 # 10. analyzer — support and resistance detection
 # ---------------------------------------------------------------------------
 
+
 def test_analyzer_support_resistance():
     # One dominant bid level (size >> average) and one large ask level
     book = _make_book(
-        bids=[[0.48, 10], [0.47, 10], [0.45, 500]],   # 0.45 is a support
-        asks=[[0.52, 10], [0.53, 10], [0.55, 500]],   # 0.55 is resistance
+        bids=[[0.48, 10], [0.47, 10], [0.45, 500]],  # 0.45 is a support
+        asks=[[0.52, 10], [0.53, 10], [0.55, 500]],  # 0.55 is resistance
     )
     analyzer = OrderBookAnalyzer()
     analysis = analyzer.analyze(book)
@@ -190,6 +201,7 @@ def test_analyzer_support_resistance():
 # ---------------------------------------------------------------------------
 # 11. analyzer — warnings
 # ---------------------------------------------------------------------------
+
 
 def test_analyzer_warnings_thin_liquidity():
     book = _make_book(bids=[[0.49, 1]], asks=[[0.51, 1]])

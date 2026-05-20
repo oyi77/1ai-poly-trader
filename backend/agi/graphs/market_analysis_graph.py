@@ -1,6 +1,6 @@
 """Market analysis graph - Regime detection → Knowledge Graph → Goal engine pipeline."""
-from backend.agi.graph_engine import GraphDefinition
 
+from backend.agi.graph_engine import GraphDefinition
 
 MARKET_ANALYSIS_GRAPH = GraphDefinition(
     name="market_analysis",

@@ -32,8 +32,12 @@ from backend.core.bankroll_reconciliation import (
     fetch_pm_profile_trade_stats,
     _initial_bankroll_for_mode,
 )
-from backend.api.validation import StrategyConfigRequest as ValidatedStrategyConfigRequest
+from backend.api.validation import (
+    StrategyConfigRequest as ValidatedStrategyConfigRequest,
+)
 from loguru import logger
+
+
 def _iso(dt) -> str | None:
     """Safely convert a datetime or string to ISO format.
 
@@ -47,6 +51,7 @@ def _iso(dt) -> str | None:
     if isinstance(dt, str):
         return dt  # Already a string from SQLite
     return str(dt)
+
 
 router = APIRouter(tags=["system"])
 
@@ -63,6 +68,7 @@ _hft_enabled_cache: set = {"universal_scanner", "probability_arb", "whale_frontr
 
 class SyncMetadata(BaseModel):
     """Metadata about database synchronization state."""
+
     last_synced_at: Optional[datetime] = None
     orphaned_count: int = 0
     external_imports_count: int = 0
@@ -117,7 +123,9 @@ class BotStats(BaseModel):
     sync_metadata: Optional[SyncMetadata] = None
 
 
-def _live_cache_values(live_state: Optional[BotState]) -> tuple[float, float, int, int, float]:
+def _live_cache_values(
+    live_state: Optional[BotState],
+) -> tuple[float, float, int, int, float]:
     """Return live account-equity cache values and initial capital basis.
 
     Live mode is externally reconciled.  The historical Trade ledger remains
@@ -132,7 +140,9 @@ def _live_cache_values(live_state: Optional[BotState]) -> tuple[float, float, in
         else settings.INITIAL_BANKROLL
     )
     bankroll = float(
-        live_state.bankroll if live_state and live_state.bankroll is not None else initial
+        live_state.bankroll
+        if live_state and live_state.bankroll is not None
+        else initial
     )
     pnl = float(
         live_state.total_pnl
@@ -144,7 +154,9 @@ def _live_cache_values(live_state: Optional[BotState]) -> tuple[float, float, in
     return bankroll, pnl, trades, wins, initial
 
 
-def _available_simulated_bankroll(raw_bankroll: Optional[float], fallback: float) -> float:
+def _available_simulated_bankroll(
+    raw_bankroll: Optional[float], fallback: float
+) -> float:
     """Return non-negative available bankroll for simulated modes.
 
     Paper/testnet accounts can have negative cumulative PnL, but available cash
@@ -169,10 +181,7 @@ class EventResponse(BaseModel):
 
 
 @router.get("/stats", response_model=BotStats)
-async def get_stats(
-    db: Session = Depends(get_db),
-    mode: Optional[str] = Query(None)
-):
+async def get_stats(db: Session = Depends(get_db), mode: Optional[str] = Query(None)):
     # Query all 3 mode states (read-only: no for_update to avoid lock contention)
     paper_state = db.query(BotState).filter_by(mode="paper").first()
     testnet_state = db.query(BotState).filter_by(mode="testnet").first()
@@ -194,39 +203,26 @@ async def get_stats(
 
     paper_settled_trades = (
         db.query(func.count(Trade.id))
-        .filter(
-            Trade.trading_mode == "paper",
-            Trade.settled
-        )
+        .filter(Trade.trading_mode == "paper", Trade.settled)
         .scalar()
         or 0
     )
     paper_wins = (
         db.query(func.count(Trade.id))
-        .filter(
-            Trade.trading_mode == "paper",
-            Trade.settled,
-            Trade.pnl > 0
-        )
+        .filter(Trade.trading_mode == "paper", Trade.settled, Trade.pnl > 0)
         .scalar()
         or 0
     )
     paper_pnl = (
         db.query(func.sum(Trade.pnl))
-        .filter(
-            Trade.trading_mode == "paper",
-            Trade.settled
-        )
+        .filter(Trade.trading_mode == "paper", Trade.settled)
         .scalar()
         or 0.0
     )
 
     paper_open_trades = (
         db.query(func.count(Trade.id))
-        .filter(
-            Trade.trading_mode == "paper",
-            not Trade.settled  # noqa: E712
-        )
+        .filter(Trade.trading_mode == "paper", not Trade.settled)  # noqa: E712
         .scalar()
         or 0
     )
@@ -240,7 +236,13 @@ async def get_stats(
 
     sync_metadata = None
 
-    live_bankroll, live_cached_account_pnl, live_cached_trades, live_cached_wins, live_initial = _live_cache_values(live_state)
+    (
+        live_bankroll,
+        live_cached_account_pnl,
+        live_cached_trades,
+        live_cached_wins,
+        live_initial,
+    ) = _live_cache_values(live_state)
 
     # End the read transaction before network I/O so stats polling does not sit
     # idle-in-transaction while waiting on Polymarket profile calls.
@@ -257,7 +259,11 @@ async def get_stats(
         live_profile_pnl = None
         live_profile_trade_stats = None
         live_profile_traded_count = None
-    live_account_pnl = float(live_profile_pnl) if live_profile_pnl is not None else live_cached_account_pnl
+    live_account_pnl = (
+        float(live_profile_pnl)
+        if live_profile_pnl is not None
+        else live_cached_account_pnl
+    )
 
     # Always query live-mode trades from actual DB for ledger analytics, but do
     # not use that ledger P&L as live account P&L in the dashboard.
@@ -265,8 +271,12 @@ async def get_stats(
         live_settled_trades = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
-                Trade.settled
+                (
+                    Trade.trading_mode == effective_mode
+                    if mode is not None
+                    else Trade.trading_mode == "live"
+                ),
+                Trade.settled,
             )
             .scalar()
             or 0
@@ -274,9 +284,13 @@ async def get_stats(
         live_wins = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
+                (
+                    Trade.trading_mode == effective_mode
+                    if mode is not None
+                    else Trade.trading_mode == "live"
+                ),
                 Trade.settled,
-                Trade.pnl > 0
+                Trade.pnl > 0,
             )
             .scalar()
             or 0
@@ -284,8 +298,12 @@ async def get_stats(
         live_ledger_pnl = (
             db.query(func.sum(Trade.pnl))
             .filter(
-                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
-                Trade.settled
+                (
+                    Trade.trading_mode == effective_mode
+                    if mode is not None
+                    else Trade.trading_mode == "live"
+                ),
+                Trade.settled,
             )
             .scalar()
             or 0.0
@@ -294,8 +312,12 @@ async def get_stats(
         live_open_trades_count = (
             db.query(func.count(Trade.id))
             .filter(
-                Trade.trading_mode == effective_mode if mode is not None else Trade.trading_mode == "live",
-                not Trade.settled  # noqa: E712
+                (
+                    Trade.trading_mode == effective_mode
+                    if mode is not None
+                    else Trade.trading_mode == "live"
+                ),
+                not Trade.settled,  # noqa: E712
             )
             .scalar()
             or 0
@@ -313,13 +335,19 @@ async def get_stats(
 
         orphaned_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == (effective_mode if mode is not None else "live"), Trade.result == "orphaned")
+            .filter(
+                Trade.trading_mode == (effective_mode if mode is not None else "live"),
+                Trade.result == "orphaned",
+            )
             .scalar()
             or 0
         )
         external_imports_count = (
             db.query(func.count(Trade.id))
-            .filter(Trade.trading_mode == (effective_mode if mode is not None else "live"), Trade.source == "external")
+            .filter(
+                Trade.trading_mode == (effective_mode if mode is not None else "live"),
+                Trade.source == "external",
+            )
             .scalar()
             or 0
         )
@@ -348,37 +376,27 @@ async def get_stats(
         .filter(
             Trade.trading_mode == "testnet",
             Trade.settled,
-            Trade.result.in_(["win", "loss", "closed"])
+            Trade.result.in_(["win", "loss", "closed"]),
         )
         .scalar()
         or 0
     )
     testnet_wins = (
         db.query(func.count(Trade.id))
-        .filter(
-            Trade.trading_mode == "testnet",
-            Trade.settled,
-            Trade.pnl > 0
-        )
+        .filter(Trade.trading_mode == "testnet", Trade.settled, Trade.pnl > 0)
         .scalar()
         or 0
     )
     testnet_pnl = (
         db.query(func.sum(Trade.pnl))
-        .filter(
-            Trade.trading_mode == "testnet",
-            Trade.settled
-        )
+        .filter(Trade.trading_mode == "testnet", Trade.settled)
         .scalar()
         or 0.0
     )
 
     testnet_open_trades = (
         db.query(func.count(Trade.id))
-        .filter(
-            Trade.trading_mode == "testnet",
-            not Trade.settled  # noqa: E712
-        )
+        .filter(Trade.trading_mode == "testnet", not Trade.settled)  # noqa: E712
         .scalar()
         or 0
     )
@@ -397,9 +415,7 @@ async def get_stats(
         result = await calculate_position_market_value(mode, db)
 
         mode_trades = (
-            db.query(Trade)
-            .filter(~Trade.settled, Trade.trading_mode == mode)
-            .all()
+            db.query(Trade).filter(~Trade.settled, Trade.trading_mode == mode).all()
         )
 
         open_trades_count = len(mode_trades)
@@ -420,10 +436,16 @@ async def get_stats(
     )
 
     paper_available_balance = round(paper_bankroll, 2)
-    paper_total_balance = round(paper_available_balance + paper_unrealized["position_market_value"], 2)
+    paper_total_balance = round(
+        paper_available_balance + paper_unrealized["position_market_value"], 2
+    )
     testnet_available_balance = round(testnet_bankroll, 2)
-    testnet_total_balance = round(testnet_available_balance + testnet_unrealized["position_market_value"], 2)
-    live_available_balance = round(max(0.0, live_bankroll - live_unrealized["position_market_value"]), 2)
+    testnet_total_balance = round(
+        testnet_available_balance + testnet_unrealized["position_market_value"], 2
+    )
+    live_available_balance = round(
+        max(0.0, live_bankroll - live_unrealized["position_market_value"]), 2
+    )
     live_total_balance = round(live_bankroll, 2)
 
     # Use effective_mode's values for top-level fields (backward compatibility)
@@ -501,7 +523,8 @@ async def get_stats(
             else (
                 db.query(func.count(Trade.id))
                 .filter(Trade.settled, Trade.trading_mode == "live")
-                .scalar() or 0
+                .scalar()
+                or 0
             )
         )
         settled_wins_count = (
@@ -510,7 +533,8 @@ async def get_stats(
             else (
                 db.query(func.count(Trade.id))
                 .filter(Trade.settled, Trade.trading_mode == "live", Trade.pnl > 0)
-                .scalar() or 0
+                .scalar()
+                or 0
             )
         )
         open_trades_count = live_unrealized["open_trades"]
@@ -568,7 +592,9 @@ async def get_stats(
         account_pnl=display_account_pnl,
         is_running=state.is_running,
         last_run=state.last_run,
-        initial_bankroll=_initial_bankroll_for_mode(effective_mode, live_state or paper_state or testnet_state),
+        initial_bankroll=_initial_bankroll_for_mode(
+            effective_mode, live_state or paper_state or testnet_state
+        ),
         paper_pnl=paper_pnl,
         paper_bankroll=paper_bankroll,
         paper_trades=paper_trades,
@@ -632,25 +658,39 @@ async def get_stats(
             "profile_pnl": live_account_pnl,
             "profile_traded_count": live_profile_traded_count,
             "profile_closed_count": (
-                live_profile_trade_stats.closed_count if live_profile_trade_stats else None
+                live_profile_trade_stats.closed_count
+                if live_profile_trade_stats
+                else None
             ),
             "profile_winning_count": (
-                live_profile_trade_stats.winning_count if live_profile_trade_stats else None
+                live_profile_trade_stats.winning_count
+                if live_profile_trade_stats
+                else None
             ),
             "profile_open_count": (
-                live_profile_trade_stats.open_position_count if live_profile_trade_stats else None
+                live_profile_trade_stats.open_position_count
+                if live_profile_trade_stats
+                else None
             ),
             "profile_stale_open_count": (
-                live_profile_trade_stats.stale_open_position_count if live_profile_trade_stats else None
+                live_profile_trade_stats.stale_open_position_count
+                if live_profile_trade_stats
+                else None
             ),
             "profile_redeemable_count": (
-                live_profile_trade_stats.redeemable_position_count if live_profile_trade_stats else None
+                live_profile_trade_stats.redeemable_position_count
+                if live_profile_trade_stats
+                else None
             ),
             "profile_open_value": (
-                live_profile_trade_stats.open_position_value if live_profile_trade_stats else None
+                live_profile_trade_stats.open_position_value
+                if live_profile_trade_stats
+                else None
             ),
             "profile_open_initial_value": (
-                live_profile_trade_stats.open_position_initial_value if live_profile_trade_stats else None
+                live_profile_trade_stats.open_position_initial_value
+                if live_profile_trade_stats
+                else None
             ),
             "ledger_trades": live_ledger_trades,
             "ledger_wins": live_ledger_wins,
@@ -670,13 +710,19 @@ async def get_stats(
             live_profile_trade_stats.winning_count if live_profile_trade_stats else None
         ),
         live_profile_open_count=(
-            live_profile_trade_stats.open_position_count if live_profile_trade_stats else None
+            live_profile_trade_stats.open_position_count
+            if live_profile_trade_stats
+            else None
         ),
         live_profile_stale_open_count=(
-            live_profile_trade_stats.stale_open_position_count if live_profile_trade_stats else None
+            live_profile_trade_stats.stale_open_position_count
+            if live_profile_trade_stats
+            else None
         ),
         live_profile_redeemable_count=(
-            live_profile_trade_stats.redeemable_position_count if live_profile_trade_stats else None
+            live_profile_trade_stats.redeemable_position_count
+            if live_profile_trade_stats
+            else None
         ),
         active_mode=list(settings.active_modes_set),
         open_exposure=open_exposure_amount,
@@ -706,11 +752,19 @@ async def get_strategy_stats(
         db.query(
             Trade.strategy,
             func.count(Trade.id).label("total_trades"),
-            func.sum(case((Trade.settled.is_(True), case((Trade.pnl > 0, 1), else_=0)), else_=0)).label("wins"),
-            func.sum(case((Trade.settled.is_(True), case((Trade.pnl <= 0, 1), else_=0)), else_=0)).label("losses"),
-            func.sum(case((Trade.settled, Trade.pnl), else_=0)).label(
-                "total_pnl"
-            ),
+            func.sum(
+                case(
+                    (Trade.settled.is_(True), case((Trade.pnl > 0, 1), else_=0)),
+                    else_=0,
+                )
+            ).label("wins"),
+            func.sum(
+                case(
+                    (Trade.settled.is_(True), case((Trade.pnl <= 0, 1), else_=0)),
+                    else_=0,
+                )
+            ).label("losses"),
+            func.sum(case((Trade.settled, Trade.pnl), else_=0)).label("total_pnl"),
             func.avg(Trade.edge_at_entry).label("avg_edge"),
             func.avg(Trade.size).label("avg_size"),
         )
@@ -903,7 +957,9 @@ class PaperTopupRequest(BaseModel):
 
 @router.post("/bot/paper-topup")
 async def paper_topup(
-    body: PaperTopupRequest, db: Session = Depends(get_db), _: None = Depends(require_admin)
+    body: PaperTopupRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
 ):
     if not body.confirm:
         raise HTTPException(
@@ -934,15 +990,22 @@ async def paper_topup(
 
     db.commit()
 
-    log_event("info", f"Paper bankroll topped up by ${body.amount:,.2f} (${previous:,.2f} → ${state.paper_bankroll:,.2f}); "
-             f"initial_bankroll ${prev_initial:,.2f} → ${state.paper_initial_bankroll:,.2f}")
+    log_event(
+        "info",
+        f"Paper bankroll topped up by ${body.amount:,.2f} (${previous:,.2f} → ${state.paper_bankroll:,.2f}); "
+        f"initial_bankroll ${prev_initial:,.2f} → ${state.paper_initial_bankroll:,.2f}",
+    )
     log_audit_event(
         db,
         event_type="PAPER_TOPUP",
         entity_type="BOT_STATE",
         entity_id="paper",
         old_value={"paper_bankroll": previous, "paper_initial_bankroll": prev_initial},
-        new_value={"paper_bankroll": float(state.paper_bankroll), "paper_initial_bankroll": float(state.paper_initial_bankroll), "added": body.amount},
+        new_value={
+            "paper_bankroll": float(state.paper_bankroll),
+            "paper_initial_bankroll": float(state.paper_initial_bankroll),
+            "added": body.amount,
+        },
         user_id="admin_topup",
     )
     db.commit()
@@ -957,19 +1020,26 @@ async def paper_topup(
 
 
 class LiveAdjustRequest(BaseModel):
-    amount: float = Field(description="USDC amount (positive=deposit, negative=withdraw)")
+    amount: float = Field(
+        description="USDC amount (positive=deposit, negative=withdraw)"
+    )
     confirm: bool = False
 
 
 @router.post("/bot/live-adjust")
 async def live_adjust(
-    body: LiveAdjustRequest, db: Session = Depends(get_db), _: None = Depends(require_admin)
+    body: LiveAdjustRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
 ):
     """Adjust live bankroll initial capital on deposit/withdraw."""
     if not body.confirm:
         raise HTTPException(status_code=400, detail="Set confirm=true to confirm.")
     if not settings.is_mode_active("live"):
-        raise HTTPException(status_code=409, detail="live-adjust only available when live mode is active")
+        raise HTTPException(
+            status_code=409,
+            detail="live-adjust only available when live mode is active",
+        )
 
     from backend.core.scheduler import log_event
     from backend.models.audit_logger import log_audit_event
@@ -981,13 +1051,18 @@ async def live_adjust(
     prev_initial = float(state.live_initial_bankroll or settings.INITIAL_BANKROLL)
     new_initial = prev_initial + body.amount
     if new_initial < 0:
-        raise HTTPException(status_code=400, detail="Cannot withdraw more than initial capital")
+        raise HTTPException(
+            status_code=400, detail="Cannot withdraw more than initial capital"
+        )
 
     state.live_initial_bankroll = new_initial
     db.commit()
 
     action = "deposit" if body.amount > 0 else "withdrawal"
-    log_event("info", f"Live {action} ${abs(body.amount):,.2f} — initial_bankroll ${prev_initial:,.2f} → ${new_initial:,.2f}")
+    log_event(
+        "info",
+        f"Live {action} ${abs(body.amount):,.2f} — initial_bankroll ${prev_initial:,.2f} → ${new_initial:,.2f}",
+    )
     log_audit_event(
         db,
         event_type=f"LIVE_{action.upper()}",
@@ -1212,7 +1287,9 @@ def _parse_json_text(raw: str | None):
     try:
         return _json.loads(raw)
     except Exception:
-        logger.exception("Failed to parse JSON in _parse_json_text, returning raw value")
+        logger.exception(
+            "Failed to parse JSON in _parse_json_text, returning raw value"
+        )
         return raw
 
 
@@ -1316,7 +1393,9 @@ async def trade_attempts_summary(
 
     total = query.count()
     executed = query.filter(TradeAttempt.status == "EXECUTED").count()
-    blocked = query.filter(TradeAttempt.status.in_(["BLOCKED", "REJECTED", "FAILED"])).count()
+    blocked = query.filter(
+        TradeAttempt.status.in_(["BLOCKED", "REJECTED", "FAILED"])
+    ).count()
 
     by_status = [
         {"status": status, "count": count}
@@ -1335,7 +1414,9 @@ async def trade_attempts_summary(
     ]
     top_blockers = [
         {"reason_code": reason_code, "count": count}
-        for reason_code, count in db.query(TradeAttempt.reason_code, func.count(TradeAttempt.id))
+        for reason_code, count in db.query(
+            TradeAttempt.reason_code, func.count(TradeAttempt.id)
+        )
         .filter(TradeAttempt.status.in_(["BLOCKED", "REJECTED", "FAILED"]))
         .filter(TradeAttempt.mode == mode if mode and mode != "all" else text("1=1"))
         .group_by(TradeAttempt.reason_code)
@@ -1356,7 +1437,9 @@ async def trade_attempts_summary(
         "executed": executed,
         "blocked": blocked,
         "execution_rate": executed / total if total else 0.0,
-        "last_attempt_at": _iso(latest.created_at) if latest and latest.created_at else None,
+        "last_attempt_at": (
+            _iso(latest.created_at) if latest and latest.created_at else None
+        ),
         "by_status": by_status,
         "by_mode": by_mode,
         "top_blockers": top_blockers,
@@ -1477,7 +1560,9 @@ async def export_decisions(
                 try:
                     signal_data = _json.loads(d.signal_data)
                 except Exception:
-                    logger.exception(f"Failed to parse signal_data for decision export {d.id}")
+                    logger.exception(
+                        f"Failed to parse signal_data for decision export {d.id}"
+                    )
                     signal_data = d.signal_data
             row = {
                 "id": d.id,
@@ -1501,7 +1586,8 @@ async def export_decisions(
 
 @router.get("/decisions/{decision_id}")
 async def get_decision(
-    decision_id: int, db: Session = Depends(get_db),
+    decision_id: int,
+    db: Session = Depends(get_db),
 ):
     """Get a single decision log entry by ID."""
     decision = db.query(DecisionLog).filter(DecisionLog.id == decision_id).first()
@@ -1585,11 +1671,9 @@ async def list_strategies(
                 "interval_seconds": cfg.interval_seconds if cfg else 60,
                 "params": _json.loads(cfg.params) if cfg and cfg.params else {},
                 "default_params": dict(getattr(cls, "default_params", {})),
-        "updated_at": _iso(cfg.updated_at)
-        if cfg and cfg.updated_at
-        else None,
-        "required_credentials": required_creds,
-        "trading_mode": cfg.trading_mode if cfg else None,
+                "updated_at": _iso(cfg.updated_at) if cfg and cfg.updated_at else None,
+                "required_credentials": required_creds,
+                "trading_mode": cfg.trading_mode if cfg else None,
             }
         )
     return result
@@ -1623,7 +1707,9 @@ async def get_strategy(
         category = getattr(cls, "category", "general")
         default_params = getattr(cls, "default_params", {})
     except Exception:
-        logger.exception(f"Failed to get strategy class '{name}', using fallback defaults")
+        logger.exception(
+            f"Failed to get strategy class '{name}', using fallback defaults"
+        )
         description, category, default_params = name, "unknown", {}
     return {
         "name": name,
@@ -1733,6 +1819,7 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
         from backend.models.database import BotState, StrategyConfig
 
         from backend.db.utils import get_db_session
+
         with get_db_session() as db:
             # STRAT-13 FIX: Use create_strategy() to check if strategy is enabled
             instance = create_strategy(name, db=db)
@@ -1749,6 +1836,7 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
             if not state:
                 raise HTTPException(status_code=404, detail="Bot state not initialized")
             from backend.markets.provider_registry import market_registry
+
             ctx = StrategyContext(
                 db=db,
                 clob=None,
@@ -1774,7 +1862,9 @@ async def run_strategy_now(name: str, _: None = Depends(require_admin)):
         if buy_decisions:
             from backend.core.strategy_executor import execute_decisions
 
-            execution_modes = ["paper", "live"] if strategy_mode == "live" else [strategy_mode]
+            execution_modes = (
+                ["paper", "live"] if strategy_mode == "live" else [strategy_mode]
+            )
             for mode in execution_modes:
                 decisions_copy = [d.copy() for d in buy_decisions]
                 for d in decisions_copy:
@@ -1817,15 +1907,11 @@ async def get_mirofish_health():
             "consecutive_failures": metrics.consecutive_failures,
             "last_success_time": metrics.last_success_time,
             "last_failure_time": metrics.last_failure_time,
-            "state_info": state_info
+            "state_info": state_info,
         }
     except Exception as e:
         logger.error(f"Failed to get MiroFish health: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-            "circuit_breaker_state": "UNKNOWN"
-        }
+        return {"status": "error", "error": str(e), "circuit_breaker_state": "UNKNOWN"}
 
 
 @router.get("/system/db-pool-stats")
@@ -1846,11 +1932,13 @@ async def get_db_pool_stats(_: None = Depends(require_admin)):
                 "max_overflow": 10,
                 "pool_timeout": 30,
                 "pool_recycle": 3600,
-            }
+            },
         }
     except Exception as e:
         logger.error(f"Failed to get pool stats: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get pool stats: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get pool stats: {str(e)}"
+        )
 
 
 class AuditLogResponse(BaseModel):
@@ -1870,8 +1958,12 @@ async def get_audit_logs(
     entity_type: Optional[str] = Query(None, description="Filter by entity type"),
     entity_id: Optional[str] = Query(None, description="Filter by entity ID"),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
-    since: Optional[str] = Query(None, description="Filter logs since timestamp (ISO format)"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of logs to return"),
+    since: Optional[str] = Query(
+        None, description="Filter logs since timestamp (ISO format)"
+    ),
+    limit: int = Query(
+        100, ge=1, le=1000, description="Maximum number of logs to return"
+    ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
@@ -1906,10 +1998,7 @@ async def get_audit_logs(
         _total = query.count()
 
         logs = (
-            query.order_by(AuditLog.timestamp.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
+            query.order_by(AuditLog.timestamp.desc()).offset(offset).limit(limit).all()
         )
 
         return [
@@ -1940,15 +2029,19 @@ async def get_audit_logs(
 
 class HealthStatus(BaseModel):
     """Basic health status response."""
+
     status: str
     agi_events: dict = {}  # "healthy" or "unhealthy"
 
 
 class ReadinessStatus(BaseModel):
     """Readiness check with dependency status."""
+
     status: str  # "ready" or "not_ready"
     database: str  # "connected" or "disconnected"
-    redis: Optional[str] = None  # "connected", "disconnected", or None if not configured
+    redis: Optional[str] = (
+        None  # "connected", "disconnected", or None if not configured
+    )
 
 
 class DetailedHealthStatus(BaseModel):
@@ -1974,6 +2067,7 @@ async def health_check():
     agi_health = {}
     try:
         from backend.core.agi_event_handlers import check_agi_health
+
         agi_health = check_agi_health()
     except Exception:
         logger.exception("Failed to check AGI health in liveness endpoint")
@@ -1991,6 +2085,7 @@ async def health_live_check():
 async def agi_health_check():
     """Return AGI event handler health status."""
     from backend.core.agi_event_handlers import check_agi_health
+
     return check_agi_health()
 
 
@@ -2011,32 +2106,27 @@ async def readiness_check(db: Session = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Database readiness check failed: {e}")
         return ReadinessStatus(
-            status="not_ready",
-            database=database_status,
-            redis=redis_status
+            status="not_ready", database=database_status, redis=redis_status
         )
 
     # Check Redis if configured
     if settings.REDIS_URL:
         try:
             import redis
-            r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2, socket_timeout=2)
+
+            r = redis.from_url(
+                settings.REDIS_URL, socket_connect_timeout=2, socket_timeout=2
+            )
             r.ping()
             redis_status = "connected"
         except Exception as e:
             logger.warning(f"Redis readiness check failed: {e}")
             redis_status = "disconnected"
             return ReadinessStatus(
-                status="not_ready",
-                database=database_status,
-                redis=redis_status
+                status="not_ready", database=database_status, redis=redis_status
             )
 
-    return ReadinessStatus(
-        status="ready",
-        database=database_status,
-        redis=redis_status
-    )
+    return ReadinessStatus(status="ready", database=database_status, redis=redis_status)
 
 
 @router.get("/health/detailed", response_model=DetailedHealthStatus, status_code=200)
@@ -2052,13 +2142,10 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     is_healthy = True
 
     # Database check
-    database_info = {
-        "status": "disconnected",
-        "latency_ms": None,
-        "error": None
-    }
+    database_info = {"status": "disconnected", "latency_ms": None, "error": None}
     try:
         import time
+
         start = time.time()
         db.execute(text("SELECT 1"))
         latency_ms = (time.time() - start) * 1000
@@ -2073,15 +2160,14 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     # Redis check (if configured)
     redis_info = None
     if settings.REDIS_URL:
-        redis_info = {
-            "status": "disconnected",
-            "latency_ms": None,
-            "error": None
-        }
+        redis_info = {"status": "disconnected", "latency_ms": None, "error": None}
         try:
             import redis
             import time
-            r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2, socket_timeout=2)
+
+            r = redis.from_url(
+                settings.REDIS_URL, socket_connect_timeout=2, socket_timeout=2
+            )
             start = time.time()
             r.ping()
             latency_ms = (time.time() - start) * 1000
@@ -2102,7 +2188,7 @@ async def detailed_health_check(db: Session = Depends(get_db)):
         "used_gb": 0,
         "free_gb": 0,
         "percent_used": 0,
-        "warning": None
+        "warning": None,
     }
     try:
         disk_usage = psutil.disk_usage("/")
@@ -2130,7 +2216,7 @@ async def detailed_health_check(db: Session = Depends(get_db)):
         "used_gb": 0,
         "available_gb": 0,
         "percent_used": 0,
-        "warning": None
+        "warning": None,
     }
     try:
         mem = psutil.virtual_memory()
@@ -2167,14 +2253,27 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     trades_24h = None
     try:
         from backend.monitoring.metrics import get_metrics_snapshot
+
         metrics = get_metrics_snapshot()
         avg_signal_time_ms = metrics.get("avg_api_latency_ms")
-        signals_24h = db.query(Signal).filter(
-            Signal.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
-        ).count() if db else 0
-        trades_24h = db.query(Trade).filter(
-            Trade.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
-        ).count() if db else 0
+        signals_24h = (
+            db.query(Signal)
+            .filter(
+                Signal.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+            )
+            .count()
+            if db
+            else 0
+        )
+        trades_24h = (
+            db.query(Trade)
+            .filter(
+                Trade.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+            )
+            .count()
+            if db
+            else 0
+        )
     except Exception:
         logger.exception("Failed to collect metrics in health check")
 
@@ -2208,13 +2307,19 @@ async def get_connection_limits(db: Session = Depends(get_db)):
 @router.post("/redeem")
 async def redeem_positions(
     _: None = Depends(require_admin),
-    dry_run: bool = Query(True, description="If true, only report what would be redeemed"),
+    dry_run: bool = Query(
+        True, description="If true, only report what would be redeemed"
+    ),
 ):
     from backend.core.auto_redeem import redeem_all_redeemable
+
     wallet = settings.POLYMARKET_BUILDER_ADDRESS or ""
     private_key = settings.POLYMARKET_PRIVATE_KEY or ""
     if not wallet or not private_key:
-        raise HTTPException(status_code=500, detail="POLYMARKET_BUILDER_ADDRESS or POLYMARKET_PRIVATE_KEY not set")
+        raise HTTPException(
+            status_code=500,
+            detail="POLYMARKET_BUILDER_ADDRESS or POLYMARKET_PRIVATE_KEY not set",
+        )
     result = redeem_all_redeemable(
         wallet=wallet,
         private_key=private_key,
@@ -2231,7 +2336,12 @@ async def redeem_positions(
         "usdc_recovered": result.total_usdc_recovered,
         "errors": result.errors,
         "results": [
-            {"condition_id": r.condition_id, "success": r.success, "tx_hash": r.tx_hash, "error": r.error}
+            {
+                "condition_id": r.condition_id,
+                "success": r.success,
+                "tx_hash": r.tx_hash,
+                "error": r.error,
+            }
             for r in result.results
         ],
     }
@@ -2240,6 +2350,7 @@ async def redeem_positions(
 @router.get("/hft/metrics")
 async def hft_metrics():
     from backend.monitoring.hft_metrics import get_hft_summary
+
     summary = get_hft_summary()
     return {
         "signals_per_second": summary.get("signals_per_second", 0.0),
@@ -2258,30 +2369,52 @@ async def hft_metrics():
 async def hft_strategies(db: Session = Depends(get_db)):
     from backend.strategies.registry import STRATEGY_REGISTRY
     from backend.models.database import StrategyConfig
-    hft_names = {"universal_scanner", "probability_arb", "cross_market_arb", "whale_frontrun"}
+
+    hft_names = {
+        "universal_scanner",
+        "probability_arb",
+        "cross_market_arb",
+        "whale_frontrun",
+    }
     strategies = []
     for name in STRATEGY_REGISTRY:
         if name in hft_names:
-            config = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
-            strategies.append({
-                "name": name,
-                "enabled": config.enabled if config else True,
-                "signals_generated": 0,
-                "last_signal_at": _iso(config.updated_at) if config and config.updated_at else None,
-                "pnl": 0.0,
-                "mode": config.trading_mode or "paper" if config else "paper",
-            })
+            config = (
+                db.query(StrategyConfig)
+                .filter(StrategyConfig.strategy_name == name)
+                .first()
+            )
+            strategies.append(
+                {
+                    "name": name,
+                    "enabled": config.enabled if config else True,
+                    "signals_generated": 0,
+                    "last_signal_at": (
+                        _iso(config.updated_at)
+                        if config and config.updated_at
+                        else None
+                    ),
+                    "pnl": 0.0,
+                    "mode": config.trading_mode or "paper" if config else "paper",
+                }
+            )
     if not strategies:
         for name in hft_names:
-            config = db.query(StrategyConfig).filter(StrategyConfig.strategy_name == name).first()
-            strategies.append({
-                "name": name,
-                "enabled": config.enabled if config else True,
-                "signals_generated": 0,
-                "last_signal_at": None,
-                "pnl": 0.0,
-                "mode": "paper",
-            })
+            config = (
+                db.query(StrategyConfig)
+                .filter(StrategyConfig.strategy_name == name)
+                .first()
+            )
+            strategies.append(
+                {
+                    "name": name,
+                    "enabled": config.enabled if config else True,
+                    "signals_generated": 0,
+                    "last_signal_at": None,
+                    "pnl": 0.0,
+                    "mode": "paper",
+                }
+            )
     return {"strategies": strategies}
 
 

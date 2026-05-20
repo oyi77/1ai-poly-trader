@@ -16,6 +16,7 @@ Infrastructure:
     AuthorityHierarchy — defines override rules
     AgentCouncil      — orchestrates message flow, manages agent lifecycle
 """
+
 from __future__ import annotations
 
 import time
@@ -35,13 +36,14 @@ from backend.monitoring.agi_metrics import (
     set_council_queue_depth,
 )
 
-
 # ---------------------------------------------------------------------------
 # Message protocol
 # ---------------------------------------------------------------------------
 
+
 class MessageType(Enum):
     """Typed message categories flowing through the council."""
+
     SIGNAL = "signal"
     PROPOSAL = "proposal"
     CRITIQUE = "critique"
@@ -54,16 +56,18 @@ class MessageType(Enum):
 
 class AuthorityLevel(Enum):
     """Agent authority tiers in the council hierarchy."""
-    ADVISORY = "advisory"        # produces signals/proposals, cannot execute
-    VETO = "veto"                # can reject any proposal
-    EXECUTION = "execution"      # sole execution authority
+
+    ADVISORY = "advisory"  # produces signals/proposals, cannot execute
+    VETO = "veto"  # can reject any proposal
+    EXECUTION = "execution"  # sole execution authority
 
 
 @dataclass
 class AgentMessage:
     """Typed message routed between agents via the MessageBus."""
+
     source_agent: str
-    target_agent: str                          # agent role or "broadcast"
+    target_agent: str  # agent role or "broadcast"
     message_type: MessageType
     payload: dict[str, Any]
     correlation_id: str = field(default_factory=lambda: uuid.uuid4().hex)
@@ -89,6 +93,7 @@ class AgentMessage:
 # ---------------------------------------------------------------------------
 # Base agent
 # ---------------------------------------------------------------------------
+
 
 class BaseAgent(ABC):
     """Abstract base class for all council agents."""
@@ -131,6 +136,7 @@ class BaseAgent(ABC):
 # Concrete agents
 # ---------------------------------------------------------------------------
 
+
 class AnalystAgent(BaseAgent):
     """Market analysis, signal generation, market scanning."""
 
@@ -145,7 +151,11 @@ class AnalystAgent(BaseAgent):
                 correlation_id=message.correlation_id,
             )
         # Produce market signals from payload (market_data, regime, etc.)
-        logger.debug("AnalystAgent processing %s from %s", message.message_type.value, message.source_agent)
+        logger.debug(
+            "AnalystAgent processing %s from %s",
+            message.message_type.value,
+            message.source_agent,
+        )
         return None
 
     def get_role(self) -> str:
@@ -168,7 +178,11 @@ class SynthesizerAgent(BaseAgent):
                 payload=self.get_status(),
                 correlation_id=message.correlation_id,
             )
-        logger.debug("SynthesizerAgent processing %s from %s", message.message_type.value, message.source_agent)
+        logger.debug(
+            "SynthesizerAgent processing %s from %s",
+            message.message_type.value,
+            message.source_agent,
+        )
         return None
 
     def get_role(self) -> str:
@@ -191,7 +205,11 @@ class CriticAgent(BaseAgent):
                 payload=self.get_status(),
                 correlation_id=message.correlation_id,
             )
-        logger.debug("CriticAgent processing %s from %s", message.message_type.value, message.source_agent)
+        logger.debug(
+            "CriticAgent processing %s from %s",
+            message.message_type.value,
+            message.source_agent,
+        )
         return None
 
     def get_role(self) -> str:
@@ -214,7 +232,11 @@ class ExecutorAgent(BaseAgent):
                 payload=self.get_status(),
                 correlation_id=message.correlation_id,
             )
-        logger.debug("ExecutorAgent processing %s from %s", message.message_type.value, message.source_agent)
+        logger.debug(
+            "ExecutorAgent processing %s from %s",
+            message.message_type.value,
+            message.source_agent,
+        )
         return None
 
     def get_role(self) -> str:
@@ -234,6 +256,7 @@ class HistorianAgent(BaseAgent):
     def _ensure_kg(self) -> Any:
         if self._kg is None:
             from backend.core.knowledge_graph import KnowledgeGraph
+
             self._kg = KnowledgeGraph()
         return self._kg
 
@@ -256,7 +279,11 @@ class HistorianAgent(BaseAgent):
         if message.message_type == MessageType.STATUS_REQUEST:
             return await self._handle_status_request(message)
 
-        logger.debug("HistorianAgent ignoring %s from %s", message.message_type.value, message.source_agent)
+        logger.debug(
+            "HistorianAgent ignoring %s from %s",
+            message.message_type.value,
+            message.source_agent,
+        )
         return None
 
     async def _handle_lesson(self, message: AgentMessage) -> Optional[AgentMessage]:
@@ -265,14 +292,18 @@ class HistorianAgent(BaseAgent):
         payload = message.payload
         try:
             kg.store_trade_memory(
-                trade_id=payload.get("trade_id", f"lesson_{message.correlation_id[:8]}"),
+                trade_id=payload.get(
+                    "trade_id", f"lesson_{message.correlation_id[:8]}"
+                ),
                 strategy=payload.get("strategy", "unknown"),
                 market_id=payload.get("market_id", "unknown"),
                 signal_reasoning=payload.get("reasoning", payload.get("lesson", "")),
                 outcome_pnl=payload.get("pnl", 0.0),
                 outcome_correct=payload.get("outcome_correct", False),
             )
-            logger.info("HistorianAgent stored lesson for strategy=%s", payload.get("strategy"))
+            logger.info(
+                "HistorianAgent stored lesson for strategy=%s", payload.get("strategy")
+            )
         except Exception as exc:
             logger.error("HistorianAgent failed to store lesson: %s", exc)
 
@@ -284,20 +315,18 @@ class HistorianAgent(BaseAgent):
             correlation_id=message.correlation_id,
         )
 
-    async def _handle_status_request(self, message: AgentMessage) -> Optional[AgentMessage]:
+    async def _handle_status_request(
+        self, message: AgentMessage
+    ) -> Optional[AgentMessage]:
         """Return KG statistics."""
         kg = self._ensure_kg()
         status = self.get_status()
         try:
             from backend.models.kg_models import KGEntity as E, KGRelation as R
+
             entity_count = kg._session.query(E).count()
             relation_count = kg._session.query(R).count()
-            recent = (
-                kg._session.query(E)
-                .order_by(E.created_at.desc())
-                .limit(5)
-                .all()
-            )
+            recent = kg._session.query(E).order_by(E.created_at.desc()).limit(5).all()
             status["kg_entity_count"] = entity_count
             status["kg_relation_count"] = relation_count
             status["recent_entities"] = [
@@ -336,7 +365,11 @@ class EvolverAgent(BaseAgent):
                 payload=self.get_status(),
                 correlation_id=message.correlation_id,
             )
-        logger.debug("EvolverAgent processing %s from %s", message.message_type.value, message.source_agent)
+        logger.debug(
+            "EvolverAgent processing %s from %s",
+            message.message_type.value,
+            message.source_agent,
+        )
         return None
 
     def get_role(self) -> str:
@@ -349,6 +382,7 @@ class EvolverAgent(BaseAgent):
 # ---------------------------------------------------------------------------
 # Message bus
 # ---------------------------------------------------------------------------
+
 
 class MessageBus:
     """In-process typed message router for the agent council.
@@ -372,7 +406,9 @@ class MessageBus:
     def unregister(self, role: str) -> None:
         self._agents.pop(role, None)
 
-    def add_interceptor(self, fn: Callable[[AgentMessage], Optional[AgentMessage]]) -> None:
+    def add_interceptor(
+        self, fn: Callable[[AgentMessage], Optional[AgentMessage]]
+    ) -> None:
         """Add a message interceptor (e.g., for logging, authority checks)."""
         self._interceptors.append(fn)
 
@@ -407,7 +443,8 @@ class MessageBus:
                     elapsed = time.monotonic() - t0
                     record_council_response_time(agent.get_role(), elapsed)
                     record_council_message(
-                        message.source_agent, message.target_agent,
+                        message.source_agent,
+                        message.target_agent,
                         message.message_type.value,
                     )
                     if resp is not None:
@@ -420,7 +457,8 @@ class MessageBus:
                 elapsed = time.monotonic() - t0
                 record_council_response_time(agent.get_role(), elapsed)
                 record_council_message(
-                    message.source_agent, message.target_agent,
+                    message.source_agent,
+                    message.target_agent,
                     message.message_type.value,
                 )
                 if resp is not None:
@@ -435,6 +473,7 @@ class MessageBus:
 # ---------------------------------------------------------------------------
 # Authority hierarchy
 # ---------------------------------------------------------------------------
+
 
 class AuthorityHierarchy:
     """Enforces the agent authority chain from ADR-012.
@@ -459,9 +498,28 @@ class AuthorityHierarchy:
 
     # Which message types each authority level may emit
     _ALLOWED_EMIT: dict[AuthorityLevel, set[MessageType]] = {
-        AuthorityLevel.ADVISORY: {MessageType.SIGNAL, MessageType.PROPOSAL, MessageType.LESSON, MessageType.EVOLUTION_REQUEST, MessageType.STATUS_REQUEST, MessageType.STATUS_RESPONSE},
-        AuthorityLevel.EXECUTION: {MessageType.EXECUTION_ORDER, MessageType.SIGNAL, MessageType.PROPOSAL, MessageType.STATUS_REQUEST, MessageType.STATUS_RESPONSE},
-        AuthorityLevel.VETO: {MessageType.CRITIQUE, MessageType.SIGNAL, MessageType.PROPOSAL, MessageType.STATUS_REQUEST, MessageType.STATUS_RESPONSE},
+        AuthorityLevel.ADVISORY: {
+            MessageType.SIGNAL,
+            MessageType.PROPOSAL,
+            MessageType.LESSON,
+            MessageType.EVOLUTION_REQUEST,
+            MessageType.STATUS_REQUEST,
+            MessageType.STATUS_RESPONSE,
+        },
+        AuthorityLevel.EXECUTION: {
+            MessageType.EXECUTION_ORDER,
+            MessageType.SIGNAL,
+            MessageType.PROPOSAL,
+            MessageType.STATUS_REQUEST,
+            MessageType.STATUS_RESPONSE,
+        },
+        AuthorityLevel.VETO: {
+            MessageType.CRITIQUE,
+            MessageType.SIGNAL,
+            MessageType.PROPOSAL,
+            MessageType.STATUS_REQUEST,
+            MessageType.STATUS_RESPONSE,
+        },
     }
 
     def can_emit(self, agent: BaseAgent, message_type: MessageType) -> bool:
@@ -471,7 +529,9 @@ class AuthorityHierarchy:
 
     def has_higher_authority(self, agent_a: BaseAgent, agent_b: BaseAgent) -> bool:
         """Return True if agent_a outranks agent_b."""
-        return self._RANK.get(agent_a.get_authority(), 0) > self._RANK.get(agent_b.get_authority(), 0)
+        return self._RANK.get(agent_a.get_authority(), 0) > self._RANK.get(
+            agent_b.get_authority(), 0
+        )
 
     def can_veto(self, agent: BaseAgent) -> bool:
         """Return True if the agent has veto authority."""
@@ -486,6 +546,7 @@ class AuthorityHierarchy:
 # Agent council orchestrator
 # ---------------------------------------------------------------------------
 
+
 class AgentCouncil:
     """Orchestrates agent message flow and lifecycle.
 
@@ -497,7 +558,14 @@ class AgentCouncil:
         5. Evolution — Evolver updates genomes
     """
 
-    _DEFAULT_ROLES = ("analyst", "synthesizer", "critic", "executor", "historian", "evolver")
+    _DEFAULT_ROLES = (
+        "analyst",
+        "synthesizer",
+        "critic",
+        "executor",
+        "historian",
+        "evolver",
+    )
 
     def __init__(self) -> None:
         self.bus = MessageBus()
@@ -538,7 +606,8 @@ class AgentCouncil:
             return message  # allow external/system messages through
         if not self.authority.can_emit(source, message.message_type):
             record_council_authority_rejection(
-                message.source_agent, message.message_type.value,
+                message.source_agent,
+                message.message_type.value,
             )
             logger.warning(
                 "AuthorityHierarchy: agent '%s' (authority=%s) cannot emit %s — suppressed",

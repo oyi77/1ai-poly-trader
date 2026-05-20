@@ -4,6 +4,7 @@ Replaces the original NotImplementedError stub with a working metrics
 implementation suitable for the logistic-regression baseline trained by
 ``model_trainer.ModelTrainer``.
 """
+
 from __future__ import annotations
 
 import math

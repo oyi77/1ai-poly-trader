@@ -1,4 +1,5 @@
 """Tests for KnowledgeGraph — entity/relation CRUD, queries, rollback, validation."""
+
 from datetime import datetime, timezone, timedelta
 
 import pytest
@@ -23,7 +24,9 @@ def kg():
 
 class TestEntityCRUD:
     def test_add_entity(self, kg):
-        entity = kg.add_entity("strategy", "btc_momentum", {"win_rate": 0.65, "sharpe": 1.2})
+        entity = kg.add_entity(
+            "strategy", "btc_momentum", {"win_rate": 0.65, "sharpe": 1.2}
+        )
         assert entity.entity_type == "strategy"
         assert entity.entity_id == "btc_momentum"
         assert entity.properties["win_rate"] == 0.65
@@ -41,7 +44,9 @@ class TestEntityCRUD:
 
     def test_add_entity_upsert(self, kg):
         kg.add_entity("strategy", "btc_momentum", {"win_rate": 0.6})
-        updated = kg.add_entity("strategy", "btc_momentum", {"win_rate": 0.7, "sharpe": 1.5})
+        updated = kg.add_entity(
+            "strategy", "btc_momentum", {"win_rate": 0.7, "sharpe": 1.5}
+        )
         assert updated.properties["win_rate"] == 0.7
         assert updated.properties["sharpe"] == 1.5
 
@@ -63,7 +68,9 @@ class TestRelationCRUD:
 
     def test_add_relation_missing_entity(self, kg):
         kg.add_entity("strategy", "btc_momentum")
-        rel = kg.add_relation("btc_momentum", "nonexistent", "performs_well_in", 0.5, 0.5)
+        rel = kg.add_relation(
+            "btc_momentum", "nonexistent", "performs_well_in", 0.5, 0.5
+        )
         assert rel is None
 
     def test_get_related(self, kg):
@@ -130,6 +137,7 @@ class TestRollback:
     def test_rollback_removes_recent_data(self, kg):
         kg.add_entity("strategy", "btc_momentum")
         import time
+
         time.sleep(1.1)
         cutoff = datetime.now(timezone.utc)
         time.sleep(0.1)
@@ -151,7 +159,9 @@ class TestValidation:
         assert len(errors) == 0
 
     def test_validate_relation_missing_entities(self, kg):
-        errors = kg.validate_relation("nonexistent", "also_nonexistent", "test", 0.5, 0.5)
+        errors = kg.validate_relation(
+            "nonexistent", "also_nonexistent", "test", 0.5, 0.5
+        )
         assert any("does not exist" in e for e in errors)
 
     def test_validate_relation_weight_bounds(self, kg):

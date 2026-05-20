@@ -1,4 +1,5 @@
 """Longshot bias detection — identifies systematic over/under-pricing of longshot outcomes."""
+
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -8,6 +9,7 @@ from backend.models.database import SessionLocal, CalibrationRecord
 LONGSHOT_THRESHOLD = 0.05  # Prices below this are considered longshots
 MIN_SAMPLES = 10  # Minimum calibration samples required per bucket
 PRICE_CUTOFF = 0.30  # Only analyze predictions below this probability
+
 
 class LongshotBiasDetector:
     """Detect systematic over/under-pricing of longshot outcomes.
@@ -66,7 +68,9 @@ class LongshotBiasDetector:
                 "avg_predicted": round(avg_predicted, 4),
                 "avg_actual": round(avg_actual, 4),
                 "bias": round(bias, 4),
-                "edge": round(bias, 4),  # positive = longshots underpriced (good to bet)
+                "edge": round(
+                    bias, 4
+                ),  # positive = longshots underpriced (good to bet)
             }
 
             return [result]
@@ -85,11 +89,15 @@ class LongshotBiasDetector:
         try:
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-            records = db.query(CalibrationRecord).filter(
-                CalibrationRecord.timestamp >= cutoff,
-                CalibrationRecord.actual_outcome is not None,
-                CalibrationRecord.predicted_prob < PRICE_CUTOFF,
-            ).all()
+            records = (
+                db.query(CalibrationRecord)
+                .filter(
+                    CalibrationRecord.timestamp >= cutoff,
+                    CalibrationRecord.actual_outcome is not None,
+                    CalibrationRecord.predicted_prob < PRICE_CUTOFF,
+                )
+                .all()
+            )
 
             # Group by strategy
             by_strategy: dict[str, list] = {}

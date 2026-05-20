@@ -13,6 +13,7 @@ from backend.models.database import (
     WhaleTransaction,
 )
 from loguru import logger
+
 router = APIRouter(tags=["market_intel"])
 
 
@@ -102,6 +103,7 @@ async def get_edge_performance(
 async def get_whale_transactions(limit: int = 50):
     """Return recent whale transactions from DB."""
     from backend.db.utils import get_db_session
+
     with get_db_session() as db:
         rows = (
             db.query(WhaleTransaction)
@@ -153,5 +155,5 @@ async def get_prediction(market_id: str):
 
     return JSONResponse(
         status_code=503,
-        content={"error": "Predictions unavailable", "market_id": market_id}
+        content={"error": "Predictions unavailable", "market_id": market_id},
     )

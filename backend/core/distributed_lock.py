@@ -25,6 +25,7 @@ import uuid
 from typing import Optional
 
 from loguru import logger
+
 # ---------------------------------------------------------------------------
 # Process-local fallback registry
 # ---------------------------------------------------------------------------
@@ -109,10 +110,14 @@ class DistributedSettlementLock:
         try:
             from backend.config import settings  # type: ignore
 
-            redis_url = getattr(settings, "REDIS_URL", None) or settings.REDIS_DEFAULT_URL
+            redis_url = (
+                getattr(settings, "REDIS_URL", None) or settings.REDIS_DEFAULT_URL
+            )
         except Exception:
             redis_url = "redis://localhost:6379"
-            logger.warning("Could not load config for Redis URL, using default fallback")
+            logger.warning(
+                "Could not load config for Redis URL, using default fallback"
+            )
 
         try:
             import redis  # type: ignore
@@ -248,7 +253,11 @@ class DistributedSettlementLock:
     @property
     def backend(self) -> str:
         """Return ``"redis"`` or ``"memory"`` depending on the active backend."""
-        return "redis" if self._using_redis and self._redis_client is not None else "memory"
+        return (
+            "redis"
+            if self._using_redis and self._redis_client is not None
+            else "memory"
+        )
 
     def __repr__(self) -> str:  # pragma: no cover - debug only
         return (

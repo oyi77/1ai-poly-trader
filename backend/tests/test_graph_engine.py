@@ -1,4 +1,5 @@
 """Test suite for the GraphEngine."""
+
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock

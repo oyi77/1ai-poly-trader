@@ -58,10 +58,15 @@ class HFTConfig(BaseModel):
     def validate_flags(self) -> list[str]:
         """Validate flag combinations. Returns list of issues."""
         issues = []
-        if self.execution.AUTO_EXECUTE and self.execution.AUTO_EXECUTE_MIN_CONFIDENCE < 0.3:
+        if (
+            self.execution.AUTO_EXECUTE
+            and self.execution.AUTO_EXECUTE_MIN_CONFIDENCE < 0.3
+        ):
             issues.append("AUTO_EXECUTE_MIN_CONFIDENCE very low for auto-execute mode")
         if self.scanner.PARALLEL_LIMIT > 100 and self.scanner.STALE_THRESHOLD_SEC < 3.0:
-            issues.append("High parallelism with low stale threshold may cause stale data")
+            issues.append(
+                "High parallelism with low stale threshold may cause stale data"
+            )
         return issues
 
 

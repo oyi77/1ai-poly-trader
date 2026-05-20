@@ -1,4 +1,5 @@
 """Backward-compatible shim — imports from backend.core.wallet.bankroll_reconciliation."""
+
 from backend.core.wallet.bankroll_reconciliation import *  # noqa: F401,F403
 from backend.core.wallet.bankroll_reconciliation import (  # noqa: F401  — private names
     _initial_bankroll_for_mode,

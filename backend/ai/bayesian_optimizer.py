@@ -4,10 +4,13 @@ Simplified Bayesian-style hyperparameter optimizer for PolyEdge Trading Bot.
 Uses random search for initial exploration followed by Gaussian-perturbation
 exploitation around the best-known point. No scipy dependency required.
 """
+
 import random
 from dataclasses import dataclass
 
 from loguru import logger
+
+
 @dataclass
 class OptimizationResult:
     best_params: dict
@@ -35,7 +38,9 @@ class BayesianOptimizer:
     # Public API
     # ------------------------------------------------------------------
 
-    def optimize(self, objective_fn, n_iterations: int = 50, n_random_starts: int = 10) -> OptimizationResult:
+    def optimize(
+        self, objective_fn, n_iterations: int = 50, n_random_starts: int = 10
+    ) -> OptimizationResult:
         """
         Run the optimizer.
 

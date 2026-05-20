@@ -13,7 +13,11 @@ from fastapi import HTTPException
 from loguru import logger
 
 _LOG_LEVEL_MAP = {
-    "DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50,
+    "DEBUG": 10,
+    "INFO": 20,
+    "WARNING": 30,
+    "ERROR": 40,
+    "CRITICAL": 50,
 }
 
 

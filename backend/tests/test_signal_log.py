@@ -81,9 +81,27 @@ def test_signal_log_default_strategy(db):
 
 def test_signal_log_crud(db):
     Base.metadata.create_all(db.get_bind())
-    s1 = SignalLog(timestamp=datetime.now(timezone.utc), market_id="PM-1", market_mid=0.1, strategy="foo")
-    s2 = SignalLog(timestamp=datetime.now(timezone.utc), market_id="PM-2", market_mid=0.2, strategy="bar", filled=True, pnl=1.5)
-    s3 = SignalLog(timestamp=datetime.now(timezone.utc), market_id="PM-1", market_mid=0.3, strategy="foo", filled=None)
+    s1 = SignalLog(
+        timestamp=datetime.now(timezone.utc),
+        market_id="PM-1",
+        market_mid=0.1,
+        strategy="foo",
+    )
+    s2 = SignalLog(
+        timestamp=datetime.now(timezone.utc),
+        market_id="PM-2",
+        market_mid=0.2,
+        strategy="bar",
+        filled=True,
+        pnl=1.5,
+    )
+    s3 = SignalLog(
+        timestamp=datetime.now(timezone.utc),
+        market_id="PM-1",
+        market_mid=0.3,
+        strategy="foo",
+        filled=None,
+    )
     db.add_all([s1, s2, s3])
     db.commit()
 
@@ -93,7 +111,11 @@ def test_signal_log_crud(db):
     pm1 = db.query(SignalLog).filter_by(market_id="PM-1").all()
     assert len(pm1) == 2
 
-    filled_pnl = db.query(SignalLog).filter(SignalLog.filled.is_(True), SignalLog.pnl == 1.5).first()
+    filled_pnl = (
+        db.query(SignalLog)
+        .filter(SignalLog.filled.is_(True), SignalLog.pnl == 1.5)
+        .first()
+    )
     assert filled_pnl is not None
     assert filled_pnl.strategy == "bar"
 
@@ -110,22 +132,52 @@ def test_signal_log_repository_market_time_series(db):
     Base.metadata.create_all(db.get_bind())
     now = datetime.now(timezone.utc)
     logs = [
-        SignalLog(timestamp=now, market_id="X", market_mid=0.1, strategy="alpha", edge_pp=0.1, filled=True, pnl=1.0),
-        SignalLog(timestamp=now, market_id="X", market_mid=0.2, strategy="alpha", edge_pp=0.3, filled=False),
-        SignalLog(timestamp=now, market_id="Y", market_mid=0.1, strategy="beta", edge_pp=0.2, filled=True, pnl=2.0),
-        SignalLog(timestamp=now, market_id="X", market_mid=0.4, strategy="alpha", edge_pp=0.7, filled=True),
+        SignalLog(
+            timestamp=now,
+            market_id="X",
+            market_mid=0.1,
+            strategy="alpha",
+            edge_pp=0.1,
+            filled=True,
+            pnl=1.0,
+        ),
+        SignalLog(
+            timestamp=now,
+            market_id="X",
+            market_mid=0.2,
+            strategy="alpha",
+            edge_pp=0.3,
+            filled=False,
+        ),
+        SignalLog(
+            timestamp=now,
+            market_id="Y",
+            market_mid=0.1,
+            strategy="beta",
+            edge_pp=0.2,
+            filled=True,
+            pnl=2.0,
+        ),
+        SignalLog(
+            timestamp=now,
+            market_id="X",
+            market_mid=0.4,
+            strategy="alpha",
+            edge_pp=0.7,
+            filled=True,
+        ),
     ]
     db.add_all(logs)
     db.commit()
 
     repo = SignalLogRepository(db=db)
 
-    (res, elapsed) = repo.market_time_series("X", limit=2)
+    res, elapsed = repo.market_time_series("X", limit=2)
     assert len(res) == 2
     assert all(r.market_id == "X" for r in res)
     assert elapsed >= 0.0
 
-    (pending, _) = repo.open_signals_needing_settlement()
+    pending, _ = repo.open_signals_needing_settlement()
     assert any(r.filled and r.pnl is None for r in pending)
     # Both Y(filled, pnl=2.0) and bar entries with pnl set must be excluded.
     assert all(r.filled and r.pnl is None for r in pending)

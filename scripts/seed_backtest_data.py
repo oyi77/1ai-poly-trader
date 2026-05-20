@@ -238,12 +238,14 @@ async def seed_from_gamma(
                 market_type = (
                     "btc"
                     if any(kw in question.lower() for kw in ["btc", "bitcoin"])
-                    else "weather"
-                    if any(
-                        kw in question.lower()
-                        for kw in ["temperature", "weather", "degrees"]
+                    else (
+                        "weather"
+                        if any(
+                            kw in question.lower()
+                            for kw in ["temperature", "weather", "degrees"]
+                        )
+                        else "general"
                     )
-                    else "general"
                 )
 
                 won = (direction in ("up", "yes") and settlement_value == 1.0) or (

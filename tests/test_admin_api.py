@@ -1,4 +1,5 @@
 """Integration tests for admin API endpoints."""
+
 import sys
 import pytest
 from fastapi.testclient import TestClient
@@ -132,7 +133,9 @@ class TestAdminSettings:
         """POST updates a non-secret setting."""
         original = settings.KELLY_FRACTION
         try:
-            resp = admin_client.post("/api/v1/admin/settings", json={"updates": {"KELLY_FRACTION": "0.20"}})
+            resp = admin_client.post(
+                "/api/v1/admin/settings", json={"updates": {"KELLY_FRACTION": "0.20"}}
+            )
             assert resp.status_code == 200
             assert settings.KELLY_FRACTION == 0.20
         finally:
@@ -143,7 +146,10 @@ class TestAdminSettings:
         original = settings.POLYMARKET_API_KEY
         settings.POLYMARKET_API_KEY = "my-real-key"
         try:
-            admin_client.post("/api/v1/admin/settings", json={"updates": {"POLYMARKET_API_KEY": "****"}})
+            admin_client.post(
+                "/api/v1/admin/settings",
+                json={"updates": {"POLYMARKET_API_KEY": "****"}},
+            )
             assert settings.POLYMARKET_API_KEY == "my-real-key"
         finally:
             settings.POLYMARKET_API_KEY = original
@@ -152,11 +158,13 @@ class TestAdminSettings:
         """Newline injection should not produce a standalone injected key."""
         import os
         import re
+
         env_path = ".env"
         # Attempt newline injection: embed INJECTED_KEY=evil after a \n
-        admin_client.post("/api/v1/admin/settings", json={
-            "updates": {"WEATHER_CITIES": "nyc\nINJECTED_KEY=evil"}
-        })
+        admin_client.post(
+            "/api/v1/admin/settings",
+            json={"updates": {"WEATHER_CITIES": "nyc\nINJECTED_KEY=evil"}},
+        )
         if os.path.exists(env_path):
             with open(env_path) as f:
                 content = f.read()

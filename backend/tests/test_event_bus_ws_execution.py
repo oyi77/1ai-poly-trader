@@ -5,7 +5,9 @@ from backend.models.database import StrategyConfig
 
 
 @pytest.mark.asyncio
-async def test_event_bus_executes_buy_decision_for_strategy_config_modes(monkeypatch, db):
+async def test_event_bus_executes_buy_decision_for_strategy_config_modes(
+    monkeypatch, db
+):
     db.add(
         StrategyConfig(
             strategy_name="ws_strategy",
@@ -59,7 +61,9 @@ async def test_event_bus_ignores_non_buy_decision(monkeypatch):
     )
 
     bus = EventBus()
-    await bus._execute_strategy_decision("ws_strategy", {"decision": "SKIP", "token_id": "token_1"})
+    await bus._execute_strategy_decision(
+        "ws_strategy", {"decision": "SKIP", "token_id": "token_1"}
+    )
 
     assert calls == []
 

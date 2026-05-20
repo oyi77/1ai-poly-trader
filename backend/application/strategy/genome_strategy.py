@@ -3,7 +3,12 @@
 from typing import Dict, Any, Optional, TypedDict
 
 from backend.config import settings
-from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+from backend.strategies.base import (
+    BaseStrategy,
+    StrategyContext,
+    CycleResult,
+    MarketInfo,
+)
 from backend.domain.genome.models import StrategyGenome
 
 from loguru import logger
@@ -56,10 +61,18 @@ class GenomeStrategy(BaseStrategy):
     def _load_chromosomes(self) -> None:
         raw_chromosomes = self._extract_raw_chromosomes()
         self._chromosomes = raw_chromosomes
-        self._perception = self._normalize_chromosome_section(raw_chromosomes.get("perception"))
-        self._cognition: CognitionChromosome = self._normalize_chromosome_section(raw_chromosomes.get("cognition"))
-        self._execution = self._normalize_chromosome_section(raw_chromosomes.get("execution"))
-        self._risk: RiskChromosome = self._normalize_chromosome_section(raw_chromosomes.get("risk"))
+        self._perception = self._normalize_chromosome_section(
+            raw_chromosomes.get("perception")
+        )
+        self._cognition: CognitionChromosome = self._normalize_chromosome_section(
+            raw_chromosomes.get("cognition")
+        )
+        self._execution = self._normalize_chromosome_section(
+            raw_chromosomes.get("execution")
+        )
+        self._risk: RiskChromosome = self._normalize_chromosome_section(
+            raw_chromosomes.get("risk")
+        )
         self._meta = self._normalize_chromosome_section(raw_chromosomes.get("meta"))
 
     def _extract_raw_chromosomes(self) -> Dict[str, Any]:
@@ -68,11 +81,15 @@ class GenomeStrategy(BaseStrategy):
             try:
                 return raw.model_dump()
             except Exception as e:
-                logger.warning(f"Failed to extract chromosomes from genome {self.genome.genome_id}: {e}")
+                logger.warning(
+                    f"Failed to extract chromosomes from genome {self.genome.genome_id}: {e}"
+                )
                 return {}
         if isinstance(raw, dict):
             return raw
-        logger.warning(f"Unexpected chromosome type {type(raw).__name__} for genome {self.genome.genome_id}")
+        logger.warning(
+            f"Unexpected chromosome type {type(raw).__name__} for genome {self.genome.genome_id}"
+        )
         return {}
 
     @property
@@ -97,20 +114,26 @@ class GenomeStrategy(BaseStrategy):
         try:
             return dict(section)
         except (TypeError, ValueError) as e:
-            logger.warning(f"Failed to normalize chromosome section (type={type(section).__name__}): {e}")
+            logger.warning(
+                f"Failed to normalize chromosome section (type={type(section).__name__}): {e}"
+            )
             return {}
 
     def validate_chromosome_schema(self) -> bool:
         try:
             chromosomes = self._chromosomes
             if not isinstance(chromosomes, dict):
-                logger.error(f"Genome {self.genome.genome_id}: chromosomes must be a dict, got {type(chromosomes)}")
+                logger.error(
+                    f"Genome {self.genome.genome_id}: chromosomes must be a dict, got {type(chromosomes)}"
+                )
                 return False
 
             required_sections = ["perception", "cognition", "execution", "risk", "meta"]
             for section in required_sections:
                 if section not in chromosomes:
-                    logger.warning(f"Genome {self.genome.genome_id}: missing required chromosome section '{section}'")
+                    logger.warning(
+                        f"Genome {self.genome.genome_id}: missing required chromosome section '{section}'"
+                    )
 
             cognition = chromosomes.get("cognition", {})
             if isinstance(cognition, dict):
@@ -120,27 +143,41 @@ class GenomeStrategy(BaseStrategy):
                     if isinstance(conditions, list):
                         for i, condition in enumerate(conditions):
                             if not isinstance(condition, dict):
-                                logger.warning(f"Genome {self.genome.genome_id}: condition {i} must be a dict")
+                                logger.warning(
+                                    f"Genome {self.genome.genome_id}: condition {i} must be a dict"
+                                )
                                 continue
                             required_keys = ["indicator", "operator", "value"]
                             for key in required_keys:
                                 if key not in condition:
-                                    logger.warning(f"Genome {self.genome.genome_id}: condition {i} missing '{key}'")
+                                    logger.warning(
+                                        f"Genome {self.genome.genome_id}: condition {i} missing '{key}'"
+                                    )
                     else:
-                        logger.warning(f"Genome {self.genome.genome_id}: entry_logic.conditions must be a list")
+                        logger.warning(
+                            f"Genome {self.genome.genome_id}: entry_logic.conditions must be a list"
+                        )
 
             risk = chromosomes.get("risk", {})
             if isinstance(risk, dict):
-                numeric_params = ["kelly_fraction", "max_position_fraction", "max_total_exposure_fraction"]
+                numeric_params = [
+                    "kelly_fraction",
+                    "max_position_fraction",
+                    "max_total_exposure_fraction",
+                ]
                 for param in numeric_params:
                     value = risk.get(param)
                     if value is not None and not isinstance(value, (int, float)):
-                        logger.warning(f"Genome {self.genome.genome_id}: risk.{param} must be numeric, got {type(value)}")
+                        logger.warning(
+                            f"Genome {self.genome.genome_id}: risk.{param} must be numeric, got {type(value)}"
+                        )
 
             return True
 
         except Exception as e:
-            logger.error(f"Genome {self.genome.genome_id}: schema validation failed with error: {e}")
+            logger.error(
+                f"Genome {self.genome.genome_id}: schema validation failed with error: {e}"
+            )
             return False
 
     def _build_params(self) -> Dict[str, Any]:
@@ -153,9 +190,15 @@ class GenomeStrategy(BaseStrategy):
         if isinstance(risk, dict):
             params.update(
                 {
-                    "kelly_fraction": risk.get("kelly_fraction", DEFAULT_KELLY_FRACTION),
-                    "max_position_fraction": risk.get("max_position_fraction", DEFAULT_MAX_POSITION_FRACTION),
-                    "max_total_exposure_fraction": risk.get("max_total_exposure_fraction", DEFAULT_MAX_EXPOSURE_FRACTION),
+                    "kelly_fraction": risk.get(
+                        "kelly_fraction", DEFAULT_KELLY_FRACTION
+                    ),
+                    "max_position_fraction": risk.get(
+                        "max_position_fraction", DEFAULT_MAX_POSITION_FRACTION
+                    ),
+                    "max_total_exposure_fraction": risk.get(
+                        "max_total_exposure_fraction", DEFAULT_MAX_EXPOSURE_FRACTION
+                    ),
                 }
             )
 
@@ -164,7 +207,9 @@ class GenomeStrategy(BaseStrategy):
             if isinstance(entry, dict):
                 params.update(
                     {
-                        "min_confidence": entry.get("min_confidence", DEFAULT_MIN_CONFIDENCE),
+                        "min_confidence": entry.get(
+                            "min_confidence", DEFAULT_MIN_CONFIDENCE
+                        ),
                         "trigger_type": entry.get("trigger_type", DEFAULT_TRIGGER_TYPE),
                     }
                 )
@@ -188,7 +233,9 @@ class GenomeStrategy(BaseStrategy):
         return params
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
-        result = CycleResult(decisions_recorded=0, trades_attempted=0, trades_placed=0, errors=[])
+        result = CycleResult(
+            decisions_recorded=0, trades_attempted=0, trades_placed=0, errors=[]
+        )
         try:
             markets = await self._fetch_markets(ctx)
             if not markets:
@@ -229,8 +276,16 @@ class GenomeStrategy(BaseStrategy):
                 if not isinstance(outcome_prices, list) or len(outcome_prices) == 0:
                     outcome_prices = [DEFAULT_CONFIDENCE_BASELINE]
 
-                yes_price = float(outcome_prices[0]) if len(outcome_prices) > 0 else DEFAULT_CONFIDENCE_BASELINE
-                no_price = float(outcome_prices[1]) if len(outcome_prices) > 1 else DEFAULT_CONFIDENCE_BASELINE
+                yes_price = (
+                    float(outcome_prices[0])
+                    if len(outcome_prices) > 0
+                    else DEFAULT_CONFIDENCE_BASELINE
+                )
+                no_price = (
+                    float(outcome_prices[1])
+                    if len(outcome_prices) > 1
+                    else DEFAULT_CONFIDENCE_BASELINE
+                )
 
                 result.append(
                     MarketInfo(
@@ -250,7 +305,9 @@ class GenomeStrategy(BaseStrategy):
             logger.warning(f"Failed to fetch markets: {e}")
             return []
 
-    def _evaluate_market(self, market: MarketInfo, ctx: StrategyContext) -> Optional[Dict[str, Any]]:
+    def _evaluate_market(
+        self, market: MarketInfo, ctx: StrategyContext
+    ) -> Optional[Dict[str, Any]]:
         cognition: CognitionChromosome = self._cognition
         if not isinstance(cognition, dict):
             return None
@@ -277,7 +334,11 @@ class GenomeStrategy(BaseStrategy):
             max_frac = risk.get("max_position_fraction", DEFAULT_MAX_POSITION_FRACTION)
             kelly_fraction = risk.get("kelly_fraction", DEFAULT_KELLY_FRACTION)
 
-        bankroll = getattr(ctx, "bankroll", DEFAULT_BANKROLL) if hasattr(ctx, "bankroll") else DEFAULT_BANKROLL
+        bankroll = (
+            getattr(ctx, "bankroll", DEFAULT_BANKROLL)
+            if hasattr(ctx, "bankroll")
+            else DEFAULT_BANKROLL
+        )
         size = min(bankroll * min(max_frac, kelly_fraction), DEFAULT_MAX_TRADE_SIZE)
 
         execution = self.default_params.get("execution", {})

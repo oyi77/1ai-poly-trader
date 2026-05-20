@@ -17,29 +17,28 @@ from backend.core.event_bus import publish_event
 from backend.core.regime_detector import RegimeDetector
 from backend.models.database import BtcPriceSnapshot, GenomeRegistry
 
-
 # Strategy preferences by regime
 REGIME_STRATEGY_PREFERENCES: Dict[str, Dict[str, Any]] = {
     "volatile": {
         "boost": ["statistical_arb", "market_maker", "arbitrage_hunter"],
         "suppress": ["momentum_surfer", "event_catalyst"],
-        "risk_target": "conservative"
+        "risk_target": "conservative",
     },
     "trending": {
         "boost": ["momentum_surfer", "whale_mirror"],
         "suppress": ["statistical_arb"],
-        "risk_target": "moderate"
+        "risk_target": "moderate",
     },
     "event_dense": {
         "boost": ["news_catalyst", "event_catalyst", "flash_opportunity"],
         "suppress": ["weather_oracle"],
-        "risk_target": "moderate"
+        "risk_target": "moderate",
     },
     "sideways": {
         "boost": ["market_maker", "statistical_arb"],
         "suppress": ["momentum_surfer"],
-        "risk_target": "conservative"
-    }
+        "risk_target": "conservative",
+    },
 }
 
 
@@ -68,7 +67,11 @@ def _build_market_data(db: Session) -> dict:
         atr = 0.0
 
     # ATR percentile: how current atr compares to recent range
-    atr_history = list(reversed(daily_changes[-20:])) if len(daily_changes) >= 20 else daily_changes
+    atr_history = (
+        list(reversed(daily_changes[-20:]))
+        if len(daily_changes) >= 20
+        else daily_changes
+    )
     atr_percentile = sum(1 for a in atr_history if a <= atr) / max(len(atr_history), 1)
 
     # Drawdown: peak-to-current
@@ -93,11 +96,7 @@ def _build_market_data(db: Session) -> dict:
 
 def get_live_genomes(db: Session) -> List[GenomeRegistry]:
     """Get all live genomes from the registry."""
-    return (
-        db.query(GenomeRegistry)
-        .filter(GenomeRegistry.stage == "LIVE")
-        .all()
-    )
+    return db.query(GenomeRegistry).filter(GenomeRegistry.stage == "LIVE").all()
 
 
 def detect_regime_and_rebalance(db: Session) -> str:
@@ -113,7 +112,7 @@ def detect_regime_and_rebalance(db: Session) -> str:
     if len(market_data.get("prices", [])) < 30:
         logger.warning(
             "regime_population_manager: insufficient price data ({}) for regime detection",
-            len(market_data.get("prices", []))
+            len(market_data.get("prices", [])),
         )
         return "neutral"
 
@@ -124,8 +123,9 @@ def detect_regime_and_rebalance(db: Session) -> str:
 
     logger.info(
         "regime_population_manager: detected regime={} confidence={:.2f}",
-        regime, confidence,
-        indicators=result.indicators
+        regime,
+        confidence,
+        indicators=result.indicators,
     )
 
     prefs = REGIME_STRATEGY_PREFERENCES.get(regime, {})
@@ -142,11 +142,19 @@ def detect_regime_and_rebalance(db: Session) -> str:
     if changed:
         for genome in get_live_genomes(db):
             try:
-                chromosomes = json.loads(genome.chromosomes_json) if genome.chromosomes_json else {}
+                chromosomes = (
+                    json.loads(genome.chromosomes_json)
+                    if genome.chromosomes_json
+                    else {}
+                )
             except Exception as e:
-                logger.warning("Failed to parse chromosomes for genome %s: %s", genome.id, e)
+                logger.warning(
+                    "Failed to parse chromosomes for genome %s: %s", genome.id, e
+                )
                 chromosomes = {}
-            chromosomes.setdefault("meta", {})["next_mutation_target"] = "risk_chromosome"
+            chromosomes.setdefault("meta", {})[
+                "next_mutation_target"
+            ] = "risk_chromosome"
             genome.chromosomes_json = json.dumps(chromosomes)
 
         publish_event("regime_shift", {"to": regime, "confidence": confidence})
@@ -157,21 +165,28 @@ def detect_regime_and_rebalance(db: Session) -> str:
 # Legacy helpers retained for test compatibility (mocked in test suites)
 # ---------------------------------------------------------------------------
 
+
 def regime_changed(new_regime: str, db) -> bool:
     return True
 
 
 def increase_archetype_allocation(archetype: str, factor: float, db) -> None:
-    publish_event("archetype_allocation_changed", {
-        "archetype": archetype,
-        "factor": factor,
-        "action": "boost",
-    })
+    publish_event(
+        "archetype_allocation_changed",
+        {
+            "archetype": archetype,
+            "factor": factor,
+            "action": "boost",
+        },
+    )
 
 
 def decrease_archetype_allocation(archetype: str, factor: float, db) -> None:
-    publish_event("archetype_allocation_changed", {
-        "archetype": archetype,
-        "factor": factor,
-        "action": "suppress",
-    })
+    publish_event(
+        "archetype_allocation_changed",
+        {
+            "archetype": archetype,
+            "factor": factor,
+            "action": "suppress",
+        },
+    )

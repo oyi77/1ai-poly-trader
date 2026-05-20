@@ -3,6 +3,7 @@
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+
 # Supported API versions
 SUPPORTED_VERSIONS = ["v1"]
 DEFAULT_VERSION = "v1"
@@ -39,7 +40,7 @@ class APIVersionMiddleware(BaseHTTPMiddleware):
             return Response(
                 content=f'{{"error": "Unsupported API version: {version}. Supported versions: {", ".join(SUPPORTED_VERSIONS)}"}}',
                 status_code=400,
-                media_type="application/json"
+                media_type="application/json",
             )
 
         # Store version in request state for downstream use

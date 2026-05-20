@@ -19,6 +19,7 @@ from backend.api.auth import require_admin
 from backend.api.validation import BacktestRunRequest as ValidatedBacktestRunRequest
 
 from loguru import logger
+
 _collection_tasks: Dict[str, Dict[str, Any]] = {}
 
 
@@ -172,9 +173,9 @@ async def run_backtest_endpoint(
                 "exit_price": bt.settlement_value if bt.settled else None,
                 "size": bt.size,
                 "pnl": pnl_val,
-                "result": "win"
-                if pnl_val > 0
-                else ("loss" if pnl_val < 0 else "pending"),
+                "result": (
+                    "win" if pnl_val > 0 else ("loss" if pnl_val < 0 else "pending")
+                ),
                 "edge_at_entry": bt.edge,
                 "bankroll_after_trade": round(cumulative_bankroll, 4),
             }
@@ -547,17 +548,19 @@ async def run_historical_backtest(
     for bt in result.trades:
         pnl_val = bt.pnl if bt.pnl is not None else 0.0
         cumulative_bankroll += pnl_val
-        trade_log.append({
-            "timestamp": bt.timestamp.isoformat(),
-            "market_ticker": bt.market_ticker,
-            "direction": bt.direction,
-            "entry_price": bt.entry_price,
-            "size": bt.size,
-            "pnl": pnl_val,
-            "result": "win" if pnl_val > 0 else "loss",
-            "edge_at_entry": bt.edge,
-            "bankroll_after_trade": round(cumulative_bankroll, 4),
-        })
+        trade_log.append(
+            {
+                "timestamp": bt.timestamp.isoformat(),
+                "market_ticker": bt.market_ticker,
+                "direction": bt.direction,
+                "entry_price": bt.entry_price,
+                "size": bt.size,
+                "pnl": pnl_val,
+                "result": "win" if pnl_val > 0 else "loss",
+                "edge_at_entry": bt.edge,
+                "bankroll_after_trade": round(cumulative_bankroll, 4),
+            }
+        )
 
     return {
         "start_date": start_date.isoformat(),
@@ -590,6 +593,7 @@ async def collect_historical_data(
 
     async def _run():
         from backend.core.historical_data_collector import historical_data_collector
+
         try:
             results = await historical_data_collector.run_collection_cycle()
             _collection_tasks[task_id] = {

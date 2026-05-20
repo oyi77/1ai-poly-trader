@@ -23,7 +23,6 @@ from backend.config import settings
 from backend.models.database import SessionLocal, Trade, engine
 from sqlalchemy import text
 
-
 logger = logging.getLogger(__name__)
 
 DATA_API = getattr(settings, "DATA_API_URL", "https://data-api.polymarket.com")
@@ -68,7 +67,12 @@ def fetch_all_trades(wallet: str, page_size: int = 1000) -> list[dict]:
 
     while True:
         url = f"{DATA_API}/trades"
-        params = {"user": wallet, "limit": page_size, "offset": offset, "takerOnly": "true"}
+        params = {
+            "user": wallet,
+            "limit": page_size,
+            "offset": offset,
+            "takerOnly": "true",
+        }
         resp = client.get(url, params=params)
         resp.raise_for_status()
         batch = resp.json()
@@ -95,10 +99,12 @@ def import_to_db(records: list[dict], dry_run: bool = False):
     # Check if journal columns exist
     has_journal = False
     try:
-        cols = db.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='trades' AND column_name='journal_notes'"
-        )).fetchall()
+        cols = db.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='trades' AND column_name='journal_notes'"
+            )
+        ).fetchall()
         has_journal = len(cols) > 0
     except Exception as e:
         logger.warning(f"Import error: {e}")
@@ -106,7 +112,9 @@ def import_to_db(records: list[dict], dry_run: bool = False):
     # Get existing trade hashes to avoid duplicates
     existing = set()
     try:
-        rows = db.execute(text("SELECT clob_order_id FROM trades WHERE clob_order_id IS NOT NULL")).fetchall()
+        rows = db.execute(
+            text("SELECT clob_order_id FROM trades WHERE clob_order_id IS NOT NULL")
+        ).fetchall()
         existing = {r[0] for r in rows}
     except Exception as e:
         logger.warning(f"Import error: {e}")
@@ -117,10 +125,23 @@ def import_to_db(records: list[dict], dry_run: bool = False):
 
     # Build column list dynamically
     base_cols = [
-        "market_ticker", "platform", "strategy", "trading_mode", "market_type",
-        "direction", "entry_price", "size", "timestamp", "source", "role",
-        "clob_order_id", "blockchain_verified", "settled", "settlement_time",
-        "result", "pnl",
+        "market_ticker",
+        "platform",
+        "strategy",
+        "trading_mode",
+        "market_type",
+        "direction",
+        "entry_price",
+        "size",
+        "timestamp",
+        "source",
+        "role",
+        "clob_order_id",
+        "blockchain_verified",
+        "settled",
+        "settlement_time",
+        "result",
+        "pnl",
     ]
     if has_journal:
         base_cols.extend(["journal_notes", "journal_tags"])
@@ -148,7 +169,11 @@ def import_to_db(records: list[dict], dry_run: bool = False):
                 skipped += 1
                 continue
 
-            dedup_key = f"{tx_hash}_{asset_id}" if tx_hash else f"{market_slug}_{side}_{timestamp_ms}"
+            dedup_key = (
+                f"{tx_hash}_{asset_id}"
+                if tx_hash
+                else f"{market_slug}_{side}_{timestamp_ms}"
+            )
             if dedup_key in existing:
                 skipped += 1
                 continue
@@ -159,7 +184,7 @@ def import_to_db(records: list[dict], dry_run: bool = False):
 
             ts = datetime.fromtimestamp(
                 timestamp_ms / 1000 if timestamp_ms > 1e12 else timestamp_ms,
-                tz=timezone.utc
+                tz=timezone.utc,
             )
 
             params = {
@@ -211,10 +236,16 @@ def import_to_db(records: list[dict], dry_run: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(description="Import full Polymarket trade history")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without writing to DB")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing to DB"
+    )
     parser.add_argument("--wallet", default=WALLET, help="Wallet address")
-    parser.add_argument("--source", choices=["activity", "trades"], default="activity",
-                        help="Which API endpoint to use")
+    parser.add_argument(
+        "--source",
+        choices=["activity", "trades"],
+        default="activity",
+        help="Which API endpoint to use",
+    )
     args = parser.parse_args()
 
     wallet = args.wallet.lower()

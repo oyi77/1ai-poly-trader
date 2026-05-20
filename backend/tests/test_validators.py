@@ -1,6 +1,7 @@
 """
 Tests for backend/data/validators.py — Pydantic v2 validation models.
 """
+
 import time
 import pytest
 from pydantic import ValidationError
@@ -14,10 +15,10 @@ from backend.data.validators import (
 )
 from backend.core.errors import DataQualityError
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _valid_gamma():
     return {
@@ -54,6 +55,7 @@ def _valid_forecast():
 # ---------------------------------------------------------------------------
 # GammaMarketResponse
 # ---------------------------------------------------------------------------
+
 
 def test_gamma_market_valid():
     m = GammaMarketResponse.model_validate(_valid_gamma())
@@ -112,6 +114,7 @@ def test_gamma_market_optional_fields_present():
 # CoinbaseKlineResponse
 # ---------------------------------------------------------------------------
 
+
 def test_coinbase_kline_valid():
     m = CoinbaseKlineResponse.model_validate(_valid_kline())
     assert m.open == 60000.0
@@ -155,6 +158,7 @@ def test_coinbase_kline_zero_price():
 # OpenMeteoForecastResponse
 # ---------------------------------------------------------------------------
 
+
 def test_open_meteo_valid():
     m = OpenMeteoForecastResponse.model_validate(_valid_forecast())
     assert m.hourly.time == ["2024-01-01T00:00", "2024-01-01T01:00"]
@@ -195,6 +199,7 @@ def test_open_meteo_missing_hourly():
 # CLOBOrderBookResponse
 # ---------------------------------------------------------------------------
 
+
 def test_clob_order_book_valid():
     data = {
         "bids": [{"price": "0.55", "size": "100.0"}],
@@ -228,6 +233,7 @@ def test_clob_order_book_size_zero():
 # ---------------------------------------------------------------------------
 # validate_response helper
 # ---------------------------------------------------------------------------
+
 
 def test_validate_response_helper_success():
     result = validate_response(GammaMarketResponse, _valid_gamma(), source="test")

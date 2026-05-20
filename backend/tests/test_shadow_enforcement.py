@@ -10,9 +10,15 @@ Tests that:
 - LLM budget caps are enforced
 - Goal changes are audit-logged
 """
+
 import pytest
 
-from backend.core.agi_types import MarketRegime, AGIGoal, ExperimentStatus, StrategyBlock
+from backend.core.agi_types import (
+    MarketRegime,
+    AGIGoal,
+    ExperimentStatus,
+    StrategyBlock,
+)
 from backend.core.strategy_composer import StrategyComposer
 from backend.core.experiment_runner import ExperimentRunner
 from backend.core.agi_orchestrator import AGIOrchestrator
@@ -33,7 +39,12 @@ class TestShadowModeEnforcement:
         )
         result = composer.compose("shadow_audit_strategy", [blocks])
         assert result is not None
-        assert result.status in ["draft", "shadow", ExperimentStatus.DRAFT, ExperimentStatus.SHADOW]
+        assert result.status in [
+            "draft",
+            "shadow",
+            ExperimentStatus.DRAFT,
+            ExperimentStatus.SHADOW,
+        ]
 
     def test_promotion_criteria_enforced(self):
         runner = ExperimentRunner()
@@ -52,7 +63,13 @@ class TestShadowModeEnforcement:
         assert entity is not None
         assert entity.entity_type == "test_type"
 
-        kg.add_relation("audit_entity_1", "audit_entity_2", "test_relation", weight=0.5, confidence=0.9)
+        kg.add_relation(
+            "audit_entity_1",
+            "audit_entity_2",
+            "test_relation",
+            weight=0.5,
+            confidence=0.9,
+        )
         assert kg.get_entity("audit_entity_1") is not None
 
     def test_experiment_isolation(self):
@@ -62,7 +79,12 @@ class TestShadowModeEnforcement:
             duration_days=1,
         )
         assert experiment is not None
-        assert experiment.status in ["shadow", "draft", ExperimentStatus.SHADOW, ExperimentStatus.DRAFT]
+        assert experiment.status in [
+            "shadow",
+            "draft",
+            ExperimentStatus.SHADOW,
+            ExperimentStatus.DRAFT,
+        ]
 
     def test_emergency_stop_halts_actions(self):
         orchestrator = AGIOrchestrator()

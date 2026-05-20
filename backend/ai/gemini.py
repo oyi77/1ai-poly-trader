@@ -1,9 +1,12 @@
 """Google Gemini AI provider for PolyEdge 5-forecaster ensemble."""
+
 import httpx
 
 from backend.config import settings
 
 from loguru import logger
+
+
 class GeminiProvider:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or getattr(settings, "GEMINI_API_KEY", "")
@@ -26,7 +29,12 @@ class GeminiProvider:
                 )
                 response.raise_for_status()
                 data = response.json()
-                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                text = (
+                    data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [{}])[0]
+                    .get("text", "")
+                )
                 prob = self._extract_probability(text)
                 return {"probability": prob, "confidence": 0.5, "source": "gemini"}
         except Exception as e:
@@ -36,6 +44,7 @@ class GeminiProvider:
     @staticmethod
     def _extract_probability(text: str) -> float:
         import re
+
         match = re.search(r"(\d+\.?\d*)", text)
         if match:
             prob = float(match.group(1))

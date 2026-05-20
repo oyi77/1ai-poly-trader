@@ -29,12 +29,17 @@ async def broadcast_proposal_update(proposal_data: Dict[str, Any]):
     message = {
         "type": "proposal_update",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        **proposal_data
+        **proposal_data,
     }
 
     tm = get_task_manager()
     if tm:
-        await tm.create_task(topic_manager.broadcast("proposals", message), name="broadcast_proposal_update")
+        await tm.create_task(
+            topic_manager.broadcast("proposals", message),
+            name="broadcast_proposal_update",
+        )
     else:
         asyncio.create_task(topic_manager.broadcast("proposals", message))
-    logger.debug(f"Queued proposal broadcast: {proposal_data.get('strategy_name')} - {proposal_data.get('admin_decision')}")
+    logger.debug(
+        f"Queued proposal broadcast: {proposal_data.get('strategy_name')} - {proposal_data.get('admin_decision')}"
+    )

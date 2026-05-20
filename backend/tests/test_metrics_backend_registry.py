@@ -18,13 +18,17 @@ class MockBackend(BaseMetricsBackend):
             tags=["test"],
         )
 
-    async def increment_counter(self, name: str, value: int = 1, tags: dict = None) -> None:
+    async def increment_counter(
+        self, name: str, value: int = 1, tags: dict = None
+    ) -> None:
         pass
 
     async def record_gauge(self, name: str, value: float, tags: dict = None) -> None:
         pass
 
-    async def record_histogram(self, name: str, value: float, tags: dict = None) -> None:
+    async def record_histogram(
+        self, name: str, value: float, tags: dict = None
+    ) -> None:
         pass
 
 
@@ -39,13 +43,17 @@ class EnvBackend(BaseMetricsBackend):
             tags=["test"],
         )
 
-    async def increment_counter(self, name: str, value: int = 1, tags: dict = None) -> None:
+    async def increment_counter(
+        self, name: str, value: int = 1, tags: dict = None
+    ) -> None:
         pass
 
     async def record_gauge(self, name: str, value: float, tags: dict = None) -> None:
         pass
 
-    async def record_histogram(self, name: str, value: float, tags: dict = None) -> None:
+    async def record_histogram(
+        self, name: str, value: float, tags: dict = None
+    ) -> None:
         pass
 
 
@@ -72,7 +80,9 @@ def test_register_backend_missing_env_vars():
 def test_record_metric_broadcasts_to_all():
     registry.register(MockBackend)
 
-    with patch.object(MockBackend, "increment_counter", new_callable=AsyncMock) as mock_method:
+    with patch.object(
+        MockBackend, "increment_counter", new_callable=AsyncMock
+    ) as mock_method:
         registry.record_metric("counter", "test_metric", 10)
 
     assert mock_method.called
@@ -82,7 +92,9 @@ def test_disabled_backend_skipped():
     registry.register(MockBackend)
     registry._enabled["mock_backend"] = False
 
-    with patch.object(MockBackend, "increment_counter", new_callable=AsyncMock) as mock_method:
+    with patch.object(
+        MockBackend, "increment_counter", new_callable=AsyncMock
+    ) as mock_method:
         registry.record_metric("counter", "test_metric", 10)
 
     assert not mock_method.called

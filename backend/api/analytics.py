@@ -1,4 +1,5 @@
 """Analytics API endpoints — strategy metrics, equity curve, calibration, experiments."""
+
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Query
@@ -75,7 +76,9 @@ def get_equity_curve(
                 # total_pnl is net realised + unrealised PnL
                 "total_pnl": round(snap.total_pnl or 0.0, 2),
                 # closed_pnl approximated as total_pnl minus unrealised exposure
-                "closed_pnl": round((snap.total_pnl or 0.0) - (snap.open_exposure or 0.0), 2),
+                "closed_pnl": round(
+                    (snap.total_pnl or 0.0) - (snap.open_exposure or 0.0), 2
+                ),
                 "open_pnl": round(snap.open_exposure or 0.0, 2),
             }
             for snap in snapshots
@@ -93,10 +96,14 @@ def get_role_breakdown(days: int = 30):
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     db = SessionLocal()
     try:
-        trades = db.query(Trade).filter(
-            Trade.timestamp >= cutoff,
-            Trade.role is not None,
-        ).all()
+        trades = (
+            db.query(Trade)
+            .filter(
+                Trade.timestamp >= cutoff,
+                Trade.role is not None,
+            )
+            .all()
+        )
 
         # Group by role
         by_role: dict[str, list] = {"maker": [], "taker": [], "unknown": []}
@@ -138,8 +145,11 @@ def get_calibration_buckets(
         min_samples: minimum samples per bucket (default 5)
     """
 
-    results = get_bucket_calibration(strategy=strategy, days=days, min_samples=min_samples)
+    results = get_bucket_calibration(
+        strategy=strategy, days=days, min_samples=min_samples
+    )
     return {"strategy": strategy, "days": days, "buckets": results}
+
 
 @router.get("/bias/longshot")
 def get_longshot_bias(
@@ -153,7 +163,7 @@ def get_longshot_bias(
         days: number of days to look back (default 60)
     """
     from backend.core.longshot_bias import LongshotBiasDetector
+
     detector = LongshotBiasDetector()
     results = detector.compute_longshot_bias(category=category, days=days)
     return {"category": category, "days": days, "bias": results}
-
