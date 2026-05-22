@@ -342,6 +342,16 @@ async def wallet_sync_job() -> None:
                 error = balance_data.get("error")
 
                 if usdc_balance >= 0 and not error:
+                    # For live mode, also fetch PM portfolio value (includes positions)
+                    if sync_mode == "live":
+                        try:
+                            from backend.core.wallet.bankroll_reconciliation import fetch_pm_portfolio_value
+                            portfolio = await fetch_pm_portfolio_value()
+                            if portfolio is not None and portfolio > 0:
+                                usdc_balance = float(portfolio)
+                                logger.info(f"wallet_sync: live PM portfolio = ${usdc_balance:.2f}")
+                        except Exception as e:
+                            logger.debug(f"wallet_sync: PM portfolio fetch failed: {e}, using CLOB cash")
                     _sync_balance_to_db(usdc_balance, sync_mode)
                     logger.info(
                         f"wallet_sync: {sync_mode} balance = ${usdc_balance:.2f}"
@@ -355,13 +365,6 @@ async def wallet_sync_job() -> None:
 
 def _sync_balance_to_db(balance: float, mode: str) -> None:
     """Write wallet balance to bot_state DB row via SQLAlchemy."""
-    if mode == "live":
-        logger.debug(
-            "wallet_sync: skipping live BotState.bankroll raw CLOB cash write; "
-            "live bankroll is reconciled from PM portfolio value"
-        )
-        return
-
     from backend.db.utils import get_db_session
 
     try:
