@@ -142,7 +142,11 @@ class RedisCache(AbstractCache):
             raw = r.get(key)
             if raw is None:
                 return None
-            return json.loads(raw)
+            try:
+                return json.loads(raw)
+            except (TypeError, ValueError) as e:
+                logger.warning(f"Failed to deserialize cache value for key {key}: {e}")
+                return None
 
         result, ok = self._redis_op(_op)
         if not ok:

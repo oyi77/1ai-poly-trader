@@ -10,6 +10,8 @@ import time
 
 import pytest
 
+from unittest.mock import MagicMock
+
 from backend.cache.redis_cache import CircuitBreaker, RedisCache
 from backend.job_queue.sqlite_cache import SQLiteCache
 
@@ -191,6 +193,22 @@ class TestRedisCacheFallback:
         cache.flush()
         assert cache.get("f1") is None
         assert cache.get("f2") is None
+
+    def test_redis_cache_malformed_json_returns_none(self, tmp_path):
+        """Test that malformed JSON in Redis returns None and logs a warning."""
+        fallback = _make_sqlite_cache(tmp_path)
+        cache = RedisCache(
+            redis_url="redis://127.0.0.1:6379",
+            fallback=fallback,
+        )
+
+        # Mock the Redis client
+        mock_client = MagicMock()
+        # Return an invalid JSON string (e.g. truncated)
+        mock_client.get.return_value = b"{malformed"
+        cache._client = mock_client
+
+        assert cache.get("bad_json_key") is None
 
 
 # ---------------------------------------------------------------------------
