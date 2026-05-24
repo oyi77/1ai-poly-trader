@@ -10,6 +10,7 @@ Alert deduplication: Same alert type not sent more than once per N minutes.
 """
 
 import json
+import asyncio
 import threading
 import time
 from datetime import datetime, timezone
@@ -95,11 +96,7 @@ class AlertManager:
         log_func(f"[ALERT][{level.upper()}] {title}\n{body}")
 
         # ── File (JSONL) ──
-        try:
-            with open(ALERT_LOG_FILE, "a") as f:
-                f.write(json.dumps(alert) + "\n")
-        except Exception as exc:
-            logger.debug(f"[AlertManager] File log error: {exc}")
+        await asyncio.to_thread(self._write_alert_to_file, alert)
 
         # ── Telegram ──
         try:
@@ -132,6 +129,14 @@ class AlertManager:
             logger.exception("Failed to read alerts from log file")
 
         return alerts[-50:]  # Return last 50 max
+
+    def _write_alert_to_file(self, alert: dict) -> None:
+        """Synchronously write an alert to the file."""
+        try:
+            with open(ALERT_LOG_FILE, "a") as f:
+                f.write(json.dumps(alert) + "\n")
+        except Exception as exc:
+            logger.debug(f"[AlertManager] File log error: {exc}")
 
     # -----------------------------------------------------------------------
     # Telegram
