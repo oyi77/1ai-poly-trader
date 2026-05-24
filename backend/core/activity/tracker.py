@@ -8,6 +8,11 @@ from backend.core.activity.models import ActivityEvent
 from loguru import logger
 
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from backend.core.activity.sources.base import BaseActivitySource
+
+
 class ActivityTracker:
     """Central dispatcher for all platform activity events."""
 
