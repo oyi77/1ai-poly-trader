@@ -6,6 +6,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.models.database import SessionLocal, StrategyConfig, Trade
 
 from loguru import logger
