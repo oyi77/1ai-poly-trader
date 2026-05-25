@@ -1,6 +1,6 @@
 """Shared pytest fixtures for PolyEdge backend integration tests."""
 
-# ruff: noqa: E402,F401,F811
+
 
 import sys
 from unittest.mock import MagicMock
@@ -109,10 +109,10 @@ from backend.models.database import (
     ErrorLog,
     Experiment,
     ShadowTrade,
-)  # noqa: F401
-from backend.models.backtest import BacktestRun, BacktestTrade  # noqa: F401
-from backend.models.kg_models import LLMCostRecord  # noqa: F401
-import backend.models.genome_registry  # noqa: F401  # registers GenomePerformance/GenomeShadowTrade tables
+)
+from backend.models.backtest import BacktestRun, BacktestTrade
+from backend.models.kg_models import LLMCostRecord
+import backend.models.genome_registry
 from backend.core.strategy_performance_registry import StrategyPerformanceSnapshot
 from backend.models.database import TransactionEvent
 from backend.models.outcome_tables import (
@@ -120,17 +120,17 @@ from backend.models.outcome_tables import (
     StrategyHealthRecord,
     ParamChange,
     TradingCalibrationRecord,
-)  # noqa: F401
-from backend.models.signal_log import SignalLog  # noqa: F401
-from backend.models.signal_log import SignalLog  # noqa: F401
-from backend.models.signal_log import SignalLog  # noqa: F401
-from backend.models.kg_models import ExperimentRecord, DecisionAuditLog  # noqa: F401
+)
+from backend.models.signal_log import SignalLog
+from backend.models.signal_log import SignalLog
+from backend.models.signal_log import SignalLog
+from backend.models.kg_models import ExperimentRecord, DecisionAuditLog
 from backend.models.historical_data import (
     HistoricalCandle,
     MarketOutcome,
     WeatherSnapshot,
-)  # noqa: F401
-from backend.core.risk_profiles import RiskProfileRow  # noqa: F401
+)
+from backend.core.risk_profiles import RiskProfileRow
 
 _db_mod.engine = test_engine
 _db_mod.SessionLocal = TestSessionLocal

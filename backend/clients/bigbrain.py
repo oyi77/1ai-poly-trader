@@ -65,7 +65,7 @@ class BigBrain:
                     )
                 )
             return memories
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             # Gracefully degrade if brain service is unavailable
             logger.exception("Failed to search brain memories")
             return []
@@ -81,7 +81,7 @@ class BigBrain:
             if isinstance(data, dict):
                 mem_id = data.get("memoryId") or data.get("id") or data.get("memory_id")
             return mem_id
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception("Failed to write memory to brain service")
             return None
 
@@ -221,7 +221,7 @@ class BigBrainClient(BigBrain):
             resp.raise_for_status()
             data = resp.json()
             return data.get("results", [])
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("search_context failed: %s", e)
             return []
 
@@ -241,7 +241,7 @@ class BigBrainClient(BigBrain):
             resp.raise_for_status()
             data = resp.json()
             return data.get("result", {})
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("quick_search failed: %s", e)
             return {}
 
@@ -268,7 +268,7 @@ class BigBrainClient(BigBrain):
             resp = await client.post(f"{self.base_url}/brain/kg/add", json=payload)
             resp.raise_for_status()
             return resp.json()
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("add_kg_triple failed: %s", e)
             return {"success": False, "error": str(e)}
 
@@ -287,7 +287,7 @@ class BigBrainClient(BigBrain):
             )
             resp.raise_for_status()
             return resp.json()
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("query_kg failed: %s", e)
             return {"entity": entity, "facts": [], "count": 0}
 
@@ -307,7 +307,7 @@ class BigBrainClient(BigBrain):
             resp.raise_for_status()
             data = resp.json()
             return data.get("timeline", [])
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("kg_timeline failed: %s", e)
             return []
 
@@ -331,7 +331,7 @@ class BigBrainClient(BigBrain):
             resp = await client.post(f"{self.base_url}/brain/diary/write", json=payload)
             resp.raise_for_status()
             return resp.json()
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("write_diary failed: %s", e)
             return {"success": False, "error": str(e)}
 
@@ -351,7 +351,7 @@ class BigBrainClient(BigBrain):
             resp.raise_for_status()
             data = resp.json()
             return data.get("entries", [])
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("read_diary failed: %s", e)
             return []
 
@@ -372,7 +372,7 @@ class BigBrainClient(BigBrain):
             resp = await client.post(f"{self.base_url}/alert", json=payload)
             resp.raise_for_status()
             return resp.json()
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning("send_alert failed, logging locally: %s", e)
             logger.info("[ALERT:%s] %s", level.upper(), message)
             return {"alert_sent": False, "error": str(e), "logged_locally": True}
@@ -390,6 +390,6 @@ class BigBrainClient(BigBrain):
         try:
             resp = await client.get(f"{self.base_url}/health")
             return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception("Failed to check brain service health")
             return False

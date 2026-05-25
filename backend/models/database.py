@@ -167,10 +167,10 @@ def _set_sqlite_busy_timeout(connection_or_session, timeout_ms: int) -> None:
         logger.debug(f"Could not set SQLite busy_timeout={timeout_ms}: {exc}")
 
 try:
-    import backend.models.kg_models  # noqa: F401 — registers ExperimentRecord, StrategyProposal with Base.metadata
-    import backend.models.outcome_tables  # noqa: F401 — registers learning tables with Base.metadata (requires kg_models first)
-    import backend.models.historical_data  # noqa: F401 — registers HistoricalCandle, MarketOutcome, WeatherSnapshot
-except Exception:
+    import backend.models.kg_models
+    import backend.models.outcome_tables
+    import backend.models.historical_data
+except ImportError:
     logger.exception("database model imports failed")
     pass
 
@@ -476,7 +476,7 @@ class ShadowTrade(Base):
     def _update_metadata(self, key: str, value):
         try:
             meta = json.loads(self.metadata_json) if self.metadata_json else {}
-        except Exception:
+        except ImportError:
             meta = {}
         meta[key] = value
         self.metadata_json = json.dumps(meta)
@@ -584,7 +584,7 @@ class ShadowTrade(Base):
             try:
                 meta = json.loads(self.metadata_json)
                 return meta.get("model_probability")
-            except Exception:
+            except ImportError:
                 pass
         return None
 
@@ -598,7 +598,7 @@ class ShadowTrade(Base):
             try:
                 meta = json.loads(self.metadata_json)
                 return meta.get("predicted_outcome")
-            except Exception:
+            except ImportError:
                 pass
         return None
 
@@ -612,7 +612,7 @@ class ShadowTrade(Base):
             try:
                 meta = json.loads(self.metadata_json)
                 return meta.get("actual_outcome")
-            except Exception:
+            except ImportError:
                 pass
         return None
 
@@ -628,7 +628,7 @@ class ShadowTrade(Base):
                 val = meta.get("accuracy_score")
                 if val is not None:
                     return val
-            except Exception:
+            except ImportError:
                 pass
         # Fallback: compute from predicted and actual outcome
         pred = self.predicted_outcome
@@ -1629,7 +1629,7 @@ def _publish_corruption_alert(event: str, detail: str, data: dict | None = None)
                 **(data or {}),
             },
         )
-    except Exception:
+    except ImportError:
         logger.exception("database publish_corruption_alert failed")
 
 def init_db(repair_if_needed: bool = True):
@@ -1788,7 +1788,7 @@ def ensure_schema():
 
     try:
         columns = [col["name"] for col in inspector.get_columns("trades")]
-    except Exception:
+    except ImportError:
         logger.exception("database ensure_schema: failed to inspect trades columns")
         return
 
@@ -1832,7 +1832,7 @@ def ensure_schema():
     # Add paper tracking columns to bot_state
     try:
         bot_state_columns = [col["name"] for col in inspector.get_columns("bot_state")]
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect bot_state columns (paper tracking)"
         )
@@ -1868,7 +1868,7 @@ def ensure_schema():
     # Add calibration columns to signals table
     try:
         signal_columns = [col["name"] for col in inspector.get_columns("signals")]
-    except Exception:
+    except ImportError:
         logger.exception("database ensure_schema: failed to inspect signals columns")
         signal_columns = []
 
@@ -1914,7 +1914,7 @@ def ensure_schema():
 
     try:
         bot_state_columns = {col["name"] for col in inspector.get_columns("bot_state")}
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect bot_state columns (mode)"
         )
@@ -1990,7 +1990,7 @@ def ensure_schema():
     # Add per-track bankroll and PNL tracking to bot_state
     try:
         bot_state_columns = [col["name"] for col in inspector.get_columns("bot_state")]
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect bot_state columns (per-track)"
         )
@@ -2028,7 +2028,7 @@ def ensure_schema():
     # Ensure copy_trader_entries table exists
     try:
         copy_entry_tables = inspector.get_table_names()
-    except Exception:
+    except ImportError:
         logger.exception("database ensure_schema: failed to inspect table names")
         copy_entry_tables = []
 
@@ -2142,7 +2142,7 @@ def ensure_schema():
     inspector = inspect(engine)
     try:
         existing_cols = {col["name"] for col in inspector.get_columns("trades")}
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect trades columns (state sync)"
         )
@@ -2230,7 +2230,7 @@ def ensure_schema():
     # Migration: Add unified state sync columns to bot_state table
     try:
         bot_state_columns = {col["name"] for col in inspector.get_columns("bot_state")}
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect bot_state columns (state sync)"
         )
@@ -2356,7 +2356,7 @@ def ensure_schema():
         strategy_config_columns = {
             col["name"] for col in inspector.get_columns("strategy_config")
         }
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect strategy_config columns"
         )
@@ -2394,7 +2394,7 @@ def ensure_schema():
         proposal_col_names = (
             {c["name"] for c in proposal_columns} if proposal_columns else set()
         )
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect strategy_proposal columns"
         )
@@ -2427,7 +2427,7 @@ def ensure_schema():
     # Add denormalized metric columns + composite indexes to genome_registry
     try:
         gr_cols = {c["name"] for c in inspector.get_columns("genome_registry")}
-    except Exception:
+    except ImportError:
         logger.exception(
             "database ensure_schema: failed to inspect genome_registry columns"
         )
@@ -2490,7 +2490,7 @@ def log_audit(action: str, actor: str = "system", details: dict = None):
         entry = AuditLog(action=action, actor=actor, details=details)
         db.add(entry)
         db.commit()
-    except Exception:
+    except ImportError:
         logger.exception("database log_audit failed")
         db.rollback()
     finally:
@@ -2602,7 +2602,7 @@ def get_db():
 
 # Re-import to ensure table registration without failing on circular import orderings.
 try:
-    from backend.core.strategy_performance_registry import (  # noqa: E402
+    from backend.core.strategy_performance_registry import (
         StrategyPerformanceSnapshot as StrategyPerformanceSnapshot,
     )
 except ImportError as exc:

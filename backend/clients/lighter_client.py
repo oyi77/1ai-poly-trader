@@ -116,7 +116,7 @@ class LighterClient:
             self._ensure_initialized()
             self._account_api.info()
             return True
-        except Exception:
+        except (ConnectionError, TimeoutError):
             return False
 
     async def watch_account(self, on_update=None):

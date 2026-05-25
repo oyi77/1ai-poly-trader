@@ -245,7 +245,7 @@ class LimitlessClient:
                 resp.raise_for_status()
                 data = resp.json()
                 return data if isinstance(data, list) else data.get("fills", data.get("data", []))
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning(f"[limitless] get_fills error: {e}")
             return []
 
@@ -257,5 +257,5 @@ class LimitlessClient:
                     f"{self._base_url}/markets", params={"limit": 1}
                 )
                 return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             return False

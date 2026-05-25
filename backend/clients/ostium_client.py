@@ -89,7 +89,7 @@ class OstiumClient:
             addr = wallet_address or self._sdk.ostium.get_public_address()
             trades = await self._sdk.subgraph.get_trades_by_account(addr, limit=limit)
             return trades if isinstance(trades, list) else []
-        except Exception as e:
+        except (ConnectionError, TimeoutError) as e:
             logger.warning(f"[ostium] get_fills error: {e}")
             return []
 
@@ -98,5 +98,5 @@ class OstiumClient:
         try:
             await self._sdk.subgraph.get_pairs()
             return True
-        except Exception:
+        except (ConnectionError, TimeoutError):
             return False

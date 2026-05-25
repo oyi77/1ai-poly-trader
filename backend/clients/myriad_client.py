@@ -31,7 +31,7 @@ class MyriadClient:
                 if isinstance(data, list):
                     return data
                 return data.get("data", data.get("markets", []))
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception("[MyriadClient] Failed to fetch markets")
             return []
 
@@ -42,7 +42,7 @@ class MyriadClient:
                 resp = await client.get(f"{self._base_url}/markets/{market_id}")
                 resp.raise_for_status()
                 return resp.json()
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception(f"[MyriadClient] Failed to fetch market {market_id}")
             return None
 
@@ -61,7 +61,7 @@ class MyriadClient:
                 if isinstance(data, list):
                     return data
                 return data.get("data", data.get("positions", []))
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception("[MyriadClient] Failed to fetch positions")
             return []
 
@@ -77,7 +77,7 @@ class MyriadClient:
                 resp.raise_for_status()
                 data = resp.json()
                 return Decimal(str(data.get("balance", data.get("usdc", 0))))
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception("[MyriadClient] Failed to fetch balance")
             return Decimal("0")
 
@@ -103,7 +103,7 @@ class MyriadClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception("[MyriadClient] Failed to place order")
             return {"error": True}
 
@@ -113,7 +113,7 @@ class MyriadClient:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(f"{self._base_url}/health")
                 return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             return False
 
     async def cancel_order(self, order_id: str) -> bool:
@@ -122,7 +122,7 @@ class MyriadClient:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.delete(f"{self._base_url}/orders/{order_id}")
                 return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             logger.exception(f"[MyriadClient] Failed to cancel order {order_id}")
             return False
 
@@ -150,6 +150,6 @@ class MyriadClient:
                 if isinstance(data, list):
                     return data
                 return data.get("data", data.get("fills", []))
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning(f"[myriad] get_fills error: {e}")
             return []
