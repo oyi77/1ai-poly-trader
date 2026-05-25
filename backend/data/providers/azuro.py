@@ -86,7 +86,7 @@ class AzuroProvider(DataProvider):
                     json={"query": "{ __typename }"},
                 )
                 return resp.status_code == 200
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError):
             logger.debug("Azuro health check failed for platform={}", self._platform)
             return False
 

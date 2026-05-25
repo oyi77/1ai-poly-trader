@@ -55,7 +55,7 @@ class AzuroClient:
                     self._graph_url, json={"query": "{ __typename }"}
                 )
                 return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             return False
 
     async def sign_and_send_bet(

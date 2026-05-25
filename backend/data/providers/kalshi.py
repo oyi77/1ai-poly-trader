@@ -15,7 +15,7 @@ async def fetch_kalshi_markets(limit: int = 100) -> list[dict]:
         data = await client.get_markets(
             params={"limit": min(limit, 1000), "status": "open"}
         )
-    except Exception as exc:
+    except (ConnectionError, TimeoutError, ValueError) as exc:
         logger.warning("_fetch_kalshi_markets error: {}", exc)
         return []
     markets = data.get("markets", [])

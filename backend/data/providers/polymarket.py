@@ -16,7 +16,7 @@ class PolymarketProvider(DataProvider):
         try:
             markets = await fetch_markets(limit=1)
             return bool(markets)
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError):
             logger.debug("Polymarket health check failed")
             return False
 

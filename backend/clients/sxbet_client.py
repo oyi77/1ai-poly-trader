@@ -179,7 +179,7 @@ class SXBetClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning(f"[sxbet] get_balance error: {e}")
             return {}
 
@@ -206,7 +206,7 @@ class SXBetClient:
                 if isinstance(data, list):
                     return data
                 return data.get("data", data.get("positions", []))
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning(f"[sxbet] get_positions error: {e}")
             return []
 
@@ -234,7 +234,7 @@ class SXBetClient:
                 if isinstance(data, list):
                     return data
                 return data.get("data", data.get("trades", []))
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError, TimeoutError) as e:
             logger.warning(f"[sxbet] get_fills error: {e}")
             return []
 
@@ -244,5 +244,5 @@ class SXBetClient:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{self._base_url}/sports")
                 return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, ConnectionError, TimeoutError):
             return False

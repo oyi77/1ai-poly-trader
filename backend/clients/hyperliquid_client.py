@@ -76,7 +76,7 @@ class HyperliquidClient:
         try:
             self._info.meta()
             return True
-        except Exception:
+        except (ConnectionError, TimeoutError):
             return False
 
     def subscribe_user_fills(self, callback):

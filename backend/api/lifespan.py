@@ -630,13 +630,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         _notify_providers = []
         if _os.environ.get("SLACK_WEBHOOK_URL"):
-            from backend.bot.notification.providers.slack import SlackProvider  # noqa: F401
+            from backend.bot.notification.providers.slack import SlackProvider
             _notify_providers.append("slack")
         if _os.environ.get("DISCORD_WEBHOOK_URL"):
-            from backend.bot.notification.providers.discord import DiscordProvider  # noqa: F401
+            from backend.bot.notification.providers.discord import DiscordProvider
             _notify_providers.append("discord")
         if _os.environ.get("WEBHOOK_URL"):
-            from backend.bot.notification.providers.webhook import GenericWebhookProvider  # noqa: F401
+            from backend.bot.notification.providers.webhook import GenericWebhookProvider
             _notify_providers.append("webhook")
         if _notify_providers:
             logger.info(f"[LIFESPAN] Notification providers registered: {_notify_providers}")

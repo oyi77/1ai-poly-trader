@@ -71,7 +71,7 @@ class AsterClient:
         try:
             self._exchange.fetch_time()
             return True
-        except Exception:
+        except (ConnectionError, TimeoutError):
             return False
 
     async def watch_balance(self) -> dict:

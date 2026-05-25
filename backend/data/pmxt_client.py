@@ -362,5 +362,5 @@ class PmxtClient:
             client = self._get_exchange(exchange)
             await asyncio.to_thread(lambda: client.fetch_markets({"limit": 1}))
             return True
-        except Exception:
+        except (ConnectionError, TimeoutError):
             return False
