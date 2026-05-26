@@ -229,7 +229,8 @@ def test_hive_partitioned_parquet_archiving(tmp_path):
             result TEXT,
             timestamp TEXT,
             signal_id INTEGER,
-            strategy TEXT
+            strategy TEXT,
+            role TEXT DEFAULT 'unknown'
         )
     """)
 
@@ -239,12 +240,12 @@ def test_hive_partitioned_parquet_archiving(tmp_path):
 
     cursor.executemany("""
         INSERT INTO trades (
-            market_ticker, direction, size, entry_price, settlement_value, pnl, result, timestamp, strategy
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            market_ticker, direction, size, entry_price, settlement_value, pnl, result, timestamp, strategy, role
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
-        ("m1", "BUY", 10.0, 0.20, 1.0, 8.0, "win", now.isoformat(), "hft_scalper"),
-        ("m2", "SELL", 15.0, 0.80, 0.0, -15.0, "loss", now.isoformat(), "market_maker"),
-        ("m3", "BUY", 20.0, 0.15, 1.0, 17.0, "win", prev_month.isoformat(), "hft_scalper"),
+        ("m1", "BUY", 10.0, 0.20, 1.0, 8.0, "win", now.isoformat(), "hft_scalper", "maker"),
+        ("m2", "SELL", 15.0, 0.80, 0.0, -15.0, "loss", now.isoformat(), "market_maker", "taker"),
+        ("m3", "BUY", 20.0, 0.15, 1.0, 17.0, "win", prev_month.isoformat(), "hft_scalper", "unknown"),
     ])
     conn.commit()
     conn.close()
