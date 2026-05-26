@@ -7,15 +7,7 @@ from loguru import logger
 
 from backend.core.eip712_signer import sign_typed_data
 
-# SX.bet EIP-712 domain for Polygon (chain_id=137).
-# verifyingContract: TODO — replace with the deployed SX.bet exchange contract address
-# once confirmed from https://docs.sx.bet or on-chain.
-_SXBET_DOMAIN = {
-    "name": "SX Bet",
-    "version": "2",
-    "chainId": 137,
-    "verifyingContract": os.getenv("SXBET_CONTRACT_ADDRESS", "0x0000000000000000000000000000000000000000"),  # Set SXBET_CONTRACT_ADDRESS env var with real SX.bet exchange contract
-}
+# SX.bet EIP-712 domain base. Populated dynamically via _get_domain()
 
 _SXBET_ORDER_TYPES = {
     "EIP712Domain": [
@@ -42,6 +34,49 @@ class SXBetClient:
         self._base_url = (
             base_url or os.getenv("SXBET_API_URL", "https://api.sx.bet")
         ).rstrip("/")
+        self._cached_domain = None
+
+    async def _get_domain(self) -> dict:
+        """Fetch and cache EIP-712 domain parameters dynamically."""
+        if self._cached_domain:
+            return self._cached_domain
+
+        from backend.config import settings
+
+        # Start with base assumptions, override if settings exist
+        chain_id = 4162  # Default SX Network
+        version = "6.0"
+        contract = getattr(settings, "SXBET_EXCHANGE_CONTRACT_ADDRESS", None)
+
+        if not contract or contract == "0x0000000000000000000000000000000000000000":
+            # Dynamically fetch from /metadata
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{self._base_url}/metadata")
+                resp.raise_for_status()
+                data = resp.json().get("data", {})
+                
+                contract = data.get("EIP712FillHasher")
+                version = data.get("domainVersion", version)
+                
+                # Extract chain ID if available (from addresses keys)
+                addresses = data.get("addresses", {})
+                if addresses:
+                    chain_id_str = next(iter(addresses.keys()), str(chain_id))
+                    try:
+                        chain_id = int(chain_id_str)
+                    except ValueError:
+                        pass
+        
+        if not contract or contract == "0x0000000000000000000000000000000000000000":
+            raise RuntimeError("SX.bet EIP712FillHasher contract address could not be fetched from metadata.")
+
+        self._cached_domain = {
+            "name": "SX Bet",
+            "version": version,
+            "chainId": chain_id,
+            "verifyingContract": contract,
+        }
+        return self._cached_domain
 
     async def get_sports(self) -> list:
         """Get available sports."""
@@ -115,19 +150,11 @@ class SXBetClient:
             "expiration": expiration,
         }
 
-        if (
-            "TODO" in _SXBET_DOMAIN["verifyingContract"]
-            or _SXBET_DOMAIN["verifyingContract"] == "0x0000000000000000000000000000000000000000"
-            or not _SXBET_DOMAIN["verifyingContract"]
-        ):
-            raise RuntimeError(
-                "SX.bet contract address not configured. "
-                "Set the SXBET_CONTRACT_ADDRESS env var or verifyingContract in _SXBET_DOMAIN."
-            )
+        domain = await self._get_domain()
 
         signature = sign_typed_data(
             private_key=private_key,
-            domain=_SXBET_DOMAIN,
+            domain=domain,
             types=_SXBET_ORDER_TYPES,
             primary_type="Order",
             message=message,

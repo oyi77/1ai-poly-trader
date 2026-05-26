@@ -492,9 +492,9 @@ def auto_disable_losing_strategies():
     from datetime import datetime, timezone, timedelta
 
     disabled = []
-    min_trades = getattr(settings, "AGI_AUTO_DISABLE_MIN_TRADES", 10)
+    min_trades = getattr(settings, "AGI_AUTO_DISABLE_MIN_TRADES", 5)
     try:
-        since = datetime.now(timezone.utc) - timedelta(hours=1)
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
         with get_db_session() as db:
             for config in (
                 db.query(StrategyConfig).filter(StrategyConfig.enabled).all()
@@ -514,12 +514,14 @@ def auto_disable_losing_strategies():
                     if len(trades) < min_trades:
                         continue
 
-                    # Only count trades with definitive outcomes for win rate
+                    # Use PnL-based win rate — result field tracks market direction accuracy,
+                    # not trade profitability. A "loss" result can still have positive PnL
+                    # if the trader exited profitably before adverse market resolution.
                     resolved = [t for t in trades if t.result in ("win", "loss")]
                     if len(resolved) < max(3, min_trades // 2):
                         continue  # not enough resolved outcomes yet
 
-                    wins = sum(1 for t in resolved if t.result == "win")
+                    wins = sum(1 for t in resolved if (t.pnl or 0) > 0)
                     win_rate = wins / len(resolved)
                     pnl = sum(t.pnl for t in trades if t.pnl)
 
