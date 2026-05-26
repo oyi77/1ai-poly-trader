@@ -133,6 +133,18 @@ class ActivityHandler:
                 market_ticker = event.raw_data.get("market_ticker") if isinstance(event.raw_data, dict) else None
                 if not market_ticker:
                     return
+                from backend.core.trade_forensics import classify_trade_role
+                role, maker_size, taker_size = await classify_trade_role(
+                    platform=event.platform or event.source or "polymarket",
+                    mode="live",
+                    clob_order_id=event.order_id,
+                    price=event.price or 0.0,
+                    size=event.amount,
+                    direction="up" if (event.side or "").lower() in ("buy", "up") else "down",
+                    decision=event.raw_data if isinstance(event.raw_data, dict) else {},
+                    db_session=db,
+                )
+
                 trade = Trade(
                     market_ticker=market_ticker,
                     strategy=event.raw_data.get("strategy", event.source),
@@ -143,6 +155,9 @@ class ActivityHandler:
                     status="open",
                     confidence=event.raw_data.get("confidence", 0.5),
                     clob_order_id=event.order_id,
+                    role=role,
+                    maker_size=maker_size,
+                    taker_size=taker_size,
                 )
                 db.add(trade)
                 db.commit()

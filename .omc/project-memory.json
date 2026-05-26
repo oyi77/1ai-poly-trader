@@ -261,14 +261,14 @@
   "hotPaths": [
     {
       "path": "backend/core/strategy_executor.py",
-      "accessCount": 81,
-      "lastAccessed": 1779802485425,
+      "accessCount": 84,
+      "lastAccessed": 1779814429915,
       "type": "file"
     },
     {
       "path": "backend",
-      "accessCount": 53,
-      "lastAccessed": 1779806599746,
+      "accessCount": 55,
+      "lastAccessed": 1779811625280,
       "type": "directory"
     },
     {
@@ -279,20 +279,20 @@
     },
     {
       "path": "backend/core/risk/risk_manager.py",
-      "accessCount": 49,
-      "lastAccessed": 1779802535322,
+      "accessCount": 51,
+      "lastAccessed": 1779810881998,
       "type": "file"
     },
     {
       "path": "backend/core/scheduling/scheduling_strategies.py",
-      "accessCount": 48,
-      "lastAccessed": 1779803123999,
+      "accessCount": 50,
+      "lastAccessed": 1779815260766,
       "type": "directory"
     },
     {
       "path": "backend/core/scheduling/scheduler.py",
-      "accessCount": 48,
-      "lastAccessed": 1779808750702,
+      "accessCount": 49,
+      "lastAccessed": 1779808880668,
       "type": "file"
     },
     {
@@ -308,6 +308,12 @@
       "type": "file"
     },
     {
+      "path": "backend/core/strategy_gate.py",
+      "accessCount": 13,
+      "lastAccessed": 1779812549635,
+      "type": "file"
+    },
+    {
       "path": ".env",
       "accessCount": 11,
       "lastAccessed": 1779798816826,
@@ -317,6 +323,12 @@
       "path": "backend/core/plugin_registry.py",
       "accessCount": 10,
       "lastAccessed": 1779751447659,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/risk/correlation_monitor.py",
+      "accessCount": 9,
+      "lastAccessed": 1779810544327,
       "type": "file"
     },
     {
@@ -335,12 +347,6 @@
       "path": "backend/monitoring/backends/registry.py",
       "accessCount": 7,
       "lastAccessed": 1779751447704,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/risk/correlation_monitor.py",
-      "accessCount": 7,
-      "lastAccessed": 1779788224439,
       "type": "file"
     },
     {
@@ -392,6 +398,12 @@
       "type": "directory"
     },
     {
+      "path": "backend/core/settlement/settlement.py",
+      "accessCount": 5,
+      "lastAccessed": 1779809974702,
+      "type": "file"
+    },
+    {
       "path": "backend/core/strategy_synthesizer.py",
       "accessCount": 4,
       "lastAccessed": 1779789805310,
@@ -402,18 +414,6 @@
       "accessCount": 4,
       "lastAccessed": 1779805627342,
       "type": "directory"
-    },
-    {
-      "path": "backend/core/settlement/settlement.py",
-      "accessCount": 4,
-      "lastAccessed": 1779808275722,
-      "type": "file"
-    },
-    {
-      "path": "backend/core/strategy_gate.py",
-      "accessCount": 4,
-      "lastAccessed": 1779808846177,
-      "type": "file"
     },
     {
       "path": "backend/core/registry_utils.py",
@@ -458,6 +458,12 @@
       "type": "file"
     },
     {
+      "path": "backend/bot/notification/registry.py",
+      "accessCount": 3,
+      "lastAccessed": 1779814617219,
+      "type": "file"
+    },
+    {
       "path": "backend/core/dynamic_prompt_engine.py",
       "accessCount": 2,
       "lastAccessed": 1779758731441,
@@ -468,12 +474,6 @@
       "accessCount": 2,
       "lastAccessed": 1779759252167,
       "type": "directory"
-    },
-    {
-      "path": "backend/bot/notification/registry.py",
-      "accessCount": 1,
-      "lastAccessed": 1779749955722,
-      "type": "file"
     },
     {
       "path": "backend/core/settlement_helpers.py",

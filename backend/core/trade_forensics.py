@@ -5,23 +5,30 @@ for AGI learning and strategy improvement.
 """
 
 from __future__ import annotations
+from enum import Enum
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from collections import Counter
-
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from backend.models.database import Trade, Signal
 
 
-def classify_trade_role(
+class TradeRole(str, Enum):
+    MAKER = "maker"
+    TAKER = "taker"
+    UNKNOWN = "unknown"
+
+
+def legacy_classify_trade_role(
     order_type: str | None,
     fill_price: float | None,
     mid_price: float | None,
     maker_rebate: float | None,
     taker_fee: float | None,
 ) -> str:
-    """Classify a trade as MAKER, TAKER, or UNKNOWN.
+    """Classify a trade as MAKER, TAKER, or UNKNOWN (legacy pure sync version).
 
     Args:
         order_type: 'market' or 'limit'
@@ -55,7 +62,161 @@ def classify_trade_role(
     return "unknown"
 
 
-from loguru import logger  # noqa: E402
+async def classify_trade_role(
+    platform: str,
+    mode: str,
+    clob_order_id: Optional[str],
+    price: float,
+    size: float,
+    direction: str,  # "up" or "down" (buy/sell)
+    decision: dict[str, Any],
+    db_session: Optional[Any] = None
+) -> tuple[str, float, float]:
+    """
+    Dynamically classify whether a trade is Maker, Taker, or Unknown.
+
+    Returns:
+        tuple[role, maker_size, taker_size]
+    """
+    role = TradeRole.UNKNOWN.value
+    maker_size = 0.0
+    taker_size = 0.0
+
+    if mode == "paper":
+        # Heuristic for paper trading: limit orders are makers unless they cross the spread.
+        order_type = decision.get("order_type", "limit").lower()
+        if order_type == "market":
+            role = TradeRole.TAKER.value
+            taker_size = size
+        else:
+            best_ask = decision.get("best_ask")
+            best_bid = decision.get("best_bid")
+            
+            is_taker = False
+            if best_ask is not None and direction.lower() == "up" and price >= best_ask:
+                is_taker = True
+            elif best_bid is not None and direction.lower() == "down" and price <= best_bid:
+                is_taker = True
+            
+            if is_taker:
+                role = TradeRole.TAKER.value
+                taker_size = size
+            else:
+                role = TradeRole.MAKER.value
+                maker_size = size
+        return role, maker_size, taker_size
+
+    # Live or Testnet mode:
+    if not clob_order_id:
+        return role, maker_size, taker_size
+
+    # Platform-specific lookup
+    if platform.lower() == "polymarket":
+        try:
+            from backend.data.polymarket_clob import PolymarketCLOB
+            client = PolymarketCLOB(mode=mode)
+            from backend.config import settings
+            wallet = settings.POLYMARKET_RECIPIENT_ADDRESS or settings.PROXY_WALLET_ADDRESS
+            if wallet:
+                trades = await client.get_trader_trades(wallet)
+                for trade in trades:
+                    if trade.get("orderID") == clob_order_id or trade.get("id") == clob_order_id:
+                        maker = trade.get("maker")
+                        if maker is not None:
+                            role = TradeRole.MAKER.value if maker else TradeRole.TAKER.value
+                            if role == TradeRole.MAKER.value:
+                                maker_size = size
+                            else:
+                                taker_size = size
+                            logger.info(f"[trade_forensics] Polymarket order {clob_order_id} classified via fills API: {role}")
+                            return role, maker_size, taker_size
+        except Exception as e:
+            logger.warning(f"[trade_forensics] Polymarket fills API lookup failed: {e}")
+
+    # Fallback to heuristic classification
+    order_type = decision.get("order_type", "limit").lower()
+    if order_type == "market":
+        role = TradeRole.TAKER.value
+        taker_size = size
+    else:
+        best_ask = decision.get("best_ask")
+        best_bid = decision.get("best_bid")
+        
+        is_taker = False
+        if best_ask is not None and direction.lower() == "up" and price >= best_ask:
+            is_taker = True
+        elif best_bid is not None and direction.lower() == "down" and price <= best_bid:
+            is_taker = True
+        
+        if is_taker:
+            role = TradeRole.TAKER.value
+            taker_size = size
+        else:
+            role = TradeRole.MAKER.value
+            maker_size = size
+
+    logger.debug(f"[trade_forensics] Fallback classification for order {clob_order_id}: {role}")
+    return role, maker_size, taker_size
+
+
+def classify_trade_role_sync(
+    platform: str,
+    mode: str,
+    clob_order_id: Optional[str],
+    price: float,
+    size: float,
+    direction: str,  # "up" or "down" (buy/sell)
+    decision: dict[str, Any],
+    db_session: Optional[Any] = None
+) -> tuple[str, float, float]:
+    """
+    Synchronous wrapper for classify_trade_role.
+    Safe to call from sync functions, even if an event loop is running in the current thread.
+    """
+    import asyncio
+    import threading
+
+    coro = classify_trade_role(
+        platform=platform,
+        mode=mode,
+        clob_order_id=clob_order_id,
+        price=price,
+        size=size,
+        direction=direction,
+        decision=decision,
+        db_session=db_session
+    )
+
+    try:
+        # Check if there is a running loop in the current thread
+        asyncio.get_running_loop()
+        in_loop = True
+    except RuntimeError:
+        in_loop = False
+
+    if in_loop:
+        # Run in a separate thread to avoid "event loop already running" error
+        res_container = []
+        err_container = []
+
+        def target():
+            try:
+                # We need to run the coroutine in the new thread's event loop
+                val = asyncio.run(coro)
+                res_container.append(val)
+            except Exception as e:
+                err_container.append(e)
+
+        t = threading.Thread(target=target)
+        t.start()
+        t.join()
+
+        if err_container:
+            raise err_container[0]
+        return res_container[0]
+    else:
+        # Safe to run directly using asyncio.run
+        return asyncio.run(coro)
 
 
 class TradeForensics:

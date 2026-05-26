@@ -652,30 +652,19 @@ def _execute_decision_paper_or_kalshi(
                 ):
                     fee = simulation_result.get("fee_usd", 0.0)
 
-            # Classify role for paper/Kalshi
-            role = "unknown"
-            maker_size = None
-            taker_size = None
-            if mode == "paper":
-                if MAKER_FIRST_ENABLED:
-                    role = "maker"
-                    maker_size = adjusted_size
-                    taker_size = 0.0
-                else:
-                    role = "taker"
-                    maker_size = 0.0
-                    taker_size = adjusted_size
-            else:
-                # Kalshi or live/testnet (e.g. Kalshi live/testnet)
-                order_type = decision.get("order_type", "limit")
-                if order_type == "limit":
-                    role = "maker"
-                    maker_size = adjusted_size
-                    taker_size = 0.0
-                else:
-                    role = "taker"
-                    maker_size = 0.0
-                    taker_size = adjusted_size
+            # Classify role dynamically
+            from backend.core.trade_forensics import classify_trade_role_sync
+
+            role, maker_size, taker_size = classify_trade_role_sync(
+                platform=platform,
+                mode=mode,
+                clob_order_id=clob_order_id,
+                price=fill_price,
+                size=adjusted_size,
+                direction=direction,
+                decision=decision,
+                db_session=db,
+            )
 
             trade_data = {
                 "market_ticker": market_ticker,
@@ -1607,29 +1596,36 @@ async def _execute_decision_live_clob(
                                 filled_size = result.fill_size
 
                             # Classification logic
-                            maker_size = getattr(result, "maker_size", None)
-                            taker_size = getattr(result, "taker_size", None)
-                            if maker_size is None or taker_size is None:
-                                base_size = filled_size if (filled_size is not None and filled_size > 0) else adjusted_size
-                                try:
-                                    book = await clob.get_order_book(token_id)
-                                    if book:
-                                        best_ask = book.best_ask
-                                        best_bid = book.best_bid
-                                        if entry_price >= best_ask if best_ask is not None else 0.5:
-                                            taker_size = base_size
-                                            maker_size = 0.0
-                                        else:
-                                            maker_size = base_size
-                                            taker_size = 0.0
-                                    else:
-                                        taker_size = base_size
-                                        maker_size = 0.0
-                                except Exception:
-                                    taker_size = base_size
-                                    maker_size = 0.0
+                            from backend.core.trade_forensics import classify_trade_role
 
-                            role = "maker" if (maker_size or 0.0) >= (taker_size or 0.0) else "taker"
+                            best_ask = None
+                            best_bid = None
+                            try:
+                                book = await clob.get_order_book(token_id)
+                                if book:
+                                    best_ask = book.best_ask
+                                    best_bid = book.best_bid
+                            except Exception:
+                                pass
+
+                            execution_decision = dict(decision)
+                            if best_ask is not None:
+                                execution_decision["best_ask"] = best_ask
+                            if best_bid is not None:
+                                execution_decision["best_bid"] = best_bid
+
+                            base_size = filled_size if (filled_size is not None and filled_size > 0) else adjusted_size
+
+                            role, maker_size, taker_size = await classify_trade_role(
+                                platform=platform,
+                                mode=mode,
+                                clob_order_id=clob_order_id,
+                                price=fill_price,
+                                size=base_size,
+                                direction=direction,
+                                decision=execution_decision,
+                                db_session=db,
+                            )
 
                             logger.info(
                                 f"[{mode.upper()}][{strategy_name}] Order placed: {clob_order_id}"
