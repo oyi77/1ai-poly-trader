@@ -117,18 +117,26 @@ class LineMovementDetectorStrategy(BaseStrategy):
                 f"[{self.name}] Found {len(movements)} markets with sharp movement"
             )
 
-            for movement in movements[: params["max_markets_per_cycle"]]:
-                try:
-                    signal = await self._analyze_movement(movement, params, ctx)
-                    if signal:
-                        result.decisions_recorded += 1
-                        result.trades_attempted += 1
-                        result.decisions.append(signal)
-                except Exception as e:
-                    logger.warning(
-                        f"[{self.name}] Error analyzing {movement.ticker}: {e}"
-                    )
-                    result.errors.append(str(e))
+            # Parallelize market analysis — debate + websearch per market is I/O-bound,
+            # running sequentially wastes 10× the wall-clock time and congests the event loop.
+            import asyncio
+            sem = asyncio.Semaphore(3)  # cap concurrent LLM calls to avoid rate limits
+
+            async def _analyze_one(mv):
+                async with sem:
+                    try:
+                        return await self._analyze_movement(mv, params, ctx)
+                    except Exception as e:
+                        logger.warning(f"[{self.name}] Error analyzing {mv.ticker}: {e}")
+                        return None
+
+            tasks = [_analyze_one(m) for m in movements[: params["max_markets_per_cycle"]]]
+            signals = await asyncio.gather(*tasks)
+            for signal in signals:
+                if signal:
+                    result.decisions_recorded += 1
+                    result.trades_attempted += 1
+                    result.decisions.append(signal)
 
         except Exception as e:
             result.errors.append(str(e))
