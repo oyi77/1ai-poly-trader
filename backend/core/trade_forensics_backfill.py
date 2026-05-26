@@ -9,7 +9,7 @@ Usage:
 import argparse
 import sys
 from backend.models.database import SessionLocal, Trade
-from backend.core.trade_forensics import classify_trade_role
+from backend.core.trade_forensics import legacy_classify_trade_role as classify_trade_role
 
 
 def backfill_trade_roles(dry_run: bool = True) -> int:

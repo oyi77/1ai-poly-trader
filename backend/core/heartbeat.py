@@ -97,7 +97,8 @@ def _flush_heartbeats() -> bool:
         from backend.models.database import SessionLocal
         with SessionLocal() as db:
             # Postgres: use atomic jsonb_set to avoid read-modify-write deadlocks
-            is_pg = "postgresql" in str(db.bind.url) if (db.bind and db.bind.url) else settings.is_postgres
+            bind = getattr(db, "bind", None)
+            is_pg = "postgresql" in str(getattr(bind, "url", "")) if bind else settings.is_postgres
             if is_pg:
                 db.execute(text("SET LOCAL lock_timeout = '2s'"))
                 db.execute(text("SET LOCAL statement_timeout = '5s'"))

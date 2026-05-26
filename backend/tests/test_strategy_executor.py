@@ -819,7 +819,7 @@ class TestHeartbeatFlush:
         hb._pending_heartbeats["strategy-a"] = "2026-05-14T01:00:00+00:00"
 
         with (
-            patch("backend.core.heartbeat.SessionLocal", failing_session),
+            patch("backend.models.database.SessionLocal", failing_session),
             patch("backend.core.heartbeat.logger.warning") as warning_mock,
         ):
             flushed = hb._flush_heartbeats()
@@ -868,7 +868,7 @@ class TestHeartbeatFlush:
         hb._pending_heartbeats["strategy-a"] = "2026-05-14T01:00:00+00:00"
 
         with (
-            patch("backend.core.heartbeat.SessionLocal", lambda: FailingSession()),
+            patch("backend.models.database.SessionLocal", lambda: FailingSession()),
             patch("backend.core.heartbeat.logger.warning") as warning_mock,
         ):
             flushed = hb._flush_heartbeats()

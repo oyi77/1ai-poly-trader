@@ -345,6 +345,18 @@ class WalletReconciler:
                     continue
 
                 # No existing trade — create new one
+                from backend.core.trade_forensics import classify_trade_role
+                role, maker_size, taker_size = await classify_trade_role(
+                    platform="polymarket",
+                    mode=self.mode,
+                    clob_order_id=None,
+                    price=avg_price,
+                    size=total_size,
+                    direction="up" if outcome == "Yes" else "down",
+                    decision={},
+                    db_session=self.db,
+                )
+
                 new_trade = Trade(
                     market_ticker=slug,
                     platform="polymarket",
@@ -364,6 +376,9 @@ class WalletReconciler:
                     model_probability=0.5,
                     market_price_at_entry=avg_price,
                     edge_at_entry=0.0,
+                    role=role,
+                    maker_size=maker_size,
+                    taker_size=taker_size,
                 )
 
                 self.db.add(new_trade)
@@ -833,6 +848,18 @@ class WalletReconciler:
                 return False
 
             # Create trade record
+            from backend.core.trade_forensics import classify_trade_role
+            role, maker_size, taker_size = await classify_trade_role(
+                platform="polymarket",
+                mode=self.mode,
+                clob_order_id=orphan.clob_order_id,
+                price=orphan.blockchain_entry_price,
+                size=orphan.blockchain_size,
+                direction="up",
+                decision={},
+                db_session=self.db,
+            )
+
             trade = Trade(
                 market_ticker=orphan.market_id,
                 platform="polymarket",
@@ -852,6 +879,9 @@ class WalletReconciler:
                 model_probability=0.5,  # Unknown for orphaned positions
                 market_price_at_entry=orphan.blockchain_entry_price,
                 edge_at_entry=0.0,  # Unknown for orphaned positions
+                role=role,
+                maker_size=maker_size,
+                taker_size=taker_size,
             )
 
             self.db.add(trade)
