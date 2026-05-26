@@ -205,12 +205,15 @@ class OnlineLearner:
                     .all()
                 ]
             if not names:
-                # Fallback: query protected strategies from DB
+                # Fallback: query live-enabled strategies from DB
                 with get_db_session() as db:
                     names = [
                         r[0]
                         for r in db.query(StrategyConfig.strategy_name)
-                        .filter(StrategyConfig.protected.is_(True))
+                        .filter(
+                            StrategyConfig.enabled.is_(True),
+                            StrategyConfig.trading_mode == "live",
+                        )
                         .all()
                     ]
                 if not names:
