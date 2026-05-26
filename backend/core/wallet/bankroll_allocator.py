@@ -94,9 +94,9 @@ class BankrollAllocator:
     def apply_longshot_feedback(
         self, allocations: dict[str, float]
     ) -> dict[str, float]:
-        """Reduce allocation for strategies with high longshot bias.
+        """Reduce allocation for strategies with high longshot bias (overconfidence).
 
-        Bias > 0.05 → skip (no_side). Bias > 0.03 → confidence_discount applied.
+        Bias < -0.05 → skip (no_side). Bias < -0.03 → confidence_discount applied.
         """
         from backend.core.longshot_bias import LongshotBiasDetector
 
@@ -108,14 +108,14 @@ class BankrollAllocator:
 
             adjusted = dict(allocations)
             for strategy, bias in category_bias.items():
-                if bias > 0.05:
+                if bias < -0.05:
                     # Strong overconfidence — skip entirely
                     if strategy in adjusted:
                         adjusted[strategy] = 0.0
                     logger.info(
                         f"[BankrollAllocator] Longshot skip {strategy}: bias={bias:.4f}"
                     )
-                elif bias > 0.03:
+                elif bias < -0.03:
                     # Mild overconfidence — reduce by 30%
                     if strategy in adjusted:
                         adjusted[strategy] = adjusted[strategy] * 0.7

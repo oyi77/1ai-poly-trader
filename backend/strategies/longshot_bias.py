@@ -81,10 +81,28 @@ class LongshotBiasStrategy(BaseStrategy):
                 if hasattr(m, "yes_price") and 0 < m.yes_price < max_price
             ]
 
+            # Get dynamic longshot bias from actual settled trades
+            from backend.core.longshot_bias import LongshotBiasDetector
+            detector = LongshotBiasDetector()
+            bias_stats = None
+            if ctx.db is not None:
+                try:
+                    bias_stats = detector.compute_longshot_bias_from_trades(
+                        db=ctx.db,
+                        price_threshold=max_price,
+                        window_days=60,
+                        strategy_name=self.name,
+                    )
+                except Exception as e:
+                    ctx.logger.warning("[longshot_bias] Failed to compute dynamic longshot bias: {}", e)
+
+            # Fallback to historical paper average (YES trades win rate is 59% of price)
+            bias_ratio = bias_stats["bias"] if bias_stats is not None else 0.59
             ctx.logger.info(
-                "[longshot_bias] Found {} markets below {}c",
+                "[longshot_bias] Found {} markets below {}c (using bias ratio: {:.4f})",
                 len(candidates),
                 int(max_price * 100),
+                bias_ratio,
             )
 
             for market in candidates:
@@ -97,29 +115,17 @@ class LongshotBiasStrategy(BaseStrategy):
                     if no_price is None:
                         no_price = 1.0 - yes_price
 
-                    # EV calculation for NO token:
-                    # Per Becker data: NO at <30c has +23% expected value.
-                    # Use hardcoded empirical EV (bias_factor = 0.23).
-                    # At lower prices the empirical advantage is stronger,
-                    # but the 0.23 figure is the conservative anchor.
-                    # Net after Polymarket platform fees (entry + settlement):
-                    #   gross_payout = 1.0
-                    #   fee_per_dollar = 2 * PLATFORM_FEE_PCT = 0.04
-                    #   net_payout = 0.96
-                    #   EV = 0.23 * no_price * net_payout - (1 - 0.23) * no_price  [if fully efficient]
-                    # Simplified: use empirical EV directly, scale by no_price.
-                    # Empirical EV already factors in the crowd overpricing of YES.
-                    ev = max(0.0, 0.23 * no_price)
+                    # EV calculation for NO token based on YES overpricing bias:
+                    # gross edge of NO is: yes_price * (1.0 - bias_ratio)
+                    ev = max(0.0, yes_price * (1.0 - bias_ratio))
                     # Subtract platform fees (both entry and settlement)
                     ev = max(0.0, ev - 2 * PLATFORM_FEE_PCT * no_price)
 
                     if ev < min_ev:
                         continue
 
-                    # E-107: Kelly sizing — use market price directly as win prob.
-                    # EV was already computed above and accounted for separately.
-                    # Do NOT add EV to probability — that double-counts the edge.
-                    true_win_prob = min(0.95, 1.0 - yes_price)
+                    # True win probability of NO is: 1.0 - yes_price * bias_ratio
+                    true_win_prob = min(0.95, 1.0 - yes_price * bias_ratio)
                     odds = (1.0 / no_price) - 1.0  # net odds
                     if odds <= 0.001:  # guard: no_price >= 0.999 → effectively zero odds
                         continue
