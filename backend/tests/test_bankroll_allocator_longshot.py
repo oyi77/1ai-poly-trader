@@ -1,8 +1,8 @@
 """Unit tests for BankrollAllocator.apply_longshot_feedback.
 
-This method adjusts strategy allocations based on detected longshot bias:
-- bias > 0.05 → zero out the strategy's allocation (strong overconfidence)
-- bias > 0.03 → reduce allocation by 30% (mild overconfidence)
+This method adjusts strategy allocations based on detected longshot bias (overconfidence):
+- bias < -0.05 → zero out the strategy's allocation (strong overconfidence)
+- bias < -0.03 → reduce allocation by 30% (mild overconfidence)
 - no bias data → return allocations unchanged
 """
 
@@ -31,13 +31,13 @@ class TestApplyLongshotFeedback:
         assert result == allocations
 
     def test_strong_bias_zeroes_out_strategy(self):
-        """bias > 0.05 sets the strategy's allocation to 0."""
+        """bias < -0.05 sets the strategy's allocation to 0."""
         allocator = self._allocator()
         allocations = {"btc_oracle": 500.0, "market_maker": 1000.0}
 
         with patch(_DETECTOR_PATH) as MockDetector:
             MockDetector.return_value.get_category_bias.return_value = {
-                "btc_oracle": 0.06  # above 0.05 threshold
+                "btc_oracle": -0.06  # below -0.05 threshold
             }
             result = allocator.apply_longshot_feedback(allocations)
 
@@ -45,13 +45,13 @@ class TestApplyLongshotFeedback:
         assert result["market_maker"] == 1000.0  # unaffected strategy unchanged
 
     def test_mild_bias_reduces_allocation_by_30_percent(self):
-        """0.03 < bias <= 0.05 reduces the strategy's allocation by 30%."""
+        """-0.05 <= bias < -0.03 reduces the strategy's allocation by 30%."""
         allocator = self._allocator()
         allocations = {"btc_oracle": 500.0, "market_maker": 1000.0}
 
         with patch(_DETECTOR_PATH) as MockDetector:
             MockDetector.return_value.get_category_bias.return_value = {
-                "btc_oracle": 0.04  # between 0.03 and 0.05
+                "btc_oracle": -0.04  # between -0.05 and -0.03
             }
             result = allocator.apply_longshot_feedback(allocations)
 
