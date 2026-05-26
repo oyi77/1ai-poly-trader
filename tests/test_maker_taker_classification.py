@@ -263,6 +263,16 @@ def test_maker_taker_performance_audit_throttling(db_session):
     def _mock_get_db_session():
         yield db_session
 
+    # Mock MakerTakerAnalytics.get_stats to return reduce_taker directly.
+    # This test validates scheduler THROTTLING BEHAVIOUR, not the analytics computation.
+    # The analytics module requires 20 trades per role; the 3 here are a DB sanity check.
+    mock_mt_stats = {
+        "maker": {"count": 3, "pnl": 3.0, "size": 30.0, "roi": 0.10},
+        "taker": {"count": 3, "pnl": -9.0, "size": 30.0, "roi": -0.30},
+        "recommendation": "reduce_taker",
+        "cached_at": "2026-05-26T13:00:00+00:00",
+    }
+
     # active_modes_set is a @property — must patch on the class, not instance
     with patch.object(
             type(settings), "active_modes_set",
@@ -270,7 +280,11 @@ def test_maker_taker_performance_audit_throttling(db_session):
             return_value={"paper"}
         ), \
         patch.object(settings, "AGI_AUTO_DISABLE_MIN_TRADES", 2), \
-        patch("backend.db.utils.get_db_session", _mock_get_db_session):
+        patch("backend.db.utils.get_db_session", _mock_get_db_session), \
+        patch(
+            "backend.core.maker_taker_analytics.maker_taker_analytics.get_stats",
+            return_value=mock_mt_stats,
+        ):
         auto_disable_losing_strategies()
 
     db_session.refresh(cfg)
