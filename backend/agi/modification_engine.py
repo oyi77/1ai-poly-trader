@@ -386,67 +386,79 @@ class CodeGenerator:
             GeneratedCode if successful, None on failure
         """
         self._generation_count += 1
+        
+        from backend.ai.llm_router import LLMRouter
+        import re
+
+        router = LLMRouter()
+        system_prompt = (
+            "You are an expert Python developer for an algorithmic trading system. "
+            "Output ONLY raw, production-ready Python code inside a markdown ```python code block. "
+            "Do not include any other explanations or surrounding text."
+        )
+
+        user_prompt = (
+            f"Generate a new Python module for the following file path: {target_path}\n\n"
+            f"Purpose / Description: {description}\n\n"
+        )
+        if context:
+            user_prompt += f"Context: {context}\n\n"
+
+        user_prompt += (
+            "Requirements:\n"
+            "- Use proper type annotations\n"
+            "- Use loguru for logging\n"
+            "- Handle errors gracefully\n"
+            "- Follow existing codebase patterns\n"
+            "- Import from backend.config for settings\n"
+            "- Ensure the code is complete and functional"
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        provider = router._resolve_provider("coding")
+        provider_config = router.providers.get(provider)
+
+        if not provider_config:
+            raise RuntimeError("No LLM provider configured for code generation.")
+
+        logger.info(f"[CodeGenerator] Generating {target_path} via {provider}...")
+
         try:
-            from backend.ai.strategy_composer import StrategyComposer
+            if provider_config["type"] == "openai":
+                response_text, _ = await router._call_openai(provider_config, messages)
+            elif provider_config["type"] == "anthropic":
+                response_text, _ = await router._call_claude(provider_config, messages)
+            elif provider_config["type"] == "groq":
+                response_text, _ = await router._call_groq(provider_config, messages)
+            else:
+                raise ValueError(f"Unsupported LLM provider type: {provider_config['type']}")
 
-            composer = StrategyComposer()
+            # Extract code from markdown block if present
+            code = response_text
+            match = re.search(r"```python\n(.*?)\n```", response_text, re.DOTALL)
+            if match:
+                code = match.group(1).strip()
+            elif response_text.startswith("```"):
+                # fallback for poorly formatted blocks
+                code = response_text.replace("```python", "").replace("```", "").strip()
 
-            prompt = (
-                f"Generate Python code for a new module at {target_path}.\n"
-                f"Purpose: {description}\n"
+            if not code:
+                raise ValueError("LLM returned empty code")
+
+            return GeneratedCode(
+                code=code,
+                file_path=target_path,
+                strategy_name=f"gen_{self._generation_count}",
+                confidence=0.8,
+                explanation=f"Generated via {provider}",
             )
-            if context:
-                prompt += f"Context: {context}\n"
-            prompt += (
-                "Requirements:\n"
-                "- Use proper type annotations\n"
-                "- Use loguru for logging\n"
-                "- Handle errors gracefully\n"
-                "- Follow existing codebase patterns\n"
-                "- Import from backend.config for settings\n"
-                "- Return complete, production-ready code\n"
-            )
-
-            result = await composer.compose_new_strategy(
-                db=None,
-                user_prompt=prompt,
-            )
-
-            if result and result.get("code"):
-                return GeneratedCode(
-                    code=result["code"],
-                    file_path=target_path,
-                    strategy_name=result.get(
-                        "strategy_name", f"gen_{self._generation_count}"
-                    ),
-                    confidence=0.7,
-                    explanation=result.get("description", ""),
-                )
         except Exception as exc:
-            logger.error("[CodeGenerator] Generation failed: {}", exc)
-
-        # Fallback: return a stub
-        return GeneratedCode(
-            code=self._generate_stub(target_path, description),
-            file_path=target_path,
-            strategy_name=f"stub_{self._generation_count}",
-            confidence=0.3,
-            explanation="LLM unavailable, generated stub",
-        )
-
-    @staticmethod
-    def _generate_stub(target_path: str, description: str) -> str:
-        """Generate a minimal stub when LLM is unavailable."""
-        module_name = Path(target_path).stem.replace(".py", "")
-        return (
-            f'"""\n{module_name} — {description}\n"""\n\n'
-            f"from __future__ import annotations\n\n"
-            f"from loguru import logger\n\n\n"
-            f"class {module_name.title().replace('_', '')}:\n"
-            f'    """TODO: implement — {description}"""\n\n'
-            f"    def __init__(self) -> None:\n"
-            f'        logger.info(f"{module_name} initialized")\n'
-        )
+            logger.error(f"[CodeGenerator] Generation failed: {exc}")
+            raise RuntimeError(f"Failed to generate code via LLM: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

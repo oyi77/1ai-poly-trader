@@ -8,13 +8,7 @@ from loguru import logger
 
 from backend.core.eip712_signer import sign_typed_data
 
-# Limitless Exchange EIP-712 domain for Base (chain_id=8453).
-_LIMITLESS_DOMAIN = {
-    "name": "Limitless Exchange",
-    "version": "1",
-    "chainId": 8453,
-    "verifyingContract": os.getenv("LIMITLESS_CONTRACT_ADDRESS", "0x0000000000000000000000000000000000000000"),
-}
+# Limitless Exchange EIP-712 domain base. Populated dynamically via _get_domain()
 
 _LIMITLESS_ORDER_TYPES = {
     "EIP712Domain": [
@@ -56,6 +50,40 @@ class LimitlessClient:
         self._base_url = (
             base_url or os.getenv("LIMITLESS_API_URL", "https://api.limitless.exchange")
         ).rstrip("/")
+        self._cached_domain = None
+
+    async def _get_domain(self) -> dict:
+        """Fetch and cache EIP-712 domain parameters dynamically."""
+        if self._cached_domain:
+            return self._cached_domain
+
+        from backend.config import settings
+
+        chain_id = 8453  # Base mainnet
+        version = "1"
+        contract = getattr(settings, "LIMITLESS_EXCHANGE_CONTRACT_ADDRESS", None)
+
+        if not contract or contract == "0x0000000000000000000000000000000000000000":
+            # Dynamically fetch the current active CTF exchange from the market metadata
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                resp = await client.get(f"{self._base_url}/markets/active", params={"limit": 1})
+                resp.raise_for_status()
+                data = resp.json().get("data", [])
+                
+                if data and isinstance(data, list) and len(data) > 0:
+                    venue = data[0].get("venue", {})
+                    contract = venue.get("exchange")
+        
+        if not contract or contract == "0x0000000000000000000000000000000000000000":
+            raise RuntimeError("Limitless exchange contract address could not be fetched dynamically.")
+
+        self._cached_domain = {
+            "name": "Limitless Exchange",
+            "version": version,
+            "chainId": chain_id,
+            "verifyingContract": contract,
+        }
+        return self._cached_domain
 
     async def get_markets(self, limit: int = 100) -> list:
         """Get active markets from Limitless Exchange with pagination (max 25/page)."""
@@ -105,15 +133,7 @@ class LimitlessClient:
         """
         account = Account.from_key(private_key)
 
-        if (
-            "TODO" in _LIMITLESS_DOMAIN["verifyingContract"]
-            or _LIMITLESS_DOMAIN["verifyingContract"] == "0x0000000000000000000000000000000000000000"
-            or not _LIMITLESS_DOMAIN["verifyingContract"]
-        ):
-            raise RuntimeError(
-                "Limitless contract address not configured. "
-                "Set the LIMITLESS_CONTRACT_ADDRESS env var or verifyingContract in _LIMITLESS_DOMAIN."
-            )
+        domain = await self._get_domain()
 
         # Scale price to integer (basis points: 0.50 -> 5000)
         price_scaled = int(price * 10000)
@@ -135,7 +155,7 @@ class LimitlessClient:
 
         signature = sign_typed_data(
             private_key=private_key,
-            domain=_LIMITLESS_DOMAIN,
+            domain=domain,
             types=_LIMITLESS_ORDER_TYPES,
             primary_type="Order",
             message=message,
@@ -180,15 +200,7 @@ class LimitlessClient:
         """
         account = Account.from_key(private_key)
 
-        if (
-            "TODO" in _LIMITLESS_DOMAIN["verifyingContract"]
-            or _LIMITLESS_DOMAIN["verifyingContract"] == "0x0000000000000000000000000000000000000000"
-            or not _LIMITLESS_DOMAIN["verifyingContract"]
-        ):
-            raise RuntimeError(
-                "Limitless contract address not configured. "
-                "Set the LIMITLESS_CONTRACT_ADDRESS env var or verifyingContract in _LIMITLESS_DOMAIN."
-            )
+        domain = await self._get_domain()
 
         nonce = int(time.time() * 1000)
 
@@ -200,7 +212,7 @@ class LimitlessClient:
 
         signature = sign_typed_data(
             private_key=private_key,
-            domain=_LIMITLESS_DOMAIN,
+            domain=domain,
             types=_LIMITLESS_CANCEL_TYPES,
             primary_type="Cancel",
             message=message,

@@ -183,6 +183,11 @@ class ConfigRegistry:
     NWS_BASE_URL: str = "https://api.weather.gov"
 
     # Search APIs
+    LIMITLESS_API_URL: str = "https://api.limitless.exchange"
+    SXBET_API_URL: str = "https://api.sx.bet"
+    # EIP-712 Contract Addresses (override dynamic fetching if provided)
+    SXBET_EXCHANGE_CONTRACT_ADDRESS: Optional[str] = None
+    LIMITLESS_EXCHANGE_CONTRACT_ADDRESS: Optional[str] = None
     TAVILY_API_URL: str = "https://api.tavily.com/search"
     EXA_API_URL: str = "https://api.exa.ai/search"
     SERPER_API_URL: str = "https://google.serper.dev/search"
