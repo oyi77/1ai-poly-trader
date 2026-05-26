@@ -74,14 +74,16 @@ class TestSettingsPriority:
             {
                 "ACTIVE_MODES": "testnet,paper",
                 "POLYMARKET_PRIVATE_KEY": "0x1234567890123456789012345678901234567890123456789012345678901234",
+                "TRADING_MODE": "",
             },
         ):
             settings = Settings()
             assert settings.TRADING_MODE == "testnet"
 
-        with patch.dict(os.environ, {"ACTIVE_MODES": "paper"}):
+        with patch.dict(os.environ, {"ACTIVE_MODES": "paper", "TRADING_MODE": ""}):
             settings = Settings()
             assert settings.TRADING_MODE == "paper"
+
 
 
 class TestExtendedSettings:
