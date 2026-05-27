@@ -74,7 +74,7 @@ class ArbOpportunityScanner:
                 for _ in range(max_pages):
                     resp = await client.get(
                         "https://gamma-api.polymarket.com/markets",
-                        params={"active": "true", "closed": "false", "limit": page_size, "offset": offset},
+                        params={"active": "true", "closed": "false", "limit": page_size, "offset": offset, "order": "volume", "ascending": "false"},
                     )
                     resp.raise_for_status()
                     page = resp.json()
