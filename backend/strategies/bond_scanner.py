@@ -35,6 +35,10 @@ class BondScannerStrategy(BaseStrategy):
         "kelly_fraction": settings.BOND_SCANNER_KELLY_FRACTION,
         "min_size_usd": settings.BOND_SCANNER_MIN_SIZE_USD,
         "bankroll_pct": settings.BOND_SCANNER_BANKROLL_PCT,
+        "max_open_positions": 5,
+        "max_per_asset": 1,
+        "stop_loss_pct": 0.15,
+        "profit_target_pct": 0.10,
     }
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
