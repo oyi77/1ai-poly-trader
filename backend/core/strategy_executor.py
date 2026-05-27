@@ -596,6 +596,22 @@ def _execute_decision_paper_or_kalshi(
                     )
 
             is_kalshi = market_ticker.startswith("KX") or platform == "kalshi"
+
+            # Warn when live/testnet mode but token_id is missing — silently broken strategies
+            if mode in ("testnet", "live") and not is_kalshi and not token_id:
+                logger.warning(
+                    f"[{mode.upper()}][{strategy_name}] No token_id for {market_ticker} — "
+                    f"CLOB order will be skipped; strategy may be producing incomplete decisions"
+                )
+                attempt_recorder.record_blocked(
+                    "No token_id for CLOB order",
+                    phase="execution",
+                    reason_code="BLOCKED_MISSING_TOKEN_ID",
+                    adjusted_size=adjusted_size,
+                )
+                db.commit()
+                return None
+
             if is_kalshi and mode in ("testnet", "live"):
                 try:
                     from backend.markets.provider_registry import market_registry
@@ -922,6 +938,11 @@ async def execute_decision(
                 )
                 and decision.get("token_id") is not None
             )
+            if mode == "live" and not is_live_clob and not decision.get("token_id"):
+                logger.warning(
+                    f"[{strategy_name}] Live mode but no token_id in decision for "
+                    f"{decision.get('market_ticker', '?')} — falling back to paper path"
+                )
             for lock_attempt in range(_MAX_LOCK_RETRY_ATTEMPTS):
                 try:
                     if not is_live_clob:

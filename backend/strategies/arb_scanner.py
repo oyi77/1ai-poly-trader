@@ -23,6 +23,52 @@ class ArbScannerStrategy(BaseStrategy):
 
     SCAN_INTERVAL_SECONDS = 30
 
+    def __init__(self):
+        super().__init__()
+        self._token_cache: dict = {}  # event_id -> market data with clobTokenIds
+
+    async def _resolve_token_id(self, event_id: str) -> tuple[str | None, str | None]:
+        """Resolve token_id and platform from event_id by looking up market data.
+
+        Returns (token_id, platform) or (None, None) if not found.
+        Caches results to avoid repeated lookups.
+        """
+        if not event_id:
+            return None, None
+
+        if event_id in self._token_cache:
+            cached = self._token_cache[event_id]
+            return cached.get("token_id"), cached.get("platform")
+
+        try:
+            from backend.data.gamma import fetch_markets
+
+            markets = await fetch_markets(limit=200)
+            for m in markets:
+                slug = m.get("slug", "")
+                condition_id = m.get("condition_id", "")
+                if slug == event_id or condition_id == event_id:
+                    clob_token_ids = m.get("clobTokenIds") or []
+                    if isinstance(clob_token_ids, str):
+                        import json as _json
+                        try:
+                            clob_token_ids = _json.loads(clob_token_ids)
+                        except Exception:
+                            clob_token_ids = []
+                    if clob_token_ids:
+                        token_id = str(clob_token_ids[0])  # YES token
+                        self._token_cache[event_id] = {
+                            "token_id": token_id,
+                            "platform": "polymarket",
+                        }
+                        return token_id, "polymarket"
+                    break
+        except Exception as e:
+            logger.debug(f"[arb_scanner] token resolution failed for {event_id}: {e}")
+
+        self._token_cache[event_id] = {"token_id": None, "platform": None}
+        return None, None
+
     @staticmethod
     def market_filter(markets: List[MarketInfo]) -> List[MarketInfo]:
         return markets
@@ -95,6 +141,13 @@ class ArbScannerStrategy(BaseStrategy):
                     "market_type": "arb",
                     "model_probability": 0.5 + opp.net_profit_pct,
                 }
+
+                # Resolve token_id for live CLOB execution
+                token_id, platform = await self._resolve_token_id(opp.event_id)
+                if token_id:
+                    decision["token_id"] = token_id
+                    decision["platform"] = platform or "polymarket"
+
                 decisions.append(decision)
 
                 try:
