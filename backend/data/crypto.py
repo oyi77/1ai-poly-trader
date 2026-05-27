@@ -142,7 +142,7 @@ async def fetch_crypto_klines(
 ) -> Optional[List[list]]:
     """
     Fetch recent 1-minute candles for a given Binance pair from exchanges.
-    Tries Coinbase first, then Kraken, Binance, and Bybit as fallbacks.
+    Tries Binance first (free, fast), then Kraken, Coinbase, and Bybit as fallbacks.
 
     Args:
         pair: Binance trading pair symbol (e.g. "BTCUSDT", "ETHUSDT", "SOLUSDT").
@@ -170,48 +170,28 @@ async def fetch_crypto_klines(
             kraken_pair = _COINGECKO_TO_KRAKEN_PAIR.get(cg_id, "XBTUSD")
             break
 
-    # Try Coinbase first (US-accessible, reliable)
-    if coinbase_breaker.state != "OPEN":
+    # Try Binance first (free, no key, fastest, most reliable)
+    if binance_breaker.state != "OPEN":
         try:
-            import datetime as _dt
-
-            end = _dt.datetime.now(_dt.timezone.utc)
-            start = end - _dt.timedelta(minutes=limit)
             resp = await client.get(
-                f"{COINBASE_API}/products/{coinbase_product}/candles",
-                params={
-                    "start": start.isoformat(),
-                    "end": end.isoformat(),
-                    "granularity": 60,
-                },
+                f"{BINANCE_API}/klines",
+                params={"symbol": pair, "interval": "1m", "limit": limit},
             )
             resp.raise_for_status()
-            rows = resp.json()
-            rows = list(reversed(rows))
-            candles = [
-                [
-                    int(r[0]) * 1000,
-                    str(r[3]),
-                    str(r[2]),
-                    str(r[1]),
-                    str(r[4]),
-                    str(r[5]),
-                ]
-                for r in rows
-            ]
+            candles = resp.json()
             cache["data"] = candles
             cache["ts"] = now
-            cache["_source"] = "coinbase"
-            _feed_health["coinbase"] = time.time()
-            await coinbase_breaker.record_success()
+            cache["_source"] = "binance"
+            _feed_health["binance"] = time.time()
+            await binance_breaker._on_success()
             return candles
         except Exception as e:
             logger.warning(
-                f"Coinbase kline fetch failed for {pair}, trying Kraken: {repr(e)}"
+                f"Binance kline fetch failed for {pair}, trying Kraken: {repr(e)}"
             )
-            await coinbase_breaker._on_failure()
+            await binance_breaker._on_failure()
     else:
-        logger.warning("Coinbase circuit OPEN, skipping to Kraken")
+        logger.warning("Binance circuit OPEN, skipping to Kraken")
 
     # Fallback 1: Kraken (US-accessible, free)
     if kraken_breaker.state != "OPEN":
@@ -250,30 +230,50 @@ async def fetch_crypto_klines(
             )
             await kraken_breaker._on_failure()
     else:
-        logger.warning("Kraken circuit OPEN, skipping to Binance")
+        logger.warning("Kraken circuit OPEN, skipping to Coinbase")
 
-    # Fallback 2: Binance (geo-blocked in US)
-    if binance_breaker.state != "OPEN":
+    # Fallback 2: Coinbase (reliable but slower)
+    if coinbase_breaker.state != "OPEN":
         try:
+            import datetime as _dt
+
+            end = _dt.datetime.now(_dt.timezone.utc)
+            start = end - _dt.timedelta(minutes=limit)
             resp = await client.get(
-                f"{BINANCE_API}/klines",
-                params={"symbol": pair, "interval": "1m", "limit": limit},
+                f"{COINBASE_API}/products/{coinbase_product}/candles",
+                params={
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "granularity": 60,
+                },
             )
             resp.raise_for_status()
-            candles = resp.json()
+            rows = resp.json()
+            rows = list(reversed(rows))
+            candles = [
+                [
+                    int(r[0]) * 1000,
+                    str(r[3]),
+                    str(r[2]),
+                    str(r[1]),
+                    str(r[4]),
+                    str(r[5]),
+                ]
+                for r in rows
+            ]
             cache["data"] = candles
             cache["ts"] = now
-            cache["_source"] = "binance"
-            _feed_health["binance"] = time.time()
-            await binance_breaker._on_success()
+            cache["_source"] = "coinbase"
+            _feed_health["coinbase"] = time.time()
+            await coinbase_breaker.record_success()
             return candles
         except Exception as e:
             logger.warning(
-                f"Binance kline fetch failed for {pair}, trying Bybit: {repr(e)}"
+                f"Coinbase kline fetch failed for {pair}, trying Bybit: {repr(e)}"
             )
-            await binance_breaker._on_failure()
+            await coinbase_breaker._on_failure()
     else:
-        logger.warning("Binance circuit OPEN, skipping to Bybit")
+        logger.warning("Coinbase circuit OPEN, skipping to Bybit")
 
     # Fallback 3: Bybit (last resort, no dedicated breaker)
     try:
@@ -340,7 +340,7 @@ def get_feed_health() -> dict:
     """Return health status per price feed source."""
     now = time.time()
     result = {}
-    for source in ["coinbase", "kraken", "binance", "bybit"]:
+    for source in ["binance", "kraken", "coinbase", "bybit"]:
         last_fetch = _feed_health.get(source)
         if last_fetch is None:
             result[source] = {
