@@ -96,8 +96,6 @@ class ArbScannerStrategy(BaseStrategy):
 
         decisions = []
         for idx, opp in enumerate(result.opportunities[:10]):
-            if idx == 0:
-                print(f"[ARB_DEBUG] first opp: kind={opp.kind} token_id={opp.token_id!r} platform={opp.platform} event_id={opp.event_id}", flush=True)
             try:
                 _opp_size = getattr(opp, "size_usd", None)
                 size_usd = _opp_size if _opp_size and _opp_size > 0 else 10.0
