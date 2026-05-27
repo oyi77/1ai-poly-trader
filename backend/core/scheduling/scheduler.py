@@ -406,6 +406,31 @@ def get_scheduler_jobs() -> list[dict]:
         for job in sched.get_jobs()
     ]
 
+async def _cleanup_stale_trades() -> None:
+    """Settle trades older than 24h that are still open."""
+    from backend.db.utils import get_db_session
+    from backend.models.database import Trade
+    from datetime import timedelta
+
+    try:
+        with get_db_session() as db:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            stale = db.query(Trade).filter(
+                Trade.settled == False,  # noqa: E712
+                Trade.created_at < cutoff,
+            ).all()
+            if stale:
+                for t in stale:
+                    t.settled = True
+                    t.pnl = 0.0
+                    t.settlement_value = 0.5
+                    t.resolved_at = datetime.now(timezone.utc)
+                db.commit()
+                logger.info(f"[scheduler] Auto-settled {len(stale)} stale trades (>24h)")
+    except Exception as e:
+        logger.warning(f"[scheduler] Stale trade cleanup failed: {e}")
+
+
 def _load_strategy_jobs() -> None:
     """Read StrategyConfig table and schedule enabled strategies for all modes."""
     from backend.models.database import SessionLocal, StrategyConfig  # noqa: F401
@@ -429,6 +454,19 @@ def _load_strategy_jobs() -> None:
 
     # Register WS-driven strategies with event bus
     _register_event_driven_strategies()
+
+    # Schedule stale trade cleanup (every hour)
+    try:
+        scheduler.add_job(
+            _cleanup_stale_trades,
+            IntervalTrigger(seconds=3600),
+            id="stale_trade_cleanup",
+            replace_existing=True,
+            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=60),
+        )
+        logger.info("Scheduled stale trade cleanup job (every 1h)")
+    except Exception as e:
+        logger.warning(f"Failed to schedule stale trade cleanup: {e}")
 
 def _register_event_driven_strategies() -> None:
     """Register strategies that support WS events with the event bus."""
@@ -584,6 +622,33 @@ def auto_disable_losing_strategies():
         logger.warning(f"Auto-disable check failed: {e}")
 
 
+async def _cleanup_stale_trades_job():
+    """Settle trades older than 24h that are still open. Prevents stale accumulation."""
+    from backend.db.utils import get_db_session
+    from backend.models.database import Trade
+
+    try:
+        with get_db_session() as db:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            stale = (
+                db.query(Trade)
+                .filter(Trade.settled.is_(False), Trade.created_at < cutoff)
+                .all()
+            )
+            if stale:
+                for t in stale:
+                    t.settled = True
+                    t.pnl = 0.0
+                    t.settlement_value = 0.5
+                    t.resolved_at = datetime.now(timezone.utc)
+                db.commit()
+                logger.info(
+                    f"[stale_trade_cleanup] Auto-settled {len(stale)} stale trades (>24h)"
+                )
+    except Exception as e:
+        logger.warning(f"[stale_trade_cleanup] Failed: {e}")
+
+
 def start_scheduler():
     """Start the background scheduler for multi-strategy trading."""
     global queue, worker, worker_task
@@ -659,6 +724,17 @@ def start_scheduler():
             f"Scheduled auto-redeem job every {auto_redeem_seconds}s "
             f"(dry_run={getattr(settings, 'AUTO_REDEEM_DRY_RUN', True)})"
         )
+
+    # Stale trade cleanup: settle trades older than 24h to prevent accumulation
+    _persist_and_add_job(
+        scheduler,
+        _cleanup_stale_trades_job,
+        IntervalTrigger(hours=1),
+        id="stale_trade_cleanup",
+        max_instances=1,
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
 
     from backend.core.mode_context import list_contexts
 
