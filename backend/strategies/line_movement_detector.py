@@ -71,6 +71,10 @@ class LineMovementDetectorStrategy(BaseStrategy):
         "max_spread_pct": 0.05,
         "min_imbalance_ratio": -0.6,
         "min_top_size": 5.0,
+        "max_open_positions": 5,
+        "max_per_asset": 1,
+        "stop_loss_pct": 0.20,
+        "profit_target_pct": 0.08,
     }
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:

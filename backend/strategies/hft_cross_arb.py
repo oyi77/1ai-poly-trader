@@ -613,6 +613,10 @@ class HFTCrossArbStrategy(BaseStrategy):
         "kelly_fraction": 0.25,
         "slippage_bps": 5.0,
         "enabled": True,
+        "max_open_positions": 5,
+        "max_per_asset": 1,
+        "stop_loss_pct": 0.10,
+        "profit_target_pct": 0.05,
     }
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:

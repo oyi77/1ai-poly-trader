@@ -242,6 +242,10 @@ class CrossMarketArb(BaseStrategy):
         "min_profit": settings.CROSS_MARKET_ARB_MIN_PROFIT,
         "min_spread_pct": getattr(settings, "CROSS_ARB_MIN_SPREAD_PCT", 0.013),
         "enabled": True,
+        "max_open_positions": 5,
+        "max_per_asset": 1,
+        "stop_loss_pct": 0.10,
+        "profit_target_pct": 0.05,
     }
 
     async def detect(

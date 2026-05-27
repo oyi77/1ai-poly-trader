@@ -79,6 +79,10 @@ class HFTScalperStrategy(BaseStrategy):
         "momentum_confirmation": 2,  # need N consecutive same-direction ticks
         "max_concurrent_positions": 5,
         "max_daily_loss_pct": 0.03,  # 3% bankroll max daily loss
+        "max_open_positions": 10,
+        "max_per_asset": 2,
+        "stop_loss_pct": 0.05,
+        "profit_target_pct": 0.03,
     }
 
     # -- Event-driven (WebSocket) subscription config --
