@@ -381,12 +381,15 @@ async def check_strategy_positions_for_auto_sell(
 
     def _load() -> list:
         with get_db_session() as db:
-            return (
+            trades = (
                 db.query(Trade)
                 .filter(Trade.settled.is_(False))
                 .filter(Trade.strategy == strategy_name)
                 .all()
             )
+            for t in trades:
+                db.expunge(t)
+            return trades
 
     trades = await asyncio.to_thread(_load)
     if not trades:
