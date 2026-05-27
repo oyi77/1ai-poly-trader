@@ -273,6 +273,23 @@ class MarketMakerStrategy(BaseStrategy):
     def _clear_active_quotes(self, market_id: str) -> None:
         self._active_quotes.pop(market_id, None)
 
+    def _estimate_volatility(self, market_id: str) -> float:
+        """Estimate volatility from recent price history."""
+        prices = list(self._price_history.get(market_id, []))
+        if len(prices) < 2:
+            return 0.05  # default fallback
+        recent = [p[1] for p in prices[-50:]]
+        returns = [(recent[i] - recent[i-1]) / recent[i-1] for i in range(1, len(recent)) if recent[i-1] > 0]
+        if not returns:
+            return 0.05
+        import numpy as np
+        return max(0.001, float(np.std(returns)))
+
+    def _estimate_time_remaining(self, market_id: str) -> float:
+        """Estimate seconds to market resolution. Default 1h if unknown."""
+        # Market end time not available in this context — use default
+        return 3600.0
+
     def _should_refresh_quotes(
         self,
         market_id: str,
@@ -421,8 +438,8 @@ class MarketMakerStrategy(BaseStrategy):
 
         if self._should_refresh_quotes(market_id, spread, inventory, params):
             # Calculate new reservation and AS optimal quoting spread
-            volatility = 0.05
-            time_remaining = 3600.0
+            volatility = self._estimate_volatility(market_id)
+            time_remaining = self._estimate_time_remaining(market_id)
             quote = self.calculate_as_quote(mid, volatility, inventory, time_remaining, params)
 
             # Microstructure toxic flow safety

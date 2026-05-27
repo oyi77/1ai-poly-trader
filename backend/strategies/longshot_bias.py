@@ -152,7 +152,7 @@ class LongshotBiasStrategy(BaseStrategy):
                     decisions_recorded += 1
                     trades_attempted += 1
 
-                    # Place order via CLOB
+                    # Resolve NO token_id
                     no_token_id = market.metadata.get("no_token_id")
                     if not no_token_id:
                         ctx.logger.warning(
@@ -161,17 +161,21 @@ class LongshotBiasStrategy(BaseStrategy):
                         )
                         continue
 
-                    if ctx.mode != "paper":
-                        order = await ctx.clob.place_order(
-                            token_id=no_token_id,
-                            side="BUY",
-                            price=no_price,
-                            size=position_size,
-                        )
-                        if order:
-                            trades_placed += 1
-                    else:
-                        trades_placed += 1  # paper mode auto-fills
+                    # Return decision through executor pipeline (governed)
+                    decision = {
+                        "decision": "BUY",
+                        "direction": "NO",
+                        "market_ticker": market.slug,
+                        "token_id": no_token_id,
+                        "entry_price": no_price,
+                        "size": position_size,
+                        "confidence": true_win_prob,
+                        "edge": ev,
+                        "model_probability": true_win_prob,
+                        "market_type": "longshot_bias",
+                        "reasoning": f"longshot_bias ev={ev:.3f} kelly={kelly:.3f} win_prob={true_win_prob:.3f}",
+                    }
+                    result.decisions.append(decision)
 
                     ctx.logger.info(
                         "[longshot_bias] {} NO @ {:.2f}c | EV: {:.1%} | Kelly: {:.1%} | ${:.2f}",

@@ -266,7 +266,14 @@ class CrossMarketArb(BaseStrategy):
             matched = 0
             for poly_m in poly_markets:
                 try:
-                    poly_price = float(poly_m.get("outcomePrices", [0.5])[0])
+                    outcome_prices_raw = poly_m.get("outcomePrices", [0.5])
+                    if isinstance(outcome_prices_raw, str):
+                        import json as _json
+                        try:
+                            outcome_prices_raw = _json.loads(outcome_prices_raw)
+                        except Exception:
+                            outcome_prices_raw = [0.5]
+                    poly_price = float(outcome_prices_raw[0])
                     kalshi_m = self._find_kalshi_match(poly_m, kalshi_markets)
                     if not kalshi_m:
                         continue
