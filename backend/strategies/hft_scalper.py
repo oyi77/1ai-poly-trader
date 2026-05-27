@@ -93,7 +93,7 @@ class HFTScalperStrategy(BaseStrategy):
         super().__init__()
         # Rolling price history: market_id -> deque[(timestamp, price)]
         self._price_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=500))
-        # Open positions
+        # Open positions — restored from DB on startup
         self._open_positions: dict[str, ScalpPosition] = {}
         # Closed positions (last 200 for win rate calc)
         self._closed_positions: deque[ScalpPosition] = deque(maxlen=200)
