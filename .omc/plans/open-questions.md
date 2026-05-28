@@ -36,4 +36,21 @@ This file tracks unresolved questions, decisions deferred to the user, and items
 
 ---
 
+## perf-docs-consensus (Iteration 2) - 2026-05-27
+
+- [ ] Does `fetch_resolution_for_trade()` in settlement.py make additional DB queries internally? — If so, the batch fix impact on total query count is smaller than the Trade lookup alone. Addressed by Phase 0 baseline measurement distinguishing DB queries from external API calls.
+- [ ] Should `_chunked_ids()` utility be placed in `backend/db/utils.py` or `backend/utils/`? — Used by settlement and potentially signals batch query. Needs a shared location.
+- [ ] Activity source `MIN_POLL_INTERVAL` value (5s) — Is 5s sufficient for all platforms? Some platforms (e.g., Hyperliquid) may need faster polling. Consider per-source override.
+- [ ] Calibration Brier score SQL — does `actual_outcome` column already store 1.0/0.0, or does it need a CASE mapping from string "win"/"loss"? Must verify before SQL migration.
+
+---
+
+## ralplan-arb-consolidation v2 - 2026-05-28
+
+- [ ] Should `ArbOpportunityScanner._normalize_*` helpers be extracted to shared module? -- New strategy needs similar normalization for `MarketInfo` objects from providers.
+- [ ] Max opportunities per cycle (10) -- too aggressive or conservative? -- Affects rate limiting and API load across multiple venues.
+- [ ] Per-provider AGI health visibility -- `unified_pm_arb` evaluated as one strategy; do we need per-provider logging for debugging when one venue underperforms?
+
+---
+
 **Instructions:** When a question is resolved, remove it from this file and document the decision in the appropriate ADR or implementation plan.

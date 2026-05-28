@@ -26,11 +26,24 @@ class LimitlessClient:
         return self._sdk
 
     async def get_markets(self, limit: int = 100) -> list:
-        """Get active markets from Limitless Exchange."""
-        sdk = self._get_sdk()
+        """Get active markets from Limitless Exchange using raw API (avoids SDK rate limits)."""
+        import httpx
         try:
-            markets = await sdk.get_all_active_markets()
-            return markets[:limit] if markets else []
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                pages_needed = (limit + 24) // 25  # 25 markets per page
+                all_markets = []
+                for page in range(1, pages_needed + 1):
+                    resp = await client.get(
+                        f"{os.getenv('LIMITLESS_API_URL', 'https://api.limitless.exchange')}/markets/active",
+                        params={"limit": 25, "page": page},
+                    )
+                    if resp.status_code != 200:
+                        break
+                    data = resp.json().get("data", [])
+                    if not data:
+                        break
+                    all_markets.extend(data)
+                return all_markets[:limit]
         except Exception as e:
             logger.warning(f"[limitless] get_markets failed: {e}")
             return []
