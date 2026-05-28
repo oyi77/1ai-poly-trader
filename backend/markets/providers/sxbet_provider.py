@@ -101,6 +101,19 @@ class SXBetProvider(BaseMarketProvider):
         """SX.bet doesn't support cancel."""
         return False
 
+    @staticmethod
+    def _rejected(order: NormalizedOrder, reason: str) -> NormalizedOrderResult:
+        return NormalizedOrderResult(
+            venue_order_id="",
+            client_order_id=order.client_order_id,
+            status=OrderStatus.REJECTED,
+            filled_size=Decimal("0"),
+            filled_avg_price=None,
+            remaining_size=order.size,
+            fees_paid=Decimal("0"),
+            raw={"error": reason},
+        )
+
     async def get_markets(self, limit: int = 50, **kwargs) -> list[MarketInfo]:
         """Get available markets from SX.bet."""
         raw = await self._client.get_markets(limit=limit)
