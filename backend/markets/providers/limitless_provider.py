@@ -101,18 +101,28 @@ class LimitlessProvider(BaseMarketProvider):
         private_key = os.getenv("LIMITLESS_PRIVATE_KEY", "")
         return await self._client.cancel_order(venue_order_id, private_key)
 
+    async def search_markets(self, query=None, category=None, limit=50, **kwargs) -> list:
+        """Search markets — delegates to get_markets since Limitless has no search API."""
+        return await self.get_markets(limit=limit)
+
     async def get_markets(self, limit: int = 50, **kwargs) -> list[MarketInfo]:
         """Get available markets from Limitless Exchange."""
         raw = await self._client.get_markets(limit=limit)
-        return [
-            MarketInfo(
+        result = []
+        for m in raw:
+            prices = m.get("prices", [])
+            yes_price = float(prices[0]) if prices and len(prices) > 0 else 0.5
+            no_price = float(prices[1]) if prices and len(prices) > 1 else 1.0 - yes_price
+            title = m.get("title") or m.get("proxyTitle") or m.get("question", "")
+            result.append(MarketInfo(
                 market_id=str(m.get("id", "")),
-                question=str(m.get("question", "")),
-                yes_price=0.5,
-                no_price=0.5,
-            )
-            for m in raw
-        ]
+                question=title,
+                yes_price=yes_price,
+                no_price=no_price,
+                volume_24h=Decimal(str(m.get("volume", 0) or 0)),
+                raw=m,
+            ))
+        return result
 
     async def get_balance(self) -> NormalizedBalance:
         """Get account balance."""

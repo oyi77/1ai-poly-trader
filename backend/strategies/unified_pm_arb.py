@@ -111,8 +111,41 @@ _FEE_MAP: Dict[str, float] = {
 # ---------------------------------------------------------------------------
 
 def _normalize_market_info(m: Any, venue: str) -> dict:
-    """Convert a MarketInfo dataclass (from provider) to the dict format
+    """Convert a MarketInfo dataclass or raw dict to the dict format
     expected by CrossMarketArbEnhanced.scan_all_providers()."""
+    # Handle raw dicts (from get_markets fallback)
+    if isinstance(m, dict):
+        raw = m
+        title = m.get("question") or m.get("title") or m.get("proxyTitle") or ""
+        # SXBet: construct title from team names
+        if not title and m.get("teamOneName"):
+            title = f"{m.get('teamOneName', '')} vs {m.get('teamTwoName', '')}"
+        market_id = str(m.get("id", m.get("marketHash", "")))
+        prices = m.get("prices", m.get("outcomePrices", []))
+        yes_price = float(prices[0]) if prices and len(prices) > 0 else None
+        no_price = float(prices[1]) if prices and len(prices) > 1 else None
+        slug = str(m.get("slug", ""))
+        clob_ids = m.get("clobTokenIds") or []
+        if isinstance(clob_ids, str):
+            try:
+                clob_ids = json.loads(clob_ids)
+            except Exception:
+                clob_ids = []
+        return {
+            "question": title,
+            "event_id": market_id,
+            "slug": slug,
+            "yes_price": yes_price,
+            "no_price": no_price,
+            "platform": venue,
+            "fee_pct": _FEE_MAP.get(venue, 0.02),
+            "liquidity": float(m.get("liquidity", m.get("liquidityNum", 0)) or 0),
+            "volume": float(m.get("volume", m.get("volumeNum", 0)) or 0),
+            "clobTokenIds": clob_ids,
+            "_raw": raw,
+        }
+
+    # Handle MarketInfo dataclass
     raw = m.raw if hasattr(m, "raw") and m.raw else {}
     if isinstance(raw, str):
         try:
@@ -553,10 +586,16 @@ class UnifiedPMArb(BaseStrategy):
     ) -> List[dict]:
         """Fetch and normalize markets from a single provider."""
         try:
+            # Try search_markets first, fall back to get_markets
             raw = await asyncio.wait_for(
                 provider.search_markets(None, category=None, limit=500),
                 timeout=15.0,
             )
+            if not raw and hasattr(provider, 'get_markets'):
+                raw = await asyncio.wait_for(
+                    provider.get_markets(limit=500),
+                    timeout=15.0,
+                )
             normalized = [_normalize_market_info(m, venue) for m in (raw or [])]
             logger.debug(f"[unified_arb] {venue}: {len(normalized)} markets")
             return normalized
