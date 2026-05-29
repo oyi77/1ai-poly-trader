@@ -574,6 +574,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if settings.REDIS_ENABLED:
         asyncio.create_task(_redis_log_bridge())
 
+    # --- Market Provider Discovery ---
+    try:
+        from backend.markets.provider_registry import market_registry
+
+        market_registry.auto_discover("backend.markets.providers")
+        logger.info(f"[LIFESPAN] Market providers discovered: {list(market_registry._plugins.keys())}")
+    except Exception as e:
+        logger.warning(f"[LIFESPAN] Market provider discovery failed: {e}")
+
     # --- AGI Node Discovery ---
     try:
         from backend.agi.node_registry import node_registry
