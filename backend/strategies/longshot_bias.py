@@ -193,18 +193,19 @@ class LongshotBiasStrategy(BaseStrategy):
                     decisions_recorded += 1
                     trades_attempted += 1
 
-                    # Place order via CLOB
-                    if ctx.mode != "paper":
-                        order = await ctx.clob.place_order(
-                            token_id=no_token_id,
-                            side="BUY",
-                            price=no_price,
-                            size=position_size,
-                        )
-                        if order:
-                            trades_placed += 1
-                    else:
-                        trades_placed += 1  # paper mode auto-fills
+                    decision = {
+                        "market_slug": slug,
+                        "token_id": no_token_id,
+                        "side": "BUY",
+                        "price": round(no_price, 3),
+                        "size": round(position_size, 2),
+                        "confidence": true_win_prob,
+                        "edge": ev,
+                        "model_probability": true_win_prob,
+                        "market_type": "longshot_bias",
+                        "reasoning": f"longshot_bias ev={ev:.3f} kelly={kelly:.3f} win_prob={true_win_prob:.3f}",
+                    }
+                    decisions.append(decision)
 
                     ctx.logger.info(
                         "[longshot_bias] {} NO @ {:.2f}c | EV: {:.1%} | Kelly: {:.1%} | ${:.2f}",
