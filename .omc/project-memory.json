@@ -303,8 +303,8 @@
     },
     {
       "path": "backend/config.py",
-      "accessCount": 18,
-      "lastAccessed": 1779802500384,
+      "accessCount": 21,
+      "lastAccessed": 1780083177834,
       "type": "file"
     },
     {
@@ -362,6 +362,12 @@
       "type": "file"
     },
     {
+      "path": "backend/strategies/base.py",
+      "accessCount": 7,
+      "lastAccessed": 1780083058655,
+      "type": "directory"
+    },
+    {
       "path": "backend/core/settlement/settlement_helpers.py",
       "accessCount": 6,
       "lastAccessed": 1779751198584,
@@ -396,12 +402,6 @@
       "accessCount": 5,
       "lastAccessed": 1779751134263,
       "type": "file"
-    },
-    {
-      "path": "backend/strategies/base.py",
-      "accessCount": 5,
-      "lastAccessed": 1779802646889,
-      "type": "directory"
     },
     {
       "path": "backend/core/settlement/settlement.py",
@@ -476,6 +476,12 @@
       "type": "directory"
     },
     {
+      "path": "backend/markets",
+      "accessCount": 2,
+      "lastAccessed": 1780082813648,
+      "type": "directory"
+    },
+    {
       "path": "backend/core/settlement_helpers.py",
       "accessCount": 1,
       "lastAccessed": 1779751174123,
@@ -504,12 +510,6 @@
       "accessCount": 1,
       "lastAccessed": 1779751182371,
       "type": "file"
-    },
-    {
-      "path": "backend/markets",
-      "accessCount": 1,
-      "lastAccessed": 1779756689336,
-      "type": "directory"
     },
     {
       "path": "backend/core/trade_attempts.py",
