@@ -98,6 +98,20 @@ async def agi_health_check_job() -> None:
         logger.exception("agi_health_check_job failed: %s", exc)
         log_event("error", f"AGI health check failed: {exc}")
 
+    # Run risk auto-disable check (per-strategy daily loss + portfolio drawdown)
+    try:
+        from backend.core.strategy_gate import check_risk_and_disable
+        from backend.db.utils import get_db_session
+
+        with get_db_session() as db:
+            disabled = check_risk_and_disable(db)
+            if disabled:
+                for reason in disabled:
+                    logger.warning("[AGI Health] Risk auto-disable: %s", reason)
+                    log_event("warning", f"Risk auto-disable: {reason}")
+    except Exception as exc:
+        logger.exception("agi_health_check_job risk disable failed: %s", exc)
+
 
 async def nightly_review_job() -> None:
     from backend.core.scheduler import log_event

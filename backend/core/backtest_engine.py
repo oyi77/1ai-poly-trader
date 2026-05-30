@@ -216,56 +216,85 @@ class EnhancedBacktestEngine:
         return self._simulate_signals(signals, strategy_name)
 
     def _fetch_signals(self, strategy_name: str, db=None) -> list[dict]:
-        """Fetch historical signals/trades from DB for backtesting."""
+        """Fetch historical trades from DB for backtesting.
+
+        Queries Trade first (has strategy field, settled pnl, entry_price).
+        Falls back to Signal joined with Trade when no settled trades exist.
+        """
         from backend.models.database import Trade, Signal, SessionLocal
 
         _owned = db is None
         if _owned:
             db = SessionLocal()
         try:
-            signals = (
-                db.query(Signal)
-                .filter(
-                    Signal.strategy == strategy_name,
-                    Signal.timestamp >= self.config.start_date,
-                    Signal.timestamp <= self.config.end_date,
-                )
-                .all()
-            )
-            if signals:
-                return [
-                    {
-                        "timestamp": s.timestamp,
-                        "price": getattr(s, "price", 0.5),
-                        "edge": getattr(s, "edge", 0.0),
-                        "size": getattr(s, "size", self.config.max_trade_size),
-                        "pnl": getattr(s, "pnl", None),
-                        "result": getattr(s, "result", None),
-                    }
-                    for s in signals
-                ]
-
-            # Fallback to trades
+            # Primary: settled trades (have strategy, pnl, entry_price, size)
             trades = (
                 db.query(Trade)
                 .filter(
                     Trade.strategy == strategy_name,
                     Trade.timestamp >= self.config.start_date,
                     Trade.timestamp <= self.config.end_date,
-                    Trade.settled,
+                    Trade.settled.is_(True),
+                )
+                .all()
+            )
+            if trades:
+                return [
+                    {
+                        "timestamp": t.timestamp,
+                        "price": t.entry_price or 0.5,
+                        "edge": t.edge_at_entry or 0.0,
+                        "size": t.size or self.config.max_trade_size,
+                        "pnl": t.pnl or 0.0,
+                        "result": t.result,
+                    }
+                    for t in trades
+                ]
+
+            # Fallback: all trades (not yet settled) for strategy
+            all_trades = (
+                db.query(Trade)
+                .filter(
+                    Trade.strategy == strategy_name,
+                    Trade.timestamp >= self.config.start_date,
+                    Trade.timestamp <= self.config.end_date,
+                )
+                .all()
+            )
+            if all_trades:
+                return [
+                    {
+                        "timestamp": t.timestamp,
+                        "price": t.entry_price or 0.5,
+                        "edge": t.edge_at_entry or 0.0,
+                        "size": t.size or self.config.max_trade_size,
+                        "pnl": t.pnl,
+                        "result": t.result,
+                    }
+                    for t in all_trades
+                ]
+
+            # Last resort: signals joined with trades by signal_id
+            signals = (
+                db.query(Signal)
+                .join(Trade, Trade.signal_id == Signal.id)
+                .filter(
+                    Trade.strategy == strategy_name,
+                    Signal.timestamp >= self.config.start_date,
+                    Signal.timestamp <= self.config.end_date,
                 )
                 .all()
             )
             return [
                 {
-                    "timestamp": t.timestamp,
-                    "price": getattr(t, "entry_price", 0.5),
-                    "edge": getattr(t, "edge", 0.0),
-                    "size": getattr(t, "size", self.config.max_trade_size),
-                    "pnl": getattr(t, "pnl", 0.0),
-                    "result": getattr(t, "result", None),
+                    "timestamp": s.timestamp,
+                    "price": s.market_price or 0.5,
+                    "edge": s.edge or 0.0,
+                    "size": s.suggested_size or self.config.max_trade_size,
+                    "pnl": None,
+                    "result": None,
                 }
-                for t in trades
+                for s in signals
             ]
         finally:
             if _owned:

@@ -96,8 +96,3 @@ class TechnicalEdgeCalculator(EdgeCalculator):
                 "composite": composite,
             },
         )
-
-    @staticmethod
-    def _sigmoid(x: float) -> float:
-        """Map a [-1, 1] composite to [0, 1] probability."""
-        return 1.0 / (1.0 + math.exp(-4.0 * x))

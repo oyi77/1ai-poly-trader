@@ -22,6 +22,7 @@ from backend.core.market_scanner import MarketInfo
 from backend.core.decisions import record_decision_standalone
 from backend.core.activity_logger import activity_logger
 from backend.config import settings
+from backend.data.crypto import compute_crypto_microstructure
 from backend.core.calibration import get_bucket_win_rate, kelly_fraction
 from backend.core.crypto_oracle_tracker import CryptoOracleTracker
 from backend.db.utils import get_db_session
@@ -223,7 +224,6 @@ async def fetch_crypto_price_for_asset(asset: str = "bitcoin") -> Optional[float
         asset: CoinGecko ID ("bitcoin", "ethereum", "solana").
     """
     try:
-        from backend.data.crypto import compute_crypto_microstructure
 
         micro = await compute_crypto_microstructure(asset)
         if micro and micro.price > 0:
@@ -532,7 +532,6 @@ class CryptoOracleStrategy(BaseStrategy):
             )
             return None
 
-        from backend.data.crypto import compute_crypto_microstructure
 
         try:
             micro = await compute_crypto_microstructure(asset)
@@ -773,8 +772,7 @@ class CryptoOracleStrategy(BaseStrategy):
                 if minutes_remaining < 0 or minutes_remaining > max_minutes:
                     continue
 
-                from backend.data.crypto import compute_crypto_microstructure
-
+    
                 try:
                     micro = await compute_crypto_microstructure(coingecko_id)
                 except Exception as e:

@@ -569,15 +569,31 @@ def auto_disable_losing_strategies():
                     win_rate = wins / len(resolved)
                     pnl = sum(t.pnl for t in trades if t.pnl)
 
-                    if win_rate < 0.30 or pnl < -50.0:
+                    # Check consecutive losses (10+)
+                    recent_losses = sorted(
+                        [t for t in trades if t.result == "loss"],
+                        key=lambda t: t.settlement_time or t.timestamp,
+                        reverse=True,
+                    )
+                    consecutive_losses = 0
+                    for t in recent_losses:
+                        consecutive_losses += 1
+                        if consecutive_losses >= 10:
+                            break
+
+                    if win_rate < 0.30 or pnl < -50.0 or consecutive_losses >= 10:
                         from backend.core.strategy_health import disable_for_rehab
+                        reason_parts = []
+                        if win_rate < 0.30:
+                            reason_parts.append(f"win_rate={win_rate:.0%}")
+                        if pnl < -50.0:
+                            reason_parts.append(f"pnl=${pnl:.0f}")
+                        if consecutive_losses >= 10:
+                            reason_parts.append(f"{consecutive_losses}+ consecutive losses")
+                        reason_str = ", ".join(reason_parts)
                         disable_for_rehab(config)
-                        disabled.append(
-                            f"{config.strategy_name} ({mode}): win_rate={win_rate:.0%}, pnl=${pnl:.0f}"
-                        )
-                        logger.warning(
-                            f"Auto-disabled {config.strategy_name} ({mode}): win_rate={win_rate:.0%}, pnl=${pnl:.0f}"
-                        )
+                        disabled.append(f"{config.strategy_name} ({mode}): {reason_str}")
+                        logger.warning(f"Auto-disabled {config.strategy_name} ({mode}): {reason_str}")
                         break
                     else:
                         # Maker/Taker ROI audit — uses pre-fetched stats
@@ -613,6 +629,35 @@ def auto_disable_losing_strategies():
                                     f"Throttled {config.strategy_name} ({mode}) due to Taker "
                                     f"underperformance: {reason}. Enforced maker-only execution."
                                 )
+
+        # 2. Cumulative 7-day loss check (catches slow bleed not visible in 24h)
+        from sqlalchemy import func as _func
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        for config in enabled_configs:
+            if not config.enabled:
+                continue
+            for mode in active_modes:
+                cum_pnl = (
+                    db.query(_func.coalesce(_func.sum(Trade.pnl), 0.0))
+                    .filter(
+                        Trade.strategy == config.strategy_name,
+                        Trade.trading_mode == mode,
+                        Trade.settled,
+                        Trade.timestamp >= week_ago,
+                    )
+                    .scalar()
+                    or 0.0
+                )
+                if cum_pnl < -100.0:
+                    from backend.core.strategy_health import disable_for_rehab
+                    disable_for_rehab(config)
+                    disabled.append(
+                        f"{config.strategy_name} ({mode}): 7d cumulative loss ${abs(cum_pnl):.0f}"
+                    )
+                    logger.warning(
+                        f"Auto-disabled {config.strategy_name} ({mode}): 7d cumulative loss ${abs(cum_pnl):.0f}"
+                    )
+                    break
 
         if disabled:
             logger.info(
