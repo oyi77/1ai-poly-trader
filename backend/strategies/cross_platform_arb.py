@@ -19,7 +19,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -689,7 +689,7 @@ class CrossPlatformArbStrategy(BaseStrategy):
                 )
                 ctx.db.add(log_row)
             except Exception:
-                pass
+                logger.debug("Silenced error", exc_info=True)
 
         # 6. Commit DB
         try:

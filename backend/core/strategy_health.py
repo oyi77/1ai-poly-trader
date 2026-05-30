@@ -100,8 +100,16 @@ class StrategyHealthMonitor:
         psi = self.compute_psi(strategy, db, trading_mode=trading_mode)
         brier = self._brier_from_outcomes(outcomes)
 
-        # Determine status
+        # Determine status — check multiple kill conditions
+        kill_reason = None
         if self._should_kill_metrics(total, win_rate, sharpe, max_dd):
+            kill_reason = f"win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}"
+        elif self._check_consecutive_losses(outcomes):
+            kill_reason = f"10+ consecutive losses (last {min(total, 10)} trades all losses)"
+        elif self._check_daily_loss_exceeded(outcomes, max_daily_loss=100.0):
+            kill_reason = "cumulative 24h loss > $100"
+
+        if kill_reason:
             status = "killed"
             if not readonly:
                 self._disable_strategy(strategy, db)
@@ -113,7 +121,7 @@ class StrategyHealthMonitor:
                         {
                             "strategy_name": strategy,
                             "genome_id": getattr(self, "genome_id", None),
-                            "reason": f"health_monitor: win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}",
+                            "reason": f"health_monitor: {kill_reason}",
                             "metrics": {
                                 "win_rate": win_rate,
                                 "sharpe": sharpe,
@@ -190,7 +198,7 @@ class StrategyHealthMonitor:
         win_rate = wins / total
         sharpe = self._sharpe_from_outcomes(outcomes)
         max_dd = self._max_drawdown_from_outcomes(outcomes)
-        return self._should_kill_metrics(total, win_rate, sharpe, max_dd)
+        return self._should_kill_metrics(total, win_rate, sharpe, max_dd) or self._check_consecutive_losses(outcomes)
 
     def should_warn(
         self, strategy: str, db: Session, trading_mode: str = "live"
@@ -291,6 +299,25 @@ class StrategyHealthMonitor:
         if sharpe < self.KILL_SHARPE and max_dd > self.KILL_DRAWDOWN:
             return True
         return False
+
+    def _check_consecutive_losses(self, outcomes) -> bool:
+        """Return True if last 10+ outcomes are all losses."""
+        CONSECUTIVE_LOSS_KILL = 10
+        if len(outcomes) < CONSECUTIVE_LOSS_KILL:
+            return False
+        recent = outcomes[-CONSECUTIVE_LOSS_KILL:]
+        return all(o.result == "loss" for o in recent)
+
+    def _check_daily_loss_exceeded(self, outcomes, max_daily_loss: float) -> bool:
+        """Return True if cumulative loss in last 24h exceeds threshold."""
+        from datetime import timedelta
+        cutoff = _now_utc() - timedelta(hours=24)
+        daily_pnl = 0.0
+        for o in outcomes:
+            settled = getattr(o, "settled_at", None) or getattr(o, "settlement_time", None)
+            if settled and settled >= cutoff and o.pnl is not None:
+                daily_pnl += o.pnl
+        return daily_pnl < -max_daily_loss
 
     def _should_warn_metrics(self, win_rate: float, brier: float, psi: float) -> bool:
         return (

@@ -12,7 +12,6 @@ Pipeline:
 
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -33,9 +32,6 @@ from backend.strategies.base import (
 
 # Default profitable wallets to seed scanning (well-known Polymarket traders)
 # These are starting points; WalletSelector dynamically discovers more.
-SEED_WALLETS = [
-    "0x6B175474E89094C44Da98b954EedeAC495271d0F",  # placeholder — replaced at runtime
-]
 
 # Polymarket Data API base (from settings.DATA_API_URL)
 # Used for: activity, positions, closed-positions
@@ -322,7 +318,7 @@ class TradeDetector:
                     if age > max_delay:
                         continue
             except Exception:
-                pass  # include if timestamp parsing fails
+                logger.debug("Silenced error", exc_info=True)  # include if timestamp parsing fails
 
             new.append(t)
 
