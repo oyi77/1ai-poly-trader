@@ -130,6 +130,7 @@ class LongshotBiasStrategy(BaseStrategy):
 
                     # --- HARD GUARD: max entry price (longshots must be cheap) ---
                     if no_price > max_entry_price:
+                        ctx.logger.info(f"[longshot_bias] GUARD blocked: {slug} no_price={no_price:.3f} > max={max_entry_price:.3f}")
                         continue
 
                     # --- HARD GUARD: minimum model probability ---
