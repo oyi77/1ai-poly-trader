@@ -4,7 +4,7 @@ import json
 import re
 import time
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Any, Optional, List
 from dataclasses import dataclass
 
 from backend.core.market_scanner import fetch_markets_by_keywords
