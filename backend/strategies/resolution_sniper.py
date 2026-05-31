@@ -138,7 +138,7 @@ class ResolutionSniperStrategy(BaseStrategy):
             ctx.logger.warning(f"[{self.name}] No crypto prices available, skipping cycle")
             return result
 
-        # --- fetch active 5-min crypto markets from Gamma ---
+        # --- fetch active markets from Gamma (no tag filter — tag=crypto broken) ---
         try:
             client = get_shared_client()
             resp = await client.get(
@@ -152,7 +152,13 @@ class ResolutionSniperStrategy(BaseStrategy):
                 },
             )
             resp.raise_for_status()
-            markets = resp.json()
+            all_markets = resp.json()
+            # Filter to crypto markets by slug/question (tag=crypto returns garbage)
+            _CRYPTO_KW = ("btc", "eth", "sol", "bitcoin", "ethereum", "solana")
+            markets = [
+                m for m in all_markets
+                if any(k in (m.get("slug", "") + m.get("question", "")).lower() for k in _CRYPTO_KW)
+            ]
         except Exception as e:
             ctx.logger.warning(f"[{self.name}] Gamma API fetch failed: {e}")
             result.errors.append(str(e))

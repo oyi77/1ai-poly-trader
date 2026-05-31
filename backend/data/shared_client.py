@@ -36,7 +36,9 @@ def get_shared_client() -> httpx.AsyncClient:
                 "Accept": "application/json",
             },
         )
-        logger.info("[shared_client] Created shared httpx.AsyncClient (max_connections=100)")
+        logger.info(
+            "[shared_client] Created shared httpx.AsyncClient (max_connections=100)"
+        )
     return _shared_client
 
 

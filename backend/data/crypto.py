@@ -218,7 +218,9 @@ async def fetch_crypto_klines(
 
     # Limit concurrent HTTP fetches to prevent PoolTimeout
     async with _kline_semaphore:
-        return await _fetch_klines_with_fallback(client, pair, limit, cache, now, coinbase_product, kraken_pair)
+        return await _fetch_klines_with_fallback(
+            client, pair, limit, cache, now, coinbase_product, kraken_pair
+        )
 
 
 async def _fetch_klines_with_fallback(
