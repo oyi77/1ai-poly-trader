@@ -307,6 +307,7 @@ class SellSignal:
 
 _price_client = httpx.Client(timeout=10.0, limits=httpx.Limits(max_connections=50))
 
+
 def _fetch_current_price(ticker: str) -> Optional[float]:
     """Fetch current yes-price for a market ticker using Gamma/CLOB API.
 

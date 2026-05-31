@@ -31,7 +31,7 @@ from backend.strategies.base import (
 )
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from backend.config import settings
-from backend.data.shared_client import get_shared_client, _cfg
+from backend.data.shared_client import get_shared_client
 
 from loguru import logger
 

@@ -187,7 +187,9 @@ class AutoSellManager:
             effective_stop_loss = 0.0  # breakeven stop
             logger.debug(
                 "[auto_sell] Trailing stop activated for trade_id={} pnl={:.4f}% >= {:.4f}%, stop moved to breakeven",
-                trade_id, pnl_pct * 100, self.trailing_stop_activation * 100,
+                trade_id,
+                pnl_pct * 100,
+                self.trailing_stop_activation * 100,
             )
 
         if pnl_pct >= self.profit_target:
@@ -352,11 +354,12 @@ async def auto_sell_monitor_job() -> None:
         prices = await asyncio.to_thread(_fetch_prices_bulk, tickers)
         if not prices:
             return
-            
+
         from backend.markets.provider_registry import market_registry
 
         # Group trades by platform to fetch the right client
         from collections import defaultdict
+
         trades_by_platform = defaultdict(list)
         for t in trades:
             plat = getattr(t, "platform", "polymarket") or "polymarket"
@@ -364,11 +367,13 @@ async def auto_sell_monitor_job() -> None:
 
         manager = AutoSellManager()
         total_results = []
-        
+
         for platform, plat_trades in trades_by_platform.items():
             provider = market_registry.get_provider(platform)
             # If provider is found, it will be used as clob_client to execute live orders
-            results = await manager.scan_and_sell_all(plat_trades, prices, clob_client=provider)
+            results = await manager.scan_and_sell_all(
+                plat_trades, prices, clob_client=provider
+            )
             total_results.extend(results)
 
         if total_results:
@@ -407,6 +412,7 @@ async def check_strategy_positions_for_auto_sell(
 
     def _load() -> list:
         from backend.models.database import SessionLocal
+
         db = SessionLocal()
         db.expire_on_commit = False
         try:
@@ -433,7 +439,12 @@ async def check_strategy_positions_for_auto_sell(
     # Use token_id (digits) for CLOB midpoint price lookup, not market_ticker (slug)
     token_ids = list({t.token_id for t in trades if t.token_id})
     prices = await asyncio.to_thread(_fetch_prices_bulk, token_ids)
-    logger.info("[auto_sell] {} — {} open trades, {} prices fetched", strategy_name, len(trades), len(prices))
+    logger.info(
+        "[auto_sell] {} — {} open trades, {} prices fetched",
+        strategy_name,
+        len(trades),
+        len(prices),
+    )
 
     manager = AutoSellManager(
         profit_target_pct=profit_target_pct,
