@@ -263,7 +263,7 @@ async def fetch_resolved_markets(
                 last_item.get("cursor") if isinstance(last_item, dict) else None
             )
             if not cursor:
-                    break
+                break
 
         logger.info(
             "[gamma] Fetched %d resolved markets (limit=%d, tag=%s)",
