@@ -7,7 +7,8 @@ import pytest
 try:
     from hexbytes import HexBytes
 except ImportError:
-    HexBytes = lambda x: x if isinstance(x, bytes) else bytes.fromhex(x.replace("0x", ""))
+    def HexBytes(x):
+        return x if isinstance(x, bytes) else bytes.fromhex(x.replace("0x", ""))
 
 from backend.data.clob_event_indexer import CLOBEventIndexer, ORDER_FILLED_TOPIC
 from backend.data.goldsky_client import process_trade_event
@@ -142,7 +143,7 @@ def test_fetch_events_integration():
     indexer = CLOBEventIndexer(rpc_url="http://mock-rpc")
     mock_w3 = MagicMock()
     mock_w3.eth.block_number = 5000
-    
+
     # Setup mock logs
     maker_topic = HexBytes("0x0000000000000000000000001111111111111111111111111111111111111111")
     taker_topic = HexBytes("0x0000000000000000000000002222222222222222222222222222222222222222")

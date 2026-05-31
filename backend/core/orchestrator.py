@@ -681,7 +681,7 @@ async def main() -> None:
                 for thread_id, stack in sys._current_frames().items():
                     f.write(f"\n--- Thread {thread_id} ---\n")
                     traceback.print_stack(stack, file=f)
-                
+
                 f.write("\n=== Async Tasks ===\n")
                 try:
                     loop = asyncio.get_event_loop()

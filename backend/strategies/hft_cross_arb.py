@@ -462,7 +462,7 @@ class HFTCrossArbExecutor:
         arb_id: str,
     ) -> Optional[str]:
         """Place Kalshi order leg with circuit breaker + retry."""
-        idempotency_key = f"arb-{arb_id}-kalshi-{int(time.monotonic() * 1000000)}"
+        f"arb-{arb_id}-kalshi-{int(time.monotonic() * 1000000)}"
 
         for attempt in range(self._MAX_RETRIES):
             try:
