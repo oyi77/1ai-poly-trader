@@ -128,8 +128,8 @@ class ResolutionSniperStrategy(BaseStrategy):
         for prefix, (coingecko_id, _binance_pair) in _ASSET_PAIRS.items():
             try:
                 micro = await compute_crypto_microstructure(coingecko_id)
-                if micro and getattr(micro, "current_price", None):
-                    price_cache[prefix] = float(micro.current_price)
+                if micro and getattr(micro, "price", None):
+                    price_cache[prefix] = float(micro.price)
             except Exception as e:
                 logger.debug(f"[{self.name}] Failed to fetch {coingecko_id} price: {e}")
 
