@@ -145,6 +145,7 @@ class ResolutionSniperStrategy(BaseStrategy):
             for asset_prefix in _ASSET_PAIRS:
                 try:
                     asset_markets = await fetch_active_crypto_markets(asset=asset_prefix)
+                    ctx.logger.info(f"[{self.name}] fetch_active_crypto_markets({asset_prefix}) returned {len(asset_markets)} markets")
                     for m in asset_markets:
                         markets.append({
                             "slug": m.slug,
