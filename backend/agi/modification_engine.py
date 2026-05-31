@@ -386,7 +386,7 @@ class CodeGenerator:
             GeneratedCode if successful, None on failure
         """
         self._generation_count += 1
-        
+
         from backend.ai.llm_router import LLMRouter
         import re
 

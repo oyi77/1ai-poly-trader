@@ -69,11 +69,11 @@ class LimitlessClient:
                 resp = await client.get(f"{self._base_url}/markets/active", params={"limit": 1})
                 resp.raise_for_status()
                 data = resp.json().get("data", [])
-                
+
                 if data and isinstance(data, list) and len(data) > 0:
                     venue = data[0].get("venue", {})
                     contract = venue.get("exchange")
-        
+
         if not contract or contract == "0x0000000000000000000000000000000000000000":
             raise RuntimeError("Limitless exchange contract address could not be fetched dynamically.")
 

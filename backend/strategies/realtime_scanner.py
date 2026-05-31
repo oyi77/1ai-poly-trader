@@ -113,9 +113,9 @@ class RealtimeScannerStrategy(BaseStrategy):
         try:
             from backend.core.market_scanner import fetch_all_active_markets, fetch_short_duration_token_ids
             import json
-            
+
             markets = await fetch_all_active_markets(limit=1000)
-            
+
             for m in markets:
                 raw_token_ids = m.metadata.get("clobTokenIds") or []
                 if isinstance(raw_token_ids, str):
@@ -124,15 +124,15 @@ class RealtimeScannerStrategy(BaseStrategy):
                     except Exception:
                         raw_token_ids = []
                 token_ids = [str(token_id) for token_id in raw_token_ids if token_id]
-                
+
                 if len(token_ids) >= 1:
                     self._token_to_ticker[token_ids[0]] = f"{m.slug}_YES"
                 if len(token_ids) >= 2:
                     self._token_to_ticker[token_ids[1]] = f"{m.slug}_NO"
-                    
+
             # Subset/limit our subscribed tokens to short duration or liquid ones
             short_tokens = await fetch_short_duration_token_ids(limit=50)
-            
+
             self.subscribed_tokens = set(short_tokens)
             self._tokens_populated = True
             logger.info(
@@ -289,7 +289,7 @@ class RealtimeScannerStrategy(BaseStrategy):
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
         """
         Execute one periodic/scheduled cycle.
-        
+
         RealtimeScannerStrategy is fully event-driven, but we preserve
         run_cycle to act as fallback and populate tokens periodically.
         """

@@ -139,9 +139,9 @@ class DexPriceFeed:
             from backend.clients.aster_client import AsterClient
             client = AsterClient()
 
-            markets = await client.get_markets()
+            await client.get_markets()
             tickers = await client.get_tickers()
-            
+
             quotes = []
             for symbol, ticker in tickers.items():
                 if not symbol.endswith("/USDC") and not symbol.endswith("/USDT"):

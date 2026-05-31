@@ -120,12 +120,12 @@ class MarketMakerStrategy(BaseStrategy):
         """Discover active short-duration markets and map outcome token IDs."""
         try:
             from backend.core.market_scanner import fetch_short_duration_token_ids
-            
+
             # MarketMaker subscribes to the top highly liquid short-duration tokens for quoting
             short_tokens = await fetch_short_duration_token_ids(limit=30)
             self.subscribed_tokens = set(short_tokens)
             self._tokens_populated = True
-            
+
             self.start_consumer()
             logger.info(
                 f"[{self.name}] Subscribed tokens populated with {len(self.subscribed_tokens)} active tokens."
@@ -175,14 +175,14 @@ class MarketMakerStrategy(BaseStrategy):
         if quote_size <= 0:
             raise ValueError("quote_size must be > 0")
 
-        gamma = p.get("risk_aversion", 0.3)
+        p.get("risk_aversion", 0.3)
         skew_factor = p.get("inventory_skew_factor", 0.7)
-        
+
         reservation = mid_price - inventory_pct * skew_factor * spread
-        
+
         bid = max(0.01, reservation - spread / 2.0)
         ask = min(0.99, reservation + spread / 2.0)
-        
+
         return Quote(
             bid_price=round(bid, 4),
             ask_price=round(ask, 4),
@@ -199,11 +199,11 @@ class MarketMakerStrategy(BaseStrategy):
         """Calculate yes/no pricing based on LMSR model for backward-compatibility with tests."""
         b = liquidity_param or self.default_params.get("lmsr_liquidity_param", 10.0)
         b = max(b, 0.001)  # prevent division by zero
-        
+
         e_yes = math.exp(yes_shares / b)
         e_no = math.exp(no_shares / b)
         denom = e_yes + e_no
-        
+
         return {
             "yes_price": e_yes / denom,
             "no_price": e_no / denom,

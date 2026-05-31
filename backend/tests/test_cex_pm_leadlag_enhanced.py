@@ -101,7 +101,7 @@ async def test_cex_pm_leadlag_run_cycle(
     mock_fetch_markets.side_effect = side_effect_markets
 
     # 3. Mock midpoint price from Polymarket
-    # BTC mid = 0.40. Direction is up -> target_mid = 0.40. 
+    # BTC mid = 0.40. Direction is up -> target_mid = 0.40.
     # Sigmoid raw_prob based on 0.02 momentum -> maxed out at 0.65 implied_prob
     # edge = (0.65 - 0.40) - 0.03 (min_edge) - 0.04 (fees) = 0.18 > 0 -> BUY!
     # ETH mid = 0.40. Direction is down -> target_mid = 1 - 0.40 = 0.60.

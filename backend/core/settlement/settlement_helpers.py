@@ -814,7 +814,7 @@ async def check_market_settlement(
     Returns: (is_settled, settlement_value, pnl)
     """
     platform = getattr(trade, "platform", "polymarket") or "polymarket"
-    
+
     if platform == "kalshi":
         is_resolved, settlement_value = await _fetch_kalshi_resolution(trade.market_ticker)
     elif platform == "lighter":

@@ -208,8 +208,8 @@ class CalibrationTracker:
         actual_outcomes: list,
     ) -> dict:
         """Compute calibration report including Brier score and Brier drift.
-        
-        Drift is computed by comparing the Brier score of the second half of the 
+
+        Drift is computed by comparing the Brier score of the second half of the
         history to that of the first half.
         """
         if not prediction_history or not actual_outcomes or len(prediction_history) != len(actual_outcomes):
