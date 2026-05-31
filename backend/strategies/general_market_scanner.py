@@ -243,9 +243,9 @@ class GeneralMarketScanner(BaseStrategy):
             await check_strategy_positions_for_auto_sell(
                 self.name,
                 clob_client=ctx.clob,
-                profit_target_pct=float(params["auto_sell_profit_target_pct"]) if params.get("auto_sell_profit_target_pct") is not None else None,
-                stop_loss_pct=float(params["auto_sell_stop_loss_pct"]) if params.get("auto_sell_stop_loss_pct") is not None else None,
-                max_hold_seconds=int(params["auto_sell_max_hold_seconds"]) if params.get("auto_sell_max_hold_seconds") is not None else None,
+                profit_target_pct=float(params.get("auto_sell_profit_target_pct", params.get("profit_target_pct", 0.08))),
+                stop_loss_pct=float(params.get("auto_sell_stop_loss_pct", params.get("stop_loss_pct", 0.05))),
+                max_hold_seconds=int(params.get("auto_sell_max_hold_seconds", params.get("max_hold_seconds", 3600))),
             )
         except Exception as e:
             logger.warning(f"[{self.name}] Auto-sell start check failed: {e}")
@@ -973,9 +973,9 @@ class GeneralMarketScanner(BaseStrategy):
             await check_strategy_positions_for_auto_sell(
                 self.name,
                 clob_client=ctx.clob,
-                profit_target_pct=float(params["auto_sell_profit_target_pct"]) if params.get("auto_sell_profit_target_pct") is not None else None,
-                stop_loss_pct=float(params["auto_sell_stop_loss_pct"]) if params.get("auto_sell_stop_loss_pct") is not None else None,
-                max_hold_seconds=int(params["auto_sell_max_hold_seconds"]) if params.get("auto_sell_max_hold_seconds") is not None else None,
+                profit_target_pct=float(params.get("auto_sell_profit_target_pct", params.get("profit_target_pct", 0.08))),
+                stop_loss_pct=float(params.get("auto_sell_stop_loss_pct", params.get("stop_loss_pct", 0.05))),
+                max_hold_seconds=int(params.get("auto_sell_max_hold_seconds", params.get("max_hold_seconds", 3600))),
             )
         except Exception as e:
             logger.warning(f"[{self.name}] Auto-sell end check failed: {e}")
