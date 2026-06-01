@@ -21,9 +21,12 @@ def set_bot(bot) -> None:
 def get_bot():
     return _bot
 
+
 # Circuit breaker for Telegram API — protects against cascading failures
 _telegram_breaker = CircuitBreaker(
-    "telegram_api", failure_threshold=settings.CB_FAILURE_THRESHOLD, recovery_timeout=settings.CB_RECOVERY_TIMEOUT
+    "telegram_api",
+    failure_threshold=settings.CB_FAILURE_THRESHOLD,
+    recovery_timeout=settings.CB_RECOVERY_TIMEOUT,
 )
 
 # Rate limiter for Telegram API — respects ~30 msg/sec global limit
@@ -98,9 +101,7 @@ class TelegramProvider(BaseNotificationProvider):
             logger.error(f"send_trade_settled failed: {e}")
             return False
 
-    async def send_scan_summary(
-        self, total: int, actionable: int, placed: int
-    ) -> bool:
+    async def send_scan_summary(self, total: int, actionable: int, placed: int) -> bool:
         if not self.bot_instance:
             return False
         try:
@@ -121,16 +122,26 @@ class TelegramProvider(BaseNotificationProvider):
             return False
 
     async def send_high_confidence_signal(
-        self, strategy: str, market_title: str, direction: str,
-        confidence: float, edge: float, reasoning: str, market_url: str = "",
+        self,
+        strategy: str,
+        market_title: str,
+        direction: str,
+        confidence: float,
+        edge: float,
+        reasoning: str,
+        market_url: str = "",
     ) -> bool:
         if not self.bot_instance:
             return False
         try:
             await self.bot_instance.send_high_confidence_signal(
-                strategy=strategy, market_title=market_title,
-                direction=direction, confidence=confidence, edge=edge,
-                reasoning=reasoning, market_url=market_url,
+                strategy=strategy,
+                market_title=market_title,
+                direction=direction,
+                confidence=confidence,
+                edge=edge,
+                reasoning=reasoning,
+                market_url=market_url,
             )
             return True
         except Exception as e:

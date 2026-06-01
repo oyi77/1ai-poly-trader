@@ -206,9 +206,11 @@ async def on_strategy_killed(event_type: str, data: Dict[str, Any]) -> None:
                 db.query(ExperimentRecord)
                 .filter_by(
                     strategy_name=strategy_name,
-                    status=ExperimentStatus.DRAFT.value
-                    if hasattr(ExperimentStatus.DRAFT, "value")
-                    else "DRAFT",
+                    status=(
+                        ExperimentStatus.DRAFT.value
+                        if hasattr(ExperimentStatus.DRAFT, "value")
+                        else "DRAFT"
+                    ),
                 )
                 .first()
             )
@@ -359,7 +361,9 @@ async def on_regime_shift(event_type: str, data: Dict[str, Any]) -> None:
             engine = AGIGoalEngine()
             try:
                 to_r = (
-                    MarketRegime(new_regime) if isinstance(new_regime, str) else new_regime
+                    MarketRegime(new_regime)
+                    if isinstance(new_regime, str)
+                    else new_regime
                 )
             except ValueError:
                 to_r = MarketRegime.UNKNOWN
@@ -514,9 +518,7 @@ async def on_nightly_review_complete(event_type: str, data: Dict[str, Any]) -> N
         logger.error(f"Handler nightly_review_complete failed: {exc}", exc_info=True)
 
 
-def on_archetype_allocation_changed(
-    event_type: str, data: Dict[str, Any]
-) -> None:
+def on_archetype_allocation_changed(event_type: str, data: Dict[str, Any]) -> None:
     """Log-only handler: no downstream action needed for archetype_allocation_changed events yet."""
     if not _handler_flag("archetype_allocation_changed"):
         return

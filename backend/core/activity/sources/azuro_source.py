@@ -63,9 +63,7 @@ class AzuroActivitySource(BaseActivitySource):
             "bettor": self.wallet_address.lower(),
             "first": 50,
         }
-        result = await self._client.cached_query(
-            self._BETS_QUERY, variables
-        )
+        result = await self._client.cached_query(self._BETS_QUERY, variables)
         bets = (result.get("data") or {}).get("bets", [])
 
         for bet in bets:

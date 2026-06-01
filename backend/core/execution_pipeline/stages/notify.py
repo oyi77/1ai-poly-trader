@@ -60,7 +60,8 @@ class NotifyStage(BaseExecutionStage):
         providers = result.get("providers_notified", 0)
         logger.info(
             "[NotifyStage] recorded: market={} providers_notified={}",
-            market_ticker, providers,
+            market_ticker,
+            providers,
         )
 
     def validate(self, decision, ctx):

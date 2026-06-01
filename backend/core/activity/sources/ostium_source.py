@@ -34,7 +34,9 @@ class OstiumActivitySource(BaseActivitySource):
 
     async def _fills_cycle(self):
         """Single iteration of fills polling."""
-        fills = await self._client.get_fills(wallet_address=self.wallet_address, limit=100)
+        fills = await self._client.get_fills(
+            wallet_address=self.wallet_address, limit=100
+        )
         for fill in fills:
             trade_id = fill.get("id", fill.get("tradeId", fill.get("hash", "")))
             if trade_id in self._seen_trades:
@@ -70,41 +72,53 @@ class OstiumActivitySource(BaseActivitySource):
     async def _positions_cycle(self):
         """Single iteration of positions polling + balance delta detection."""
         # Position diff detection
-        current_positions = await self._client.get_positions(address=self.wallet_address)
-        current_ids = {p.get("id", p.get("tradeId", "")): p for p in (current_positions or [])}
+        current_positions = await self._client.get_positions(
+            address=self.wallet_address
+        )
+        current_ids = {
+            p.get("id", p.get("tradeId", "")): p for p in (current_positions or [])
+        }
         last_ids = {p.get("id", p.get("tradeId", "")): p for p in self._last_positions}
 
         # Closed: in last but not current
         for tid, pos in last_ids.items():
             if tid and tid not in current_ids:
-                await self._emit(ActivityEvent(
-                    source="ostium",
-                    event_type="trade_closed",
-                    wallet_address=self.wallet_address,
-                    platform="ostium",
-                    amount=float(pos.get("collateral", pos.get("size", 0))),
-                    token="USDC",
-                    pnl=float(pos.get("pnl", 0)),
-                    market_ticker=pos.get("pair", pos.get("market", "")),
-                    raw_data=pos,
-                ))
+                await self._emit(
+                    ActivityEvent(
+                        source="ostium",
+                        event_type="trade_closed",
+                        wallet_address=self.wallet_address,
+                        platform="ostium",
+                        amount=float(pos.get("collateral", pos.get("size", 0))),
+                        token="USDC",
+                        pnl=float(pos.get("pnl", 0)),
+                        market_ticker=pos.get("pair", pos.get("market", "")),
+                        raw_data=pos,
+                    )
+                )
 
         self._last_positions = current_positions or []
 
         # Balance delta
         balance_resp = await self._client.get_balance()
-        current_balance = float(balance_resp.get("balance", balance_resp.get("value", 0)))
+        current_balance = float(
+            balance_resp.get("balance", balance_resp.get("value", 0))
+        )
         if self._ostium_last_balance is not None:
-            result = self.detect_balance_delta(current_balance, self._ostium_last_balance)
+            result = self.detect_balance_delta(
+                current_balance, self._ostium_last_balance
+            )
             if not result:
                 self._ostium_last_balance = current_balance
                 return
-            await self._emit(ActivityEvent(
-                source="ostium",
-                event_type=result[0],
-                wallet_address=self.wallet_address,
-                platform="ostium",
-                amount=result[1],
-                token="USDC",
-            ))
+            await self._emit(
+                ActivityEvent(
+                    source="ostium",
+                    event_type=result[0],
+                    wallet_address=self.wallet_address,
+                    platform="ostium",
+                    amount=result[1],
+                    token="USDC",
+                )
+            )
         self._ostium_last_balance = current_balance

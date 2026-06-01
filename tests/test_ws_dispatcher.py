@@ -51,15 +51,27 @@ def patch_db_and_scanner(db_session, mock_tokens=None):
         )
     ]
 
-    with patch("backend.db.utils.get_db_session", _mock_get_db_session), \
-         patch("backend.core.market_scanner.fetch_all_active_markets", AsyncMock(return_value=mock_markets)), \
-         patch("backend.core.market_scanner.fetch_short_duration_token_ids", AsyncMock(return_value=mock_tokens)):
+    with (
+        patch("backend.db.utils.get_db_session", _mock_get_db_session),
+        patch(
+            "backend.core.market_scanner.fetch_all_active_markets",
+            AsyncMock(return_value=mock_markets),
+        ),
+        patch(
+            "backend.core.market_scanner.fetch_short_duration_token_ids",
+            AsyncMock(return_value=mock_tokens),
+        ),
+    ):
         yield
 
 
 def setup_strategy_config(db_session):
     """Safely upsert StrategyConfig for realtime_scanner to avoid UNIQUE constraint violations."""
-    cfg = db_session.query(StrategyConfig).filter(StrategyConfig.strategy_name == "realtime_scanner").first()
+    cfg = (
+        db_session.query(StrategyConfig)
+        .filter(StrategyConfig.strategy_name == "realtime_scanner")
+        .first()
+    )
     if not cfg:
         cfg = StrategyConfig(
             strategy_name="realtime_scanner",
@@ -80,9 +92,11 @@ async def test_ws_dispatcher_initialization(mock_db_session, cleanup_event_bus):
 
     dispatcher = WSDispatcher()
 
-    with patch_db_and_scanner(mock_db_session, ["token_123"]), \
-         patch("backend.core.ws_dispatcher.PolymarketWebSocket") as mock_ws_cls:
-        
+    with (
+        patch_db_and_scanner(mock_db_session, ["token_123"]),
+        patch("backend.core.ws_dispatcher.PolymarketWebSocket") as mock_ws_cls,
+    ):
+
         mock_ws = MagicMock()
         mock_ws.connect = AsyncMock()
         mock_ws_cls.return_value = mock_ws
@@ -115,14 +129,18 @@ async def test_ws_dispatcher_dispatches_events(mock_db_session, cleanup_event_bu
     strategy.subscribed_tokens = {"token_abc"}
     strategy._tokens_populated = True
 
-    with patch_db_and_scanner(mock_db_session, ["token_abc"]), \
-         patch("backend.core.ws_dispatcher.PolymarketWebSocket") as mock_ws_cls:
-        
+    with (
+        patch_db_and_scanner(mock_db_session, ["token_abc"]),
+        patch("backend.core.ws_dispatcher.PolymarketWebSocket") as mock_ws_cls,
+    ):
+
         mock_ws = MagicMock()
         mock_ws.connect = AsyncMock()
         mock_ws_cls.return_value = mock_ws
 
-        with patch.dict(STRATEGY_REGISTRY, {"realtime_scanner": lambda: strategy}, clear=True):
+        with patch.dict(
+            STRATEGY_REGISTRY, {"realtime_scanner": lambda: strategy}, clear=True
+        ):
             await dispatcher.start()
             await asyncio.sleep(0.1)
 
@@ -172,19 +190,25 @@ async def test_realtime_scanner_velocity_signals(mock_db_session, cleanup_event_
     with patch_db_and_scanner(mock_db_session, ["token_fast"]):
         # 1. First tick (baseline)
         t0 = time.time() - 4
-        event1 = MarketEvent("token_fast", "last_trade_price", {"price": "0.50", "timestamp": t0})
+        event1 = MarketEvent(
+            "token_fast", "last_trade_price", {"price": "0.50", "timestamp": t0}
+        )
         res1 = await strategy.on_market_event(event1)
         assert res1 is None
 
         # 2. Second tick
         t1 = time.time() - 2
-        event2 = MarketEvent("token_fast", "last_trade_price", {"price": "0.52", "timestamp": t1})
+        event2 = MarketEvent(
+            "token_fast", "last_trade_price", {"price": "0.52", "timestamp": t1}
+        )
         res2 = await strategy.on_market_event(event2)
         assert res2 is None
 
         # 3. Third tick with massive spike (velocity = (0.65 - 0.50) / 4s = 0.0375 > 0.01 threshold)
         t2 = time.time()
-        event3 = MarketEvent("token_fast", "last_trade_price", {"price": "0.65", "timestamp": t2})
+        event3 = MarketEvent(
+            "token_fast", "last_trade_price", {"price": "0.65", "timestamp": t2}
+        )
         res3 = await strategy.on_market_event(event3)
 
         # Confirm signal generated!
@@ -195,21 +219,29 @@ async def test_realtime_scanner_velocity_signals(mock_db_session, cleanup_event_
         assert res3["token_id"] == "token_fast"
 
         # Verify decision was persisted to mock DB
-        db_decisions = mock_db_session.query(DecisionLog).filter(DecisionLog.strategy == "realtime_scanner").all()
+        db_decisions = (
+            mock_db_session.query(DecisionLog)
+            .filter(DecisionLog.strategy == "realtime_scanner")
+            .all()
+        )
         assert len(db_decisions) >= 1
         assert "velocity=" in db_decisions[0].reason
 
 
 @pytest.mark.asyncio
-async def test_ws_dispatcher_dynamic_subscription_update(mock_db_session, cleanup_event_bus):
+async def test_ws_dispatcher_dynamic_subscription_update(
+    mock_db_session, cleanup_event_bus
+):
     """Verify that updating strategy subscriptions triggers safe WebSocket dynamic re-subscription."""
     setup_strategy_config(mock_db_session)
 
     dispatcher = WSDispatcher()
 
-    with patch_db_and_scanner(mock_db_session, ["token_1"]), \
-         patch("backend.core.ws_dispatcher.PolymarketWebSocket") as mock_ws_cls:
-        
+    with (
+        patch_db_and_scanner(mock_db_session, ["token_1"]),
+        patch("backend.core.ws_dispatcher.PolymarketWebSocket") as mock_ws_cls,
+    ):
+
         mock_ws = MagicMock()
         mock_ws.connect = AsyncMock()
         mock_ws.ws = MagicMock()
@@ -222,13 +254,15 @@ async def test_ws_dispatcher_dynamic_subscription_update(mock_db_session, cleanu
         strategy.subscribed_tokens = {"token_1"}
         strategy._tokens_populated = True
 
-        with patch.dict(STRATEGY_REGISTRY, {"realtime_scanner": lambda: strategy}, clear=True):
+        with patch.dict(
+            STRATEGY_REGISTRY, {"realtime_scanner": lambda: strategy}, clear=True
+        ):
             await dispatcher.start()
             await asyncio.sleep(0.1)
 
             # Dynamically add subscription
             strategy.subscribed_tokens = {"token_1", "token_2"}
-            
+
             # Patch populate_subscribed_tokens to do nothing (already populated)
             with patch.object(strategy, "_populate_subscribed_tokens", AsyncMock()):
                 await dispatcher.update_subscriptions()

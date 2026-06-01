@@ -55,7 +55,8 @@ class ValidationStage(BaseExecutionStage):
         passed = result.get("validation_passed", False)
         logger.info(
             "[ValidationStage] recorded: market={} passed={}",
-            market_ticker, passed,
+            market_ticker,
+            passed,
         )
 
 

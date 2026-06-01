@@ -65,8 +65,6 @@ class KrakenFeed(BaseExchangeFeed):
             resp.raise_for_status()
             data = resp.json()
             rows = data.get("result", {}).get(kraken_symbol, [])
-            return [
-                [int(r[0]), r[1], r[2], r[3], r[4], r[6]] for r in rows[-limit:]
-            ]
+            return [[int(r[0]), r[1], r[2], r[3], r[4], r[6]] for r in rows[-limit:]]
 
         return await _kraken_breaker.call(_fetch)

@@ -66,15 +66,19 @@ class LighterActivitySource(BaseActivitySource):
         """Single iteration of balance polling for deposit/withdrawal detection."""
         bal = await self._ws.get_balance(self.wallet_address)
         if self._lighter_last_balance is not None:
-            result = self.detect_balance_delta(float(bal), float(self._lighter_last_balance))
+            result = self.detect_balance_delta(
+                float(bal), float(self._lighter_last_balance)
+            )
             if result:
                 event_type, amount = result
-                await self._emit(ActivityEvent(
-                    source="lighter",
-                    event_type=event_type,
-                    wallet_address=self.wallet_address,
-                    platform="lighter",
-                    amount=amount,
-                    token="USDC",
-                ))
+                await self._emit(
+                    ActivityEvent(
+                        source="lighter",
+                        event_type=event_type,
+                        wallet_address=self.wallet_address,
+                        platform="lighter",
+                        amount=amount,
+                        token="USDC",
+                    )
+                )
         self._lighter_last_balance = bal

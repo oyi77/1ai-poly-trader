@@ -33,7 +33,9 @@ class SXBetActivitySource(BaseActivitySource):
 
     async def _fills_cycle(self):
         """Single iteration of fills polling."""
-        fills = await self._client.get_fills(wallet_address=self.wallet_address, limit=100)
+        fills = await self._client.get_fills(
+            wallet_address=self.wallet_address, limit=100
+        )
         for fill in fills:
             order_id = fill.get("orderHash", fill.get("id", ""))
             if order_id in self._seen_orders:
@@ -69,23 +71,31 @@ class SXBetActivitySource(BaseActivitySource):
 
     async def _balance_cycle(self):
         """Single iteration of balance polling."""
-        balance_resp = await self._client.get_balance(wallet_address=self.wallet_address)
-        current_balance = float(balance_resp.get("balance", balance_resp.get("value", 0)))
+        balance_resp = await self._client.get_balance(
+            wallet_address=self.wallet_address
+        )
+        current_balance = float(
+            balance_resp.get("balance", balance_resp.get("value", 0))
+        )
         # SX.bet balance might be in wei
         if current_balance > 1e6:
             current_balance = current_balance / 1e6
 
         if self._sxbet_last_balance is not None:
-            result = self.detect_balance_delta(current_balance, self._sxbet_last_balance)
+            result = self.detect_balance_delta(
+                current_balance, self._sxbet_last_balance
+            )
             if not result:
                 self._sxbet_last_balance = current_balance
                 return
-            await self._emit(ActivityEvent(
-                source="sxbet",
-                event_type=result[0],
-                wallet_address=self.wallet_address,
-                platform="sxbet",
-                amount=result[1],
-                token="USDC",
-            ))
+            await self._emit(
+                ActivityEvent(
+                    source="sxbet",
+                    event_type=result[0],
+                    wallet_address=self.wallet_address,
+                    platform="sxbet",
+                    amount=result[1],
+                    token="USDC",
+                )
+            )
         self._sxbet_last_balance = current_balance

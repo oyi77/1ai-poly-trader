@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from backend.data.shared_client import get_shared_client
 from cryptography.hazmat.primitives.asymmetric import padding

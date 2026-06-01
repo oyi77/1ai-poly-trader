@@ -35,7 +35,9 @@ class MyriadActivitySource(BaseActivitySource):
 
     async def _fills_cycle(self):
         """Single iteration of fills polling."""
-        fills = await self._client.get_fills(wallet_address=self.wallet_address, limit=100)
+        fills = await self._client.get_fills(
+            wallet_address=self.wallet_address, limit=100
+        )
         for fill in fills:
             order_id = fill.get("id", fill.get("orderId", ""))
             if order_id in self._seen_orders:
@@ -47,7 +49,9 @@ class MyriadActivitySource(BaseActivitySource):
             price = float(fill.get("price", 0))
             fee = float(fill.get("fee", 0))
             pnl = float(fill.get("pnl", 0)) if fill.get("pnl") else None
-            market = fill.get("market_id", fill.get("market", fill.get("marketTitle", "")))
+            market = fill.get(
+                "market_id", fill.get("market", fill.get("marketTitle", ""))
+            )
             status = fill.get("status", "").lower()
             is_open = status not in ("settled", "closed", "resolved")
 
@@ -73,7 +77,7 @@ class MyriadActivitySource(BaseActivitySource):
         # Position diff detection
         positions = await self._client.get_positions()
         current_ids = set()
-        for pos in (positions or []):
+        for pos in positions or []:
             pid = pos.get("id", pos.get("position_id", ""))
             current_ids.add(pid)
             if pid and pid not in self._last_position_ids:
@@ -94,31 +98,41 @@ class MyriadActivitySource(BaseActivitySource):
         # Closed: in last but not current
         for pid in self._last_position_ids:
             if pid and pid not in current_ids:
-                await self._emit(ActivityEvent(
-                    source="myriad",
-                    event_type="trade_closed",
-                    wallet_address=self.wallet_address,
-                    platform="myriad",
-                    amount=0.0,  # Size unknown for closed position
-                    token="USDC",
-                ))
+                await self._emit(
+                    ActivityEvent(
+                        source="myriad",
+                        event_type="trade_closed",
+                        wallet_address=self.wallet_address,
+                        platform="myriad",
+                        amount=0.0,  # Size unknown for closed position
+                        token="USDC",
+                    )
+                )
 
         self._last_position_ids = current_ids
 
         # Balance delta
         balance = await self._client.get_balance()
-        current_balance = float(balance) if isinstance(balance, (int, float, Decimal)) else float(str(balance))
+        current_balance = (
+            float(balance)
+            if isinstance(balance, (int, float, Decimal))
+            else float(str(balance))
+        )
         if self._myriad_last_balance is not None:
-            result = self.detect_balance_delta(current_balance, self._myriad_last_balance)
+            result = self.detect_balance_delta(
+                current_balance, self._myriad_last_balance
+            )
             if not result:
                 self._myriad_last_balance = current_balance
                 return
-            await self._emit(ActivityEvent(
-                source="myriad",
-                event_type=result[0],
-                wallet_address=self.wallet_address,
-                platform="myriad",
-                amount=result[1],
-                token="USDC",
-            ))
+            await self._emit(
+                ActivityEvent(
+                    source="myriad",
+                    event_type=result[0],
+                    wallet_address=self.wallet_address,
+                    platform="myriad",
+                    amount=result[1],
+                    token="USDC",
+                )
+            )
         self._myriad_last_balance = current_balance

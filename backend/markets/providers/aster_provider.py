@@ -73,9 +73,17 @@ class AsterProvider(BaseMarketProvider):
                 client_order_id=order.client_order_id,
                 status=OrderStatus.OPEN,
                 filled_size=Decimal(str(result.get("filled", "0"))),
-                filled_avg_price=Decimal(str(result.get("average", "0"))) if result.get("average") else order.price,
+                filled_avg_price=(
+                    Decimal(str(result.get("average", "0")))
+                    if result.get("average")
+                    else order.price
+                ),
                 remaining_size=order.size - Decimal(str(result.get("filled", "0"))),
-                fees_paid=Decimal(str(result.get("fee", {}).get("cost", "0"))) if isinstance(result.get("fee"), dict) else Decimal("0"),
+                fees_paid=(
+                    Decimal(str(result.get("fee", {}).get("cost", "0")))
+                    if isinstance(result.get("fee"), dict)
+                    else Decimal("0")
+                ),
                 raw=result if isinstance(result, dict) else {},
             )
         except Exception as exc:

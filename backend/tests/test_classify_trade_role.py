@@ -1,6 +1,11 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-from backend.core.trade_forensics import classify_trade_role, classify_trade_role_sync, TradeRole
+from backend.core.trade_forensics import (
+    classify_trade_role,
+    classify_trade_role_sync,
+    TradeRole,
+)
+
 
 @pytest.mark.asyncio
 async def test_paper_mode_market_order():
@@ -12,11 +17,12 @@ async def test_paper_mode_market_order():
         price=0.50,
         size=10.0,
         direction="up",
-        decision={"order_type": "market"}
+        decision={"order_type": "market"},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
+
 
 @pytest.mark.asyncio
 async def test_paper_mode_limit_order_maker():
@@ -28,15 +34,12 @@ async def test_paper_mode_limit_order_maker():
         price=0.50,
         size=10.0,
         direction="up",
-        decision={
-            "order_type": "limit",
-            "best_ask": 0.52,
-            "best_bid": 0.48
-        }
+        decision={"order_type": "limit", "best_ask": 0.52, "best_bid": 0.48},
     )
     assert role == TradeRole.MAKER.value
     assert maker_size == 10.0
     assert taker_size == 0.0
+
 
 @pytest.mark.asyncio
 async def test_paper_mode_limit_order_taker_crossing():
@@ -48,15 +51,12 @@ async def test_paper_mode_limit_order_taker_crossing():
         price=0.53,
         size=10.0,
         direction="up",
-        decision={
-            "order_type": "limit",
-            "best_ask": 0.52,
-            "best_bid": 0.48
-        }
+        decision={"order_type": "limit", "best_ask": 0.52, "best_bid": 0.48},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
+
 
 @pytest.mark.asyncio
 async def test_paper_mode_limit_order_taker_crossing_sell():
@@ -68,15 +68,12 @@ async def test_paper_mode_limit_order_taker_crossing_sell():
         price=0.47,
         size=10.0,
         direction="down",
-        decision={
-            "order_type": "limit",
-            "best_ask": 0.52,
-            "best_bid": 0.48
-        }
+        decision={"order_type": "limit", "best_ask": 0.52, "best_bid": 0.48},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
+
 
 @pytest.mark.asyncio
 async def test_live_mode_fallback_market():
@@ -88,11 +85,12 @@ async def test_live_mode_fallback_market():
         price=0.50,
         size=10.0,
         direction="up",
-        decision={"order_type": "market"}
+        decision={"order_type": "market"},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
+
 
 @pytest.mark.asyncio
 async def test_live_mode_fallback_limit_with_spread():
@@ -104,15 +102,12 @@ async def test_live_mode_fallback_limit_with_spread():
         price=0.55,
         size=10.0,
         direction="up",
-        decision={
-            "order_type": "limit",
-            "best_ask": 0.53,
-            "best_bid": 0.49
-        }
+        decision={"order_type": "limit", "best_ask": 0.53, "best_bid": 0.49},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
+
 
 @pytest.mark.asyncio
 @patch("backend.data.polymarket_clob.PolymarketCLOB")
@@ -133,11 +128,12 @@ async def test_live_mode_polymarket_fills_api_maker(mock_settings, mock_client_c
         price=0.50,
         size=10.0,
         direction="up",
-        decision={}
+        decision={},
     )
     assert role == TradeRole.MAKER.value
     assert maker_size == 10.0
     assert taker_size == 0.0
+
 
 @pytest.mark.asyncio
 @patch("backend.data.polymarket_clob.PolymarketCLOB")
@@ -158,16 +154,19 @@ async def test_live_mode_polymarket_fills_api_taker(mock_settings, mock_client_c
         price=0.50,
         size=10.0,
         direction="up",
-        decision={}
+        decision={},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
 
+
 @pytest.mark.asyncio
 @patch("backend.data.polymarket_clob.PolymarketCLOB")
 @patch("backend.config.settings")
-async def test_live_mode_polymarket_fills_api_failure_fallback(mock_settings, mock_client_class):
+async def test_live_mode_polymarket_fills_api_failure_fallback(
+    mock_settings, mock_client_class
+):
     """If fills API call throws an error, fallback to heuristics gracefully."""
     mock_settings.PROXY_WALLET_ADDRESS = "0xwallet"
     mock_client = AsyncMock()
@@ -182,11 +181,12 @@ async def test_live_mode_polymarket_fills_api_failure_fallback(mock_settings, mo
         price=0.50,
         size=10.0,
         direction="up",
-        decision={"order_type": "limit"}
+        decision={"order_type": "limit"},
     )
     assert role == TradeRole.MAKER.value
     assert maker_size == 10.0
     assert taker_size == 0.0
+
 
 def test_sync_wrapper_outside_loop():
     """Calling classify_trade_role_sync from a normal synchronous context."""
@@ -197,11 +197,12 @@ def test_sync_wrapper_outside_loop():
         price=0.50,
         size=10.0,
         direction="up",
-        decision={"order_type": "market"}
+        decision={"order_type": "market"},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0
     assert maker_size == 0.0
+
 
 @pytest.mark.asyncio
 async def test_sync_wrapper_inside_running_loop():
@@ -214,7 +215,7 @@ async def test_sync_wrapper_inside_running_loop():
         price=0.50,
         size=10.0,
         direction="up",
-        decision={"order_type": "market"}
+        decision={"order_type": "market"},
     )
     assert role == TradeRole.TAKER.value
     assert taker_size == 10.0

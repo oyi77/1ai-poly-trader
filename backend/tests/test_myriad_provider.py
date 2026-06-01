@@ -17,8 +17,11 @@ from backend.markets.order_types import (
 
 @pytest.fixture
 def provider():
-    with patch.dict(os.environ, {"MYRIAD_API_URL": "https://api.myriad.markets"}, clear=False):
+    with patch.dict(
+        os.environ, {"MYRIAD_API_URL": "https://api.myriad.markets"}, clear=False
+    ):
         from backend.markets.providers.myriad_provider import MyriadProvider
+
         return MyriadProvider(paper_mode=True)
 
 
@@ -35,8 +38,10 @@ def test_manifest(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_mode(provider):
     order = NormalizedOrder(
-        market_id="mkt1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("20"),
+        market_id="mkt1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("20"),
         price=Decimal("0.7"),
     )
     result = await provider.place_order(order)
@@ -49,8 +54,10 @@ async def test_place_order_paper_mode(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_no_price(provider):
     order = NormalizedOrder(
-        market_id="mkt1", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="mkt1",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
     )
     result = await provider.place_order(order)
     assert result.status == OrderStatus.FILLED
@@ -61,8 +68,10 @@ async def test_place_order_paper_no_price(provider):
 async def test_place_order_live_rejects_no_price(provider):
     provider._paper_mode = False
     order = NormalizedOrder(
-        market_id="mkt1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("10"),
+        market_id="mkt1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("10"),
     )
     result = await provider.place_order(order)
     assert result.status == OrderStatus.REJECTED
@@ -76,8 +85,10 @@ async def test_place_order_live_success(provider):
     mock_client.place_order = AsyncMock(return_value={"order_id": "myr_1"})
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="mkt1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("10"),
+        market_id="mkt1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("10"),
         price=Decimal("0.5"),
     )
     result = await provider.place_order(order)
@@ -92,8 +103,10 @@ async def test_place_order_live_api_error(provider):
     mock_client.place_order = AsyncMock(return_value={"error": "market closed"})
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="mkt1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("10"),
+        market_id="mkt1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("10"),
         price=Decimal("0.5"),
     )
     result = await provider.place_order(order)
@@ -122,10 +135,26 @@ async def test_get_balance(provider):
 @pytest.mark.asyncio
 async def test_get_positions(provider):
     mock_client = AsyncMock()
-    mock_client.get_positions = AsyncMock(return_value=[
-        {"market_id": "m1", "side": "long", "size": 50, "price": 0.6, "current_price": 0.7, "pnl": 5},
-        {"market_id": "m2", "side": "short", "size": 30, "price": 0.4, "current_price": 0.3, "pnl": 3},
-    ])
+    mock_client.get_positions = AsyncMock(
+        return_value=[
+            {
+                "market_id": "m1",
+                "side": "long",
+                "size": 50,
+                "price": 0.6,
+                "current_price": 0.7,
+                "pnl": 5,
+            },
+            {
+                "market_id": "m2",
+                "side": "short",
+                "size": 30,
+                "price": 0.4,
+                "current_price": 0.3,
+                "pnl": 3,
+            },
+        ]
+    )
     provider._client = mock_client
     positions = await provider.get_positions()
     assert len(positions) == 2
@@ -149,11 +178,31 @@ async def test_get_positions_error(provider):
 @pytest.mark.asyncio
 async def test_search_markets(provider):
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value=[
-        {"id": "m1", "title": "BTC 100k", "description": "Bitcoin", "category": "crypto", "status": "active"},
-        {"id": "m2", "title": "ETH merge", "description": "Ethereum", "category": "crypto", "status": "active"},
-        {"id": "m3", "title": "Fed rate", "description": "Economics", "category": "economics", "status": "closed"},
-    ])
+    mock_client.get_markets = AsyncMock(
+        return_value=[
+            {
+                "id": "m1",
+                "title": "BTC 100k",
+                "description": "Bitcoin",
+                "category": "crypto",
+                "status": "active",
+            },
+            {
+                "id": "m2",
+                "title": "ETH merge",
+                "description": "Ethereum",
+                "category": "crypto",
+                "status": "active",
+            },
+            {
+                "id": "m3",
+                "title": "Fed rate",
+                "description": "Economics",
+                "category": "economics",
+                "status": "closed",
+            },
+        ]
+    )
     provider._client = mock_client
     markets = await provider.search_markets(query="btc")
     assert len(markets) == 1
@@ -166,9 +215,17 @@ async def test_search_markets(provider):
 @pytest.mark.asyncio
 async def test_search_markets_no_query(provider):
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value=[
-        {"id": "m1", "title": "X", "description": "", "category": "other", "status": "active"},
-    ])
+    mock_client.get_markets = AsyncMock(
+        return_value=[
+            {
+                "id": "m1",
+                "title": "X",
+                "description": "",
+                "category": "other",
+                "status": "active",
+            },
+        ]
+    )
     provider._client = mock_client
     markets = await provider.search_markets(query="")
     assert len(markets) == 1
@@ -176,8 +233,10 @@ async def test_search_markets_no_query(provider):
 
 def test_rejected_helper(provider):
     order = NormalizedOrder(
-        market_id="m1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("5"),
+        market_id="m1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("5"),
         client_order_id="co1",
     )
     result = provider._rejected(order, "bad order")

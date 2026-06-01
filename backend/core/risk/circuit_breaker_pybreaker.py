@@ -16,8 +16,6 @@ Circuit breaker states:
 - HALF_OPEN: Testing recovery, limited requests allowed to check if service recovered
 """
 
-
-
 from typing import Any, Callable
 from functools import wraps
 

@@ -71,6 +71,7 @@ class TestAGINodeRegistry:
     def test_singleton_identity(self):
         """Test that node_registry resolves to same instance."""
         from backend.agi.node_registry import node_registry as nr2
+
         assert node_registry is nr2
 
     def test_reset_clears_instance(self):

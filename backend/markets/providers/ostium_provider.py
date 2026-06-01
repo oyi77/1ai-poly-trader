@@ -60,9 +60,7 @@ class OstiumProvider(BaseMarketProvider):
             )
         try:
             direction = order.side in (OrderSide.YES, OrderSide.BUY)
-            order_type = (
-                "MARKET" if order.order_type.value == "market" else "LIMIT"
-            )
+            order_type = "MARKET" if order.order_type.value == "market" else "LIMIT"
             result = await self._client.place_order(
                 pair_id=int(order.market_id),
                 direction=direction,
@@ -74,7 +72,9 @@ class OstiumProvider(BaseMarketProvider):
                 sl=order.metadata.get("sl"),
             )
             return NormalizedOrderResult(
-                venue_order_id=str(result.get("order_id", result.get("txHash", "unknown"))),
+                venue_order_id=str(
+                    result.get("order_id", result.get("txHash", "unknown"))
+                ),
                 client_order_id=order.client_order_id,
                 status=OrderStatus.OPEN,
                 filled_size=Decimal("0"),
@@ -126,7 +126,9 @@ class OstiumProvider(BaseMarketProvider):
                     market_id=str(pos.get("pairId", pos.get("pair_id", "unknown"))),
                     side=side,
                     size=size,
-                    avg_entry_price=Decimal(str(pos.get("entryPrice", pos.get("open_price", "0")))),
+                    avg_entry_price=Decimal(
+                        str(pos.get("entryPrice", pos.get("open_price", "0")))
+                    ),
                     venue="ostium",
                     current_price=Decimal(str(pos.get("currentPrice", "0"))),
                     unrealized_pnl=Decimal(str(pos.get("pnl", "0"))),

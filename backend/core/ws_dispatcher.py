@@ -40,7 +40,9 @@ class WSDispatcher:
         self._routers.append(router)
         if self._ws_client:
             router.register_with_websocket(self._ws_client)
-            logger.info(f"WSDispatcher: dynamically registered router: {type(router).__name__}")
+            logger.info(
+                f"WSDispatcher: dynamically registered router: {type(router).__name__}"
+            )
 
     async def start(self) -> None:
         """Initialize event-driven strategies, subscribe them, and start WebSocket stream."""
@@ -67,7 +69,9 @@ class WSDispatcher:
         )
 
         if not tokens_list:
-            logger.warning("WSDispatcher: no strategies registered token subscriptions. WS stream will not start.")
+            logger.warning(
+                "WSDispatcher: no strategies registered token subscriptions. WS stream will not start."
+            )
             # Set state to connected fallback to let periodic polling operate normally
             event_bus.set_ws_disconnected()
             return
@@ -137,7 +141,9 @@ class WSDispatcher:
                 try:
                     await strategy._populate_subscribed_tokens()
                 except Exception as e:
-                    logger.warning(f"WSDispatcher: failed to refresh tokens for {name}: {e}")
+                    logger.warning(
+                        f"WSDispatcher: failed to refresh tokens for {name}: {e}"
+                    )
 
             tokens = getattr(strategy, "subscribed_tokens", set())
             if tokens:
@@ -167,7 +173,9 @@ class WSDispatcher:
         with get_db_session() as db:
             active_configs = {
                 cfg.strategy_name: cfg
-                for cfg in db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True)).all()
+                for cfg in db.query(StrategyConfig)
+                .filter(StrategyConfig.enabled.is_(True))
+                .all()
             }
 
         for name, strategy_cls in STRATEGY_REGISTRY.items():
@@ -180,7 +188,10 @@ class WSDispatcher:
                 # Run async initialization if exists
                 if hasattr(strategy, "_populate_subscribed_tokens"):
                     await strategy._populate_subscribed_tokens()
-                elif hasattr(strategy, "subscribed_tokens") and not strategy.subscribed_tokens:
+                elif (
+                    hasattr(strategy, "subscribed_tokens")
+                    and not strategy.subscribed_tokens
+                ):
                     # Fallback for strategies that define custom setup
                     if hasattr(strategy, "setup"):
                         await strategy.setup()
@@ -190,7 +201,9 @@ class WSDispatcher:
                     f"WSDispatcher: initialized strategy '{name}' with {len(getattr(strategy, 'subscribed_tokens', set()))} tokens"
                 )
             except Exception as e:
-                logger.exception(f"WSDispatcher: failed to initialize strategy '{name}': {e}")
+                logger.exception(
+                    f"WSDispatcher: failed to initialize strategy '{name}': {e}"
+                )
 
     def _register_strategies_with_event_bus(self) -> None:
         """Register all initialized strategy event handlers with the central EventBus."""
@@ -199,7 +212,9 @@ class WSDispatcher:
             events = getattr(strategy, "subscribed_events", {"last_trade_price"})
 
             if not tokens:
-                logger.debug(f"WSDispatcher: strategy '{name}' has no active token subscriptions. Skipping registration.")
+                logger.debug(
+                    f"WSDispatcher: strategy '{name}' has no active token subscriptions. Skipping registration."
+                )
                 continue
 
             executor = WsFirstExecutor(name)
@@ -210,7 +225,9 @@ class WSDispatcher:
                 handler=strategy.on_market_event,
                 fallback_handler=executor.on_ws_disconnected,
             )
-            logger.info(f"WSDispatcher: subscribed '{name}' to EventBus (tokens={len(tokens)})")
+            logger.info(
+                f"WSDispatcher: subscribed '{name}' to EventBus (tokens={len(tokens)})"
+            )
 
     async def _run_ws_and_monitor(self) -> None:
         """Run the PolymarketWebSocket connection and monitor connection state."""
@@ -234,7 +251,9 @@ class WSDispatcher:
                                 try:
                                     await strat.on_ws_reconnected()
                                 except Exception as e:
-                                    logger.error(f"WSDispatcher: error on WS reconnect hook for strategy: {e}")
+                                    logger.error(
+                                        f"WSDispatcher: error on WS reconnect hook for strategy: {e}"
+                                    )
                 else:
                     if event_bus.ws_connected:
                         event_bus.set_ws_disconnected()
@@ -244,7 +263,9 @@ class WSDispatcher:
                                 try:
                                     await strat.on_ws_disconnected()
                                 except Exception as e:
-                                    logger.error(f"WSDispatcher: error on WS disconnect hook for strategy: {e}")
+                                    logger.error(
+                                        f"WSDispatcher: error on WS disconnect hook for strategy: {e}"
+                                    )
 
             # If stopped, cancel the task
             ws_task.cancel()

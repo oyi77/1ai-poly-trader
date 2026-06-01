@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import threading
 
-from backend.config import settings
+from backend.config import settings, _cfg
 from backend.models.database import (
     Trade,
     Signal,
@@ -148,13 +148,6 @@ async def _get_asset_lock(asset_key: str) -> asyncio.Lock:
         if asset_key not in _trade_locks:
             _trade_locks[asset_key] = asyncio.Lock()
         return _trade_locks[asset_key]
-
-
-def _cfg(key: str, default=None):
-    val = getattr(settings, key, default) if hasattr(settings, key) else default
-    if default is not None and not isinstance(val, (int, float, str, bool)):
-        return default
-    return val
 
 
 def _fetch_orderbook_depth(token_id: str | None) -> float:
@@ -380,9 +373,19 @@ def _execute_decision_paper_or_kalshi(
 
             # --- Shared recording ---
             return _record_trade(
-                db, decision, strategy_name, mode, pf,
-                clob_order_id, fill_price, entry_price, filled_size,
-                fee, role, maker_size, taker_size,
+                db,
+                decision,
+                strategy_name,
+                mode,
+                pf,
+                clob_order_id,
+                fill_price,
+                entry_price,
+                filled_size,
+                fee,
+                role,
+                maker_size,
+                taker_size,
                 attempt_recorder,
             )
 
@@ -787,14 +790,24 @@ async def _execute_decision_live_clob(
                     db.commit()
                     return None
                 force_maker_only = False
-                cfg = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
+                cfg = (
+                    db.query(StrategyConfig)
+                    .filter_by(strategy_name=strategy_name)
+                    .first()
+                )
                 if cfg and cfg.params:
                     try:
-                        params = _json.loads(cfg.params) if isinstance(cfg.params, str) else cfg.params
+                        params = (
+                            _json.loads(cfg.params)
+                            if isinstance(cfg.params, str)
+                            else cfg.params
+                        )
                         if params.get("force_maker_only") or params.get("maker_only"):
                             force_maker_only = True
                     except Exception:
-                        logger.warning("strategy_executor: failed to parse strategy params JSON")
+                        logger.warning(
+                            "strategy_executor: failed to parse strategy params JSON"
+                        )
 
                 for clob_attempt in range(2):
                     try:
@@ -838,7 +851,9 @@ async def _execute_decision_live_clob(
                                     best_ask = book.best_ask
                                     best_bid = book.best_bid
                             except Exception:
-                                logger.warning("strategy_executor: get_order_book failed")
+                                logger.warning(
+                                    "strategy_executor: get_order_book failed"
+                                )
 
                             execution_decision = dict(decision)
                             if best_ask is not None:
@@ -846,7 +861,11 @@ async def _execute_decision_live_clob(
                             if best_bid is not None:
                                 execution_decision["best_bid"] = best_bid
 
-                            base_size = filled_size if (filled_size is not None and filled_size > 0) else adjusted_size
+                            base_size = (
+                                filled_size
+                                if (filled_size is not None and filled_size > 0)
+                                else adjusted_size
+                            )
 
                             role, maker_size, taker_size = await classify_trade_role(
                                 platform=platform,
@@ -881,9 +900,7 @@ async def _execute_decision_live_clob(
                                 )
                                 continue
                             except Exception:
-                                logger.exception(
-                                    "Failed to refresh mid price"
-                                )
+                                logger.exception("Failed to refresh mid price")
                         attempt_recorder.record_rejected(
                             err_msg,
                             phase="execution",
@@ -951,10 +968,19 @@ async def _execute_decision_live_clob(
 
             # --- Shared recording ---
             return _record_trade(
-                db, decision, strategy_name, mode, pf,
-                clob_order_id, fill_price, entry_price, filled_size,
+                db,
+                decision,
+                strategy_name,
+                mode,
+                pf,
+                clob_order_id,
+                fill_price,
+                entry_price,
+                filled_size,
                 None,  # fee = None for live CLOB
-                role, maker_size, taker_size,
+                role,
+                maker_size,
+                taker_size,
                 attempt_recorder,
             )
 
@@ -1053,9 +1079,13 @@ def _pre_trade_safety_checks(
                     logger.critical(
                         "[CIRCUIT BREAKER] Portfolio down %.1f%% from initial $%.2f "
                         "(current $%.2f). Disabling ALL %s strategies.",
-                        dd_pct * 100, initial, current, mode,
+                        dd_pct * 100,
+                        initial,
+                        current,
+                        mode,
                     )
                     from backend.core.strategy_health import disable_for_rehab
+
                     all_configs = (
                         db.query(StrategyConfig)
                         .filter(StrategyConfig.enabled.is_(True))
@@ -1129,6 +1159,7 @@ def _fetch_live_pusd_balance_sync() -> float:
         if loop and loop.is_running():
             # Already in an async context - use nest_asyncio or fallback
             import nest_asyncio
+
             nest_asyncio.apply()
             return loop.run_until_complete(_get_balance())
         else:
@@ -1184,9 +1215,12 @@ def _preflight_checks(
 
     # 1b. Emergency kill switch check (blocks LIVE only, paper continues for 48h trial)
     from pathlib import Path
+
     kill_switch_path = Path(__file__).parent.parent.parent / ".kill_switch"
     if kill_switch_path.exists() and mode == "live":
-        logger.critical(f"[KILL SWITCH] Emergency stop active - .kill_switch file found")
+        logger.critical(
+            f"[KILL SWITCH] Emergency stop active - .kill_switch file found"
+        )
         attempt_recorder.record_blocked(
             "Emergency kill switch active (.kill_switch file exists)",
             phase="preflight",
@@ -1231,9 +1265,7 @@ def _preflight_checks(
             f"[{strategy_name}] Bot not running, skipping decision for {market_ticker}"
         )
         strategy_config = (
-            db.query(StrategyConfig)
-            .filter_by(strategy_name=strategy_name)
-            .first()
+            db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
         )
         if not strategy_config or not strategy_config.enabled:
             logger.warning(
@@ -1280,9 +1312,7 @@ def _preflight_checks(
                 cooldown_until = last_loss_time + _td(minutes=cooldown_minutes)
                 now_utc = datetime.now(timezone.utc)
                 if now_utc < cooldown_until:
-                    remaining = (
-                        cooldown_until - now_utc
-                    ).total_seconds() / 60.0
+                    remaining = (cooldown_until - now_utc).total_seconds() / 60.0
                     logger.info(
                         f"[{strategy_name}] Cooldown active: {cooldown_losses} consecutive losses, "
                         f"pausing for {remaining:.1f} more minutes"
@@ -1297,15 +1327,9 @@ def _preflight_checks(
 
     # 5. Bankroll
     if mode == "paper":
-        bankroll = (
-            state.paper_bankroll if state.paper_bankroll is not None else 0.0
-        )
+        bankroll = state.paper_bankroll if state.paper_bankroll is not None else 0.0
     elif mode == "testnet":
-        bankroll = (
-            state.testnet_bankroll
-            if state.testnet_bankroll is not None
-            else 0.0
-        )
+        bankroll = state.testnet_bankroll if state.testnet_bankroll is not None else 0.0
     else:
         # Live mode: use real PUSD balance from CLOB
         pusd_balance = _fetch_live_pusd_balance_sync()
@@ -1384,9 +1408,7 @@ def _preflight_checks(
         signal_win_rate=model_probability,
     )
     if not risk.allowed:
-        logger.info(
-            f"[{strategy_name}] Risk rejected {market_ticker}: {risk.reason}"
-        )
+        logger.info(f"[{strategy_name}] Risk rejected {market_ticker}: {risk.reason}")
         attempt_recorder.record_rejected(
             risk.reason,
             phase="risk_gate",
@@ -1430,9 +1452,7 @@ def _preflight_checks(
 
         _now = datetime.now(timezone.utc)
         _time_to_resolution = (market_end_date - _now).total_seconds() / 60.0
-        _is_short_lived = "-5m-" in str(market_ticker) or "-15m-" in str(
-            market_ticker
-        )
+        _is_short_lived = "-5m-" in str(market_ticker) or "-15m-" in str(market_ticker)
         _stale_threshold = 2.0 if _is_short_lived else 60.0
         if _time_to_resolution < _stale_threshold:
             logger.info(
@@ -1453,13 +1473,10 @@ def _preflight_checks(
 
     _cooldown_sec = _cfg("DUPLICATE_TRADE_COOLDOWN_SEC", 60)
     _cutoff = datetime.now(timezone.utc) - timedelta(seconds=_cooldown_sec)
-    _dup_query = (
-        db.query(Trade)
-        .filter(
-            Trade.strategy == strategy_name,
-            Trade.market_ticker == market_ticker,
-            Trade.timestamp >= _cutoff,
-        )
+    _dup_query = db.query(Trade).filter(
+        Trade.strategy == strategy_name,
+        Trade.market_ticker == market_ticker,
+        Trade.timestamp >= _cutoff,
     )
     if mode:
         _dup_query = _dup_query.filter(Trade.trading_mode == mode)
@@ -1538,9 +1555,7 @@ def _record_trade(
     market_ticker = decision.get("market_ticker", "")
     direction = decision.get("direction", "")
     confidence = float(decision.get("confidence", 0.0))
-    model_probability = float(
-        decision.get("model_probability", confidence)
-    )
+    model_probability = float(decision.get("model_probability", confidence))
     token_id = decision.get("token_id")
     platform = decision.get("platform", "polymarket")
     reasoning = decision.get("reasoning", "")
@@ -1548,9 +1563,7 @@ def _record_trade(
     edge = float(decision.get("edge", 0.0))
     adjusted_size = pf.adjusted_size
 
-    slippage = (
-        abs(fill_price - entry_price) / entry_price if entry_price > 0 else 0.0
-    )
+    slippage = abs(fill_price - entry_price) / entry_price if entry_price > 0 else 0.0
 
     trade_data = {
         "market_ticker": market_ticker,
@@ -1640,9 +1653,7 @@ def _record_trade(
     try:
         SignalValidator.validate_signal_data(signal_data)
     except ValidationError as e:
-        log_validation_error(
-            e, context=f"execute_decision:signal:{strategy_name}"
-        )
+        log_validation_error(e, context=f"execute_decision:signal:{strategy_name}")
         logger.error(f"[{strategy_name}] Signal validation failed: {e.message}")
         attempt_recorder.record_rejected(
             f"Signal validation failed: {e.message}",

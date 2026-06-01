@@ -30,10 +30,10 @@ from backend.markets.providers.paper_provider import (
     simulate_orderbook_fill,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_order(
     market_id: str = "test_market",
@@ -87,17 +87,22 @@ def _assert_balance(bal: NormalizedBalance) -> None:
 # 1. Polymarket Provider
 # ===========================================================================
 
+
 class TestPolymarketProvider:
     """Integration tests for PolymarketProvider."""
 
     @pytest.fixture(autouse=True)
     def _setup(self):
         """Create a paper-mode Polymarket provider with mocked dependencies."""
-        with patch.dict("sys.modules", {
-            "backend.data.polymarket_clob": MagicMock(),
-            "py_clob_client": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.data.polymarket_clob": MagicMock(),
+                "py_clob_client": MagicMock(),
+            },
+        ):
             from backend.markets.providers.polymarket_provider import PolymarketProvider
+
             self.provider = PolymarketProvider(paper_mode=True)
             self.provider_cls = PolymarketProvider
 
@@ -171,11 +176,15 @@ class TestPolymarketProvider:
     @pytest.mark.asyncio
     async def test_place_order_live_rejected_without_price(self):
         """Live mode rejects orders without a limit price."""
-        with patch.dict("sys.modules", {
-            "backend.data.polymarket_clob": MagicMock(),
-            "py_clob_client": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.data.polymarket_clob": MagicMock(),
+                "py_clob_client": MagicMock(),
+            },
+        ):
             from backend.markets.providers.polymarket_provider import PolymarketProvider
+
             live = PolymarketProvider(paper_mode=False)
             live._mode = "live"
             order = _make_order(price=None)
@@ -186,6 +195,7 @@ class TestPolymarketProvider:
 # ===========================================================================
 # 2. Kalshi Provider
 # ===========================================================================
+
 
 class TestKalshiProvider:
     """Integration tests for KalshiProvider."""
@@ -199,10 +209,14 @@ class TestKalshiProvider:
         mock_client.batch_create_orders = AsyncMock(return_value={})
         mock_client.batch_cancel_orders = AsyncMock(return_value=True)
 
-        with patch.dict("sys.modules", {
-            "backend.data.kalshi_client": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.data.kalshi_client": MagicMock(),
+            },
+        ):
             from backend.markets.providers.kalshi_provider import KalshiProvider
+
             self.provider_cls = KalshiProvider
             self.provider = KalshiProvider(paper_mode=True)
             self.provider._client = mock_client
@@ -261,10 +275,14 @@ class TestKalshiProvider:
 
     @pytest.mark.asyncio
     async def test_live_rejected_without_price(self):
-        result = await self.provider.place_order(_make_order(price=None, order_type=OrderType.LIMIT))
+        result = await self.provider.place_order(
+            _make_order(price=None, order_type=OrderType.LIMIT)
+        )
         # In paper mode it fills with default; testing live rejection
         with patch.object(self.provider, "_paper_mode", False):
-            result = await self.provider.place_order(_make_order(price=None, order_type=OrderType.LIMIT))
+            result = await self.provider.place_order(
+                _make_order(price=None, order_type=OrderType.LIMIT)
+            )
             assert result.status == OrderStatus.REJECTED
 
 
@@ -272,11 +290,13 @@ class TestKalshiProvider:
 # Kalshi Fee Model
 # ===========================================================================
 
+
 class TestKalshiFeeModel:
     """Test _kalshi_fee fee model: fee peaks at price=0.50."""
 
     def test_fee_at_extremes_near_zero(self):
         from backend.markets.providers.kalshi_provider import _kalshi_fee
+
         fee_low = _kalshi_fee(Decimal("0.10"), Decimal("10"))
         fee_high = _kalshi_fee(Decimal("0.90"), Decimal("10"))
         assert fee_low >= Decimal("0")
@@ -284,6 +304,7 @@ class TestKalshiFeeModel:
 
     def test_fee_peaks_at_half(self):
         from backend.markets.providers.kalshi_provider import _kalshi_fee
+
         fee_010 = _kalshi_fee(Decimal("0.10"), Decimal("100"))
         fee_050 = _kalshi_fee(Decimal("0.50"), Decimal("100"))
         fee_090 = _kalshi_fee(Decimal("0.90"), Decimal("100"))
@@ -292,18 +313,21 @@ class TestKalshiFeeModel:
 
     def test_fee_symmetry(self):
         from backend.markets.providers.kalshi_provider import _kalshi_fee
+
         fee_a = _kalshi_fee(Decimal("0.30"), Decimal("50"))
         fee_b = _kalshi_fee(Decimal("0.70"), Decimal("50"))
         assert fee_a == fee_b, "Fee must be symmetric around 0.50"
 
     def test_fee_scales_with_size(self):
         from backend.markets.providers.kalshi_provider import _kalshi_fee
+
         fee_10 = _kalshi_fee(Decimal("0.50"), Decimal("10"))
         fee_100 = _kalshi_fee(Decimal("0.50"), Decimal("100"))
         assert fee_100 > fee_10
 
     def test_fee_at_price_levels(self):
         from backend.markets.providers.kalshi_provider import _kalshi_fee
+
         for price in [Decimal("0.10"), Decimal("0.50"), Decimal("0.90")]:
             fee = _kalshi_fee(price, Decimal("10"))
             assert fee >= Decimal("0"), f"Fee must be non-negative at price {price}"
@@ -313,6 +337,7 @@ class TestKalshiFeeModel:
 # 3. SX.bet Provider
 # ===========================================================================
 
+
 class TestSXBetProvider:
     """Integration tests for SXBetProvider."""
 
@@ -321,10 +346,14 @@ class TestSXBetProvider:
         mock_client = MagicMock()
         mock_client.health_check = AsyncMock(return_value=True)
 
-        with patch.dict("sys.modules", {
-            "backend.clients.sxbet_client": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.clients.sxbet_client": MagicMock(),
+            },
+        ):
             from backend.markets.providers.sxbet_provider import SXBetProvider
+
             self.provider_cls = SXBetProvider
             self.provider = SXBetProvider(paper_mode=True)
             self.provider._client = mock_client
@@ -371,20 +400,27 @@ class TestSXBetProvider:
 # 4. Limitless Provider
 # ===========================================================================
 
+
 class TestLimitlessProvider:
     """Limitless DISABLED — smart wallet not deployed on Base (2026-05-30)."""
 
     def test_limitless_provider_disabled(self):
         """LimitlessProvider raises RuntimeError on instantiation."""
         import sys
-        with patch.dict("sys.modules", {
-            "backend.clients.limitless_client": MagicMock(),
-        }):
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.clients.limitless_client": MagicMock(),
+            },
+        ):
             import importlib
+
             try:
                 # The .py.disabled file won't be auto-discovered, but the class
                 # in data/providers/limitless.py raises RuntimeError
                 from backend.data.providers.limitless import LimitlessProvider
+
                 with pytest.raises(RuntimeError, match="Limitless disabled"):
                     LimitlessProvider()
             except ImportError:
@@ -394,6 +430,7 @@ class TestLimitlessProvider:
 # ===========================================================================
 # 5. Myriad Provider
 # ===========================================================================
+
 
 class TestMyriadProvider:
     """Integration tests for MyriadProvider."""
@@ -407,10 +444,14 @@ class TestMyriadProvider:
         mock_client.place_order = AsyncMock(return_value={"order_id": "mid_001"})
         mock_client.cancel_order = AsyncMock(return_value=True)
 
-        with patch.dict("sys.modules", {
-            "backend.clients.myriad_client": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.clients.myriad_client": MagicMock(),
+            },
+        ):
             from backend.markets.providers.myriad_provider import MyriadProvider
+
             self.provider_cls = MyriadProvider
             self.provider = MyriadProvider(paper_mode=True)
             self.provider._client = mock_client
@@ -462,6 +503,7 @@ class TestMyriadProvider:
 # 6. Predict.fun Provider
 # ===========================================================================
 
+
 class TestPredictFunProvider:
     """Integration tests for PredictFunProvider."""
 
@@ -470,10 +512,16 @@ class TestPredictFunProvider:
         mock_client = MagicMock()
         mock_client.health_check = AsyncMock(return_value=True)
 
-        with patch.dict("sys.modules", {
-            "backend.clients.azuro_client": MagicMock(),
-        }):
-            from backend.markets.providers.predict_fun_provider import PredictFunProvider
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.clients.azuro_client": MagicMock(),
+            },
+        ):
+            from backend.markets.providers.predict_fun_provider import (
+                PredictFunProvider,
+            )
+
             self.provider_cls = PredictFunProvider
             self.provider = PredictFunProvider(paper_mode=True)
             self.provider._client = mock_client
@@ -520,6 +568,7 @@ class TestPredictFunProvider:
 # 7. Bookmaker.xyz Provider
 # ===========================================================================
 
+
 class TestBookmakerXYZProvider:
     """Integration tests for BookmakerXYZProvider."""
 
@@ -528,12 +577,16 @@ class TestBookmakerXYZProvider:
         mock_client = MagicMock()
         mock_client.health_check = AsyncMock(return_value=True)
 
-        with patch.dict("sys.modules", {
-            "backend.clients.azuro_client": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "backend.clients.azuro_client": MagicMock(),
+            },
+        ):
             from backend.markets.providers.bookmaker_xyz_provider import (
                 BookmakerXYZProvider,
             )
+
             self.provider_cls = BookmakerXYZProvider
             self.provider = BookmakerXYZProvider(paper_mode=True)
             self.provider._client = mock_client
@@ -580,16 +633,19 @@ class TestBookmakerXYZProvider:
 # 8. Paper Provider
 # ===========================================================================
 
+
 class TestPaperProvider:
     """Integration tests for PaperProvider with orderbook simulation."""
 
     @pytest.fixture(autouse=True)
     def _setup(self):
         from backend.markets.providers.paper_provider import PaperProvider
+
         self.provider = PaperProvider(paper_mode=True)
 
     def test_manifest(self):
         from backend.markets.providers.paper_provider import PaperProvider
+
         m = PaperProvider.manifest()
         _assert_manifest(m)
         assert m.name == "paper"
@@ -640,7 +696,9 @@ class TestPaperProvider:
         assert result.status == OrderStatus.FILLED
         assert result.filled_size == Decimal("8")
         # 5 @ 0.50 + 3 @ 0.52 = 2.50 + 1.56 = 4.06 / 8 = 0.5075
-        expected_avg = (Decimal("5") * Decimal("0.50") + Decimal("3") * Decimal("0.52")) / Decimal("8")
+        expected_avg = (
+            Decimal("5") * Decimal("0.50") + Decimal("3") * Decimal("0.52")
+        ) / Decimal("8")
         assert result.filled_avg_price == expected_avg
         assert result.fees_paid > Decimal("0")
 
@@ -690,8 +748,12 @@ class TestPaperProvider:
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders(self):
-        await self.provider.place_order(_make_order(order_type=OrderType.LIMIT, price=Decimal("0.40")))
-        await self.provider.place_order(_make_order(order_type=OrderType.LIMIT, price=Decimal("0.60")))
+        await self.provider.place_order(
+            _make_order(order_type=OrderType.LIMIT, price=Decimal("0.40"))
+        )
+        await self.provider.place_order(
+            _make_order(order_type=OrderType.LIMIT, price=Decimal("0.60"))
+        )
         count = await self.provider.cancel_all_orders()
         assert count == 2
 
@@ -746,6 +808,7 @@ class TestPaperProvider:
 # Polymarket Fee Model (used by Paper Provider)
 # ===========================================================================
 
+
 class TestPolymarketFeeModel:
     """Test _polymarket_fee: fee peaks at 0.50, symmetric, near-zero at extremes."""
 
@@ -792,6 +855,7 @@ class TestPolymarketFeeModel:
 # Orderbook Fill Simulation (Paper Provider utility)
 # ===========================================================================
 
+
 class TestOrderbookFillSimulation:
     """Test simulate_orderbook_fill multi-level fill logic."""
 
@@ -814,7 +878,9 @@ class TestOrderbookFillSimulation:
         assert result.filled_size == Decimal("6")
         assert result.levels_consumed == 2
         # avg = (3*0.50 + 3*0.55) / 6 = (1.50 + 1.65) / 6 = 3.15 / 6 = 0.525
-        expected_avg = (Decimal("3") * Decimal("0.50") + Decimal("3") * Decimal("0.55")) / Decimal("6")
+        expected_avg = (
+            Decimal("3") * Decimal("0.50") + Decimal("3") * Decimal("0.55")
+        ) / Decimal("6")
         assert result.avg_price == expected_avg
         assert result.slippage_bps > Decimal("0")
 
@@ -858,19 +924,27 @@ class TestLimitOrderFillCheck:
     """Test check_limit_order_fill crossing logic."""
 
     def test_buy_fills_when_ask_below_limit(self):
-        order = _make_order(side=OrderSide.BUY, price=Decimal("0.55"), order_type=OrderType.LIMIT)
+        order = _make_order(
+            side=OrderSide.BUY, price=Decimal("0.55"), order_type=OrderType.LIMIT
+        )
         assert check_limit_order_fill(order, Decimal("0.50"), Decimal("0.53")) is True
 
     def test_buy_no_fill_when_ask_above_limit(self):
-        order = _make_order(side=OrderSide.BUY, price=Decimal("0.45"), order_type=OrderType.LIMIT)
+        order = _make_order(
+            side=OrderSide.BUY, price=Decimal("0.45"), order_type=OrderType.LIMIT
+        )
         assert check_limit_order_fill(order, Decimal("0.40"), Decimal("0.50")) is False
 
     def test_sell_fills_when_bid_above_limit(self):
-        order = _make_order(side=OrderSide.SELL, price=Decimal("0.45"), order_type=OrderType.LIMIT)
+        order = _make_order(
+            side=OrderSide.SELL, price=Decimal("0.45"), order_type=OrderType.LIMIT
+        )
         assert check_limit_order_fill(order, Decimal("0.50"), Decimal("0.55")) is True
 
     def test_sell_no_fill_when_bid_below_limit(self):
-        order = _make_order(side=OrderSide.SELL, price=Decimal("0.55"), order_type=OrderType.LIMIT)
+        order = _make_order(
+            side=OrderSide.SELL, price=Decimal("0.55"), order_type=OrderType.LIMIT
+        )
         assert check_limit_order_fill(order, Decimal("0.50"), Decimal("0.55")) is False
 
     def test_no_fill_without_price(self):

@@ -1,7 +1,5 @@
 """Shared pytest fixtures for PolyEdge backend integration tests."""
 
-
-
 import sys
 from unittest.mock import MagicMock
 
@@ -40,6 +38,7 @@ sys.modules["backend.core.scheduling.scheduler"] = _sched_stub
 # ---------------------------------------------------------------------------
 import logging as _stdlib_logging
 
+
 @pytest.fixture(autouse=True)
 def _loguru_to_caplog(caplog):
     from loguru import logger as _loguru_logger
@@ -55,6 +54,7 @@ def _loguru_to_caplog(caplog):
     )
     yield
     _loguru_logger.remove(handler_id)
+
 
 # ---------------------------------------------------------------------------
 # Build in-memory SQLite engine and redirect the database module to use it
@@ -157,6 +157,7 @@ from fastapi.testclient import TestClient
 from backend.api.main import app
 from backend.models.database import get_db
 
+
 def _override_get_db():
     db = TestSessionLocal()
     try:
@@ -164,7 +165,9 @@ def _override_get_db():
     finally:
         db.close()
 
+
 app.dependency_overrides[get_db] = _override_get_db
+
 
 @pytest.fixture(scope="function")
 def client(db):
@@ -176,6 +179,7 @@ def client(db):
         yield TestClient(app)
     finally:
         app.dependency_overrides[get_db] = _override_get_db
+
 
 _MODULES_WITH_SESSIONLOCAL = [
     "backend.db.utils",
@@ -259,6 +263,7 @@ _MODULES_WITH_SESSIONLOCAL = [
     "backend.core.proposal_executor",
 ]
 
+
 @pytest.fixture(scope="function")
 def db():
     connection = test_engine.connect()
@@ -308,6 +313,7 @@ def db():
         connection.close()
     except Exception:
         pass
+
 
 @pytest.fixture(autouse=True)
 def cleanup_proposals_between_tests(db):
@@ -368,6 +374,7 @@ def cleanup_proposals_between_tests(db):
     db.commit()
     db.info.pop("allow_live_financial_update", None)
     yield
+
 
 @pytest.fixture(autouse=True)
 def reset_provider_registry():

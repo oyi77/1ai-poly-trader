@@ -55,7 +55,9 @@ async def test_trade_creation_logs_audit_event(test_db):
 
     mock_limiter = AsyncMock()
     mock_limiter.wait_and_acquire = AsyncMock()
-    with patch("backend.core.strategy_executor._get_rate_limiter", return_value=mock_limiter):
+    with patch(
+        "backend.core.strategy_executor._get_rate_limiter", return_value=mock_limiter
+    ):
         result = await execute_decision(
             decision=decision,
             strategy_name="test_strategy",

@@ -388,6 +388,7 @@ class TokenBucketRateLimiter:
     async def wait_and_acquire(self, market_id: str) -> None:
         """Wait until a token is available, then acquire it."""
         import asyncio
+
         while True:
             try:
                 self.acquire(market_id)

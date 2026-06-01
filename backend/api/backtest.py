@@ -658,10 +658,14 @@ async def run_registry_backtest(
             metrics_key=body.metrics,
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Registry component not found: {exc}")
+        raise HTTPException(
+            status_code=404, detail=f"Registry component not found: {exc}"
+        )
     except Exception as exc:
         logger.error(f"Registry backtest failed: {exc}")
-        raise HTTPException(status_code=500, detail="Registry backtest failed — check server logs")
+        raise HTTPException(
+            status_code=500, detail="Registry backtest failed — check server logs"
+        )
 
     return {
         "strategy_name": body.strategy_name,

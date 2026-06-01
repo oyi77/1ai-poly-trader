@@ -1,4 +1,5 @@
 """Shared EIP-712 typed data signing utility for EVM-based venues."""
+
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from loguru import logger
@@ -13,7 +14,9 @@ def _strip_domain_type(types: dict) -> dict:
     return {k: v for k, v in types.items() if k != "EIP712Domain"}
 
 
-def sign_typed_data(private_key: str, domain: dict, types: dict, primary_type: str, message: dict) -> str:
+def sign_typed_data(
+    private_key: str, domain: dict, types: dict, primary_type: str, message: dict
+) -> str:
     """Sign EIP-712 typed data and return hex signature.
 
     Args:
@@ -41,11 +44,15 @@ def sign_typed_data(private_key: str, domain: dict, types: dict, primary_type: s
     if not sig_hex.startswith("0x"):
         sig_hex = "0x" + sig_hex
 
-    logger.debug("EIP-712 signed: primary_type={}, signer={}", primary_type, account.address)
+    logger.debug(
+        "EIP-712 signed: primary_type={}, signer={}", primary_type, account.address
+    )
     return sig_hex
 
 
-def recover_typed_data_signer(domain: dict, types: dict, primary_type: str, message: dict, signature: str) -> str:
+def recover_typed_data_signer(
+    domain: dict, types: dict, primary_type: str, message: dict, signature: str
+) -> str:
     """Recover the signer address from an EIP-712 signature."""
     message_types = _strip_domain_type(types)
 

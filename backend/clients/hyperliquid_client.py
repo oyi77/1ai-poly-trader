@@ -13,8 +13,16 @@ class HyperliquidClient:
     """Hyperliquid perpetuals DEX client."""
 
     def __init__(self, private_key: str = None, wallet_address: str = None):
-        self._private_key = private_key or os.getenv("HYPERLIQUID_PRIVATE_KEY") or os.getenv("WALLET_PRIVATE_KEY", "")
-        self._wallet_address = wallet_address or os.getenv("HYPERLIQUID_WALLET_ADDRESS") or os.getenv("WALLET_ADDRESS", "")
+        self._private_key = (
+            private_key
+            or os.getenv("HYPERLIQUID_PRIVATE_KEY")
+            or os.getenv("WALLET_PRIVATE_KEY", "")
+        )
+        self._wallet_address = (
+            wallet_address
+            or os.getenv("HYPERLIQUID_WALLET_ADDRESS")
+            or os.getenv("WALLET_ADDRESS", "")
+        )
 
         if self._private_key:
             self._account = Account.from_key(self._private_key)
@@ -50,7 +58,9 @@ class HyperliquidClient:
     ) -> dict:
         """Place an order."""
         if not self._exchange:
-            raise RuntimeError("HyperliquidClient: no private key configured for trading")
+            raise RuntimeError(
+                "HyperliquidClient: no private key configured for trading"
+            )
 
         if order_type == "market":
             order_type_dict = {"limit": {"tif": "Ioc"}}
@@ -63,7 +73,9 @@ class HyperliquidClient:
     async def cancel_order(self, asset: str, order_id: int) -> dict:
         """Cancel an order."""
         if not self._exchange:
-            raise RuntimeError("HyperliquidClient: no private key configured for trading")
+            raise RuntimeError(
+                "HyperliquidClient: no private key configured for trading"
+            )
 
         return self._exchange.cancel(asset, order_id)
 
@@ -109,7 +121,9 @@ class HyperliquidClient:
         """Unsubscribe from a channel."""
         self._info.unsubscribe(subscription, sub_id)
         # Clean up tracked subscription
-        keys_to_remove = [k for k, v in self._subscriptions.items() if v == subscription]
+        keys_to_remove = [
+            k for k, v in self._subscriptions.items() if v == subscription
+        ]
         for k in keys_to_remove:
             del self._subscriptions[k]
 

@@ -10,8 +10,6 @@ per strategy. Writes allocations into BotState for observability.
 This module will be removed in a future release.
 """
 
-
-
 from __future__ import annotations
 
 import json

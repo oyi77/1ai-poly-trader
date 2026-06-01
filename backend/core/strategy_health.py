@@ -103,9 +103,13 @@ class StrategyHealthMonitor:
         # Determine status — check multiple kill conditions
         kill_reason = None
         if self._should_kill_metrics(total, win_rate, sharpe, max_dd):
-            kill_reason = f"win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}"
+            kill_reason = (
+                f"win_rate={win_rate:.3f}, sharpe={sharpe:.2f}, drawdown={max_dd:.2f}"
+            )
         elif self._check_consecutive_losses(outcomes):
-            kill_reason = f"10+ consecutive losses (last {min(total, 10)} trades all losses)"
+            kill_reason = (
+                f"10+ consecutive losses (last {min(total, 10)} trades all losses)"
+            )
         elif self._check_daily_loss_exceeded(outcomes, max_daily_loss=100.0):
             kill_reason = "cumulative 24h loss > $100"
 
@@ -198,7 +202,9 @@ class StrategyHealthMonitor:
         win_rate = wins / total
         sharpe = self._sharpe_from_outcomes(outcomes)
         max_dd = self._max_drawdown_from_outcomes(outcomes)
-        return self._should_kill_metrics(total, win_rate, sharpe, max_dd) or self._check_consecutive_losses(outcomes)
+        return self._should_kill_metrics(
+            total, win_rate, sharpe, max_dd
+        ) or self._check_consecutive_losses(outcomes)
 
     def should_warn(
         self, strategy: str, db: Session, trading_mode: str = "live"
@@ -311,10 +317,13 @@ class StrategyHealthMonitor:
     def _check_daily_loss_exceeded(self, outcomes, max_daily_loss: float) -> bool:
         """Return True if cumulative loss in last 24h exceeds threshold."""
         from datetime import timedelta
+
         cutoff = _now_utc() - timedelta(hours=24)
         daily_pnl = 0.0
         for o in outcomes:
-            settled = getattr(o, "settled_at", None) or getattr(o, "settlement_time", None)
+            settled = getattr(o, "settled_at", None) or getattr(
+                o, "settlement_time", None
+            )
             if settled and settled >= cutoff and o.pnl is not None:
                 daily_pnl += o.pnl
         return daily_pnl < -max_daily_loss
@@ -376,7 +385,9 @@ class StrategyHealthMonitor:
             if config:
                 disable_for_rehab(config)
                 db.commit()
-                logger.info(f"[HealthMonitor] Strategy '{strategy}' entered rehab (paper mode)")
+                logger.info(
+                    f"[HealthMonitor] Strategy '{strategy}' entered rehab (paper mode)"
+                )
                 self._run_postmortem(strategy, db)
             else:
                 logger.warning(

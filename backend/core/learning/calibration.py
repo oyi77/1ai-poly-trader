@@ -9,8 +9,6 @@ uncertainty (sigma) per city/source. Calibrated sigma improves the
 Gaussian probability model's accuracy over time.
 """
 
-
-
 import json
 import math
 import threading

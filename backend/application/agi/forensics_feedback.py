@@ -200,14 +200,14 @@ def _apply_via_safe_tuner(
 
             genome_id = get_genome_id_for_strategy(strategy_name)
             if genome_id:
-                reg = db.query(GenomeRegistry).filter(
-                    GenomeRegistry.genome_id == genome_id
-                ).first()
+                reg = (
+                    db.query(GenomeRegistry)
+                    .filter(GenomeRegistry.genome_id == genome_id)
+                    .first()
+                )
                 if reg:
                     fitness_data = (
-                        json.loads(reg.fitness_json)
-                        if reg.fitness_json
-                        else {}
+                        json.loads(reg.fitness_json) if reg.fitness_json else {}
                     )
                     fitness_data["last_forensics_update"] = datetime.now(
                         timezone.utc
@@ -345,14 +345,14 @@ class ForensicsFeedbackApplicator:
 
             genome_id = get_genome_id_for_strategy(strategy_name)
             if genome_id:
-                reg = db.query(GenomeRegistry).filter(
-                    GenomeRegistry.genome_id == genome_id
-                ).first()
+                reg = (
+                    db.query(GenomeRegistry)
+                    .filter(GenomeRegistry.genome_id == genome_id)
+                    .first()
+                )
                 if reg:
                     fitness_data = (
-                        json.loads(reg.fitness_json)
-                        if reg.fitness_json
-                        else {}
+                        json.loads(reg.fitness_json) if reg.fitness_json else {}
                     )
                     fitness_data["last_forensics_update"] = datetime.now(
                         timezone.utc

@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from backend.strategies.agi_meta_strategy import AGIMetaStrategy
 from backend.strategies.base import StrategyContext, CycleResult
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -35,7 +34,9 @@ def _make_ctx(bankroll=100.0):
     )
 
 
-def _make_agi_result(regime_val="BULL", goal_val="MAXIMIZE_PNL", errors=None, actions=1):
+def _make_agi_result(
+    regime_val="BULL", goal_val="MAXIMIZE_PNL", errors=None, actions=1
+):
     result = _FakeAGICycleResult(
         regime=MagicMock(value=regime_val),
         goal=MagicMock(value=goal_val),
@@ -86,7 +87,10 @@ class TestRunCycle:
             mock_orch = MockOrch.return_value
             mock_orch.run_cycle = AsyncMock(return_value=fake_result)
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(return_value="")):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(return_value=""),
+            ):
                 result = await strategy.run_cycle(ctx)
 
         assert isinstance(result, CycleResult)
@@ -104,7 +108,10 @@ class TestRunCycle:
             mock_orch = MockOrch.return_value
             mock_orch.run_cycle = AsyncMock(return_value=fake_result)
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(return_value="")):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(return_value=""),
+            ):
                 result = await strategy.run_cycle(ctx)
 
         assert result.decisions_recorded == 1
@@ -124,10 +131,15 @@ class TestRunCycle:
             mock_orch = MockOrch.return_value
             mock_orch.run_cycle = AsyncMock(return_value=fake_result)
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(return_value="positive sentiment context")):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(return_value="positive sentiment context"),
+            ):
                 result = await strategy.run_cycle(ctx)
 
-        assert result.decisions[0]["news_context_chars"] == len("positive sentiment context")
+        assert result.decisions[0]["news_context_chars"] == len(
+            "positive sentiment context"
+        )
 
     @pytest.mark.asyncio
     async def test_errors_propagated_from_agi_cycle(self):
@@ -140,7 +152,10 @@ class TestRunCycle:
             mock_orch = MockOrch.return_value
             mock_orch.run_cycle = AsyncMock(return_value=fake_result)
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(return_value="")):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(return_value=""),
+            ):
                 result = await strategy.run_cycle(ctx)
 
         assert "fetch_failed" in result.errors
@@ -154,9 +169,14 @@ class TestRunCycle:
 
         with patch("backend.strategies.agi_meta_strategy.AGIOrchestrator") as MockOrch:
             mock_orch = MockOrch.return_value
-            mock_orch.run_cycle = AsyncMock(side_effect=RuntimeError("orchestrator crash"))
+            mock_orch.run_cycle = AsyncMock(
+                side_effect=RuntimeError("orchestrator crash")
+            )
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(return_value="")):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(return_value=""),
+            ):
                 # Use base run() which catches exceptions from run_cycle
                 result = await strategy.run(ctx)
 
@@ -175,7 +195,10 @@ class TestRunCycle:
             mock_orch = MockOrch.return_value
             mock_orch.run_cycle = AsyncMock(return_value=fake_result)
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(return_value="")):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(return_value=""),
+            ):
                 result = await strategy.run_cycle(ctx)
 
         assert "news_context_chars" not in result.decisions[0]
@@ -191,7 +214,10 @@ class TestRunCycle:
             mock_orch = MockOrch.return_value
             mock_orch.run_cycle = AsyncMock(return_value=fake_result)
 
-            with patch("backend.strategies.agi_meta_strategy._collect_news_context", AsyncMock(side_effect=Exception("news_api_down"))):
+            with patch(
+                "backend.strategies.agi_meta_strategy._collect_news_context",
+                AsyncMock(side_effect=Exception("news_api_down")),
+            ):
                 # _collect_news_context is called at top level, exception propagates
                 # This tests that the outer run() wrapper catches it
                 result = await strategy.run(ctx)

@@ -18,8 +18,8 @@ from backend.models.database import Trade
 class MakerTakerAnalytics:
     """Compute maker vs taker ROI over all settled trades, with a 5-min cache."""
 
-    MIN_SETTLED_TRADES: int = 20   # per role, before acting on the recommendation
-    CACHE_TTL_SECONDS: int = 300   # 5 minutes
+    MIN_SETTLED_TRADES: int = 20  # per role, before acting on the recommendation
+    CACHE_TTL_SECONDS: int = 300  # 5 minutes
 
     def __init__(self) -> None:
         self._cache: Optional[dict] = None
@@ -39,7 +39,10 @@ class MakerTakerAnalytics:
             cached_at    – ISO-8601 timestamp of when the cache was last refreshed
         """
         now = time.monotonic()
-        if self._cache is not None and (now - self._cache_time) < self.CACHE_TTL_SECONDS:
+        if (
+            self._cache is not None
+            and (now - self._cache_time) < self.CACHE_TTL_SECONDS
+        ):
             return self._cache
 
         stats = self._compute(db)
@@ -61,11 +64,7 @@ class MakerTakerAnalytics:
         import datetime
 
         try:
-            trades = (
-                db.query(Trade)
-                .filter(Trade.settled.is_(True))
-                .all()
-            )
+            trades = db.query(Trade).filter(Trade.settled.is_(True)).all()
         except Exception:
             logger.exception("[MakerTakerAnalytics] DB query failed")
             trades = []
@@ -115,7 +114,10 @@ class MakerTakerAnalytics:
             reduce_taker  → taker ROI < -1% (regardless of maker)
             neutral       → neither condition met
         """
-        if maker["count"] < self.MIN_SETTLED_TRADES or taker["count"] < self.MIN_SETTLED_TRADES:
+        if (
+            maker["count"] < self.MIN_SETTLED_TRADES
+            or taker["count"] < self.MIN_SETTLED_TRADES
+        ):
             return "insufficient_data"
 
         maker_roi = maker["roi"]

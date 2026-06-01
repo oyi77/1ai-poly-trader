@@ -13,6 +13,7 @@ from backend.core.strategy_executor import execute_decision, _maker_first_execut
 def setup_bot_states(db_session):
     """Ensure BotState records exist in the DB for testing."""
     from backend.config import settings
+
     for mode in ["paper", "testnet", "live"]:
         state = db_session.query(BotState).filter_by(mode=mode).first()
         if not state:
@@ -46,8 +47,10 @@ async def test_maker_first_execute_resting_fill():
     # get_open_orders returns empty → order filled while resting
     clob.get_open_orders.return_value = []
 
-    with patch("backend.core.strategy_executor.MAKER_WAIT_SECONDS", 0.05), \
-         patch("backend.core.strategy_executor.MAKER_POLL_INTERVAL_SECONDS", 0.01):
+    with (
+        patch("backend.core.strategy_executor.MAKER_WAIT_SECONDS", 0.05),
+        patch("backend.core.strategy_executor.MAKER_POLL_INTERVAL_SECONDS", 0.01),
+    ):
         res = await _maker_first_execute(
             clob=clob,
             token_id="0xabc",
@@ -89,8 +92,10 @@ async def test_maker_first_execute_taker_escalation():
     clob.get_open_orders.return_value = [{"id": "maker-123"}]
     clob.cancel_order.return_value = True
 
-    with patch("backend.core.strategy_executor.MAKER_WAIT_SECONDS", 0.02), \
-         patch("backend.core.strategy_executor.MAKER_POLL_INTERVAL_SECONDS", 0.01):
+    with (
+        patch("backend.core.strategy_executor.MAKER_WAIT_SECONDS", 0.02),
+        patch("backend.core.strategy_executor.MAKER_POLL_INTERVAL_SECONDS", 0.01),
+    ):
         res = await _maker_first_execute(
             clob=clob,
             token_id="0xabc",
@@ -124,8 +129,10 @@ async def test_maker_first_execute_force_maker_only():
     clob.get_open_orders.return_value = [{"id": "maker-123"}]
     clob.cancel_order.return_value = True
 
-    with patch("backend.core.strategy_executor.MAKER_WAIT_SECONDS", 0.02), \
-         patch("backend.core.strategy_executor.MAKER_POLL_INTERVAL_SECONDS", 0.01):
+    with (
+        patch("backend.core.strategy_executor.MAKER_WAIT_SECONDS", 0.02),
+        patch("backend.core.strategy_executor.MAKER_POLL_INTERVAL_SECONDS", 0.01),
+    ):
         res = await _maker_first_execute(
             clob=clob,
             token_id="0xabc",
@@ -274,17 +281,20 @@ def test_maker_taker_performance_audit_throttling(db_session):
     }
 
     # active_modes_set is a @property — must patch on the class, not instance
-    with patch.object(
-            type(settings), "active_modes_set",
+    with (
+        patch.object(
+            type(settings),
+            "active_modes_set",
             new_callable=PropertyMock,
-            return_value={"paper"}
-        ), \
-        patch.object(settings, "AGI_AUTO_DISABLE_MIN_TRADES", 2), \
-        patch("backend.db.utils.get_db_session", _mock_get_db_session), \
+            return_value={"paper"},
+        ),
+        patch.object(settings, "AGI_AUTO_DISABLE_MIN_TRADES", 2),
+        patch("backend.db.utils.get_db_session", _mock_get_db_session),
         patch(
             "backend.core.maker_taker_analytics.maker_taker_analytics.get_stats",
             return_value=mock_mt_stats,
-        ):
+        ),
+    ):
         auto_disable_losing_strategies()
 
     db_session.refresh(cfg)

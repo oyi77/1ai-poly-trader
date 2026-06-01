@@ -6,8 +6,6 @@ auto-applies optimizer suggestions with guardrails and rollback.
 This module will be removed in a future release.
 """
 
-
-
 from __future__ import annotations
 
 import asyncio

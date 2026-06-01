@@ -23,7 +23,12 @@ from sqlalchemy import (
     Enum,
     event,
 )
-from sqlalchemy.orm import Session as SQLAlchemySession, declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import (
+    Session as SQLAlchemySession,
+    declarative_base,
+    relationship,
+    sessionmaker,
+)
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy import inspect
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -64,6 +69,7 @@ engine = create_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 _TS_TYPE = "TIMESTAMP" if "postgresql" in settings.DATABASE_URL else "DATETIME"
 
+
 def configure_sqlite_wal(engine_obj):
     """Register a connect listener that enables WAL mode and performance PRAGMAs for SQLite."""
     if engine_obj.url.get_dialect().name != "sqlite":
@@ -82,7 +88,9 @@ def configure_sqlite_wal(engine_obj):
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
+
 configure_sqlite_wal(engine)
+
 
 def configure_postgres_lock_timeout(engine_obj):
     if engine_obj.url.get_dialect().name != "postgresql":
@@ -96,6 +104,7 @@ def configure_postgres_lock_timeout(engine_obj):
         cursor.execute("SET idle_in_transaction_session_timeout = '60s'")
         cursor.close()
 
+
 configure_postgres_lock_timeout(engine)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -105,6 +114,7 @@ botstate_mutex = asyncio.Lock()
 
 POSTGRES_LOCK_TIMEOUT = "10s"
 POSTGRES_STATEMENT_TIMEOUT = "30s"
+
 
 def _apply_postgres_lock_timeouts(session) -> None:
     """Bound lock waits inside the current PostgreSQL transaction.
@@ -123,6 +133,7 @@ def _apply_postgres_lock_timeouts(session) -> None:
     session.execute(
         text(f"SET LOCAL statement_timeout = '{POSTGRES_STATEMENT_TIMEOUT}'")
     )
+
 
 def for_update(session, query):
     """Add FOR UPDATE clause on PostgreSQL. No-op on SQLite/MySQL.
@@ -143,10 +154,12 @@ def for_update(session, query):
         return query.with_for_update()
     return query
 
+
 class TradeRole(str, Enum):
     MAKER = "maker"
     TAKER = "taker"
     UNKNOWN = "unknown"
+
 
 def _set_sqlite_busy_timeout(connection_or_session, timeout_ms: int) -> None:
     """Apply a shorter busy_timeout for best-effort SQLite bootstrap work."""
@@ -166,6 +179,7 @@ def _set_sqlite_busy_timeout(connection_or_session, timeout_ms: int) -> None:
     except Exception as exc:
         logger.debug(f"Could not set SQLite busy_timeout={timeout_ms}: {exc}")
 
+
 try:
     import backend.models.kg_models
     import backend.models.outcome_tables
@@ -173,6 +187,7 @@ try:
     import backend.core.risk.risk_profiles
 except ImportError:
     logger.exception("database model imports failed")
+
 
 async def execute_with_timeout(db_operation, timeout: float = None):
     """
@@ -202,6 +217,7 @@ async def execute_with_timeout(db_operation, timeout: float = None):
 
         increment_timeouts(timeout_type="database")
         raise
+
 
 class Trade(Base):
     """Simulated and live trades for tracking P&L."""
@@ -266,6 +282,7 @@ class Trade(Base):
 
     journal_notes = Column(Text, nullable=True)
     journal_tags = Column(JSON, nullable=True)  # list of tag strings
+
 
 class HFTExecutionRecord(Base):
     """Audit trail for HFT strategy executions."""
@@ -332,6 +349,7 @@ class HFTExecutionRecord(Base):
     settlement_source = Column(String, nullable=True, default=None)
     last_sync_at = Column(DateTime, nullable=True, default=None, index=True)
     external_import_at = Column(DateTime, nullable=True, default=None)
+
 
 class GenomeRegistry(Base):
     """Registry of genetic algorithms and their configurations."""
@@ -432,6 +450,7 @@ class GenomeRegistry(Base):
     def chromosome_performance(self, value: dict):
         self.chromosome_perf_json = json.dumps(value) if value else "{}"
 
+
 class ShadowTrade(Base):
     """Shadow trades for strategy validation without real capital."""
 
@@ -457,8 +476,14 @@ class ShadowTrade(Base):
     stage = Column(String, default="ACTIVE")  # ACTIVE, SETTLED, CANCELLED
     outcome = Column(String, nullable=True)  # 'win', 'loss', null until settled
     pnl_usd = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), index=True
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     metadata_json = Column(Text, nullable=True)
 
     # Backward-compat aliases for legacy test code
@@ -498,7 +523,9 @@ class ShadowTrade(Base):
 
     @hybrid_property
     def settlement_value(self) -> Optional[float]:
-        return 1.0 if self.outcome == "win" else (0.0 if self.outcome == "loss" else None)
+        return (
+            1.0 if self.outcome == "win" else (0.0 if self.outcome == "loss" else None)
+        )
 
     @settlement_value.setter
     def settlement_value(self, value: Optional[float]):
@@ -512,10 +539,9 @@ class ShadowTrade(Base):
     @settlement_value.expression
     def settlement_value(cls):
         from sqlalchemy import case
+
         return case(
-            (cls.outcome == "win", 1.0),
-            (cls.outcome == "loss", 0.0),
-            else_=None
+            (cls.outcome == "win", 1.0), (cls.outcome == "loss", 0.0), else_=None
         )
 
     @hybrid_property
@@ -566,9 +592,9 @@ class ShadowTrade(Base):
     @market_ticker.expression
     def market_ticker(cls):
         from sqlalchemy import case
+
         return case(
-            (cls._market_ticker.is_(None), cls.market_id),
-            else_=cls._market_ticker
+            (cls._market_ticker.is_(None), cls.market_id), else_=cls._market_ticker
         )
 
     @property
@@ -578,7 +604,9 @@ class ShadowTrade(Base):
                 meta = json.loads(self.metadata_json)
                 return meta.get("model_probability")
             except (json.JSONDecodeError, TypeError):
-                logger.warning("database: failed to parse metadata_json for model_probability")
+                logger.warning(
+                    "database: failed to parse metadata_json for model_probability"
+                )
         return None
 
     @model_probability.setter
@@ -592,7 +620,9 @@ class ShadowTrade(Base):
                 meta = json.loads(self.metadata_json)
                 return meta.get("predicted_outcome")
             except (json.JSONDecodeError, TypeError):
-                logger.warning("database: failed to parse metadata_json for model_probability")
+                logger.warning(
+                    "database: failed to parse metadata_json for model_probability"
+                )
         return None
 
     @predicted_outcome.setter
@@ -606,7 +636,9 @@ class ShadowTrade(Base):
                 meta = json.loads(self.metadata_json)
                 return meta.get("actual_outcome")
             except (json.JSONDecodeError, TypeError):
-                logger.warning("database: failed to parse metadata_json for model_probability")
+                logger.warning(
+                    "database: failed to parse metadata_json for model_probability"
+                )
         return None
 
     @actual_outcome.setter
@@ -622,7 +654,9 @@ class ShadowTrade(Base):
                 if val is not None:
                     return val
             except (json.JSONDecodeError, TypeError):
-                logger.warning("database: failed to parse metadata_json for model_probability")
+                logger.warning(
+                    "database: failed to parse metadata_json for model_probability"
+                )
         # Fallback: compute from predicted and actual outcome
         pred = self.predicted_outcome
         actual = self.actual_outcome
@@ -634,6 +668,7 @@ class ShadowTrade(Base):
     def accuracy_score(self, value: Optional[float]):
         self._update_metadata("accuracy_score", value)
 
+
 class BtcPriceSnapshot(Base):
     """Cached BTC prices for momentum calculation."""
 
@@ -643,6 +678,7 @@ class BtcPriceSnapshot(Base):
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     price = Column(Float)
     source = Column(String, default="coingecko")
+
 
 class BotState(Base):
     """Bot state and statistics."""
@@ -732,6 +768,7 @@ class BotState(Base):
             f"winning_trades={self.winning_trades})>"
         )
 
+
 @event.listens_for(SQLAlchemySession, "before_flush")
 def protect_live_bot_state_financial_fields(session, flush_context, instances):
     """Prevent stale ORM sessions from overwriting live equity caches.
@@ -761,6 +798,7 @@ def protect_live_bot_state_financial_fields(session, flush_context, instances):
                 "Blocked unauthorized live BotState.%s ORM mutation; use bankroll_reconciliation instead",
                 field_name,
             )
+
 
 class Signal(Base):
     """Trading signals generated by the bot."""
@@ -804,6 +842,7 @@ class Signal(Base):
     settlement_value = Column(Float, nullable=True)  # 1.0=UP won, 0.0=DOWN won
     settled_at = Column(DateTime, nullable=True)  # when we recorded the outcome
 
+
 class AILog(Base):
     """Log of all AI API calls."""
 
@@ -826,6 +865,7 @@ class AILog(Base):
     success = Column(Boolean, default=True)
     error = Column(String, nullable=True)
 
+
 class EMOSCalibrationState(Base):
     __tablename__ = "emos_calibration_state"
     city = Column(String, primary_key=True)
@@ -833,6 +873,7 @@ class EMOSCalibrationState(Base):
     a = Column(Float, nullable=False)
     b = Column(Float, nullable=False)
     last_updated = Column(DateTime, nullable=True)
+
 
 class ScanLog(Base):
     """Log of each market scan run."""
@@ -857,6 +898,7 @@ class ScanLog(Base):
     success = Column(Boolean, default=True)
     error = Column(String, nullable=True)
 
+
 class CopyTraderEntry(Base):
     """Copy trader position entries mirrored from tracked wallets."""
 
@@ -874,6 +916,7 @@ class CopyTraderEntry(Base):
         UniqueConstraint("wallet", "condition_id", "side", name="uq_copy_entry"),
     )
 
+
 class SettlementEvent(Base):
     __tablename__ = "settlement_events"
 
@@ -884,6 +927,7 @@ class SettlementEvent(Base):
     pnl = Column(Float)
     settled_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     source = Column(String, default="polymarket")  # "polymarket" or "kalshi"
+
 
 class DecisionLog(Base):
     __tablename__ = "decision_log"
@@ -898,6 +942,7 @@ class DecisionLog(Base):
     created_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc), index=True
     )
+
 
 class TradeAttempt(Base):
     """Durable execution-attempt ledger for explaining why trades happen or stop."""
@@ -953,6 +998,7 @@ class TradeAttempt(Base):
         Index("idx_trade_attempts_reason_created", "reason_code", "created_at"),
     )
 
+
 class MarketWatch(Base):
     __tablename__ = "market_watch"
     id = Column(Integer, primary_key=True, index=True)
@@ -968,6 +1014,7 @@ class MarketWatch(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+
 class WalletConfig(Base):
     __tablename__ = "wallet_config"
     id = Column(Integer, primary_key=True, index=True)
@@ -982,6 +1029,7 @@ class WalletConfig(Base):
     balance_cache = Column(
         Text, nullable=True
     )  # JSON: {"usdc_balance", "last_updated"}
+
 
 class StrategyConfig(Base):
     __tablename__ = "strategy_config"
@@ -1015,6 +1063,7 @@ class StrategyConfig(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+
 class TradeContext(Base):
     __tablename__ = "trade_context"
     trade_id = Column(Integer, ForeignKey("trades.id"), primary_key=True)
@@ -1024,6 +1073,7 @@ class TradeContext(Base):
     entry_signal = Column(Text, nullable=True)  # JSON string
     exit_signal = Column(Text, nullable=True)  # JSON string
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 
 class ScheduledJob(Base):
     """Persistent APScheduler job state for crash recovery.
@@ -1051,6 +1101,7 @@ class ScheduledJob(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+
 class JobQueue(Base):
     """Persistent job queue for crash recovery."""
 
@@ -1077,6 +1128,7 @@ class JobQueue(Base):
         UniqueConstraint("job_type", "idempotency_key", name="uq_job_idempotency"),
     )
 
+
 class WhaleTransaction(Base):
     __tablename__ = "whale_transactions"
     id = Column(Integer, primary_key=True)
@@ -1090,6 +1142,7 @@ class WhaleTransaction(Base):
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
+
 class PendingApproval(Base):
     __tablename__ = "pending_approvals"
     id = Column(Integer, primary_key=True)
@@ -1101,6 +1154,7 @@ class PendingApproval(Base):
     status = Column(String, default="pending")  # pending|approved|rejected
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     decided_at = Column(DateTime, nullable=True)
+
 
 class ActivityLog(Base):
     """Log of all strategy decisions and trading activity."""
@@ -1116,6 +1170,7 @@ class ActivityLog(Base):
     data = Column(JSON, nullable=False)  # Full decision context
     confidence_score = Column(Float, nullable=False)  # 0.0-1.0
     mode = Column(String(20), nullable=False)  # 'paper' or 'live'
+
 
 class StrategyProposal(Base):
     """Proposed strategy changes awaiting admin approval."""
@@ -1141,6 +1196,7 @@ class StrategyProposal(Base):
     admin_user_id = Column(String(100), nullable=True)
     admin_decision_reason = Column(Text, nullable=True)
 
+
 class MiroFishSignal(Base):
     """AI-generated signals from Miro Fish debate engine for prediction markets."""
 
@@ -1161,6 +1217,7 @@ class MiroFishSignal(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
 
 class PerformanceMetric(Base):
     """Performance metrics for request timing, database queries, WebSocket latency, and system resources."""
@@ -1191,6 +1248,7 @@ class PerformanceMetric(Base):
         Index("idx_metrics_endpoint_timestamp", "endpoint", "timestamp"),
     )
 
+
 class AuditLog(Base):
     """Comprehensive audit log for all money-related operations."""
 
@@ -1214,6 +1272,7 @@ class AuditLog(Base):
     action = Column(String, nullable=True)
     details = Column(JSON, nullable=True)
 
+
 class EvolutionLog(Base):
     """Log of genome evolution events and stage transitions."""
 
@@ -1231,6 +1290,7 @@ class EvolutionLog(Base):
 
     # Relationships
     genome = relationship("GenomeRegistry", back_populates="evolution_logs")
+
 
 class Experiment(Base):
     """Track parameter experiments for each strategy."""
@@ -1250,6 +1310,7 @@ class Experiment(Base):
     promoted_at = Column(DateTime, nullable=True)
     notes = Column(String, nullable=True)
 
+
 class EquitySnapshot(Base):
     """Daily equity curve snapshots for performance tracking."""
 
@@ -1262,6 +1323,7 @@ class EquitySnapshot(Base):
     strategy_allocations = Column(JSON, nullable=True)
     trade_count = Column(Integer, default=0)
     win_count = Column(Integer, default=0)
+
 
 class CalibrationRecord(Base):
     """Track predicted probability vs actual outcome for model calibration."""
@@ -1277,6 +1339,7 @@ class CalibrationRecord(Base):
     price_bucket = Column(String, nullable=True, index=True)  # e.g. "5-10c", "40-50c"
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+
 class ResearchItemDB(Base):
     __tablename__ = "research_items"
     id = Column(Integer, primary_key=True)
@@ -1288,6 +1351,7 @@ class ResearchItemDB(Base):
     fingerprint = Column(String, unique=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     used_in_decision = Column(Boolean, default=False)
+
 
 class Alert(Base):
     __tablename__ = "alerts"
@@ -1313,6 +1377,7 @@ class Alert(Base):
             f"entity={self.entity_type}:{self.entity_id}, resolved={self.resolved})>"
         )
 
+
 class AlertConfig(Base):
     __tablename__ = "alert_config"
 
@@ -1328,6 +1393,7 @@ class AlertConfig(Base):
             f"<AlertConfig(type={self.alert_type}, enabled={self.enabled}, "
             f"threshold={self.threshold_value} {self.threshold_unit})>"
         )
+
 
 class TransactionEvent(Base):
     """Immutable ledger of all bankroll movements.
@@ -1367,6 +1433,7 @@ class TransactionEvent(Base):
     # Human-readable reason/note (optional)
     note = Column(String, nullable=True)
 
+
 class ActivityEventRecord(Base):
     """Persistent record of activity events from all platforms.
 
@@ -1377,14 +1444,20 @@ class ActivityEventRecord(Base):
     __tablename__ = "activity_events"
 
     id = Column(String, primary_key=True)
-    source = Column(String, nullable=False, index=True)  # aster, hyperliquid, lighter, polymarket, azuro, limitless
-    event_type = Column(String, nullable=False, index=True)  # deposit, withdrawal, trade_open, trade_closed, buy, sell, redeem
+    source = Column(
+        String, nullable=False, index=True
+    )  # aster, hyperliquid, lighter, polymarket, azuro, limitless
+    event_type = Column(
+        String, nullable=False, index=True
+    )  # deposit, withdrawal, trade_open, trade_closed, buy, sell, redeem
     wallet_address = Column(String, nullable=False, index=True)
     platform = Column(String, nullable=False, index=True)
     amount = Column(Float, nullable=False)
     token = Column(String, nullable=True, default="USDC")
     tx_hash = Column(String, nullable=True, index=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True, nullable=False)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), index=True, nullable=False
+    )
     trade_id = Column(String, nullable=True, index=True)  # FK to Trade if matched
     order_id = Column(String, nullable=True)
     side = Column(String, nullable=True)  # buy, sell
@@ -1393,6 +1466,7 @@ class ActivityEventRecord(Base):
     pnl = Column(Float, nullable=True)
     market_ticker = Column(String, nullable=True)
     raw_data = Column(JSON, nullable=True)
+
 
 class Setting(Base):
     """Application settings persisted in database."""
@@ -1420,6 +1494,7 @@ class Setting(Base):
             f"<Setting(key={self.key}, type={self.type}, value={self.value[:50]}...)>"
         )
 
+
 class SystemSettings(Base):
     """System settings for runtime configuration (MiroFish, strategies, risk params)."""
 
@@ -1436,6 +1511,7 @@ class SystemSettings(Base):
 
     def __repr__(self):
         return f"<SystemSettings(key={self.key}, value={self.value})>"
+
 
 class ErrorLog(Base):
     """Centralized error logging with structured context."""
@@ -1460,6 +1536,7 @@ class ErrorLog(Base):
         Index("idx_error_logs_type_timestamp", "error_type", "timestamp"),
         Index("idx_error_logs_endpoint_timestamp", "endpoint", "timestamp"),
     )
+
 
 def _attempt_data_recovery(db_path: str) -> dict[str, list[dict]]:
     """Try to recover data from a corrupted SQLite database before wiping it.
@@ -1526,6 +1603,7 @@ def _attempt_data_recovery(db_path: str) -> dict[str, list[dict]]:
         logger.warning(f"Data recovery attempt failed: {e}")
 
     return recovered
+
 
 def _restore_recovered_data(recovered: dict[str, list[dict]]):
     """Re-insert recovered data into the fresh database.
@@ -1608,6 +1686,7 @@ def _restore_recovered_data(recovered: dict[str, list[dict]]):
             f"Recovery: all {total_skipped} rows already present, nothing to restore"
         )
 
+
 def _publish_corruption_alert(event: str, detail: str, data: dict | None = None):
     try:
         from backend.core.event_bus import publish_event
@@ -1622,6 +1701,7 @@ def _publish_corruption_alert(event: str, detail: str, data: dict | None = None)
         )
     except ImportError:
         logger.exception("database publish_corruption_alert failed")
+
 
 def init_db(repair_if_needed: bool = True):
     try:
@@ -1670,6 +1750,7 @@ def init_db(repair_if_needed: bool = True):
                 raise
         else:
             raise
+
 
 def seed_default_data():
     """Seed database with default data."""
@@ -1754,21 +1835,25 @@ def seed_default_data():
     finally:
         db.close()
 
+
 _DDL_COL_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _DDL_TYPE_RE = re.compile(
     r"^(VARCHAR|TEXT|INTEGER|REAL|BOOLEAN|TIMESTAMP|DATETIME|JSON)(\s+.*)?$",
     re.IGNORECASE,
 )
 
+
 def _safe_ddl_identifier(name: str) -> str:
     if not _DDL_COL_RE.match(name):
         raise ValueError(f"Invalid DDL identifier: {name!r}")
     return name
 
+
 def _safe_ddl_type(type_str: str) -> str:
     if not _DDL_TYPE_RE.match(type_str):
         raise ValueError(f"Invalid DDL type: {type_str!r}")
     return type_str
+
 
 def ensure_schema():
     """Ensure newer schema fields exist even if migration wasn't run."""
@@ -1824,11 +1909,7 @@ def ensure_schema():
         try:
             with engine.connect() as conn:
                 with conn.begin():
-                    conn.execute(
-                        text(
-                            "ALTER TABLE trades ADD COLUMN maker_size FLOAT"
-                        )
-                    )
+                    conn.execute(text("ALTER TABLE trades ADD COLUMN maker_size FLOAT"))
         except Exception as e:
             logger.warning(f"Schema migration: could not add maker_size column: {e}")
 
@@ -1836,11 +1917,7 @@ def ensure_schema():
         try:
             with engine.connect() as conn:
                 with conn.begin():
-                    conn.execute(
-                        text(
-                            "ALTER TABLE trades ADD COLUMN taker_size FLOAT"
-                        )
-                    )
+                    conn.execute(text("ALTER TABLE trades ADD COLUMN taker_size FLOAT"))
         except Exception as e:
             logger.warning(f"Schema migration: could not add taker_size column: {e}")
 
@@ -2505,7 +2582,7 @@ def ensure_schema():
                             )
                         )
                 logger.info("Added 'max_concentration_pct' column to risk_profiles")
-            
+
             if "max_correlated_exposure_pct" not in rp_columns:
                 with engine.connect() as conn:
                     with conn.begin():
@@ -2514,11 +2591,12 @@ def ensure_schema():
                                 "ALTER TABLE risk_profiles ADD COLUMN max_correlated_exposure_pct FLOAT DEFAULT 0.8"
                             )
                         )
-                logger.info("Added 'max_correlated_exposure_pct' column to risk_profiles")
+                logger.info(
+                    "Added 'max_correlated_exposure_pct' column to risk_profiles"
+                )
     except Exception as e:
-        logger.warning(
-            f"Schema migration: could not add risk_profiles columns: {e}"
-        )
+        logger.warning(f"Schema migration: could not add risk_profiles columns: {e}")
+
 
 def log_audit(action: str, actor: str = "system", details: dict = None):
     db = SessionLocal()
@@ -2531,6 +2609,7 @@ def log_audit(action: str, actor: str = "system", details: dict = None):
         db.rollback()
     finally:
         db.close()
+
 
 # Knowledge Graph models for Wave 10
 class KgNode(Base):
@@ -2545,6 +2624,7 @@ class KgNode(Base):
     label = Column(String, nullable=False)
     properties_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 
 class KgEdge(Base):
     """Knowledge Graph Edge - represents relationships between nodes."""
@@ -2565,10 +2645,12 @@ class KgEdge(Base):
     properties_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+
 # Indexes for Knowledge Graph
 Index("idx_kg_from", KgEdge.from_node_id, KgEdge.relationship)
 Index("idx_kg_to", KgEdge.to_node_id, KgEdge.relationship)
 Index("idx_kg_type", KgNode.node_type)
+
 
 class ClobEvent(Base):
     __tablename__ = "clob_events"
@@ -2593,6 +2675,7 @@ class ClobEvent(Base):
         # once on the same database.
         UniqueConstraint("tx_hash", name="uq_clob_events_tx_hash"),
     )
+
 
 class ProviderCredential(Base):
     """Key-value credential and config store for market providers.
@@ -2628,6 +2711,7 @@ class ProviderCredential(Base):
         Index("idx_provider_credentials_name", "provider_name"),
     )
 
+
 def get_db():
     """Get database session."""
     db = SessionLocal()
@@ -2635,6 +2719,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 # Re-import to ensure table registration without failing on circular import orderings.
 try:

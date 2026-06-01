@@ -12,8 +12,6 @@ Complements scripts/bot-guardian.sh which monitors from outside.
 This module will be removed in a future release.
 """
 
-
-
 from __future__ import annotations
 
 import asyncio

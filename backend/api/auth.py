@@ -783,7 +783,9 @@ async def test_alert(_: None = Depends(require_admin)):
 
     if not settings.TELEGRAM_BOT_TOKEN:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN not configured")
-    await registry.send_alert(title="Auth Alert", message="PolyEdge alert test -- bot is configured correctly")
+    await registry.send_alert(
+        title="Auth Alert", message="PolyEdge alert test -- bot is configured correctly"
+    )
     return {"status": "ok", "message": "Test alert sent"}
 
 

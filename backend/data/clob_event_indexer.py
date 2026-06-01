@@ -118,7 +118,9 @@ class CLOBEventIndexer:
             data_bytes = bytes(data_val)
 
         if len(data_bytes) < 128:
-            raise ValueError(f"Invalid data length: {len(data_bytes)}, expected >= 128 bytes")
+            raise ValueError(
+                f"Invalid data length: {len(data_bytes)}, expected >= 128 bytes"
+            )
 
         maker_asset_id = int.from_bytes(data_bytes[0:32], byteorder="big")
         maker_amount_filled = int.from_bytes(data_bytes[32:64], byteorder="big")
@@ -133,7 +135,9 @@ class CLOBEventIndexer:
                 block = w3.eth.get_block(block_number)
                 timestamp = block.timestamp
             except Exception as e:
-                logger.warning(f"Could not fetch timestamp for block {block_number}: {e}")
+                logger.warning(
+                    f"Could not fetch timestamp for block {block_number}: {e}"
+                )
                 timestamp = 0
 
             if timestamp > 0:
@@ -153,4 +157,3 @@ class CLOBEventIndexer:
             "takerAmountFilled": str(taker_amount_filled),
             "transactionHash": tx_hash,
         }
-

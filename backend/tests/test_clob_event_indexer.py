@@ -7,7 +7,9 @@ import pytest
 try:
     from hexbytes import HexBytes
 except ImportError:
-    HexBytes = lambda x: x if isinstance(x, bytes) else bytes.fromhex(x.replace("0x", ""))
+    HexBytes = lambda x: (
+        x if isinstance(x, bytes) else bytes.fromhex(x.replace("0x", ""))
+    )
 
 from backend.data.clob_event_indexer import CLOBEventIndexer, ORDER_FILLED_TOPIC
 from backend.data.goldsky_client import process_trade_event
@@ -15,6 +17,7 @@ from backend.data.goldsky_client import process_trade_event
 
 class MockLog:
     """Helper mock object representing a raw EVM log."""
+
     def __init__(self, topics, data, block_number, log_index, transaction_hash):
         self.topics = topics
         self.data = data
@@ -24,10 +27,7 @@ class MockLog:
 
 
 def _create_order_filled_data(
-    maker_asset_id: int,
-    maker_amount: int,
-    taker_asset_id: int,
-    taker_amount: int
+    maker_asset_id: int, maker_amount: int, taker_asset_id: int, taker_amount: int
 ) -> bytes:
     """Helper to generate ABI encoded 128-byte unindexed data for OrderFilled."""
     m_asset = maker_asset_id.to_bytes(32, byteorder="big")
@@ -39,15 +39,19 @@ def _create_order_filled_data(
 
 def test_decode_event_success():
     """Verify that a valid raw OrderFilled log is parsed into a Goldsky-compatible dict."""
-    maker_topic = HexBytes("0x0000000000000000000000001111111111111111111111111111111111111111")
-    taker_topic = HexBytes("0x0000000000000000000000002222222222222222222222222222222222222222")
+    maker_topic = HexBytes(
+        "0x0000000000000000000000001111111111111111111111111111111111111111"
+    )
+    taker_topic = HexBytes(
+        "0x0000000000000000000000002222222222222222222222222222222222222222"
+    )
     topics = [HexBytes(ORDER_FILLED_TOPIC), maker_topic, taker_topic]
 
     data_bytes = _create_order_filled_data(
         maker_asset_id=0,
-        maker_amount=50_000_000,   # 50 USDC (6 decimals)
+        maker_amount=50_000_000,  # 50 USDC (6 decimals)
         taker_asset_id=98765,
-        taker_amount=100_000_000   # 100 tokens
+        taker_amount=100_000_000,  # 100 tokens
     )
 
     log = MockLog(
@@ -55,7 +59,9 @@ def test_decode_event_success():
         data=data_bytes,
         block_number=12345,
         log_index=3,
-        transaction_hash=HexBytes("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
+        transaction_hash=HexBytes(
+            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        ),
     )
 
     indexer = CLOBEventIndexer(rpc_url="http://mock-rpc")
@@ -65,7 +71,10 @@ def test_decode_event_success():
 
     decoded = indexer._decode_event(log)
 
-    assert decoded["id"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890-3"
+    assert (
+        decoded["id"]
+        == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890-3"
+    )
     assert decoded["maker"] == "0x1111111111111111111111111111111111111111"
     assert decoded["taker"] == "0x2222222222222222222222222222222222222222"
     assert decoded["makerAssetId"] == "0"
@@ -73,7 +82,10 @@ def test_decode_event_success():
     assert decoded["takerAssetId"] == "98765"
     assert decoded["takerAmountFilled"] == "100000000"
     assert decoded["timestamp"] == 1716768000
-    assert decoded["transactionHash"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    assert (
+        decoded["transactionHash"]
+        == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    )
 
     # Verify get_block called once
     mock_w3.eth.get_block.assert_called_once_with(12345)
@@ -81,8 +93,12 @@ def test_decode_event_success():
 
 def test_block_timestamp_cache_efficiency():
     """Verify that multiple logs in the same block retrieve the block header only once."""
-    maker_topic = HexBytes("0x0000000000000000000000001111111111111111111111111111111111111111")
-    taker_topic = HexBytes("0x0000000000000000000000002222222222222222222222222222222222222222")
+    maker_topic = HexBytes(
+        "0x0000000000000000000000001111111111111111111111111111111111111111"
+    )
+    taker_topic = HexBytes(
+        "0x0000000000000000000000002222222222222222222222222222222222222222"
+    )
     topics = [HexBytes(ORDER_FILLED_TOPIC), maker_topic, taker_topic]
     data_bytes = _create_order_filled_data(0, 10, 98765, 20)
 
@@ -116,7 +132,7 @@ def test_decode_event_invalid_inputs():
         data=b"\x00" * 128,
         block_number=10,
         log_index=1,
-        transaction_hash=HexBytes("0x12")
+        transaction_hash=HexBytes("0x12"),
     )
     with pytest.raises(ValueError, match="Invalid topics length"):
         indexer._decode_event(log_short_topics)
@@ -125,13 +141,17 @@ def test_decode_event_invalid_inputs():
     log_short_data = MockLog(
         topics=[
             HexBytes(ORDER_FILLED_TOPIC),
-            HexBytes("0x0000000000000000000000001111111111111111111111111111111111111111"),
-            HexBytes("0x0000000000000000000000002222222222222222222222222222222222222222")
+            HexBytes(
+                "0x0000000000000000000000001111111111111111111111111111111111111111"
+            ),
+            HexBytes(
+                "0x0000000000000000000000002222222222222222222222222222222222222222"
+            ),
         ],
-        data=b"\x00" * 100, # less than 128 bytes
+        data=b"\x00" * 100,  # less than 128 bytes
         block_number=10,
         log_index=1,
-        transaction_hash=HexBytes("0x12")
+        transaction_hash=HexBytes("0x12"),
     )
     with pytest.raises(ValueError, match="Invalid data length"):
         indexer._decode_event(log_short_data)
@@ -142,10 +162,14 @@ def test_fetch_events_integration():
     indexer = CLOBEventIndexer(rpc_url="http://mock-rpc")
     mock_w3 = MagicMock()
     mock_w3.eth.block_number = 5000
-    
+
     # Setup mock logs
-    maker_topic = HexBytes("0x0000000000000000000000001111111111111111111111111111111111111111")
-    taker_topic = HexBytes("0x0000000000000000000000002222222222222222222222222222222222222222")
+    maker_topic = HexBytes(
+        "0x0000000000000000000000001111111111111111111111111111111111111111"
+    )
+    taker_topic = HexBytes(
+        "0x0000000000000000000000002222222222222222222222222222222222222222"
+    )
     topics = [HexBytes(ORDER_FILLED_TOPIC), maker_topic, taker_topic]
     data_bytes = _create_order_filled_data(0, 50_000_000, 999, 100_000_000)
 
@@ -154,7 +178,7 @@ def test_fetch_events_integration():
         data=data_bytes,
         block_number=4500,
         log_index=1,
-        transaction_hash=HexBytes("0xabc")
+        transaction_hash=HexBytes("0xabc"),
     )
 
     mock_w3.eth.get_logs.return_value = [log]
@@ -171,14 +195,18 @@ def test_fetch_events_integration():
 
 def test_integration_with_goldsky_normalization():
     """Verify that decoded dict format can be parsed by goldsky_client.process_trade_event."""
-    maker_topic = HexBytes("0x0000000000000000000000001111111111111111111111111111111111111111")
-    taker_topic = HexBytes("0x0000000000000000000000002222222222222222222222222222222222222222")
+    maker_topic = HexBytes(
+        "0x0000000000000000000000001111111111111111111111111111111111111111"
+    )
+    taker_topic = HexBytes(
+        "0x0000000000000000000000002222222222222222222222222222222222222222"
+    )
     topics = [HexBytes(ORDER_FILLED_TOPIC), maker_topic, taker_topic]
     data_bytes = _create_order_filled_data(
-        maker_asset_id=0,          # USDC side
-        maker_amount=15_000_000,   # 15 USDC
-        taker_asset_id=98765,      # Token side
-        taker_amount=30_000_000    # 30 tokens
+        maker_asset_id=0,  # USDC side
+        maker_amount=15_000_000,  # 15 USDC
+        taker_asset_id=98765,  # Token side
+        taker_amount=30_000_000,  # 30 tokens
     )
 
     log = MockLog(
@@ -186,7 +214,9 @@ def test_integration_with_goldsky_normalization():
         data=data_bytes,
         block_number=1000,
         log_index=5,
-        transaction_hash=HexBytes("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
+        transaction_hash=HexBytes(
+            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        ),
     )
 
     indexer = CLOBEventIndexer(rpc_url="http://mock-rpc")
@@ -209,5 +239,8 @@ def test_integration_with_goldsky_normalization():
     assert normalized["usd_amount"] == pytest.approx(15.0)
     assert normalized["token_amount"] == pytest.approx(30.0)
     assert normalized["price"] == pytest.approx(0.5)
-    assert normalized["tx_hash"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    assert (
+        normalized["tx_hash"]
+        == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    )
     assert normalized["timestamp"] == 1700000000

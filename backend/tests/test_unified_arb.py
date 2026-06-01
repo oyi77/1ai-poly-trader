@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.strategies.unified_pm_arb import UnifiedPMArb
-from backend.strategies.cross_market_arb_enhanced import ArbOpportunityEnhanced, ScanResult
+from backend.strategies.cross_market_arb_enhanced import (
+    ArbOpportunityEnhanced,
+    ScanResult,
+)
 
 
 def _make_opp(
@@ -172,9 +175,25 @@ class TestRunCycle:
         ctx.db = MagicMock()
         ctx.bankroll = 100.0
 
-        with patch.object(strategy, "_fetch_polymarket", AsyncMock(return_value=[{"question": "Test", "event_id": "1", "yes_price": 0.55, "no_price": 0.55, "platform": "polymarket"}])), \
-             patch.object(strategy, "_fetch_kalshi", AsyncMock(return_value=[])), \
-             patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector:
+        with (
+            patch.object(
+                strategy,
+                "_fetch_polymarket",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "question": "Test",
+                            "event_id": "1",
+                            "yes_price": 0.55,
+                            "no_price": 0.55,
+                            "platform": "polymarket",
+                        }
+                    ]
+                ),
+            ),
+            patch.object(strategy, "_fetch_kalshi", AsyncMock(return_value=[])),
+            patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector,
+        ):
             mock_detector.return_value.scan_all_providers = MagicMock(
                 return_value=_make_scan_result(opps=[])
             )
@@ -194,10 +213,42 @@ class TestRunCycle:
         opp = _make_opp(net_profit=0.05)
         mock_scan = _make_scan_result(opps=[opp])
 
-        with patch.object(strategy, "_fetch_polymarket", AsyncMock(return_value=[{"question": "BTC above 100k?", "event_id": "evt1", "yes_price": 0.60, "no_price": 0.40, "platform": "polymarket"}])), \
-             patch.object(strategy, "_fetch_kalshi", AsyncMock(return_value=[{"question": "BTC above 100k?", "event_id": "evt1", "yes_price": 0.35, "no_price": 0.65, "platform": "kalshi"}])), \
-             patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector:
-            mock_detector.return_value.scan_all_providers = MagicMock(return_value=mock_scan)
+        with (
+            patch.object(
+                strategy,
+                "_fetch_polymarket",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "question": "BTC above 100k?",
+                            "event_id": "evt1",
+                            "yes_price": 0.60,
+                            "no_price": 0.40,
+                            "platform": "polymarket",
+                        }
+                    ]
+                ),
+            ),
+            patch.object(
+                strategy,
+                "_fetch_kalshi",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "question": "BTC above 100k?",
+                            "event_id": "evt1",
+                            "yes_price": 0.35,
+                            "no_price": 0.65,
+                            "platform": "kalshi",
+                        }
+                    ]
+                ),
+            ),
+            patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector,
+        ):
+            mock_detector.return_value.scan_all_providers = MagicMock(
+                return_value=mock_scan
+            )
             result = await strategy.run_cycle(ctx)
 
         assert result.decisions_recorded == 1
@@ -219,10 +270,28 @@ class TestRunCycle:
         opps = [_make_opp(net_profit=0.05 - i * 0.001) for i in range(5)]
         mock_scan = _make_scan_result(opps=opps)
 
-        with patch.object(strategy, "_fetch_polymarket", AsyncMock(return_value=[{"question": "Test", "event_id": "x", "yes_price": 0.55, "no_price": 0.55, "platform": "polymarket"}])), \
-             patch.object(strategy, "_fetch_kalshi", AsyncMock(return_value=[])), \
-             patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector:
-            mock_detector.return_value.scan_all_providers = MagicMock(return_value=mock_scan)
+        with (
+            patch.object(
+                strategy,
+                "_fetch_polymarket",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "question": "Test",
+                            "event_id": "x",
+                            "yes_price": 0.55,
+                            "no_price": 0.55,
+                            "platform": "polymarket",
+                        }
+                    ]
+                ),
+            ),
+            patch.object(strategy, "_fetch_kalshi", AsyncMock(return_value=[])),
+            patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector,
+        ):
+            mock_detector.return_value.scan_all_providers = MagicMock(
+                return_value=mock_scan
+            )
             result = await strategy.run_cycle(ctx)
 
         assert result.decisions_recorded == 2
@@ -239,10 +308,32 @@ class TestRunCycle:
         opp = _make_opp()
         mock_scan = _make_scan_result(opps=[opp])
 
-        with patch.object(strategy, "_fetch_polymarket", AsyncMock(side_effect=Exception("Gamma down"))), \
-             patch.object(strategy, "_fetch_kalshi", AsyncMock(return_value=[{"question": "Test", "event_id": "x", "yes_price": 0.55, "no_price": 0.55, "platform": "kalshi"}])), \
-             patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector:
-            mock_detector.return_value.scan_all_providers = MagicMock(return_value=mock_scan)
+        with (
+            patch.object(
+                strategy,
+                "_fetch_polymarket",
+                AsyncMock(side_effect=Exception("Gamma down")),
+            ),
+            patch.object(
+                strategy,
+                "_fetch_kalshi",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "question": "Test",
+                            "event_id": "x",
+                            "yes_price": 0.55,
+                            "no_price": 0.55,
+                            "platform": "kalshi",
+                        }
+                    ]
+                ),
+            ),
+            patch.object(strategy, "_get_detector", AsyncMock()) as mock_detector,
+        ):
+            mock_detector.return_value.scan_all_providers = MagicMock(
+                return_value=mock_scan
+            )
             result = await strategy.run_cycle(ctx)
 
         # Should still complete with Kalshi markets

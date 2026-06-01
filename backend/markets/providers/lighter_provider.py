@@ -72,7 +72,9 @@ class LighterProvider(BaseMarketProvider):
                 time_in_force=time_in_force,
             )
             return NormalizedOrderResult(
-                venue_order_id=str(result.get("order_id", result.get("txHash", "unknown"))),
+                venue_order_id=str(
+                    result.get("order_id", result.get("txHash", "unknown"))
+                ),
                 client_order_id=order.client_order_id,
                 status=OrderStatus.OPEN,
                 filled_size=Decimal("0"),
@@ -109,9 +111,13 @@ class LighterProvider(BaseMarketProvider):
             usdc = {}
         return NormalizedBalance(
             venue="lighter",
-            available_cash=Decimal(str(usdc.get("availableBalance", usdc.get("free", "0")))),
+            available_cash=Decimal(
+                str(usdc.get("availableBalance", usdc.get("free", "0")))
+            ),
             total_equity=Decimal(str(usdc.get("balance", usdc.get("total", "0")))),
-            reserved_margin=Decimal(str(usdc.get("initialMargin", usdc.get("used", "0")))),
+            reserved_margin=Decimal(
+                str(usdc.get("initialMargin", usdc.get("used", "0")))
+            ),
             currency="USDC",
             raw=assets if isinstance(assets, dict) else {"assets": assets},
         )
@@ -120,7 +126,11 @@ class LighterProvider(BaseMarketProvider):
         """Get open positions."""
         raw_positions = await self._client.get_positions()
         if not isinstance(raw_positions, list):
-            raw_positions = raw_positions.get("positions", []) if isinstance(raw_positions, dict) else []
+            raw_positions = (
+                raw_positions.get("positions", [])
+                if isinstance(raw_positions, dict)
+                else []
+            )
         result = []
         for pos in raw_positions:
             size = abs(int(pos.get("size", pos.get("contracts", "0"))))
@@ -133,10 +143,16 @@ class LighterProvider(BaseMarketProvider):
                     market_id=str(pos.get("market_id", pos.get("marketId", "unknown"))),
                     side=side,
                     size=Decimal(str(size)),
-                    avg_entry_price=Decimal(str(pos.get("entry_price", pos.get("entryPrice", "0")))),
+                    avg_entry_price=Decimal(
+                        str(pos.get("entry_price", pos.get("entryPrice", "0")))
+                    ),
                     venue="lighter",
-                    current_price=Decimal(str(pos.get("mark_price", pos.get("markPrice", "0")))),
-                    unrealized_pnl=Decimal(str(pos.get("unrealized_pnl", pos.get("unrealizedPnl", "0")))),
+                    current_price=Decimal(
+                        str(pos.get("mark_price", pos.get("markPrice", "0")))
+                    ),
+                    unrealized_pnl=Decimal(
+                        str(pos.get("unrealized_pnl", pos.get("unrealizedPnl", "0")))
+                    ),
                 )
             )
         return result

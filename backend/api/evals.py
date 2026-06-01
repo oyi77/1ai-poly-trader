@@ -45,16 +45,18 @@ async def list_eval_reports():
         except (json.JSONDecodeError, OSError):
             continue
 
-        reports.append({
-            "filename": f.name,
-            "benchmark_type": benchmark_type,
-            "timestamp": timestamp or data.get("timestamp", ""),
-            "score": data.get("score"),
-            "passed": data.get("passed"),
-            "certification_eligible": data.get("certification_eligible"),
-            "passed_benchmarks": data.get("passed_benchmarks"),
-            "failed_benchmarks": data.get("failed_benchmarks"),
-        })
+        reports.append(
+            {
+                "filename": f.name,
+                "benchmark_type": benchmark_type,
+                "timestamp": timestamp or data.get("timestamp", ""),
+                "score": data.get("score"),
+                "passed": data.get("passed"),
+                "certification_eligible": data.get("certification_eligible"),
+                "passed_benchmarks": data.get("passed_benchmarks"),
+                "failed_benchmarks": data.get("failed_benchmarks"),
+            }
+        )
 
     return {"reports": reports}
 

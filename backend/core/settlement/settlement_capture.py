@@ -6,8 +6,6 @@ Capture positions before they close/disappear from Polymarket API
 This ensures we don't lose historical trade data
 """
 
-
-
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session

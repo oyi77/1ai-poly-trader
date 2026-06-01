@@ -55,10 +55,12 @@ class StrategyRehabilitator:
         try:
             # Find strategies in rehab: enabled=True but disabled_at set (paper mode)
             disabled = (
-                db.query(StrategyConfig).filter(
+                db.query(StrategyConfig)
+                .filter(
                     StrategyConfig.enabled.is_(True),
                     StrategyConfig.disabled_at.isnot(None),
-                ).all()
+                )
+                .all()
             )
             for cfg in disabled:
                 if self._is_candidate(cfg, db):
@@ -121,7 +123,9 @@ class StrategyRehabilitator:
             if has_paper:
                 cooldown = datetime.now(timezone.utc) - timedelta(days=1)
             else:
-                cooldown = datetime.now(timezone.utc) - timedelta(days=self.REHAB_COOLDOWN_DAYS)
+                cooldown = datetime.now(timezone.utc) - timedelta(
+                    days=self.REHAB_COOLDOWN_DAYS
+                )
 
             return disabled_at < cooldown
 
@@ -169,7 +173,9 @@ class StrategyRehabilitator:
         if len(trades) < self.REHAB_PAPER_TRADES:
             logger.debug(
                 "[Rehabilitation] '%s' needs %d paper trades, has %d",
-                cfg.strategy_name, self.REHAB_PAPER_TRADES, len(trades),
+                cfg.strategy_name,
+                self.REHAB_PAPER_TRADES,
+                len(trades),
             )
             return False
 
@@ -180,7 +186,9 @@ class StrategyRehabilitator:
         if win_rate < self.REHAB_WIN_RATE_THRESHOLD:
             logger.debug(
                 "[Rehabilitation] '%s' paper WR %.1f%% < %.1f%% threshold",
-                cfg.strategy_name, win_rate * 100, self.REHAB_WIN_RATE_THRESHOLD * 100,
+                cfg.strategy_name,
+                win_rate * 100,
+                self.REHAB_WIN_RATE_THRESHOLD * 100,
             )
             return False
 
@@ -188,7 +196,8 @@ class StrategyRehabilitator:
         if pnl < 0:
             logger.debug(
                 "[Rehabilitation] '%s' paper PnL %.2f < 0",
-                cfg.strategy_name, pnl,
+                cfg.strategy_name,
+                pnl,
             )
             return False
 
@@ -199,7 +208,9 @@ class StrategyRehabilitator:
 
         logger.info(
             "[Rehabilitation] '%s' passed paper validation (WR=%.1f%%, PnL=%.2f) + backtest",
-            cfg.strategy_name, win_rate * 100, pnl,
+            cfg.strategy_name,
+            win_rate * 100,
+            pnl,
         )
         return True
 
@@ -222,10 +233,11 @@ class StrategyRehabilitator:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor() as pool:
-                        result = pool.submit(
-                            asyncio.run, engine.run(db)
-                        ).result(timeout=60)
+                        result = pool.submit(asyncio.run, engine.run(db)).result(
+                            timeout=60
+                        )
                 else:
                     result = loop.run_until_complete(engine.run(db))
             except RuntimeError:
@@ -234,26 +246,33 @@ class StrategyRehabilitator:
             if not result or result.total_trades < 5:
                 logger.debug(
                     "[Rehabilitation] '%s' backtest insufficient trades (%s)",
-                    strategy_name, result.total_trades if result else 0,
+                    strategy_name,
+                    result.total_trades if result else 0,
                 )
                 return False
 
             if result.sharpe_ratio < 0.5:
                 logger.debug(
                     "[Rehabilitation] '%s' backtest Sharpe %.2f < 0.5",
-                    strategy_name, result.sharpe_ratio,
+                    strategy_name,
+                    result.sharpe_ratio,
                 )
                 return False
 
             logger.info(
                 "[Rehabilitation] '%s' backtest passed: Sharpe=%.2f, WR=%.1f%%, PnL=%.2f, trades=%d",
-                strategy_name, result.sharpe_ratio, result.win_rate * 100,
-                result.total_pnl, result.total_trades,
+                strategy_name,
+                result.sharpe_ratio,
+                result.win_rate * 100,
+                result.total_pnl,
+                result.total_trades,
             )
             return True
 
         except Exception as e:
-            logger.warning("[Rehabilitation] Backtest failed for '%s': %s", strategy_name, e)
+            logger.warning(
+                "[Rehabilitation] Backtest failed for '%s': %s", strategy_name, e
+            )
             return False
 
 

@@ -11,6 +11,7 @@ from backend.strategies.line_movement_detector import (
 )
 from backend.strategies.base import StrategyContext, MarketInfo
 
+
 class TestLineMovementDetectorHardened:
     """Validate safety bounds, kinetics, and debate gates in line_movement_detector."""
 
@@ -27,7 +28,7 @@ class TestLineMovementDetectorHardened:
     @patch("backend.strategies.line_movement_detector.httpx.AsyncClient")
     async def test_volume_liquidity_thresholds(self, mock_client_class):
         strategy = LineMovementDetectorStrategy()
-        
+
         # Test 1: Volatility magnitude scale increases min_volume and min_liquidity
         strategy.default_params["min_volume_24h"] = 1000
         strategy.default_params["min_liquidity"] = 1000
@@ -66,7 +67,9 @@ class TestLineMovementDetectorHardened:
             token_id="test-token",
             liquidity=1500.0,
         )
-        result_low_liq = await strategy._analyze_movement(mv_low_liq, strategy.default_params, ctx)
+        result_low_liq = await strategy._analyze_movement(
+            mv_low_liq, strategy.default_params, ctx
+        )
         assert result_low_liq is None
 
     @pytest.mark.asyncio
@@ -96,9 +99,9 @@ class TestLineMovementDetectorHardened:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "bids": [{"price": "0.40", "size": "100"}],
-            "asks": [{"price": "0.60", "size": "100"}]
+            "asks": [{"price": "0.60", "size": "100"}],
         }
-        
+
         mock_client = MagicMock()
         mock_client.get = AsyncMock(return_value=mock_response)
         mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -135,7 +138,7 @@ class TestLineMovementDetectorHardened:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "bids": [{"price": "0.49", "size": "1.0"}],
-            "asks": [{"price": "0.51", "size": "10.0"}]
+            "asks": [{"price": "0.51", "size": "10.0"}],
         }
         mock_client = MagicMock()
         mock_client.get = AsyncMock(return_value=mock_response)
@@ -176,7 +179,7 @@ class TestLineMovementDetectorHardened:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "bids": [{"price": "0.49", "size": "10.0"}],
-            "asks": [{"price": "0.51", "size": "90.0"}]
+            "asks": [{"price": "0.51", "size": "90.0"}],
         }
         mock_client = MagicMock()
         mock_client.get = AsyncMock(return_value=mock_response)
@@ -214,7 +217,7 @@ class TestLineMovementDetectorHardened:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "bids": [{"price": "0.49", "size": "10.0"}],
-            "asks": [{"price": "0.51", "size": "10.0"}]
+            "asks": [{"price": "0.51", "size": "10.0"}],
         }
         mock_client = MagicMock()
         mock_client.get = AsyncMock(return_value=mock_response)
@@ -258,7 +261,7 @@ class TestLineMovementDetectorHardened:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "bids": [{"price": "0.49", "size": "10.0"}],
-            "asks": [{"price": "0.51", "size": "10.0"}]
+            "asks": [{"price": "0.51", "size": "10.0"}],
         }
         mock_client = MagicMock()
         mock_client.get = AsyncMock(return_value=mock_response)

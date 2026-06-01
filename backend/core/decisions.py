@@ -169,7 +169,9 @@ def record_decision_standalone(
     """
     from backend.db.utils import get_db_session
 
-    @retry(max_attempts=max_retries, retryable_exceptions=(OperationalError, TimeoutError))
+    @retry(
+        max_attempts=max_retries, retryable_exceptions=(OperationalError, TimeoutError)
+    )
     def _insert_standalone() -> DecisionLog:
         with get_db_session() as db:
             row = record_decision(

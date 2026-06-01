@@ -137,14 +137,16 @@ class AzuroClient:
                 condition_id,
                 outcome_index,
                 amount_wei,
-            ).build_transaction({
-                "from": account.address,
-                "value": amount_wei,  # xDAI bets use native currency
-                "nonce": w3.eth.get_transaction_count(account.address),
-                "gas": 500_000,
-                "gasPrice": w3.eth.gas_price,
-                "chainId": self._chain_id,
-            })
+            ).build_transaction(
+                {
+                    "from": account.address,
+                    "value": amount_wei,  # xDAI bets use native currency
+                    "nonce": w3.eth.get_transaction_count(account.address),
+                    "gas": 500_000,
+                    "gasPrice": w3.eth.gas_price,
+                    "chainId": self._chain_id,
+                }
+            )
         except Exception:
             # Fallback: try `bet` method name (older Azuro LP versions)
             try:
@@ -152,14 +154,16 @@ class AzuroClient:
                     condition_id,
                     outcome_index,
                     amount_wei,
-                ).build_transaction({
-                    "from": account.address,
-                    "value": amount_wei,
-                    "nonce": w3.eth.get_transaction_count(account.address),
-                    "gas": 500_000,
-                    "gasPrice": w3.eth.gas_price,
-                    "chainId": self._chain_id,
-                })
+                ).build_transaction(
+                    {
+                        "from": account.address,
+                        "value": amount_wei,
+                        "nonce": w3.eth.get_transaction_count(account.address),
+                        "gas": 500_000,
+                        "gasPrice": w3.eth.gas_price,
+                        "chainId": self._chain_id,
+                    }
+                )
             except Exception as build_err:
                 raise RuntimeError(
                     f"Failed to build Azuro bet transaction. The ABI may not contain "

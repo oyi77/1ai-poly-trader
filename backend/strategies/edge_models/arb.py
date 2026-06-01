@@ -69,7 +69,9 @@ class ArbitrageEdgeCalculator(EdgeCalculator):
         return EdgeResult(
             edge=net_edge,
             model_probability=model_probability,
-            confidence=min(1.0, divergence / 0.10),  # higher divergence = higher confidence
+            confidence=min(
+                1.0, divergence / 0.10
+            ),  # higher divergence = higher confidence
             direction=direction,
             reasoning=(
                 f"Arb: {min_platform}={low_price:.3f} vs "

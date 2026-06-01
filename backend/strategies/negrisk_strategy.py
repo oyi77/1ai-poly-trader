@@ -26,18 +26,16 @@ from backend.strategies.base import (
 )
 from backend.core.strategy_gate import StrategyGate
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
-from backend.config import settings
+from backend.config import settings, _cfg
 
 # Circuit breaker for negrisk orders — trips on 3 consecutive failures, resets after 120s
-_negrisk_breaker = CircuitBreaker("negrisk_strategy", failure_threshold=3, recovery_timeout=120.0)
+_negrisk_breaker = CircuitBreaker(
+    "negrisk_strategy", failure_threshold=3, recovery_timeout=120.0
+)
 
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
-
-
-def _cfg(name: str, default=None):
-    return getattr(settings, name, default) if hasattr(settings, name) else default
 
 
 # ---------------------------------------------------------------------------
@@ -423,18 +421,30 @@ class NegRiskStrategy(BaseStrategy):
                                 if result.get("order_id"):
                                     placed_order_ids.append(result["order_id"])
                             else:
-                                event_errors.append(result.get("error", "unknown") if result else "null_result")
+                                event_errors.append(
+                                    result.get("error", "unknown")
+                                    if result
+                                    else "null_result"
+                                )
                                 # Atomicity: cancel all previously placed legs
                                 for oid in placed_order_ids:
                                     try:
                                         await ctx.clob.cancel_order(oid)
-                                        ctx.logger.info("[negrisk] Cancelled order %s (leg failed)", oid)
+                                        ctx.logger.info(
+                                            "[negrisk] Cancelled order %s (leg failed)",
+                                            oid,
+                                        )
                                     except Exception as cancel_exc:
-                                        ctx.logger.warning("[negrisk] Failed to cancel order %s: %s", oid, cancel_exc)
+                                        ctx.logger.warning(
+                                            "[negrisk] Failed to cancel order %s: %s",
+                                            oid,
+                                            cancel_exc,
+                                        )
                                 break
                     except CircuitOpenError:
                         ctx.logger.warning(
-                            "[negrisk] circuit breaker open, skipping %s", event.event_id
+                            "[negrisk] circuit breaker open, skipping %s",
+                            event.event_id,
                         )
                         errors.append(f"circuit_open:{event.event_id}")
                         continue
@@ -477,8 +487,10 @@ class NegRiskStrategy(BaseStrategy):
     async def _fetch_markets(self, ctx: StrategyContext) -> list[dict]:
         """Fetch markets via Gamma API, parse outcomePrices into yes_price/no_price."""
         import json as _json
+
         try:
             from backend.data.gamma import fetch_markets
+
             raw = await fetch_markets(limit=2000)
             parsed = []
             for m in raw:
@@ -495,13 +507,17 @@ class NegRiskStrategy(BaseStrategy):
                     clob_ids = m.get("clobTokenIds", [])
                     if isinstance(clob_ids, str):
                         clob_ids = _json.loads(clob_ids)
-                    parsed.append({
-                        **m,
-                        "yes_price": float(prices[yes_idx]),
-                        "no_price": float(prices[1 - yes_idx]),
-                        "token_id": clob_ids[yes_idx] if yes_idx < len(clob_ids) else "",
-                        "condition_id": m.get("conditionId", ""),
-                    })
+                    parsed.append(
+                        {
+                            **m,
+                            "yes_price": float(prices[yes_idx]),
+                            "no_price": float(prices[1 - yes_idx]),
+                            "token_id": (
+                                clob_ids[yes_idx] if yes_idx < len(clob_ids) else ""
+                            ),
+                            "condition_id": m.get("conditionId", ""),
+                        }
+                    )
                 except Exception:
                     continue
             return parsed

@@ -9,11 +9,7 @@ from backend.models.outcome_tables import StrategyOutcome, ParamChange
 from backend.models.database import StrategyConfig
 from backend.core.outcome_repository import record_param_change, mark_param_reverted
 from backend.core.walk_forward import WalkForwardValidator
-from backend.config import settings
-
-
-def _cfg(key: str, default=None):
-    return getattr(settings, key, default) if hasattr(settings, key) else default
+from backend.config import settings, _cfg
 
 
 MAX_CHANGE_PCT = _cfg("SAFE_TUNER_MAX_CHANGE_PCT", 0.10)

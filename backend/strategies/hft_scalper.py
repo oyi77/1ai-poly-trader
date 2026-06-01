@@ -25,7 +25,6 @@ from backend.core.event_bus import MarketEvent
 from backend.core.decisions import record_decision
 from loguru import logger
 
-
 # ---------------------------------------------------------------------------
 # Position tracking
 # ---------------------------------------------------------------------------
@@ -122,12 +121,12 @@ class HFTScalperStrategy(BaseStrategy):
         """Discover active short-duration markets and map outcome token IDs."""
         try:
             from backend.core.market_scanner import fetch_short_duration_token_ids
-            
+
             # Subscribe to the top highly liquid short-duration tokens
             short_tokens = await fetch_short_duration_token_ids(limit=50)
             self.subscribed_tokens = set(short_tokens)
             self._tokens_populated = True
-            
+
             self.start_consumer()
             logger.info(
                 f"[{self.name}] Subscribed tokens populated with {len(self.subscribed_tokens)} active tokens."
@@ -138,12 +137,16 @@ class HFTScalperStrategy(BaseStrategy):
     async def on_ws_disconnected(self) -> None:
         """Safety Safeguard: Disconnection halts execution and flushes exposure."""
         self._halted = True
-        logger.warning(f"[{self.name}] WebSocket telemetry lost! Activating safety halt.")
-        
+        logger.warning(
+            f"[{self.name}] WebSocket telemetry lost! Activating safety halt."
+        )
+
         # Safe positions cancel
         to_exit = list(self._open_positions.values())
         for pos in to_exit:
-            logger.warning(f"[{self.name}] Telemetry lost: Emergency closing position on {pos.ticker}")
+            logger.warning(
+                f"[{self.name}] Telemetry lost: Emergency closing position on {pos.ticker}"
+            )
             # Close position locally at entry price to neutralize exposure in simulation
             self._close_position(pos, pos.entry_price, "EMERGENCY_HALT")
 
@@ -265,7 +268,11 @@ class HFTScalperStrategy(BaseStrategy):
         now: float,
     ) -> Optional[str]:
         """Return rejection reason or None if risk gates pass."""
-        ticker_str = ticker.ticker if hasattr(ticker, "ticker") else (ticker.market_ticker if hasattr(ticker, "market_ticker") else ticker)
+        ticker_str = (
+            ticker.ticker
+            if hasattr(ticker, "ticker")
+            else (ticker.market_ticker if hasattr(ticker, "market_ticker") else ticker)
+        )
         if not isinstance(ticker_str, str):
             ticker_str = str(ticker_str)
 
@@ -292,7 +299,9 @@ class HFTScalperStrategy(BaseStrategy):
         # Additional gates for MarketInfo object attributes if available
         if hasattr(ticker, "volume") and ticker.volume < params.get("min_volume", 500):
             return "low_volume"
-        if hasattr(ticker, "liquidity") and ticker.liquidity < params.get("min_liquidity", 1000):
+        if hasattr(ticker, "liquidity") and ticker.liquidity < params.get(
+            "min_liquidity", 1000
+        ):
             return "low_liquidity"
         if hasattr(ticker, "yes_price") and hasattr(ticker, "no_price"):
             best_bid = ticker.metadata.get("bestBid") if ticker.metadata else None
@@ -361,11 +370,7 @@ class HFTScalperStrategy(BaseStrategy):
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
         """Filter markets suitable for scalping: sufficient volume."""
-        return [
-            m
-            for m in markets
-            if m.volume >= self.default_params["min_volume"]
-        ]
+        return [m for m in markets if m.volume >= self.default_params["min_volume"]]
 
     # ------------------------------------------------------------------
     # Event-driven: Ingest into async queue
@@ -416,7 +421,9 @@ class HFTScalperStrategy(BaseStrategy):
         event_ts = event.data.get("timestamp") or event.timestamp
         if isinstance(event_ts, str):
             try:
-                event_ts = datetime.fromisoformat(event_ts.replace("Z", "+00:00")).timestamp()
+                event_ts = datetime.fromisoformat(
+                    event_ts.replace("Z", "+00:00")
+                ).timestamp()
             except Exception:
                 event_ts = time.time()
         elif not isinstance(event_ts, (int, float)):
@@ -433,17 +440,20 @@ class HFTScalperStrategy(BaseStrategy):
         if position:
             params = self.default_params
             exit_reason, pnl_pct = self.check_exit(position, price, params)
-            
+
             # Check maximum hold safeguard
             now = time.monotonic()
-            if not exit_reason and (now - position.opened_at) > params.get("max_hold_seconds", 15):
+            if not exit_reason and (now - position.opened_at) > params.get(
+                "max_hold_seconds", 15
+            ):
                 exit_reason = "TIME_EXIT"
 
             if exit_reason:
                 closed = self._close_position(position, price, exit_reason)
-                
+
                 # Persist exit decision immediately
                 from backend.db.utils import get_db_session
+
                 try:
                     with get_db_session() as db:
                         record_decision(
@@ -467,12 +477,16 @@ class HFTScalperStrategy(BaseStrategy):
         # 3. Check entry momentum for new position
         else:
             params = self.default_params
-            direction, move_size = self.detect_momentum(self._price_history[token_id], params)
+            direction, move_size = self.detect_momentum(
+                self._price_history[token_id], params
+            )
             if not direction:
                 return
 
-            bankroll = getattr(self, '_bankroll', 100.0)
-            rejection = self._passes_risk_gates(token_id, price, bankroll, params, time.time())
+            bankroll = getattr(self, "_bankroll", 100.0)
+            rejection = self._passes_risk_gates(
+                token_id, price, bankroll, params, time.time()
+            )
             if rejection:
                 return
 
@@ -482,6 +496,7 @@ class HFTScalperStrategy(BaseStrategy):
 
             # Record entry decision
             from backend.db.utils import get_db_session
+
             try:
                 with get_db_session() as db:
                     record_decision(
@@ -504,6 +519,7 @@ class HFTScalperStrategy(BaseStrategy):
 
             # Open position locally (Simulation fills instantly on tick)
             import uuid
+
             position = ScalpPosition(
                 position_id=str(uuid.uuid4()),
                 market_id=token_id,
@@ -515,8 +531,8 @@ class HFTScalperStrategy(BaseStrategy):
             )
 
             # Place real CLOB order in live mode
-            clob = getattr(self, '_clob', None)
-            mode = getattr(self, '_mode', 'paper')
+            clob = getattr(self, "_clob", None)
+            mode = getattr(self, "_mode", "paper")
             if clob and mode == "live":
                 try:
                     # Resolve correct token_id for direction
@@ -530,14 +546,20 @@ class HFTScalperStrategy(BaseStrategy):
                         price=price,
                         size=size_usd,
                     )
-                    if order and hasattr(order, 'order_id') and order.order_id:
+                    if order and hasattr(order, "order_id") and order.order_id:
                         position.order_id = str(order.order_id)
-                        logger.info(f"[{self.name}] CLOB order placed: {position.order_id[:20]}")
-                    elif order and hasattr(order, 'success') and not order.success:
-                        logger.warning(f"[{self.name}] CLOB order rejected: {getattr(order, 'error', 'unknown')}")
+                        logger.info(
+                            f"[{self.name}] CLOB order placed: {position.order_id[:20]}"
+                        )
+                    elif order and hasattr(order, "success") and not order.success:
+                        logger.warning(
+                            f"[{self.name}] CLOB order rejected: {getattr(order, 'error', 'unknown')}"
+                        )
                         return
                     else:
-                        logger.warning(f"[{self.name}] CLOB order unclear response: {order}")
+                        logger.warning(
+                            f"[{self.name}] CLOB order unclear response: {order}"
+                        )
                         return
                 except Exception as e:
                     logger.warning(f"[{self.name}] CLOB order failed: {e}")
@@ -552,6 +574,7 @@ class HFTScalperStrategy(BaseStrategy):
         """Restore open hft_scalper positions from DB on startup."""
         try:
             from backend.models.database import Trade
+
             open_trades = (
                 ctx.db.query(Trade)
                 .filter(Trade.strategy == "hft_scalper", Trade.settled.is_(False))
@@ -569,7 +592,9 @@ class HFTScalperStrategy(BaseStrategy):
                 )
                 self._open_positions[pos.market_id] = pos
             if open_trades:
-                logger.info(f"[hft_scalper] Restored {len(open_trades)} open positions from DB")
+                logger.info(
+                    f"[hft_scalper] Restored {len(open_trades)} open positions from DB"
+                )
         except Exception as e:
             logger.warning(f"[hft_scalper] Failed to restore positions: {e}")
 
@@ -592,7 +617,7 @@ class HFTScalperStrategy(BaseStrategy):
         try:
             while not self._queue.empty():
                 event = self._queue.get_nowait()
-                if hasattr(self, '_process_ws_event_sync'):
+                if hasattr(self, "_process_ws_event_sync"):
                     self._process_ws_event_sync(event)
                 self._queue.task_done()
         except Exception:
@@ -603,12 +628,14 @@ class HFTScalperStrategy(BaseStrategy):
             prices = self._price_history.get(ticker, [])
             current_price = prices[-1][1] if prices else pos.entry_price
             signal, _pnl = self.check_exit(pos, current_price, self.default_params)
-            
+
             # Check maximum hold safeguard
             now = time.monotonic()
-            if not signal and (now - pos.opened_at) > self.default_params.get("max_hold_seconds", 15):
+            if not signal and (now - pos.opened_at) > self.default_params.get(
+                "max_hold_seconds", 15
+            ):
                 signal = "TIME_EXIT"
-                
+
             if signal:
                 self._close_position(pos, current_price, signal)
                 trades += 1
@@ -620,12 +647,17 @@ class HFTScalperStrategy(BaseStrategy):
             else:
                 # Fallback: Gamma API
                 from backend.data.gamma import fetch_markets
+
                 raw_markets = await fetch_markets(limit=100)
             for raw in raw_markets:
                 token_id = raw.get("conditionId") or raw.get("token_id")
                 if not token_id:
                     continue
-                price = raw.get("midpoint") or raw.get("price") or raw.get("last_trade_price")
+                price = (
+                    raw.get("midpoint")
+                    or raw.get("price")
+                    or raw.get("last_trade_price")
+                )
                 if price is not None:
                     event = MarketEvent(
                         token_id=token_id,

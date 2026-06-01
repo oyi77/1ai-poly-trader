@@ -7,8 +7,6 @@ Auto-discover profitable Polymarket wallets from leaderboard.
 Scans leaderboard, ranks by P&L, and suggests wallets to copy.
 """
 
-
-
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 
@@ -157,8 +155,8 @@ async def auto_add_profitable_wallets(
     # Batch check existing wallets (single query instead of N)
     suggested_addrs = [w["address"] for w in suggested]
     existing_addrs = set(
-        row[0] for row in
-        db.query(WalletConfig.address)
+        row[0]
+        for row in db.query(WalletConfig.address)
         .filter(WalletConfig.address.in_(suggested_addrs))
         .all()
     )

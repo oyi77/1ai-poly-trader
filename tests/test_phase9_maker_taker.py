@@ -25,13 +25,15 @@ from backend.models.database import Base, Trade
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-
 # ── Fixture ───────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def db_session():
     """In-memory SQLite session for isolated test trades."""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -61,6 +63,7 @@ def _make_settled_trade(session, role: str, pnl: float, size: float = 100.0):
 
 
 # ── MakerTakerAnalytics unit tests ───────────────────────────────────────────
+
 
 class TestMakerTakerAnalytics:
     """Unit tests for MakerTakerAnalytics with real DB inserts."""
@@ -103,9 +106,9 @@ class TestMakerTakerAnalytics:
         """When taker ROI >= -1% but maker ROI > taker ROI + 2%, recommendation is prefer_maker."""
         analytics = self._fresh()
         for _ in range(20):
-            _make_settled_trade(db_session, "maker", pnl=5.0, size=100.0)   # +5% ROI
+            _make_settled_trade(db_session, "maker", pnl=5.0, size=100.0)  # +5% ROI
         for _ in range(20):
-            _make_settled_trade(db_session, "taker", pnl=0.5, size=100.0)   # +0.5% ROI
+            _make_settled_trade(db_session, "taker", pnl=0.5, size=100.0)  # +0.5% ROI
 
         result = analytics.get_stats(db_session)
         # Maker: 5%, Taker: 0.5%, difference = 4.5% > 2% → prefer_maker
@@ -115,9 +118,9 @@ class TestMakerTakerAnalytics:
         """When maker ≈ taker ROI and both ≥ -1%, recommendation is neutral."""
         analytics = self._fresh()
         for _ in range(20):
-            _make_settled_trade(db_session, "maker", pnl=2.0, size=100.0)   # +2% ROI
+            _make_settled_trade(db_session, "maker", pnl=2.0, size=100.0)  # +2% ROI
         for _ in range(20):
-            _make_settled_trade(db_session, "taker", pnl=1.5, size=100.0)   # +1.5% ROI
+            _make_settled_trade(db_session, "taker", pnl=1.5, size=100.0)  # +1.5% ROI
 
         result = analytics.get_stats(db_session)
         # Difference = 0.5% < 2% threshold, taker ROI = 1.5% > -1% → neutral
@@ -180,7 +183,7 @@ class TestMakerTakerAnalytics:
                 platform="polymarket",
                 entry_price=0.5,
                 size=100.0,
-                pnl=999.0,   # huge — would skew ROI if included
+                pnl=999.0,  # huge — would skew ROI if included
                 settled=False,
                 role="maker",
                 timestamp=datetime.now(timezone.utc),
@@ -194,6 +197,7 @@ class TestMakerTakerAnalytics:
 
 
 # ── Parquet role column test ──────────────────────────────────────────────────
+
 
 class TestParquetRoleColumn:
     """Verify that db_archiver.archive_trades_to_parquet includes the role column."""
@@ -231,7 +235,9 @@ class TestParquetRoleColumn:
         con.close()
 
         out_dir = str(tmp_path / "parquet")
-        count = archive_trades_to_parquet(db_file, out_dir, days_back=3650)  # 10 years back
+        count = archive_trades_to_parquet(
+            db_file, out_dir, days_back=3650
+        )  # 10 years back
 
         assert count >= 1
 
@@ -241,10 +247,13 @@ class TestParquetRoleColumn:
 
         schema = pq.read_schema(parquet_files[0])
         column_names = schema.names
-        assert "role" in column_names, f"'role' column missing from Parquet schema: {column_names}"
+        assert (
+            "role" in column_names
+        ), f"'role' column missing from Parquet schema: {column_names}"
 
 
 # ── API import smoke test ─────────────────────────────────────────────────────
+
 
 class TestAnalyticsAPIModule:
     """Ensure the analytics API module imports cleanly and the route is registered."""
@@ -254,13 +263,14 @@ class TestAnalyticsAPIModule:
         from backend.api.analytics import router
 
         paths = [route.path for route in router.routes]
-        assert "/analytics/maker-taker" in paths, (
-            f"Expected /analytics/maker-taker route in analytics router, got: {paths}"
-        )
+        assert (
+            "/analytics/maker-taker" in paths
+        ), f"Expected /analytics/maker-taker route in analytics router, got: {paths}"
 
     def test_analytics_module_imports_without_error(self):
         """The analytics module should import without raising any exceptions."""
         import importlib
         import backend.api.analytics
+
         # Re-import to catch any lazy import errors
         importlib.reload(backend.api.analytics)

@@ -244,6 +244,7 @@ class StrategyRanker:
                 )
                 if config and config.enabled:
                     from backend.core.strategy_health import disable_for_rehab
+
                     disable_for_rehab(config)
                     disabled.append(r.name)
                     logger.warning(

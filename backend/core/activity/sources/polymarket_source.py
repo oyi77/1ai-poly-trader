@@ -5,7 +5,11 @@ import asyncio
 
 from backend.core.activity.models import ActivityEvent
 from backend.core.activity.sources.base import BaseActivitySource
-from backend.constants import USDC_E_ADDRESS, ERC20_TRANSFER_TOPIC, BALANCE_DELTA_THRESHOLD
+from backend.constants import (
+    USDC_E_ADDRESS,
+    ERC20_TRANSFER_TOPIC,
+    BALANCE_DELTA_THRESHOLD,
+)
 from loguru import logger
 
 
@@ -46,7 +50,9 @@ class PolymarketActivitySource(BaseActivitySource):
             try:
                 await self._connect_ws_fills()
             except Exception as e:
-                logger.warning(f"[polymarket] WS fills error, falling back to REST: {e}")
+                logger.warning(
+                    f"[polymarket] WS fills error, falling back to REST: {e}"
+                )
                 self._ws_connected = False
             # If WS fails, run REST fallback for a while before retrying
             if not self._ws_connected and self._running:
@@ -54,7 +60,11 @@ class PolymarketActivitySource(BaseActivitySource):
 
     async def _connect_ws_fills(self):
         """Connect to Polymarket WebSocket USER channel for real-time fills."""
-        from backend.data.polymarket_websocket import PolymarketWebSocket, ChannelType, EventType
+        from backend.data.polymarket_websocket import (
+            PolymarketWebSocket,
+            ChannelType,
+            EventType,
+        )
         from backend.config import settings
 
         ws_url = settings.POLYMARKET_WS_USER_URL
@@ -129,8 +139,10 @@ class PolymarketActivitySource(BaseActivitySource):
         while self._running and asyncio.get_running_loop().time() < deadline:
             try:
                 fills = await self._clob.get_trader_trades(self.wallet_address)
-                raw = fills if isinstance(fills, list) else (fills or {}).get("data", [])
-                for fill in (raw or []):
+                raw = (
+                    fills if isinstance(fills, list) else (fills or {}).get("data", [])
+                )
+                for fill in raw or []:
                     if not fill or not isinstance(fill, dict):
                         continue
                     order_id = fill.get("orderID", fill.get("id", ""))
@@ -166,12 +178,14 @@ class PolymarketActivitySource(BaseActivitySource):
             self._last_transfer_block = await self._w3.eth.block_number
 
         current = await self._w3.eth.block_number
-        logs = await self._w3.eth.get_logs({
-            "address": USDC_CONTRACT,
-            "topics": [TRANSFER_TOPIC],
-            "fromBlock": self._last_transfer_block,
-            "toBlock": current,
-        })
+        logs = await self._w3.eth.get_logs(
+            {
+                "address": USDC_CONTRACT,
+                "topics": [TRANSFER_TOPIC],
+                "fromBlock": self._last_transfer_block,
+                "toBlock": current,
+            }
+        )
         for log in logs:
             tx_hash = log.transactionHash.hex()
             if tx_hash in self._seen_orders:
@@ -180,7 +194,7 @@ class PolymarketActivitySource(BaseActivitySource):
 
             to_addr = log.topics[2].hex()[-40:].lower()
             from_addr = log.topics[1].hex()[-40:].lower()
-            is_deposit = (to_addr == WALLET_LOWER)
+            is_deposit = to_addr == WALLET_LOWER
             event_type = "deposit" if is_deposit else "withdrawal"
             amount = abs(int(log.data, 16)) / 1e6
 
@@ -208,12 +222,14 @@ class PolymarketActivitySource(BaseActivitySource):
             result = self.detect_balance_delta(balance, self._pm_last_balance)
             if result:
                 event_type, amount = result
-                await self._emit(ActivityEvent(
-                    source="polymarket",
-                    event_type=event_type,
-                    wallet_address=self.wallet_address,
-                    platform="polymarket",
-                    amount=amount,
-                    token="USDC",
-                ))
+                await self._emit(
+                    ActivityEvent(
+                        source="polymarket",
+                        event_type=event_type,
+                        wallet_address=self.wallet_address,
+                        platform="polymarket",
+                        amount=amount,
+                        token="USDC",
+                    )
+                )
         self._pm_last_balance = balance

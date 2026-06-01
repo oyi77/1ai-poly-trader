@@ -53,6 +53,7 @@ _db_mod.SessionLocal = TestSessionLocal
 # Proactively patch backend.db.utils.SessionLocal so all modules share the same TestSessionLocal
 try:
     from backend.db import utils as _db_utils_mod
+
     _db_utils_mod.SessionLocal = TestSessionLocal
 except Exception:
     pass

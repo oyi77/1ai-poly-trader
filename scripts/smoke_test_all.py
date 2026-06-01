@@ -112,16 +112,32 @@ class TestResult:
 # Provider definitions: (class_name, module_path, display_name)
 # ---------------------------------------------------------------------------
 PROVIDERS = [
-    ("PolymarketProvider", "backend.markets.providers.polymarket_provider", "Polymarket"),
+    (
+        "PolymarketProvider",
+        "backend.markets.providers.polymarket_provider",
+        "Polymarket",
+    ),
     ("KalshiProvider", "backend.markets.providers.kalshi_provider", "Kalshi"),
     ("SXBetProvider", "backend.markets.providers.sxbet_provider", "SX.bet"),
-    ("HyperliquidProvider", "backend.markets.providers.hyperliquid_provider", "Hyperliquid"),
+    (
+        "HyperliquidProvider",
+        "backend.markets.providers.hyperliquid_provider",
+        "Hyperliquid",
+    ),
     ("AsterProvider", "backend.markets.providers.aster_provider", "Aster"),
     ("LighterProvider", "backend.markets.providers.lighter_provider", "Lighter"),
     ("OstiumProvider", "backend.markets.providers.ostium_provider", "Ostium"),
     ("MyriadProvider", "backend.markets.providers.myriad_provider", "Myriad"),
-    ("BookmakerXYZProvider", "backend.markets.providers.bookmaker_xyz_provider", "Bookmaker.xyz"),
-    ("PredictFunProvider", "backend.markets.providers.predict_fun_provider", "Predict.fun"),
+    (
+        "BookmakerXYZProvider",
+        "backend.markets.providers.bookmaker_xyz_provider",
+        "Bookmaker.xyz",
+    ),
+    (
+        "PredictFunProvider",
+        "backend.markets.providers.predict_fun_provider",
+        "Predict.fun",
+    ),
     ("PaperProvider", "backend.markets.providers.paper_provider", "Paper"),
 ]
 

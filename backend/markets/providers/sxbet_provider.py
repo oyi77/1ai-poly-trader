@@ -133,28 +133,34 @@ class SXBetProvider(BaseMarketProvider):
                 t2 = m.get("teamTwoName", "")
                 if t1 and t2:
                     title = f"{t1} vs {t2}"
-            result.append(MarketInfo(
-                venue="sxbet",
-                market_id=str(m.get("marketHash", "")),
-                title=title or "unknown",
-                description="",
-                category="sports",
-                yes_price=Decimal("0.5"),
-                no_price=Decimal("0.5"),
-                volume_24h=Decimal("0"),
-                open_interest=Decimal("0"),
-                closes_at=None,
-                is_active=True,
-                min_order_size=Decimal("1"),
-                tick_size=Decimal("0.01"),
-                raw=m,
-            ))
+            result.append(
+                MarketInfo(
+                    venue="sxbet",
+                    market_id=str(m.get("marketHash", "")),
+                    title=title or "unknown",
+                    description="",
+                    category="sports",
+                    yes_price=Decimal("0.5"),
+                    no_price=Decimal("0.5"),
+                    volume_24h=Decimal("0"),
+                    open_interest=Decimal("0"),
+                    closes_at=None,
+                    is_active=True,
+                    min_order_size=Decimal("1"),
+                    tick_size=Decimal("0.01"),
+                    raw=m,
+                )
+            )
         return result
 
     async def get_balance(self) -> NormalizedBalance:
         """Get account balance."""
         return NormalizedBalance(
-            venue="sxbet", available_cash=Decimal("0"), total_equity=Decimal("0"), reserved_margin=Decimal("0"), currency="USDC"
+            venue="sxbet",
+            available_cash=Decimal("0"),
+            total_equity=Decimal("0"),
+            reserved_margin=Decimal("0"),
+            currency="USDC",
         )
 
     async def get_positions(self) -> list[NormalizedPosition]:

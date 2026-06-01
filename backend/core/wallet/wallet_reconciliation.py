@@ -14,8 +14,6 @@ Key responsibilities:
 - Close orphaned positions with metadata tracking
 """
 
-
-
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -324,6 +322,7 @@ class WalletReconciler:
                         continue
 
                 from backend.core.trade_forensics import classify_trade_role
+
                 role, maker_size, taker_size = await classify_trade_role(
                     platform="polymarket",
                     mode=self.mode,
@@ -827,6 +826,7 @@ class WalletReconciler:
 
             # Create trade record
             from backend.core.trade_forensics import classify_trade_role
+
             role, maker_size, taker_size = await classify_trade_role(
                 platform="polymarket",
                 mode=self.mode,

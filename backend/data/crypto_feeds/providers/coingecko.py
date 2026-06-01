@@ -64,8 +64,7 @@ class CoinGeckoFeed(BaseExchangeFeed):
             data = resp.json()
             prices = data.get("prices", [])
             return [
-                [int(p[0]) // 1000, p[1], p[1], p[1], p[1], 0]
-                for p in prices[-limit:]
+                [int(p[0]) // 1000, p[1], p[1], p[1], p[1], 0] for p in prices[-limit:]
             ]
 
         return await _fetch()

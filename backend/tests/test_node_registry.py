@@ -122,6 +122,7 @@ class TestNodeRegistry:
     def test_singleton_instance(self):
         # Singleton behavior — import returns same instance
         from backend.agi.node_registry import node_registry as registry2
+
         assert node_registry is registry2
 
     @pytest.mark.asyncio

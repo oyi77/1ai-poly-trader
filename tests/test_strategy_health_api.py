@@ -1,5 +1,6 @@
 import sys
 from unittest.mock import MagicMock
+
 sys.modules.setdefault("apscheduler.events", MagicMock())
 sys.modules.setdefault("apscheduler.triggers", MagicMock())
 sys.modules.setdefault("apscheduler.triggers.interval", MagicMock())
@@ -9,7 +10,13 @@ import json
 from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timezone
 
-from backend.models.database import BotState, StrategyConfig, Signal, TradeAttempt, Trade
+from backend.models.database import (
+    BotState,
+    StrategyConfig,
+    Signal,
+    TradeAttempt,
+    Trade,
+)
 from backend.models.outcome_tables import StrategyHealthRecord
 from backend.core.heartbeat import update_scan_stats, _flush_heartbeats
 from backend.core.scheduling.scheduling_strategies import strategy_cycle_job
@@ -32,6 +39,7 @@ def force_test_session_local():
 def setup_bot_states(db_session):
     """Ensure BotState records exist in the DB for the test."""
     from backend.config import settings
+
     for mode in ["paper", "testnet", "live"]:
         state = db_session.query(BotState).filter_by(mode=mode).first()
         if not state:
@@ -71,11 +79,12 @@ def test_update_and_flush_scan_stats(db_session):
     # Reload BotState and check misc_data using a fresh database session
     db_session.close()
     from backend.models.database import SessionLocal
+
     with SessionLocal() as fresh_db:
         fresh_state = fresh_db.query(BotState).filter_by(mode="paper").first()
         assert fresh_state.misc_data is not None
         misc = json.loads(fresh_state.misc_data)
-        
+
         assert "scan_stats:bond_scanner" in misc
         stats = misc["scan_stats:bond_scanner"]
         assert stats["markets_scanned"] == 15
@@ -89,12 +98,15 @@ def test_strategies_health_api_endpoint(test_app, db_session):
     # Override admin requirement
     from backend.api.auth import require_admin
     from backend.api.main import app
+
     app.dependency_overrides[require_admin] = lambda: None
 
     # Setup database configs and data
-    cfg = StrategyConfig(strategy_name="bond_scanner", enabled=True, trading_mode="paper")
+    cfg = StrategyConfig(
+        strategy_name="bond_scanner", enabled=True, trading_mode="paper"
+    )
     db_session.add(cfg)
-    
+
     # Add a mock Signal
     sig = Signal(
         market_ticker="BTC-20260526-UP",
@@ -127,23 +139,25 @@ def test_strategies_health_api_endpoint(test_app, db_session):
 
     # Add some scan stats to BotState
     state = db_session.query(BotState).filter_by(mode="paper").first()
-    state.misc_data = json.dumps({
-        "heartbeat:bond_scanner": datetime.now(timezone.utc).isoformat(),
-        "scan_stats:bond_scanner": {
-            "last_scan_time": datetime.now(timezone.utc).isoformat(),
-            "markets_scanned": 12,
-            "signals_had_edge": 2,
-            "signals_rejected": 1,
-            "trades_executed": 1
+    state.misc_data = json.dumps(
+        {
+            "heartbeat:bond_scanner": datetime.now(timezone.utc).isoformat(),
+            "scan_stats:bond_scanner": {
+                "last_scan_time": datetime.now(timezone.utc).isoformat(),
+                "markets_scanned": 12,
+                "signals_had_edge": 2,
+                "signals_rejected": 1,
+                "trades_executed": 1,
+            },
         }
-    })
+    )
     db_session.commit()
 
     # Call endpoint
     response = test_app.get("/api/v1/strategies/health")
     assert response.status_code == 200
     data = response.json()
-    
+
     # Find bond_scanner in results
     health = next((h for h in data if h["strategy"] == "bond_scanner"), None)
     assert health is not None
@@ -164,6 +178,7 @@ def test_strategies_compare_api_endpoint(test_app, db_session):
     # Override admin requirement
     from backend.api.auth import require_admin
     from backend.api.main import app
+
     app.dependency_overrides[require_admin] = lambda: None
 
     # Insert a StrategyHealthRecord
@@ -218,7 +233,7 @@ def test_strategies_compare_api_endpoint(test_app, db_session):
     response = test_app.get("/api/v1/strategies/compare")
     assert response.status_code == 200
     data = response.json()
-    
+
     assert "bond_scanner" in data
     comparison = data["bond_scanner"]
     assert comparison["total_trades"] == 2
@@ -240,44 +255,60 @@ async def test_strategy_cycle_job_outcomes(mock_exec, db_session):
     mock_strategy_cls = MagicMock()
     mock_strategy = AsyncMock()
     mock_strategy_cls.return_value = mock_strategy
-    
+
     from backend.strategies.base import CycleResult
-    
-    mock_strategy.run = AsyncMock(return_value=CycleResult(
-        decisions_recorded=2,
-        trades_attempted=2,
-        trades_placed=0,
-        decisions=[
-            {"decision": "BUY", "market_ticker": "BTC-UP", "token_id": "0x123", "edge": 0.05, "confidence": 0.8},
-            {"decision": "BUY", "market_ticker": "BTC-DOWN", "token_id": "0x456", "edge": 0.06, "confidence": 0.8},
-        ],
-        markets_scanned=20,
-    ))
-    
+
+    mock_strategy.run = AsyncMock(
+        return_value=CycleResult(
+            decisions_recorded=2,
+            trades_attempted=2,
+            trades_placed=0,
+            decisions=[
+                {
+                    "decision": "BUY",
+                    "market_ticker": "BTC-UP",
+                    "token_id": "0x123",
+                    "edge": 0.05,
+                    "confidence": 0.8,
+                },
+                {
+                    "decision": "BUY",
+                    "market_ticker": "BTC-DOWN",
+                    "token_id": "0x456",
+                    "edge": 0.06,
+                    "confidence": 0.8,
+                },
+            ],
+            markets_scanned=20,
+        )
+    )
+
     from backend.strategies.registry import STRATEGY_REGISTRY
+
     STRATEGY_REGISTRY["mock_strat"] = mock_strategy_cls
-    
+
     # Mock executor decisions to execute 1 trade and reject 1
     mock_exec.return_value = [{"trade_id": 101}]
-    
+
     # Configure strategy config in DB
     cfg = StrategyConfig(strategy_name="mock_strat", enabled=True, trading_mode="paper")
     db_session.add(cfg)
     db_session.commit()
-    
+
     try:
         # Run strategy cycle
         await strategy_cycle_job("mock_strat", "paper")
     finally:
         STRATEGY_REGISTRY.pop("mock_strat", None)
-    
+
     # Verify update_scan_stats was updated
     # We flush heartbeats first
     _flush_heartbeats()
-    
+
     # Load BotState and check using a fresh database session
     db_session.close()
     from backend.models.database import SessionLocal
+
     with SessionLocal() as fresh_db:
         fresh_state = fresh_db.query(BotState).filter_by(mode="paper").first()
         assert fresh_state.misc_data is not None

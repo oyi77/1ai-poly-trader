@@ -60,12 +60,14 @@ def archive_trades_to_parquet(
 
     # Use explicit Hive partitioning schema to generate strategy={strategy}/ etc. folders
     hive_partition = ds.partitioning(
-        pa.schema([
-            ("strategy", pa.string()),
-            ("year", pa.string()),
-            ("month", pa.string()),
-        ]),
-        flavor="hive"
+        pa.schema(
+            [
+                ("strategy", pa.string()),
+                ("year", pa.string()),
+                ("month", pa.string()),
+            ]
+        ),
+        flavor="hive",
     )
 
     # Write as partitioned hive dataset

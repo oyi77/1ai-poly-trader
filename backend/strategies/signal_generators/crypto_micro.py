@@ -45,7 +45,9 @@ def _compute_vwap_deviation(closes: list[float], volumes: list[float]) -> float 
     return (closes[-1] - vwap) / vwap
 
 
-def _compute_sma_crossover(closes: list[float], short: int = 5, long: int = 20) -> float | None:
+def _compute_sma_crossover(
+    closes: list[float], short: int = 5, long: int = 20
+) -> float | None:
     """Compute SMA crossover ratio (short - long) / long."""
     if len(closes) < long:
         return None

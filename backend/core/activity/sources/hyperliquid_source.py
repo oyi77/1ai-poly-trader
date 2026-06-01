@@ -54,7 +54,9 @@ class HyperliquidActivitySource(BaseActivitySource):
             fee=float(fill.get("fee", 0)),
             raw_data=fill,
         )
-        self.create_subtask(self._emit(event))  # WS callback — create_subtask handles cancel tracking
+        self.create_subtask(
+            self._emit(event)
+        )  # WS callback — create_subtask handles cancel tracking
 
     def _on_order_update(self, update: dict):
         """Order fill/close events."""
@@ -64,7 +66,9 @@ class HyperliquidActivitySource(BaseActivitySource):
         """Single iteration of balance polling for delta detection."""
         bal = await self._client.get_balance()
         if self._hl_last_balance is not None:
-            result = self.detect_balance_delta(float(bal.total_equity), float(self._hl_last_balance.total_equity))
+            result = self.detect_balance_delta(
+                float(bal.total_equity), float(self._hl_last_balance.total_equity)
+            )
             if result:
                 event_type, amount = result
                 event = ActivityEvent(

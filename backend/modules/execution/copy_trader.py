@@ -187,14 +187,17 @@ def get_target_wallet_db_stats(db, wallet_address: str) -> tuple[float, float, i
     try:
         trades = (
             db.query(Trade)
-            .join(CopyTraderEntry, and_(
-                Trade.condition_id == CopyTraderEntry.condition_id,
-                CopyTraderEntry.wallet == wallet_address
-            ))
+            .join(
+                CopyTraderEntry,
+                and_(
+                    Trade.condition_id == CopyTraderEntry.condition_id,
+                    CopyTraderEntry.wallet == wallet_address,
+                ),
+            )
             .filter(
                 Trade.strategy == "copy_trader",
                 Trade.settled.is_(True),
-                Trade.timestamp >= thirty_days_ago
+                Trade.timestamp >= thirty_days_ago,
             )
             .all()
         )
@@ -226,7 +229,10 @@ class CopyTrader:
     """
 
     def __init__(
-        self, bankroll: float = 1000.0, max_wallets: int = 10, min_score: float = DEFAULT_MIN_SCORE
+        self,
+        bankroll: float = 1000.0,
+        max_wallets: int = 10,
+        min_score: float = DEFAULT_MIN_SCORE,
     ):
         self.bankroll = bankroll
         self.max_wallets = max_wallets
@@ -285,7 +291,9 @@ class CopyTrader:
                 roi = 0.0
 
                 if db is not None:
-                    db_win_rate, db_roi, db_sample_size = get_target_wallet_db_stats(db, trader.user)
+                    db_win_rate, db_roi, db_sample_size = get_target_wallet_db_stats(
+                        db, trader.user
+                    )
                     if db_sample_size >= 5:
                         win_rate = db_win_rate
                         roi = db_roi

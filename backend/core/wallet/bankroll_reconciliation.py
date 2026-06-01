@@ -11,8 +11,6 @@ mutating or deleting historical trades.
 This module will be removed in a future release.
 """
 
-
-
 from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone

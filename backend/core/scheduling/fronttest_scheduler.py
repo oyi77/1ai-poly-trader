@@ -9,8 +9,6 @@ approved proposals to live.
 This module will be removed in a future release.
 """
 
-
-
 from __future__ import annotations
 
 from typing import Any

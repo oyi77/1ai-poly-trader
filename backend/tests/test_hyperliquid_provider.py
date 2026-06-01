@@ -18,8 +18,14 @@ from backend.markets.order_types import (
 @pytest.fixture
 def provider():
     with patch.dict(os.environ, {"WALLET_PRIVATE_KEY": "0x" + "aa" * 32}, clear=False):
-        with patch("backend.clients.hyperliquid_client.HyperliquidClient.__init__", return_value=None):
-            from backend.markets.providers.hyperliquid_provider import HyperliquidProvider
+        with patch(
+            "backend.clients.hyperliquid_client.HyperliquidClient.__init__",
+            return_value=None,
+        ):
+            from backend.markets.providers.hyperliquid_provider import (
+                HyperliquidProvider,
+            )
+
             p = HyperliquidProvider(paper_mode=True)
             p._client = MagicMock()
             return p
@@ -37,8 +43,10 @@ def test_manifest(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_mode(provider):
     order = NormalizedOrder(
-        market_id="ETH", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("1"),
+        market_id="ETH",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("1"),
         price=Decimal("3500"),
     )
     result = await provider.place_order(order)
@@ -57,9 +65,11 @@ async def test_cancel_order_paper_mode(provider):
 async def test_get_balance_paper_mode(provider):
     """Paper mode just returns mock via client."""
     mock_client = AsyncMock()
-    mock_client.get_balance = AsyncMock(return_value={
-        "marginSummary": {"accountValue": "5000", "totalMarginUsed": "200"}
-    })
+    mock_client.get_balance = AsyncMock(
+        return_value={
+            "marginSummary": {"accountValue": "5000", "totalMarginUsed": "200"}
+        }
+    )
     provider._client = mock_client
     bal = await provider.get_balance()
     assert bal.venue == "hyperliquid"
@@ -70,11 +80,36 @@ async def test_get_balance_paper_mode(provider):
 @pytest.mark.asyncio
 async def test_get_positions(provider):
     mock_client = AsyncMock()
-    mock_client.get_positions = AsyncMock(return_value=[
-        {"position": {"coin": "ETH", "szi": "2.5", "entryPx": "3500", "oraclePx": "3600", "unrealizedPnl": "250"}},
-        {"position": {"coin": "BTC", "szi": "-0.1", "entryPx": "100000", "oraclePx": "99000", "unrealizedPnl": "100"}},
-        {"position": {"coin": "SOL", "szi": "0", "entryPx": "0", "oraclePx": "150"}},
-    ])
+    mock_client.get_positions = AsyncMock(
+        return_value=[
+            {
+                "position": {
+                    "coin": "ETH",
+                    "szi": "2.5",
+                    "entryPx": "3500",
+                    "oraclePx": "3600",
+                    "unrealizedPnl": "250",
+                }
+            },
+            {
+                "position": {
+                    "coin": "BTC",
+                    "szi": "-0.1",
+                    "entryPx": "100000",
+                    "oraclePx": "99000",
+                    "unrealizedPnl": "100",
+                }
+            },
+            {
+                "position": {
+                    "coin": "SOL",
+                    "szi": "0",
+                    "entryPx": "0",
+                    "oraclePx": "150",
+                }
+            },
+        ]
+    )
     provider._client = mock_client
     positions = await provider.get_positions()
     assert len(positions) == 2  # zero-size filtered
@@ -93,8 +128,10 @@ async def test_place_order_live_success(provider):
     mock_client.place_order = AsyncMock(return_value={"oid": 12345, "status": "open"})
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="ETH", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("1"),
+        market_id="ETH",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("1"),
         price=Decimal("3500"),
     )
     result = await provider.place_order(order)
@@ -109,8 +146,10 @@ async def test_place_order_live_exception(provider):
     mock_client.place_order = AsyncMock(side_effect=Exception("RPC error"))
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="ETH", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("1"),
+        market_id="ETH",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("1"),
         price=Decimal("3500"),
     )
     result = await provider.place_order(order)
@@ -149,9 +188,12 @@ async def test_health_check(provider):
 
 def test_rejected_helper(provider):
     order = NormalizedOrder(
-        market_id="ETH", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("1"),
-        price=Decimal("3500"), client_order_id="co1",
+        market_id="ETH",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("1"),
+        price=Decimal("3500"),
+        client_order_id="co1",
     )
     result = provider._rejected(order, "test")
     assert result.status == OrderStatus.REJECTED

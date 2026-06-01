@@ -10,7 +10,6 @@ from backend.strategies.cross_market_arb_enhanced import (
     _normalize_crypto_tokens,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -146,8 +145,16 @@ class TestComplementary:
 class TestCrossPlatform:
     def test_detects_cross_platform_arb(self, detector):
         """Same question on two platforms with YES + YES < 1.0."""
-        poly = [_make_market(yes_price=0.45, platform="polymarket", event_id="evt1", slug="btc-100k")]
-        kalshi = [_make_market(yes_price=0.45, platform="kalshi", event_id="evt1", slug="btc-100k")]
+        poly = [
+            _make_market(
+                yes_price=0.45, platform="polymarket", event_id="evt1", slug="btc-100k"
+            )
+        ]
+        kalshi = [
+            _make_market(
+                yes_price=0.45, platform="kalshi", event_id="evt1", slug="btc-100k"
+            )
+        ]
         opps = detector.detect_cross_platform_generic(poly, kalshi)
         assert len(opps) >= 1
         assert opps[0].platform_a == "polymarket"
@@ -155,8 +162,16 @@ class TestCrossPlatform:
 
     def test_no_arb_when_sum_above_one(self, detector):
         """YES + YES >= 1.0 -> no arb."""
-        poly = [_make_market(yes_price=0.55, platform="polymarket", event_id="evt1", slug="btc-100k")]
-        kalshi = [_make_market(yes_price=0.55, platform="kalshi", event_id="evt1", slug="btc-100k")]
+        poly = [
+            _make_market(
+                yes_price=0.55, platform="polymarket", event_id="evt1", slug="btc-100k"
+            )
+        ]
+        kalshi = [
+            _make_market(
+                yes_price=0.55, platform="kalshi", event_id="evt1", slug="btc-100k"
+            )
+        ]
         opps = detector.detect_cross_platform_generic(poly, kalshi)
         assert len(opps) == 0
 
@@ -167,27 +182,47 @@ class TestCrossPlatform:
 
     def test_fuzzy_question_matching(self, detector):
         """Questions with similar words match across platforms."""
-        poly = [_make_market(
-            question="Will Bitcoin price exceed $100,000?",
-            yes_price=0.40, platform="polymarket", event_id="", slug=""
-        )]
-        kalshi = [_make_market(
-            question="Bitcoin price above $100000?",
-            yes_price=0.40, platform="kalshi", event_id="", slug=""
-        )]
+        poly = [
+            _make_market(
+                question="Will Bitcoin price exceed $100,000?",
+                yes_price=0.40,
+                platform="polymarket",
+                event_id="",
+                slug="",
+            )
+        ]
+        kalshi = [
+            _make_market(
+                question="Bitcoin price above $100000?",
+                yes_price=0.40,
+                platform="kalshi",
+                event_id="",
+                slug="",
+            )
+        ]
         opps = detector.detect_cross_platform_generic(poly, kalshi)
         assert len(opps) >= 1
 
     def test_unrelated_questions_no_match(self, detector):
         """Completely different questions don't match."""
-        poly = [_make_market(
-            question="Will Bitcoin reach 100k?",
-            yes_price=0.40, platform="polymarket", event_id="", slug=""
-        )]
-        kalshi = [_make_market(
-            question="Will it rain in Tokyo tomorrow?",
-            yes_price=0.40, platform="kalshi", event_id="", slug=""
-        )]
+        poly = [
+            _make_market(
+                question="Will Bitcoin reach 100k?",
+                yes_price=0.40,
+                platform="polymarket",
+                event_id="",
+                slug="",
+            )
+        ]
+        kalshi = [
+            _make_market(
+                question="Will it rain in Tokyo tomorrow?",
+                yes_price=0.40,
+                platform="kalshi",
+                event_id="",
+                slug="",
+            )
+        ]
         opps = detector.detect_cross_platform_generic(poly, kalshi)
         assert len(opps) == 0
 
@@ -265,8 +300,12 @@ class TestCrossTimeframe:
     def test_no_timeframe_no_arb(self, detector):
         """Markets without timeframe info don't produce timeframe arbs."""
         markets = [
-            _make_market(question="Will something happen?", yes_price=0.40, event_id="evt1"),
-            _make_market(question="Will something else happen?", yes_price=0.40, event_id="evt2"),
+            _make_market(
+                question="Will something happen?", yes_price=0.40, event_id="evt1"
+            ),
+            _make_market(
+                question="Will something else happen?", yes_price=0.40, event_id="evt2"
+            ),
         ]
         opps = detector.detect_cross_timeframe_arb(markets)
         assert len(opps) == 0
@@ -307,8 +346,19 @@ class TestScanAllProviders:
     def test_scan_multiple_providers(self, detector):
         """Cross-platform arb detected between two providers."""
         all_markets = {
-            "polymarket": [_make_market(yes_price=0.40, platform="polymarket", event_id="evt1", slug="btc-100k")],
-            "kalshi": [_make_market(yes_price=0.40, platform="kalshi", event_id="evt1", slug="btc-100k")],
+            "polymarket": [
+                _make_market(
+                    yes_price=0.40,
+                    platform="polymarket",
+                    event_id="evt1",
+                    slug="btc-100k",
+                )
+            ],
+            "kalshi": [
+                _make_market(
+                    yes_price=0.40, platform="kalshi", event_id="evt1", slug="btc-100k"
+                )
+            ],
         }
         result = detector.scan_all_providers(all_markets)
         cross_opps = [o for o in result.opportunities if "cross_platform" in o.kind]
@@ -327,14 +377,21 @@ class TestScanAllProviders:
         """Results are sorted by net_profit descending."""
         all_markets = {
             "polymarket": [
-                _make_market(yes_price=0.40, no_price=0.40, event_id="evt1", slug="big-arb"),
-                _make_market(yes_price=0.48, no_price=0.48, event_id="evt2", slug="small-arb"),
+                _make_market(
+                    yes_price=0.40, no_price=0.40, event_id="evt1", slug="big-arb"
+                ),
+                _make_market(
+                    yes_price=0.48, no_price=0.48, event_id="evt2", slug="small-arb"
+                ),
             ],
         }
         result = detector.scan_all_providers(all_markets)
         if len(result.opportunities) >= 2:
             for i in range(len(result.opportunities) - 1):
-                assert result.opportunities[i].net_profit >= result.opportunities[i + 1].net_profit
+                assert (
+                    result.opportunities[i].net_profit
+                    >= result.opportunities[i + 1].net_profit
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -414,14 +471,17 @@ class TestNormalization:
 class TestHelperFunctions:
     def test_are_opposite_bets_over_under(self):
         from backend.strategies.cross_market_arb_enhanced import CrossMarketArbEnhanced
+
         assert CrossMarketArbEnhanced._are_opposite_bets("Over 48.5", "Under 48.5")
 
     def test_are_opposite_bets_spread(self):
         from backend.strategies.cross_market_arb_enhanced import CrossMarketArbEnhanced
+
         assert CrossMarketArbEnhanced._are_opposite_bets("Lakers +3.5", "Celtics -3.5")
 
     def test_are_not_opposite(self):
         from backend.strategies.cross_market_arb_enhanced import CrossMarketArbEnhanced
+
         assert not CrossMarketArbEnhanced._are_opposite_bets("Over 48.5", "Under 50.5")
 
     def test_is_moneyline(self, detector):

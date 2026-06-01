@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-import httpx
 from loguru import logger
 
 from backend.core.provider_config_store import provider_config

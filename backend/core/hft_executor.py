@@ -255,8 +255,13 @@ class HFTExecutor:
 
         idempotency_key = f"hft-{signal.signal_id}-{int(time.monotonic() * 1000000)}"
         return await _place_order_with_retry(
-            self._clob, signal.market_id, side, signal.edge, size, idempotency_key,
-            signal.signal_id
+            self._clob,
+            signal.market_id,
+            side,
+            signal.edge,
+            size,
+            idempotency_key,
+            signal.signal_id,
         )
 
     async def _monitor_fill(self, order_id: str, market_id: str) -> None:

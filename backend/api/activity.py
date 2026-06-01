@@ -11,13 +11,19 @@ router = APIRouter(prefix="/api/v1/activity", tags=["activity"])
 
 def get_tracker() -> ActivityTracker:
     from backend.core.activity import tracker as _tracker
+
     return _tracker
 
 
 @router.get("/events")
 async def get_events(
-    source: Optional[str] = Query(None, description="Filter by source (aster, hyperliquid, lighter, polymarket)"),
-    event_type: Optional[str] = Query(None, description="Filter by type (deposit, withdrawal, trade_open, trade_closed)"),
+    source: Optional[str] = Query(
+        None, description="Filter by source (aster, hyperliquid, lighter, polymarket)"
+    ),
+    event_type: Optional[str] = Query(
+        None,
+        description="Filter by type (deposit, withdrawal, trade_open, trade_closed)",
+    ),
     limit: int = Query(100, ge=1, le=500),
     tracker: ActivityTracker = Depends(get_tracker),
 ):

@@ -240,8 +240,8 @@ class TestHardGuards:
         model_prob = 1.0 - yes_price  # 0.50
         edge = model_prob - no_price  # 0.0
         assert no_price > max_entry_price  # blocked by entry price
-        assert model_prob < 0.65           # blocked by min model prob
-        assert edge < min_edge             # blocked by min edge
+        assert model_prob < 0.65  # blocked by min model prob
+        assert edge < min_edge  # blocked by min edge
 
     def test_new_params_in_defaults(self):
         """New guard params should exist in strategy defaults."""

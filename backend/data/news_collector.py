@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-import httpx
+from backend.data.shared_client import get_shared_client
 from loguru import logger
 
 # HuggingFace datasets-server API for row-based access
@@ -69,51 +69,49 @@ class NewsCollector:
         articles: List[dict] = []
         offset = 0
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            while offset < limit:
-                batch_size = min(100, limit - offset)
-                params = {
-                    "dataset": self.dataset,
-                    "config": "default",
-                    "split": "train",
-                    "offset": offset,
-                    "length": batch_size,
-                }
-                try:
-                    resp = await client.get(HF_ROWS_API, params=params)
-                    if resp.status_code != 200:
-                        logger.warning(
-                            "news_collector: HF API returned %d", resp.status_code
-                        )
-                        break
-                    data = resp.json()
-                    rows = data.get("rows", [])
-                    if not rows:
-                        break
-                    for row_data in rows:
-                        row = row_data.get("row", row_data)
-                        text = row.get("text", row.get("content", ""))
-                        title = row.get("title", "")
-                        if text:
-                            articles.append(
-                                {
-                                    "title": title,
-                                    "text": text,
-                                    "source": row.get("source", "huggingface"),
-                                    "url": row.get("url", ""),
-                                    "published": row.get(
-                                        "published", row.get("date", "")
-                                    ),
-                                }
-                            )
-                    offset += len(rows)
-                    if len(rows) < batch_size:
-                        break
-                except Exception as e:
+        client = get_shared_client()
+        while offset < limit:
+            batch_size = min(100, limit - offset)
+            params = {
+                "dataset": self.dataset,
+                "config": "default",
+                "split": "train",
+                "offset": offset,
+                "length": batch_size,
+            }
+            try:
+                resp = await client.get(HF_ROWS_API, params=params)
+                if resp.status_code != 200:
                     logger.warning(
-                        "news_collector: fetch failed at offset=%d: %s", offset, e
+                        "news_collector: HF API returned %d", resp.status_code
                     )
                     break
+                data = resp.json()
+                rows = data.get("rows", [])
+                if not rows:
+                    break
+                for row_data in rows:
+                    row = row_data.get("row", row_data)
+                    text = row.get("text", row.get("content", ""))
+                    title = row.get("title", "")
+                    if text:
+                        articles.append(
+                            {
+                                "title": title,
+                                "text": text,
+                                "source": row.get("source", "huggingface"),
+                                "url": row.get("url", ""),
+                                "published": row.get("published", row.get("date", "")),
+                            }
+                        )
+                offset += len(rows)
+                if len(rows) < batch_size:
+                    break
+            except Exception as e:
+                logger.warning(
+                    "news_collector: fetch failed at offset=%d: %s", offset, e
+                )
+                break
 
         logger.info(
             "news_collector: fetched %d articles from %s", len(articles), self.dataset

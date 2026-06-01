@@ -37,7 +37,10 @@ class AsterActivitySource(BaseActivitySource):
         """Single iteration of balance delta detection."""
         bal = await self._client.watch_balance()
         if self._aster_last_balance is not None:
-            result = self.detect_balance_delta(float(bal.get("total", 0)), float(self._aster_last_balance.get("total", 0)))
+            result = self.detect_balance_delta(
+                float(bal.get("total", 0)),
+                float(self._aster_last_balance.get("total", 0)),
+            )
             if result:
                 event_type, amount = result
                 event = ActivityEvent(

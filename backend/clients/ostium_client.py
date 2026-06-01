@@ -11,7 +11,11 @@ class OstiumClient:
     """Ostium perpetuals DEX client."""
 
     def __init__(self, private_key: str = None, rpc_url: str = None):
-        self._private_key = private_key or os.getenv("OSTIUM_PRIVATE_KEY") or os.getenv("WALLET_PRIVATE_KEY", "")
+        self._private_key = (
+            private_key
+            or os.getenv("OSTIUM_PRIVATE_KEY")
+            or os.getenv("WALLET_PRIVATE_KEY", "")
+        )
         self._rpc_url = rpc_url or os.getenv(
             "OSTIUM_RPC_URL", "https://arb1.arbitrum.io/rpc"
         )
@@ -101,16 +105,20 @@ class OstiumClient:
         """
         try:
             addr = wallet_address or self._sdk.ostium.get_public_address()
-            orders = await self._sdk.subgraph.get_recent_history(addr, last_n_orders=limit)
+            orders = await self._sdk.subgraph.get_recent_history(
+                addr, last_n_orders=limit
+            )
             fills = []
-            for order in (orders or []):
+            for order in orders or []:
                 if not order:
                     continue
                 side = "buy" if order.get("isBuy") else "sell"
                 pair_data = order.get("pair", {}) or {}
                 market_name = ""
                 if pair_data:
-                    market_name = f"{pair_data.get('from', '')}-{pair_data.get('to', '')}"
+                    market_name = (
+                        f"{pair_data.get('from', '')}-{pair_data.get('to', '')}"
+                    )
 
                 fill = {
                     "id": order.get("id"),
@@ -121,11 +129,17 @@ class OstiumClient:
                     "size": order.get("tradeNotional"),
                     "entryPrice": order.get("price"),
                     "price": order.get("price"),
-                    "fee": float(order.get("fundingFee", 0) or 0) + float(order.get("rolloverFee", 0) or 0),
+                    "fee": float(order.get("fundingFee", 0) or 0)
+                    + float(order.get("rolloverFee", 0) or 0),
                     "pnl": order.get("amountSentToTrader"),
                     "pair": market_name,
                     "market": market_name,
-                    "status": "closed" if order.get("orderAction") == "CLOSE" or order.get("isCancelled") else "open",
+                    "status": (
+                        "closed"
+                        if order.get("orderAction") == "CLOSE"
+                        or order.get("isCancelled")
+                        else "open"
+                    ),
                     "txnHash": order.get("executedTx"),
                     "tx_hash": order.get("executedTx"),
                 }

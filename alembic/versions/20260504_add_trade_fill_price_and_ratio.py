@@ -27,8 +27,7 @@ def upgrade():
 
 def downgrade():
     # SQLite: recreate table without columns and copy data
-    op.execute(
-        """
+    op.execute("""
         CREATE TABLE trades_new (
             id INTEGER NOT NULL,
             signal_id INTEGER,
@@ -43,17 +42,14 @@ def downgrade():
             -- (This is a simplified version - in production you'd list all columns)
             PRIMARY KEY (id)
         )
-    """
-    )
+    """)
 
     # Copy data (excluding the new columns)
-    op.execute(
-        """
+    op.execute("""
         INSERT INTO trades_new 
         SELECT id, signal_id, market_ticker, platform, event_slug, market_type, direction, entry_price, size 
         FROM trades
-    """
-    )
+    """)
 
     # Drop old table and rename new one
     op.execute("DROP TABLE trades")

@@ -17,8 +17,13 @@ from backend.markets.order_types import (
 
 @pytest.fixture
 def provider():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "test-key", "KALSHI_PRIVATE_KEY_PATH": "/tmp/test.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "test-key", "KALSHI_PRIVATE_KEY_PATH": "/tmp/test.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         return KalshiProvider(paper_mode=True)
 
 
@@ -36,8 +41,10 @@ def test_manifest(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_mode(provider):
     order = NormalizedOrder(
-        market_id="FED-26MAY", side=OrderSide.YES,
-        order_type=OrderType.LIMIT, size=Decimal("5"),
+        market_id="FED-26MAY",
+        side=OrderSide.YES,
+        order_type=OrderType.LIMIT,
+        size=Decimal("5"),
         price=Decimal("0.65"),
     )
     result = await provider.place_order(order)
@@ -50,8 +57,10 @@ async def test_place_order_paper_mode(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_no_price(provider):
     order = NormalizedOrder(
-        market_id="FED-26MAY", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("5"),
+        market_id="FED-26MAY",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("5"),
     )
     result = await provider.place_order(order)
     assert result.status == OrderStatus.FILLED
@@ -73,8 +82,13 @@ async def test_get_balance_paper_mode(provider):
 
 @pytest.mark.asyncio
 async def test_get_balance_live_mode():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
     mock_client.get_balance = AsyncMock(return_value={"available": 500, "locked": 100})
@@ -87,12 +101,19 @@ async def test_get_balance_live_mode():
 
 @pytest.mark.asyncio
 async def test_place_order_live_rejects_no_price():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     order = NormalizedOrder(
-        market_id="FED", side=OrderSide.YES,
-        order_type=OrderType.LIMIT, size=Decimal("2"),
+        market_id="FED",
+        side=OrderSide.YES,
+        order_type=OrderType.LIMIT,
+        size=Decimal("2"),
     )
     result = await prov.place_order(order)
     assert result.status == OrderStatus.REJECTED
@@ -101,17 +122,33 @@ async def test_place_order_live_rejects_no_price():
 
 @pytest.mark.asyncio
 async def test_place_order_live_success():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
-    mock_client.place_order = AsyncMock(return_value={
-        "orders": [{"order_id": "ord1", "status": "filled", "filled_count": 3, "fees": 0.12}]
-    })
+    mock_client.place_order = AsyncMock(
+        return_value={
+            "orders": [
+                {
+                    "order_id": "ord1",
+                    "status": "filled",
+                    "filled_count": 3,
+                    "fees": 0.12,
+                }
+            ]
+        }
+    )
     prov._client = mock_client
     order = NormalizedOrder(
-        market_id="FED-26MAY", side=OrderSide.YES,
-        order_type=OrderType.LIMIT, size=Decimal("3"),
+        market_id="FED-26MAY",
+        side=OrderSide.YES,
+        order_type=OrderType.LIMIT,
+        size=Decimal("3"),
         price=Decimal("0.65"),
     )
     result = await prov.place_order(order)
@@ -122,15 +159,22 @@ async def test_place_order_live_success():
 
 @pytest.mark.asyncio
 async def test_place_order_live_exception():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
     mock_client.place_order = AsyncMock(side_effect=Exception("API error"))
     prov._client = mock_client
     order = NormalizedOrder(
-        market_id="FED", side=OrderSide.YES,
-        order_type=OrderType.LIMIT, size=Decimal("2"),
+        market_id="FED",
+        side=OrderSide.YES,
+        order_type=OrderType.LIMIT,
+        size=Decimal("2"),
         price=Decimal("0.5"),
     )
     result = await prov.place_order(order)
@@ -139,9 +183,12 @@ async def test_place_order_live_exception():
 
 def test_to_kalshi_order_yes(provider):
     order = NormalizedOrder(
-        market_id="FED-26MAY-T3.00", side=OrderSide.YES,
-        order_type=OrderType.LIMIT, size=Decimal("2"),
-        price=Decimal("0.65"), client_order_id="co1",
+        market_id="FED-26MAY-T3.00",
+        side=OrderSide.YES,
+        order_type=OrderType.LIMIT,
+        size=Decimal("2"),
+        price=Decimal("0.65"),
+        client_order_id="co1",
     )
     payload = provider._to_kalshi_order(order)
     assert payload["ticker"] == "FED-26MAY-T3.00"
@@ -153,9 +200,12 @@ def test_to_kalshi_order_yes(provider):
 
 def test_to_kalshi_order_no(provider):
     order = NormalizedOrder(
-        market_id="FED-26MAY-T3.00", side=OrderSide.NO,
-        order_type=OrderType.LIMIT, size=Decimal("2"),
-        price=Decimal("0.37"), client_order_id="co2",
+        market_id="FED-26MAY-T3.00",
+        side=OrderSide.NO,
+        order_type=OrderType.LIMIT,
+        size=Decimal("2"),
+        price=Decimal("0.37"),
+        client_order_id="co2",
     )
     payload = provider._to_kalshi_order(order)
     assert payload["side"] == "no"
@@ -197,14 +247,27 @@ def test_extract_order_response(provider):
 
 @pytest.mark.asyncio
 async def test_get_positions():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
-    mock_client.get_positions = AsyncMock(return_value=[
-        {"ticker": "FED", "side": "yes", "count": 5, "average_price": 0.65, "current_price": 0.70},
-        {"ticker": "BTC", "side": "no", "count": 10, "average_price": 0.30},
-    ])
+    mock_client.get_positions = AsyncMock(
+        return_value=[
+            {
+                "ticker": "FED",
+                "side": "yes",
+                "count": 5,
+                "average_price": 0.65,
+                "current_price": 0.70,
+            },
+            {"ticker": "BTC", "side": "no", "count": 10, "average_price": 0.30},
+        ]
+    )
     prov._client = mock_client
     positions = await prov.get_positions()
     assert len(positions) == 2
@@ -217,14 +280,21 @@ async def test_get_positions():
 
 @pytest.mark.asyncio
 async def test_get_positions_filter_by_market():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
-    mock_client.get_positions = AsyncMock(return_value=[
-        {"ticker": "FED", "side": "yes", "count": 5, "average_price": 0.65},
-        {"ticker": "BTC", "side": "no", "count": 10, "average_price": 0.30},
-    ])
+    mock_client.get_positions = AsyncMock(
+        return_value=[
+            {"ticker": "FED", "side": "yes", "count": 5, "average_price": 0.65},
+            {"ticker": "BTC", "side": "no", "count": 10, "average_price": 0.30},
+        ]
+    )
     prov._client = mock_client
     positions = await prov.get_positions(market_id="FED")
     assert len(positions) == 1
@@ -233,8 +303,13 @@ async def test_get_positions_filter_by_market():
 
 @pytest.mark.asyncio
 async def test_get_positions_error_returns_empty():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
     mock_client.get_positions = AsyncMock(side_effect=Exception("API down"))
@@ -245,16 +320,37 @@ async def test_get_positions_error_returns_empty():
 
 @pytest.mark.asyncio
 async def test_search_markets():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value={
-        "markets": [
-            {"ticker": "FED", "title": "Fed rate cut", "category": "economics", "yes_bid_dollars": 0.65, "volume_fp": 1000, "status": "open"},
-            {"ticker": "BTC", "title": "Bitcoin 100k", "category": "crypto", "yes_bid_dollars": 0.30, "volume_fp": 5000, "status": "open"},
-        ]
-    })
+    mock_client.get_markets = AsyncMock(
+        return_value={
+            "markets": [
+                {
+                    "ticker": "FED",
+                    "title": "Fed rate cut",
+                    "category": "economics",
+                    "yes_bid_dollars": 0.65,
+                    "volume_fp": 1000,
+                    "status": "open",
+                },
+                {
+                    "ticker": "BTC",
+                    "title": "Bitcoin 100k",
+                    "category": "crypto",
+                    "yes_bid_dollars": 0.30,
+                    "volume_fp": 5000,
+                    "status": "open",
+                },
+            ]
+        }
+    )
     prov._client = mock_client
     markets = await prov.search_markets(query="fed")
     assert len(markets) == 1
@@ -265,16 +361,35 @@ async def test_search_markets():
 
 @pytest.mark.asyncio
 async def test_search_markets_with_category():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value={
-        "markets": [
-            {"ticker": "FED", "title": "Fed", "category": "economics", "yes_bid_dollars": 0.65, "status": "open"},
-            {"ticker": "BTC", "title": "Bitcoin", "category": "crypto", "yes_bid_dollars": 0.30, "status": "open"},
-        ]
-    })
+    mock_client.get_markets = AsyncMock(
+        return_value={
+            "markets": [
+                {
+                    "ticker": "FED",
+                    "title": "Fed",
+                    "category": "economics",
+                    "yes_bid_dollars": 0.65,
+                    "status": "open",
+                },
+                {
+                    "ticker": "BTC",
+                    "title": "Bitcoin",
+                    "category": "crypto",
+                    "yes_bid_dollars": 0.30,
+                    "status": "open",
+                },
+            ]
+        }
+    )
     prov._client = mock_client
     markets = await prov.search_markets(category="crypto")
     assert len(markets) == 1
@@ -283,8 +398,13 @@ async def test_search_markets_with_category():
 
 @pytest.mark.asyncio
 async def test_search_markets_error_returns_empty():
-    with patch.dict(os.environ, {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"KALSHI_API_KEY_ID": "k", "KALSHI_PRIVATE_KEY_PATH": "/tmp/t.pem"},
+        clear=False,
+    ):
         from backend.markets.providers.kalshi_provider import KalshiProvider
+
         prov = KalshiProvider(paper_mode=False)
     mock_client = AsyncMock()
     mock_client.get_markets = AsyncMock(side_effect=Exception("down"))
@@ -295,6 +415,7 @@ async def test_search_markets_error_returns_empty():
 
 def test_kalshi_fee():
     from backend.markets.providers.kalshi_provider import _kalshi_fee
+
     fee = _kalshi_fee(Decimal("0.50"), Decimal("10"))
     assert fee > Decimal("0")
     fee_extreme = _kalshi_fee(Decimal("0.95"), Decimal("10"))

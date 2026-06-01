@@ -7,15 +7,16 @@ for multiple markets in a single request, instead of N individual calls.
 import asyncio
 from typing import Any
 
-import httpx
-
 from backend.config import settings
+from backend.data.shared_client import get_shared_client
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from backend.core.external_rate_limiter import ExternalRateLimiter
 from loguru import logger
 
 _batch_breaker = CircuitBreaker(
-    "gamma_batch_prices", failure_threshold=settings.CB_FAILURE_THRESHOLD, recovery_timeout=settings.CB_RECOVERY_TIMEOUT
+    "gamma_batch_prices",
+    failure_threshold=settings.CB_FAILURE_THRESHOLD,
+    recovery_timeout=settings.CB_RECOVERY_TIMEOUT,
 )
 _batch_rate_limiter = ExternalRateLimiter(
     name="gamma_batch",
@@ -47,17 +48,17 @@ async def fetch_batch_prices_history(
 
     # Polymarket batch endpoint accepts comma-separated IDs
     async def _fetch():
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"{GAMMA_API_URL}/batch-prices-history",
-                params={
-                    "market_ids": ",".join(market_ids),
-                    "interval": interval,
-                    "fidelity": fidelity,
-                },
-            )
-            resp.raise_for_status()
-            return resp.json()
+        client = get_shared_client()
+        resp = await client.get(
+            f"{GAMMA_API_URL}/batch-prices-history",
+            params={
+                "market_ids": ",".join(market_ids),
+                "interval": interval,
+                "fidelity": fidelity,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     try:
         data = await _batch_rate_limiter.call(_fetch)
@@ -99,21 +100,21 @@ async def _fallback_individual(
 
     async def _fetch_one(mid: str):
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(
-                    f"{GAMMA_API_URL}/prices-history",
-                    params={
-                        "market_id": mid,
-                        "interval": interval,
-                        "fidelity": fidelity,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                if isinstance(data, list):
-                    results[mid] = data
-                elif isinstance(data, dict) and "prices" in data:
-                    results[mid] = data["prices"]
+            client = get_shared_client()
+            resp = await client.get(
+                f"{GAMMA_API_URL}/prices-history",
+                params={
+                    "market_id": mid,
+                    "interval": interval,
+                    "fidelity": fidelity,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list):
+                results[mid] = data
+            elif isinstance(data, dict) and "prices" in data:
+                results[mid] = data["prices"]
         except Exception as e:
             logger.debug("[batch_prices] Individual fetch failed for %s: %s", mid, e)
 

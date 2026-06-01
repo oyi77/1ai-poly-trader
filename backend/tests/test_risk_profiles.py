@@ -180,7 +180,13 @@ class TestDBBackedProfiles:
     def test_update_profile(self, db):
         seed_presets(db=db)
         updated = update_profile(
-            "safe", {"kelly_fraction": 0.15, "max_trade_size": 5.0, "max_concentration_pct": 0.25}, db=db
+            "safe",
+            {
+                "kelly_fraction": 0.15,
+                "max_trade_size": 5.0,
+                "max_concentration_pct": 0.25,
+            },
+            db=db,
         )
         assert updated.kelly_fraction == 0.15
         assert updated.max_trade_size == 5.0
