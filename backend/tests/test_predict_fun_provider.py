@@ -16,8 +16,16 @@ from backend.markets.order_types import (
 
 @pytest.fixture
 def provider():
-    with patch.dict(os.environ, {"AZURO_GRAPH_URL": "https://graph.azuro.org", "AZURO_RPC_URL": "https://rpc.azuro.org"}, clear=False):
+    with patch.dict(
+        os.environ,
+        {
+            "AZURO_GRAPH_URL": "https://graph.azuro.org",
+            "AZURO_RPC_URL": "https://rpc.azuro.org",
+        },
+        clear=False,
+    ):
         from backend.markets.providers.predict_fun_provider import PredictFunProvider
+
         return PredictFunProvider(paper_mode=True)
 
 
@@ -33,8 +41,10 @@ def test_manifest(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_mode(provider):
     order = NormalizedOrder(
-        market_id="cond123", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="cond123",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
         price=Decimal("0.6"),
     )
     result = await provider.place_order(order)
@@ -45,8 +55,10 @@ async def test_place_order_paper_mode(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_no_price(provider):
     order = NormalizedOrder(
-        market_id="cond123", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="cond123",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
     )
     result = await provider.place_order(order)
     assert result.status == OrderStatus.FILLED
@@ -75,10 +87,12 @@ async def test_get_positions_returns_empty(provider):
 @pytest.mark.asyncio
 async def test_get_markets(provider):
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value=[
-        {"conditionId": "c1", "question": "Will ETH hit 5k?"},
-        {"conditionId": "c2", "title": "BTC 200k"},
-    ])
+    mock_client.get_markets = AsyncMock(
+        return_value=[
+            {"conditionId": "c1", "question": "Will ETH hit 5k?"},
+            {"conditionId": "c2", "title": "BTC 200k"},
+        ]
+    )
     provider._client = mock_client
     markets = await provider.get_markets()
     assert len(markets) == 2
@@ -94,8 +108,10 @@ async def test_place_order_live_no_key(provider):
     mock_client = AsyncMock()
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="cond1", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="cond1",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
     )
     with patch.dict(os.environ, {"AZURO_PRIVATE_KEY": ""}, clear=False):
         result = await provider.place_order(order)
@@ -109,8 +125,10 @@ async def test_place_order_live_success(provider):
     mock_client.sign_and_send_bet = AsyncMock(return_value="0xtx456")
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="cond1", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="cond1",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
         price=Decimal("0.5"),
     )
     with patch.dict(os.environ, {"AZURO_PRIVATE_KEY": "0xkey"}, clear=False):
@@ -126,8 +144,10 @@ async def test_place_order_live_exception(provider):
     mock_client.sign_and_send_bet = AsyncMock(side_effect=Exception("revert"))
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="cond1", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="cond1",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
     )
     with patch.dict(os.environ, {"AZURO_PRIVATE_KEY": "0xkey"}, clear=False):
         result = await provider.place_order(order)

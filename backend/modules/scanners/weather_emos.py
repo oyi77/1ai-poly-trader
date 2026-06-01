@@ -38,12 +38,8 @@ from backend.strategies.base import (
 from backend.core.market_scanner import MarketInfo
 from backend.core.decisions import record_decision
 from backend.core.activity_logger import activity_logger
-from backend.config import settings
+from backend.config import settings, _cfg
 from backend.models.database import for_update
-
-
-def _cfg(name, default):
-    return getattr(settings, name, default)
 
 
 from loguru import logger  # noqa: E402
@@ -617,14 +613,19 @@ class WeatherEMOSStrategy(BaseStrategy):
             return result
 
         if not weather_markets:
-            logger.warning(f"No active weather markets found. Auto-pausing weather_emos strategy.")
+            logger.warning(
+                f"No active weather markets found. Auto-pausing weather_emos strategy."
+            )
             # Auto-pause by setting enabled=False in StrategyConfig
             if ctx.db:
                 try:
                     from backend.models.database import StrategyConfig
-                    cfg = ctx.db.query(StrategyConfig).filter(
-                        StrategyConfig.strategy_name == self.name
-                    ).first()
+
+                    cfg = (
+                        ctx.db.query(StrategyConfig)
+                        .filter(StrategyConfig.strategy_name == self.name)
+                        .first()
+                    )
                     if cfg:
                         cfg.enabled = False
                         ctx.db.commit()
@@ -773,7 +774,11 @@ class WeatherEMOSStrategy(BaseStrategy):
                 )
 
             # Compute weather mood shift (z-score anomaly)
-            mood_anomaly = (calibrated_mean - forecast_mean) / calibrated_std if calibrated_std > 0 else 0.0
+            mood_anomaly = (
+                (calibrated_mean - forecast_mean) / calibrated_std
+                if calibrated_std > 0
+                else 0.0
+            )
 
             # Determine category weight for emotional sentiment
             cat = getattr(market, "category", "general") or "general"

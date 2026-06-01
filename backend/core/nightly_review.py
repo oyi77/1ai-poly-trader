@@ -113,15 +113,19 @@ class NightlyReviewWriter:
             configs = db.query(StrategyConfig).all()
             strategy_names = [cfg.strategy_name for cfg in configs]
             all_trades = (
-                db.query(Trade)
-                .filter(
-                    Trade.strategy.in_(strategy_names),
-                    Trade.timestamp >= week_ago,
-                    Trade.settled.is_(True),
-                    Trade.trading_mode == "live",
+                (
+                    db.query(Trade)
+                    .filter(
+                        Trade.strategy.in_(strategy_names),
+                        Trade.timestamp >= week_ago,
+                        Trade.settled.is_(True),
+                        Trade.trading_mode == "live",
+                    )
+                    .all()
                 )
-                .all()
-            ) if strategy_names else []
+                if strategy_names
+                else []
+            )
             trades_by_strategy: dict[str, list] = {}
             for t in all_trades:
                 trades_by_strategy.setdefault(t.strategy, []).append(t)
@@ -187,9 +191,9 @@ class NightlyReviewWriter:
                 lines.append("- No pending proposals")
 
             disabled = (
-                db.query(StrategyConfig).filter(
-                    StrategyConfig.disabled_at.isnot(None)
-                ).all()
+                db.query(StrategyConfig)
+                .filter(StrategyConfig.disabled_at.isnot(None))
+                .all()
             )
             if disabled:
                 lines.append(f"\n### Disabled Strategies ({len(disabled)})\n")

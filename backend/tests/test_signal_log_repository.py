@@ -12,16 +12,31 @@ class TestSignalLogRepository:
         now = datetime.now(timezone.utc)
         logs = [
             SignalLog(
-                timestamp=now, market_id="M1", market_mid=0.52,
-                strategy="alpha", edge_pp=0.05, filled=True, pnl=1.0,
+                timestamp=now,
+                market_id="M1",
+                market_mid=0.52,
+                strategy="alpha",
+                edge_pp=0.05,
+                filled=True,
+                pnl=1.0,
             ),
             SignalLog(
-                timestamp=now, market_id="M1", market_mid=0.54,
-                strategy="alpha", edge_pp=0.03, filled=True, pnl=2.0,
+                timestamp=now,
+                market_id="M1",
+                market_mid=0.54,
+                strategy="alpha",
+                edge_pp=0.03,
+                filled=True,
+                pnl=2.0,
             ),
             SignalLog(
-                timestamp=now, market_id="M2", market_mid=0.64,
-                strategy="beta", edge_pp=0.08, filled=False, pnl=None,
+                timestamp=now,
+                market_id="M2",
+                market_mid=0.64,
+                strategy="beta",
+                edge_pp=0.08,
+                filled=False,
+                pnl=None,
             ),
         ]
         db.add_all(logs)
@@ -39,16 +54,28 @@ class TestSignalLogRepository:
         now = datetime.now(timezone.utc)
         logs = [
             SignalLog(
-                timestamp=now, market_id="M1", market_mid=0.50,
-                strategy="alpha", filled=True, pnl=None,
+                timestamp=now,
+                market_id="M1",
+                market_mid=0.50,
+                strategy="alpha",
+                filled=True,
+                pnl=None,
             ),
             SignalLog(
-                timestamp=now, market_id="M2", market_mid=0.60,
-                strategy="alpha", filled=True, pnl=5.0,
+                timestamp=now,
+                market_id="M2",
+                market_mid=0.60,
+                strategy="alpha",
+                filled=True,
+                pnl=5.0,
             ),
             SignalLog(
-                timestamp=now, market_id="M3", market_mid=0.70,
-                strategy="alpha", filled=False, pnl=None,
+                timestamp=now,
+                market_id="M3",
+                market_mid=0.70,
+                strategy="alpha",
+                filled=False,
+                pnl=None,
             ),
         ]
         db.add_all(logs)

@@ -120,13 +120,16 @@ async def agi_health_check_job() -> None:
 
         with get_db_session() as db:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
-            rows = db.execute(text("""
+            rows = db.execute(
+                text("""
                 SELECT strategy, COUNT(*) as n,
                        SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
                        SUM(pnl) as total_pnl
                 FROM trades WHERE settled = true AND trading_mode = 'paper'
                   AND timestamp >= :cutoff GROUP BY strategy
-            """), {"cutoff": cutoff}).fetchall()
+            """),
+                {"cutoff": cutoff},
+            ).fetchall()
 
             total_trades = sum(r[1] for r in rows)
             total_wins = sum(r[2] for r in rows)
@@ -134,13 +137,28 @@ async def agi_health_check_job() -> None:
             overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
             all_profitable = all((r[3] or 0) > 0 for r in rows) if rows else False
 
-            gate_pass = total_trades >= 50 and overall_wr > 55 and total_pnl > 0 and all_profitable
+            gate_pass = (
+                total_trades >= 50
+                and overall_wr > 55
+                and total_pnl > 0
+                and all_profitable
+            )
 
             if gate_pass:
-                logger.info("[AGI Health] 48h trial gate: GO — %d trades, %.1f%% WR, $%.2f P&L", total_trades, overall_wr, total_pnl)
-                log_event("success", f"48h trial gate: GO — {total_trades} trades, {overall_wr:.1f}% WR, ${total_pnl:.2f}")
+                logger.info(
+                    "[AGI Health] 48h trial gate: GO — %d trades, %.1f%% WR, $%.2f P&L",
+                    total_trades,
+                    overall_wr,
+                    total_pnl,
+                )
+                log_event(
+                    "success",
+                    f"48h trial gate: GO — {total_trades} trades, {overall_wr:.1f}% WR, ${total_pnl:.2f}",
+                )
                 # Remove kill switch if gate passes
-                kill_path = os.path.join(os.path.dirname(__file__), '..', '..', '.kill_switch')
+                kill_path = os.path.join(
+                    os.path.dirname(__file__), "..", "..", ".kill_switch"
+                )
                 if os.path.exists(kill_path):
                     os.remove(kill_path)
                     logger.info("[AGI Health] Kill switch removed — gate passed")
@@ -156,7 +174,9 @@ async def agi_health_check_job() -> None:
                 if not all_profitable:
                     losers = [r[0] for r in rows if (r[3] or 0) <= 0]
                     reasons.append(f"losing: {', '.join(losers)}")
-                logger.info("[AGI Health] 48h trial gate: NO-GO — %s", '; '.join(reasons))
+                logger.info(
+                    "[AGI Health] 48h trial gate: NO-GO — %s", "; ".join(reasons)
+                )
                 log_event("info", f"48h trial gate: NO-GO — {'; '.join(reasons)}")
     except Exception as exc:
         logger.exception("agi_health_check_job 48h gate failed: %s", exc)

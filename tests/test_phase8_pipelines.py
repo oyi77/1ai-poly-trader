@@ -84,14 +84,14 @@ def test_risk_manager_calibration_adjustment(db_session):
     db_session.commit()
 
     rm = RiskManager()
-    
+
     # Pre-warm calibration cache to trigger adjustment
     rm._get_or_update_calibration_and_bias(db_session)
-    
+
     # Verify that cache is not empty
     assert rm._calibration_cache is not None
     assert 20 in rm._calibration_cache
-    
+
     # We call validate_trade for a trade in 20-25c bucket
     # Original signal_win_rate = 0.30
     # Expected error = 0.8 - 0.225 = 0.575
@@ -108,12 +108,12 @@ def test_risk_manager_calibration_adjustment(db_session):
         )
         db_session.add(t)
     db_session.commit()
-    
+
     # Force re-update (clear cache timestamp to trigger recalculation)
     rm._calibration_cache_time = 0
     rm._get_or_update_calibration_and_bias(db_session)
-    assert rm._calibration_cache[20]["confidence"] == 20 / 50 # 0.40
-    
+    assert rm._calibration_cache[20]["confidence"] == 20 / 50  # 0.40
+
     # The expected adjustment:
     # error = 0.8 - 0.225 = 0.575
     # adjustment = error * confidence = 0.575 * 0.40 = 0.23 -> capped at 0.05
@@ -132,7 +132,7 @@ def test_risk_manager_calibration_adjustment(db_session):
             market_price=0.21,
             signal_win_rate=0.30,
         )
-        
+
         # Verify check_edge received the adjusted win rate: 0.30 + 0.05 = 0.35
         mock_check_edge.assert_called_once()
         assert abs(mock_check_edge.call_args[1]["signal_win_rate"] - 0.35) < 1e-5
@@ -148,9 +148,16 @@ def test_longshot_bias_sizing_and_blocking(db_session):
 
     # Case A: bias=0.5 (< 0.8) -> trade must be blocked by dynamic filter.
     # Pre-warm the cache so the static fallback rejection is bypassed.
-    bias_a = {"bias": 0.5, "sample_size": 10, "expected_win_rate": 0.20, "actual_win_rate": 0.10}
+    bias_a = {
+        "bias": 0.5,
+        "sample_size": 10,
+        "expected_win_rate": 0.20,
+        "actual_win_rate": 0.10,
+    }
     rm._longshot_bias_cache = bias_a
-    with patch.object(rm, "_get_or_update_calibration_and_bias", return_value=({}, bias_a)):
+    with patch.object(
+        rm, "_get_or_update_calibration_and_bias", return_value=({}, bias_a)
+    ):
         dec = rm.validate_trade(
             size=10.0,
             current_exposure=0.0,
@@ -167,9 +174,18 @@ def test_longshot_bias_sizing_and_blocking(db_session):
     assert "blocked" in dec.reason
 
     # Case B: bias=1.0 (market priced correctly) -> allowed, size unchanged
-    bias_b = {"bias": 1.0, "sample_size": 10, "expected_win_rate": 0.20, "actual_win_rate": 0.20}
-    rm._longshot_bias_cache = bias_b  # pre-warm so static fallback rejection is bypassed
-    with patch.object(rm, "_get_or_update_calibration_and_bias", return_value=({}, bias_b)):
+    bias_b = {
+        "bias": 1.0,
+        "sample_size": 10,
+        "expected_win_rate": 0.20,
+        "actual_win_rate": 0.20,
+    }
+    rm._longshot_bias_cache = (
+        bias_b  # pre-warm so static fallback rejection is bypassed
+    )
+    with patch.object(
+        rm, "_get_or_update_calibration_and_bias", return_value=({}, bias_b)
+    ):
         with patch.object(rm, "check_edge", return_value=10.0):
             dec = rm.validate_trade(
                 size=10.0,
@@ -188,9 +204,18 @@ def test_longshot_bias_sizing_and_blocking(db_session):
 
     # Case C: bias=0.85 -> allowed, size scaled down by factor 0.85
     # actual_win_rate=0.17, expected=0.20 -> bias=0.17/0.20=0.85
-    bias_c = {"bias": 0.85, "sample_size": 100, "expected_win_rate": 0.20, "actual_win_rate": 0.17}
-    rm._longshot_bias_cache = bias_c  # pre-warm so static fallback rejection is bypassed
-    with patch.object(rm, "_get_or_update_calibration_and_bias", return_value=({}, bias_c)):
+    bias_c = {
+        "bias": 0.85,
+        "sample_size": 100,
+        "expected_win_rate": 0.20,
+        "actual_win_rate": 0.17,
+    }
+    rm._longshot_bias_cache = (
+        bias_c  # pre-warm so static fallback rejection is bypassed
+    )
+    with patch.object(
+        rm, "_get_or_update_calibration_and_bias", return_value=({}, bias_c)
+    ):
         with patch.object(rm, "check_edge", return_value=10.0):
             dec = rm.validate_trade(
                 size=10.0,
@@ -239,15 +264,51 @@ def test_hive_partitioned_parquet_archiving(tmp_path):
     now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
     prev_month = now - timedelta(days=35)
 
-    cursor.executemany("""
+    cursor.executemany(
+        """
         INSERT INTO trades (
             market_ticker, direction, size, entry_price, settlement_value, pnl, result, timestamp, strategy, role
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        ("m1", "BUY", 10.0, 0.20, 1.0, 8.0, "win", now.isoformat(), "hft_scalper", "maker"),
-        ("m2", "SELL", 15.0, 0.80, 0.0, -15.0, "loss", now.isoformat(), "market_maker", "taker"),
-        ("m3", "BUY", 20.0, 0.15, 1.0, 17.0, "win", prev_month.isoformat(), "hft_scalper", "unknown"),
-    ])
+    """,
+        [
+            (
+                "m1",
+                "BUY",
+                10.0,
+                0.20,
+                1.0,
+                8.0,
+                "win",
+                now.isoformat(),
+                "hft_scalper",
+                "maker",
+            ),
+            (
+                "m2",
+                "SELL",
+                15.0,
+                0.80,
+                0.0,
+                -15.0,
+                "loss",
+                now.isoformat(),
+                "market_maker",
+                "taker",
+            ),
+            (
+                "m3",
+                "BUY",
+                20.0,
+                0.15,
+                1.0,
+                17.0,
+                "win",
+                prev_month.isoformat(),
+                "hft_scalper",
+                "unknown",
+            ),
+        ],
+    )
     conn.commit()
     conn.close()
 
@@ -259,8 +320,12 @@ def test_hive_partitioned_parquet_archiving(tmp_path):
     # strategy=hft_scalper/year=2026/month=05/
     # strategy=hft_scalper/year=2026/month=04/
     # strategy=market_maker/year=2026/month=05/
-    scalper_may = os.path.join(parquet_dir, "strategy=hft_scalper", "year=2026", "month=05")
-    scalper_apr = os.path.join(parquet_dir, "strategy=hft_scalper", "year=2026", "month=04")
+    scalper_may = os.path.join(
+        parquet_dir, "strategy=hft_scalper", "year=2026", "month=05"
+    )
+    scalper_apr = os.path.join(
+        parquet_dir, "strategy=hft_scalper", "year=2026", "month=04"
+    )
     mm_may = os.path.join(parquet_dir, "strategy=market_maker", "year=2026", "month=05")
 
     assert os.path.exists(scalper_may)

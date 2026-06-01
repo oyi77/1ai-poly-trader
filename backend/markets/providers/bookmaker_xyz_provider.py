@@ -113,7 +113,11 @@ class BookmakerXYZProvider(BaseMarketProvider):
     async def get_balance(self) -> NormalizedBalance:
         """Get account balance."""
         return NormalizedBalance(
-            venue="bookmaker_xyz", available_cash=Decimal("0"), total_equity=Decimal("0"), reserved_margin=Decimal("0"), currency="USDC"
+            venue="bookmaker_xyz",
+            available_cash=Decimal("0"),
+            total_equity=Decimal("0"),
+            reserved_margin=Decimal("0"),
+            currency="USDC",
         )
 
     async def get_positions(self) -> list[NormalizedPosition]:

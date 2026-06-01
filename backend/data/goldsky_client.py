@@ -8,10 +8,9 @@ import json
 from pathlib import Path
 from typing import Optional
 
-import httpx
-
 from backend.config import settings
 from backend.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.data.shared_client import get_shared_client
 
 from loguru import logger
 
@@ -74,10 +73,10 @@ async def fetch_order_filled_events(
         }
         payload = {"query": _GRAPHQL_QUERY, "variables": variables}
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(GOLDSKY_URL, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        client = get_shared_client()
+        resp = await client.post(GOLDSKY_URL, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
 
         if "errors" in data:
             logger.error("Goldsky GraphQL errors: %s", data["errors"])

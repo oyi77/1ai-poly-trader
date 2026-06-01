@@ -60,7 +60,9 @@ class OrderbookRouter:
         self._running = False
 
         self._circuit_breaker = CircuitBreaker(
-            name="polymarket_ws", failure_threshold=settings.CB_FAILURE_THRESHOLD, recovery_timeout=settings.CB_RECOVERY_TIMEOUT
+            name="polymarket_ws",
+            failure_threshold=settings.CB_FAILURE_THRESHOLD,
+            recovery_timeout=settings.CB_RECOVERY_TIMEOUT,
         )
 
     async def start(self) -> None:

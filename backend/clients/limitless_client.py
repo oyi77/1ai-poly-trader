@@ -30,8 +30,9 @@ class LimitlessClient:
         """Lazy-init the Limitless SDK client for order operations."""
         if self._sdk is None:
             from limitless_sdk import LimitlessClient as SDKClient
+
             # Patch missing ensure_authenticated (SDK bug)
-            if not hasattr(SDKClient, 'ensure_authenticated'):
+            if not hasattr(SDKClient, "ensure_authenticated"):
                 SDKClient.ensure_authenticated = SDKClient.ensure_session
             key = self._private_key
             if key and not key.startswith("0x"):
@@ -81,7 +82,9 @@ class LimitlessClient:
                         headers=self._auth_headers(),
                     )
                     if resp.status_code == 429:
-                        logger.warning(f"[limitless] Rate limited on page {page}, using cached results")
+                        logger.warning(
+                            f"[limitless] Rate limited on page {page}, using cached results"
+                        )
                         break
                     if resp.status_code != 200:
                         break
@@ -109,10 +112,13 @@ class LimitlessClient:
             return {}
 
     @staticmethod
-    def _sign_request(token_id: str, secret: str, method: str, path: str, body: str = "") -> dict:
+    def _sign_request(
+        token_id: str, secret: str, method: str, path: str, body: str = ""
+    ) -> dict:
         """Generate HMAC-SHA256 signed headers for Limitless API."""
         import hmac, hashlib, base64
         from datetime import datetime, timezone
+
         timestamp = datetime.now(timezone.utc).isoformat()
         message = f"{timestamp}\n{method}\n{path}\n{body}"
         signature = base64.b64encode(
@@ -129,17 +135,26 @@ class LimitlessClient:
             "Content-Type": "application/json",
         }
 
-    async def _hmac_request(self, method: str, path: str, body: str = "") -> httpx.Response:
+    async def _hmac_request(
+        self, method: str, path: str, body: str = ""
+    ) -> httpx.Response:
         """Make HMAC-signed request to Limitless API."""
         import httpx as httpx_mod
+
         tid = os.getenv("LIMITLESS_API_KEY", "")
         secret = os.getenv("LIMITLESS_API_SECRET", "")
         headers = self._sign_request(tid, secret, method, path, body)
         async with httpx_mod.AsyncClient(timeout=15) as client:
             if method == "GET":
-                return await client.get(f"https://api.limitless.exchange{path}", headers=headers)
+                return await client.get(
+                    f"https://api.limitless.exchange{path}", headers=headers
+                )
             else:
-                return await client.post(f"https://api.limitless.exchange{path}", headers=headers, content=body)
+                return await client.post(
+                    f"https://api.limitless.exchange{path}",
+                    headers=headers,
+                    content=body,
+                )
 
     async def _get_owner_id(self, address: str) -> int:
         """Get Limitless profile ID (ownerId) for the wallet address."""
@@ -154,19 +169,24 @@ class LimitlessClient:
     ) -> dict:
         """Place order using SDK for EIP-712 signing + HMAC auth for submission."""
         import httpx as httpx_mod
+
         tid = os.getenv("LIMITLESS_API_KEY", "")
         secret = os.getenv("LIMITLESS_API_SECRET", "")
         if not tid or not secret:
             return {"error": "LIMITLESS_API_KEY or LIMITLESS_API_SECRET not set"}
 
-        private_key = private_key if private_key.startswith("0x") else f"0x{private_key}"
+        private_key = (
+            private_key if private_key.startswith("0x") else f"0x{private_key}"
+        )
         account = Account.from_key(private_key)
 
         try:
             # Get ownerId
             owner_id = await self._get_owner_id(account.address)
             if not owner_id:
-                return {"error": f"No Limitless profile for {account.address}. Create one at limitless.exchange"}
+                return {
+                    "error": f"No Limitless profile for {account.address}. Create one at limitless.exchange"
+                }
 
             # Get market data
             resp = await self._hmac_request("GET", f"/markets/active?limit=200")
@@ -211,7 +231,9 @@ class LimitlessClient:
             }
 
             # EIP-712 signing
-            exchange_addr = market.get("venue", {}).get("exchange", "0x0000000000000000000000000000000000000000")
+            exchange_addr = market.get("venue", {}).get(
+                "exchange", "0x0000000000000000000000000000000000000000"
+            )
             typed_data = {
                 "types": {
                     "EIP712Domain": [
@@ -268,6 +290,7 @@ class LimitlessClient:
         except Exception as e:
             logger.warning(f"[limitless] place_order failed: {e}")
             import traceback
+
             traceback.print_exc()
             return {"error": str(e)}
 
@@ -276,6 +299,7 @@ class LimitlessClient:
         sdk = self._get_sdk()
         try:
             from limitless_sdk.models import CancelOrderDto
+
             dto = CancelOrderDto(order_id=order_id)
             await sdk.cancel_order(dto)
             return True

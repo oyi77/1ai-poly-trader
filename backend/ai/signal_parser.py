@@ -211,7 +211,6 @@ class SignalParser:
 
                 session = get_db_session()
 
-
             # Check if signal already exists for this market
             existing = (
                 session.query(MiroFishSignal)
@@ -253,7 +252,7 @@ class SignalParser:
                 f"Failed to store signal {signal.market_id} in database: {e}",
                 exc_info=True,
             )
-            if session and hasattr(session, 'rollback'):
+            if session and hasattr(session, "rollback"):
                 session.rollback()
             return False
 

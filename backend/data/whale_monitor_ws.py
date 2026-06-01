@@ -35,7 +35,9 @@ class WhaleMonitorWS:
         self._reconnect_count = 0
         self._buffer: list[dict] = []
         self._breaker = CircuitBreaker(
-            "whale_ws", failure_threshold=settings.CB_FAILURE_THRESHOLD, recovery_timeout=settings.CB_RECOVERY_TIMEOUT
+            "whale_ws",
+            failure_threshold=settings.CB_FAILURE_THRESHOLD,
+            recovery_timeout=settings.CB_RECOVERY_TIMEOUT,
         )
 
     async def connect(self) -> bool:

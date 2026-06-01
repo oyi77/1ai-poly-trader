@@ -92,17 +92,26 @@ class KalshiActivitySource(BaseActivitySource):
 
         # Balance delta detection for deposits/withdrawals
         balance_resp = await self._client.get_balance()
-        current_balance = float(balance_resp.get("balance", balance_resp.get("value", 0)))
-        if hasattr(self, '_kalshi_last_balance') and self._kalshi_last_balance is not None:
-            result = self.detect_balance_delta(current_balance, self._kalshi_last_balance)
+        current_balance = float(
+            balance_resp.get("balance", balance_resp.get("value", 0))
+        )
+        if (
+            hasattr(self, "_kalshi_last_balance")
+            and self._kalshi_last_balance is not None
+        ):
+            result = self.detect_balance_delta(
+                current_balance, self._kalshi_last_balance
+            )
             if result:
                 event_type, amount = result
-                await self._emit(ActivityEvent(
-                    source="kalshi",
-                    event_type=event_type,
-                    wallet_address=self.wallet_address,
-                    platform="kalshi",
-                    amount=amount,
-                    token="USDC",
-                ))
+                await self._emit(
+                    ActivityEvent(
+                        source="kalshi",
+                        event_type=event_type,
+                        wallet_address=self.wallet_address,
+                        platform="kalshi",
+                        amount=amount,
+                        token="USDC",
+                    )
+                )
         self._kalshi_last_balance = current_balance

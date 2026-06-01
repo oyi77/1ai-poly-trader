@@ -60,9 +60,7 @@ class HyperliquidProvider(BaseMarketProvider):
             )
         try:
             is_buy = order.side in (OrderSide.YES, OrderSide.BUY)
-            order_type = (
-                "market" if order.order_type.value == "market" else "limit"
-            )
+            order_type = "market" if order.order_type.value == "market" else "limit"
             result = await self._client.place_order(
                 asset=order.market_id,
                 is_buy=is_buy,
@@ -71,7 +69,9 @@ class HyperliquidProvider(BaseMarketProvider):
                 order_type=order_type,
             )
             return NormalizedOrderResult(
-                venue_order_id=str(result.get("oid", result.get("order_id", "unknown"))),
+                venue_order_id=str(
+                    result.get("oid", result.get("order_id", "unknown"))
+                ),
                 client_order_id=order.client_order_id,
                 status=OrderStatus.OPEN,
                 filled_size=Decimal("0"),
@@ -119,7 +119,11 @@ class HyperliquidProvider(BaseMarketProvider):
             size = Decimal(str(abs(float(position.get("szi", "0")))))
             if size == 0:
                 continue
-            side = PositionSide.LONG if float(position.get("szi", "0")) > 0 else PositionSide.SHORT
+            side = (
+                PositionSide.LONG
+                if float(position.get("szi", "0")) > 0
+                else PositionSide.SHORT
+            )
             result.append(
                 NormalizedPosition(
                     market_id=position.get("coin", "unknown"),

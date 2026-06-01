@@ -249,7 +249,11 @@ class GenomeRepository:
                 settlement_value = settlement_price
                 pnl = calculate_pnl(trade, settlement_value)
 
-                trade.exit_price = settlement_price if trade.direction == "up" else 1 - settlement_price
+                trade.exit_price = (
+                    settlement_price
+                    if trade.direction == "up"
+                    else 1 - settlement_price
+                )
                 trade.pnl = pnl
                 if pnl >= 0:
                     trade.result = "win"

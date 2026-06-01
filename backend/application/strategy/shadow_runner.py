@@ -165,8 +165,12 @@ class DBSessionShadowRunner:
         elif outcome is not None:
             resolved_outcome = outcome
         else:
-            resolved_outcome = "win"  # default assumption when settle called without outcome
-            logger.warning("[ShadowRunner.settle] No outcome specified — defaulting to 'win'")
+            resolved_outcome = (
+                "win"  # default assumption when settle called without outcome
+            )
+            logger.warning(
+                "[ShadowRunner.settle] No outcome specified — defaulting to 'win'"
+            )
 
         from backend.core.settlement.settlement_helpers import calculate_pnl
 
@@ -187,7 +191,9 @@ class DBSessionShadowRunner:
 
                 # Capture legacy fields in metadata_json for property access
                 try:
-                    meta = json.loads(trade.metadata_json) if trade.metadata_json else {}
+                    meta = (
+                        json.loads(trade.metadata_json) if trade.metadata_json else {}
+                    )
                     if actual_outcome is not None:
                         meta["actual_outcome"] = actual_outcome
                     predicted = meta.get("predicted_outcome")
@@ -195,7 +201,9 @@ class DBSessionShadowRunner:
                         meta["accuracy_score"] = abs(predicted - actual_outcome)
                     trade.metadata_json = json.dumps(meta)
                 except Exception as e:
-                    logger.exception(f"Failed to update metadata_json during settle for {trade.market_id}")
+                    logger.exception(
+                        f"Failed to update metadata_json during settle for {trade.market_id}"
+                    )
 
                 # Use real settlement helpers for PnL calculation (mirrors live trade)
                 settlement_value = 1.0 if resolved_outcome == "win" else 0.0
@@ -304,16 +312,14 @@ class DBSessionShadowRunner:
         try:
             # Query for promotion eligibility metrics
             result = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     COUNT(*) as total_trades,
                     MIN(created_at) as first_trade,
                     MAX(julianday('now') - julianday(created_at)) as days_active
                 FROM shadow_trade
                 WHERE genome_id = :genome_id AND created_at >= datetime('now', '-30 days')
-                """
-                ),
+                """),
                 {"genome_id": genome_id},
             )
 
@@ -330,15 +336,21 @@ class DBSessionShadowRunner:
 
             total_trades = row.total_trades
             # Compute accuracy from settled trades with predicted/actual outcome
-            settled_with_scores = db.query(ShadowTrade).filter(
-                ShadowTrade.genome_id == genome_id,
-                ShadowTrade.stage == "SETTLED",
-            ).all()
+            settled_with_scores = (
+                db.query(ShadowTrade)
+                .filter(
+                    ShadowTrade.genome_id == genome_id,
+                    ShadowTrade.stage == "SETTLED",
+                )
+                .all()
+            )
             scored = [t for t in settled_with_scores if t.accuracy_score is not None]
             accurate = sum(1 for t in scored if t.accuracy_score < 0.2)
             accuracy = accurate / total_trades if total_trades > 0 else 0.0
             days_active = row.days_active if row.days_active is not None else 0.0
-            settled_count = len([t for t in settled_with_scores if t.stage == "SETTLED"])
+            settled_count = len(
+                [t for t in settled_with_scores if t.stage == "SETTLED"]
+            )
 
             # Promotion gate: (days_active >= 1 OR settled_trades >= 12) AND accuracy >= 0.60
             # Fast-settling markets (5-min) can accumulate 12+ settled trades in ~1hr,

@@ -5,8 +5,6 @@ Equity curve calculation from AppState snapshots.
 This module will be removed in a future release.
 """
 
-
-
 from datetime import datetime, timedelta, timezone
 from typing import List
 

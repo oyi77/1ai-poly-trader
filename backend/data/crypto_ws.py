@@ -1,4 +1,5 @@
 """Binance WebSocket feed for real-time crypto klines. Replaces REST polling."""
+
 import asyncio
 import json
 import logging
@@ -32,7 +33,9 @@ async def _connect_binance_ws(symbols: list[str], intervals: list[str] = None):
     while True:
         try:
             async with websockets.connect(url, ping_interval=20, ping_timeout=10) as ws:
-                logger.info(f"[crypto_ws] Connected to Binance WS: {len(streams)} streams")
+                logger.info(
+                    f"[crypto_ws] Connected to Binance WS: {len(streams)} streams"
+                )
                 async for msg in ws:
                     try:
                         data = json.loads(msg)
@@ -58,7 +61,9 @@ async def _connect_binance_ws(symbols: list[str], intervals: list[str] = None):
                                 try:
                                     await callback(_latest_klines[symbol])
                                 except Exception as e:
-                                    logger.warning(f"[crypto_ws] Subscriber error for {symbol}: {e}")
+                                    logger.warning(
+                                        f"[crypto_ws] Subscriber error for {symbol}: {e}"
+                                    )
 
                     except json.JSONDecodeError:
                         continue

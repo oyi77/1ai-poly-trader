@@ -4,7 +4,9 @@ import pytest
 
 from backend.core.plugin_registry import PluginRegistry
 from backend.agi.base_node import BaseAGINode, NodeManifest
-from backend.agi.sandbox.sandbox_registry import sandbox_registry as _sandbox_registry_instance
+from backend.agi.sandbox.sandbox_registry import (
+    sandbox_registry as _sandbox_registry_instance,
+)
 
 
 class MockValidNode(BaseAGINode):
@@ -58,7 +60,9 @@ class MockLiveDataNode(BaseAGINode):
 class TestSandboxNodeRegistry:
     def setup_method(self):
         self.registry = PluginRegistry[NodeManifest, BaseAGINode](
-            name="test_sandbox", pre_register=_sandbox_registry_instance._pre_register, env_var_check=False
+            name="test_sandbox",
+            pre_register=_sandbox_registry_instance._pre_register,
+            env_var_check=False,
         )
 
     def test_get_valid_node_from_sandbox_registry(self):

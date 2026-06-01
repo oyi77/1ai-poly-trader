@@ -64,6 +64,7 @@ def _best_effort_write(db: Session, metric: PerformanceMetric) -> None:
     Uses the engine-level WAL busy_timeout (30 s) for the first attempt.
     Falls back to retries via @retry decorator, then silently drops the metric.
     """
+
     @retry(max_attempts=_MAX_DB_RETRIES)
     def _write_metrics() -> None:
         try:
@@ -82,7 +83,9 @@ def _best_effort_write(db: Session, metric: PerformanceMetric) -> None:
     try:
         _write_metrics()
     except Exception:
-        logger.debug("PerformanceMetric write dropped after %d attempts", _MAX_DB_RETRIES)
+        logger.debug(
+            "PerformanceMetric write dropped after %d attempts", _MAX_DB_RETRIES
+        )
 
 
 class PerformanceTracker:

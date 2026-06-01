@@ -104,7 +104,8 @@ class TestPnlWin:
 
     def test_down_position_wins_at_settlement_0(self):
         """Bought DOWN at 0.40, market settled DOWN (0.0) → profit.
-        Polymarket fee: 0.01*min(0.40,0.60)*10=0.04, cost=10.04, shares=25.1, pnl=15.06."""
+        Polymarket fee: 0.01*min(0.40,0.60)*10=0.04, cost=10.04, shares=25.1, pnl=15.06.
+        """
         trade = MagicMock(spec=Trade)
         trade.direction = "down"
         trade.entry_price = 0.40
@@ -153,7 +154,9 @@ class TestPnlLoss:
         trade.size = 20.0  # dollars
 
         pnl = calculate_pnl(trade, settlement_value=0.0)
-        assert pnl == pytest.approx(-20.09)  # Polymarket fee: 0.01*min(0.55,0.45)*20=0.09
+        assert pnl == pytest.approx(
+            -20.09
+        )  # Polymarket fee: 0.01*min(0.55,0.45)*20=0.09
 
 
 class TestPnlPush:

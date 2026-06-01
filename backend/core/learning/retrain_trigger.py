@@ -5,8 +5,6 @@ Auto-retraining trigger — fires after sufficient settled trades or Brier degra
 This module will be removed in a future release.
 """
 
-
-
 import threading
 from backend.models.database import Trade
 

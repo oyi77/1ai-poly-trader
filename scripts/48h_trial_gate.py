@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """48-hour paper trial gate. Only allows live if ALL criteria pass."""
+
 import sys
-sys.path.insert(0, '/home/openclaw/projects/1ai-poly-trader')
+
+sys.path.insert(0, "/home/openclaw/projects/1ai-poly-trader")
 
 from backend.models.database import SessionLocal
 from sqlalchemy import text
@@ -12,7 +14,8 @@ db = SessionLocal()
 cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
 
 # Get settled trades from last 48h
-rows = db.execute(text("""
+rows = db.execute(
+    text("""
     SELECT strategy, COUNT(*) as n,
            SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
            SUM(pnl) as total_pnl,
@@ -23,7 +26,9 @@ rows = db.execute(text("""
       AND timestamp >= :cutoff
     GROUP BY strategy
     ORDER BY total_pnl DESC
-"""), {"cutoff": cutoff}).fetchall()
+"""),
+    {"cutoff": cutoff},
+).fetchall()
 
 print("=" * 60)
 print("48-HOUR PAPER TRIAL GATE")
@@ -48,7 +53,9 @@ for row in rows:
     if not strategy_pass:
         all_pass = False
 
-    print(f"  {strategy}: {n} trades, {wr:.1f}% WR, ${pnl:+.2f} P&L, Sharpe {sharpe:.2f} [{status}]")
+    print(
+        f"  {strategy}: {n} trades, {wr:.1f}% WR, ${pnl:+.2f} P&L, Sharpe {sharpe:.2f} [{status}]"
+    )
 
 overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
 

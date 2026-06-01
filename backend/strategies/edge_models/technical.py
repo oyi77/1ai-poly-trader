@@ -61,10 +61,7 @@ class TechnicalEdgeCalculator(EdgeCalculator):
 
         # Weighted composite (same weights as CryptoOracleStrategy)
         composite = (
-            rsi_norm * 0.25
-            + mom_signal * 0.30
-            + vwap_signal * 0.25
-            + sma_signal * 0.20
+            rsi_norm * 0.25 + mom_signal * 0.30 + vwap_signal * 0.25 + sma_signal * 0.20
         )
 
         # Map composite to model probability

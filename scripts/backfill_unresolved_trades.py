@@ -170,17 +170,13 @@ async def backfill(dry_run: bool = True, limit: int = None):
     """Main backfill logic."""
     db = Session()
 
-    unresolved = db.execute(
-        text(
-            """
+    unresolved = db.execute(text("""
         SELECT id, market_ticker, direction, entry_price, size, 
                strategy, timestamp, event_slug, token_id, condition_id
         FROM trades 
         WHERE result = 'closed_unresolved' AND settled = true AND trading_mode = 'live'
         ORDER BY timestamp DESC
-    """
-        )
-    ).fetchall()
+    """)).fetchall()
 
     if limit:
         unresolved = unresolved[:limit]
@@ -303,16 +299,14 @@ async def backfill(dry_run: bool = True, limit: int = None):
 
             if not dry_run:
                 db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE trades 
                     SET result = :result, pnl = :pnl, settlement_value = :sv,
                         settlement_source = 'backfill_script', 
                         settlement_time = NOW(),
                         updated_at = NOW()
                     WHERE id = :tid
-                """
-                    ),
+                """),
                     {
                         "result": result_str,
                         "pnl": round(pnl, 2),
@@ -336,8 +330,7 @@ async def backfill(dry_run: bool = True, limit: int = None):
 
             if not dry_run:
                 db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE trades 
                     SET result = 'expired_unresolved', pnl = :pnl,
                         settlement_value = 0.0,
@@ -345,8 +338,7 @@ async def backfill(dry_run: bool = True, limit: int = None):
                         settlement_time = NOW(),
                         updated_at = NOW()
                     WHERE id = :tid
-                """
-                    ),
+                """),
                     {"pnl": round(est_loss, 2), "tid": tid},
                 )
                 db.commit()

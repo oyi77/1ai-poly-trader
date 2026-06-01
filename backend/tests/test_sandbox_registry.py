@@ -82,6 +82,7 @@ class TestSandboxNodeRegistry:
     def test_registry_is_reusable(self):
         # Module-level instance — same on re-import
         from backend.agi.sandbox.sandbox_registry import sandbox_registry as sr2
+
         assert sandbox_registry is sr2
 
     def test_register_multiple_valid_nodes(self):

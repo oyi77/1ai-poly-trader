@@ -5,8 +5,6 @@ Calibration tracker — validates that model predicted probabilities match actua
 This module will be removed in a future release.
 """
 
-
-
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -208,11 +206,15 @@ class CalibrationTracker:
         actual_outcomes: list,
     ) -> dict:
         """Compute calibration report including Brier score and Brier drift.
-        
-        Drift is computed by comparing the Brier score of the second half of the 
+
+        Drift is computed by comparing the Brier score of the second half of the
         history to that of the first half.
         """
-        if not prediction_history or not actual_outcomes or len(prediction_history) != len(actual_outcomes):
+        if (
+            not prediction_history
+            or not actual_outcomes
+            or len(prediction_history) != len(actual_outcomes)
+        ):
             return {"brier_drift": 0.0, "brier_score": 0.0}
 
         try:

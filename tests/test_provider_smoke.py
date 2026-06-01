@@ -11,12 +11,11 @@ import pytest
 # Provider imports – each wrapped so a missing SDK doesn't block other tests
 # ---------------------------------------------------------------------------
 
+
 def _import(name: str):
     """Import a provider; return None if SDK missing."""
     try:
-        mod = __import__(
-            f"backend.markets.providers.{name}", fromlist=["*"]
-        )
+        mod = __import__(f"backend.markets.providers.{name}", fromlist=["*"])
         # class name is PascalCase of the file without _provider suffix
         cls_name = name.replace("_provider", "")
         # map file -> class name
@@ -83,6 +82,7 @@ _INHERITED_SEARCH_ONLY = {
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("provider_name", PROVIDERS)
 async def test_provider_smoke(provider_name):
@@ -129,7 +129,9 @@ async def test_provider_smoke(provider_name):
     if provider_name in _INHERITED_SEARCH_ONLY:
         markets = await provider.search_markets("", None, 5)
         assert isinstance(markets, list), f"Expected list, got {type(markets)}"
-        print(f"  {provider_name}: base search_markets returned {len(markets)} markets (no-op)")
+        print(
+            f"  {provider_name}: base search_markets returned {len(markets)} markets (no-op)"
+        )
         return
 
     # 5. Fallback: health_check

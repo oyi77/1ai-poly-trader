@@ -65,7 +65,7 @@ async def classify_trade_role(
     size: float,
     direction: str,  # "up" or "down" (buy/sell)
     decision: dict[str, Any],
-    db_session: Optional[Any] = None
+    db_session: Optional[Any] = None,
 ) -> tuple[str, float, float]:
     """
     Dynamically classify whether a trade is Maker, Taker, or Unknown.
@@ -86,13 +86,17 @@ async def classify_trade_role(
         else:
             best_ask = decision.get("best_ask")
             best_bid = decision.get("best_bid")
-            
+
             is_taker = False
             if best_ask is not None and direction.lower() == "up" and price >= best_ask:
                 is_taker = True
-            elif best_bid is not None and direction.lower() == "down" and price <= best_bid:
+            elif (
+                best_bid is not None
+                and direction.lower() == "down"
+                and price <= best_bid
+            ):
                 is_taker = True
-            
+
             if is_taker:
                 role = TradeRole.TAKER.value
                 taker_size = size
@@ -109,21 +113,34 @@ async def classify_trade_role(
     if platform.lower() == "polymarket":
         try:
             from backend.data.polymarket_clob import PolymarketCLOB
+
             client = PolymarketCLOB(mode=mode)
             from backend.config import settings
-            wallet = settings.POLYMARKET_RECIPIENT_ADDRESS or settings.PROXY_WALLET_ADDRESS
+
+            wallet = (
+                settings.POLYMARKET_RECIPIENT_ADDRESS or settings.PROXY_WALLET_ADDRESS
+            )
             if wallet:
                 trades = await client.get_trader_trades(wallet)
                 for trade in trades:
-                    if trade.get("orderID") == clob_order_id or trade.get("id") == clob_order_id:
+                    if (
+                        trade.get("orderID") == clob_order_id
+                        or trade.get("id") == clob_order_id
+                    ):
                         maker = trade.get("maker")
                         if maker is not None:
-                            role = TradeRole.MAKER.value if maker else TradeRole.TAKER.value
+                            role = (
+                                TradeRole.MAKER.value
+                                if maker
+                                else TradeRole.TAKER.value
+                            )
                             if role == TradeRole.MAKER.value:
                                 maker_size = size
                             else:
                                 taker_size = size
-                            logger.info(f"[trade_forensics] Polymarket order {clob_order_id} classified via fills API: {role}")
+                            logger.info(
+                                f"[trade_forensics] Polymarket order {clob_order_id} classified via fills API: {role}"
+                            )
                             return role, maker_size, taker_size
         except Exception as e:
             logger.warning(f"[trade_forensics] Polymarket fills API lookup failed: {e}")
@@ -136,13 +153,13 @@ async def classify_trade_role(
     else:
         best_ask = decision.get("best_ask")
         best_bid = decision.get("best_bid")
-        
+
         is_taker = False
         if best_ask is not None and direction.lower() == "up" and price >= best_ask:
             is_taker = True
         elif best_bid is not None and direction.lower() == "down" and price <= best_bid:
             is_taker = True
-        
+
         if is_taker:
             role = TradeRole.TAKER.value
             taker_size = size
@@ -150,7 +167,9 @@ async def classify_trade_role(
             role = TradeRole.MAKER.value
             maker_size = size
 
-    logger.debug(f"[trade_forensics] Fallback classification for order {clob_order_id}: {role}")
+    logger.debug(
+        f"[trade_forensics] Fallback classification for order {clob_order_id}: {role}"
+    )
     return role, maker_size, taker_size
 
 
@@ -162,7 +181,7 @@ def classify_trade_role_sync(
     size: float,
     direction: str,  # "up" or "down" (buy/sell)
     decision: dict[str, Any],
-    db_session: Optional[Any] = None
+    db_session: Optional[Any] = None,
 ) -> tuple[str, float, float]:
     """
     Synchronous wrapper for classify_trade_role.
@@ -179,7 +198,7 @@ def classify_trade_role_sync(
         size=size,
         direction=direction,
         decision=decision,
-        db_session=db_session
+        db_session=db_session,
     )
 
     try:

@@ -47,7 +47,7 @@ class TickSimulator:
         self.balance = initial_balance
         self.latency_ms = latency_ms
         self.slippage_pct = slippage_pct
-        
+
         self.trades: List[SimulatedTrade] = []
         self.equity_curve: List[float] = [initial_balance]
         self._mock_clock: float = 0.0
@@ -59,14 +59,14 @@ class TickSimulator:
     ) -> Dict[str, Any]:
         """
         Replay ticks sequentially into the strategy and simulate exchange executions.
-        
+
         Ticks format: [{"token_id": "t1", "price": 0.55, "timestamp": 1716700000}]
         """
         logger.info(f"TickSimulator: Starting simulation with {len(ticks)} ticks...")
         self.trades.clear()
         self.balance = self.initial_balance
         self.equity_curve = [self.initial_balance]
-        
+
         # Instantiate strategy and ensure its queue consumer task is active
         self.strategy = self.strategy_class()
         if hasattr(self.strategy, "_populate_subscribed_tokens"):
@@ -91,9 +91,13 @@ class TickSimulator:
             if decision == "BUY":
                 # Convert signal_data to a decision structure
                 direction = signal_data.get("direction", "up") if signal_data else "up"
-                size_usd = float(signal_data.get("size_usd", 50.0)) if signal_data else 50.0
-                entry_price = float(signal_data.get("entry_price", 0.5)) if signal_data else 0.5
-                
+                size_usd = (
+                    float(signal_data.get("size_usd", 50.0)) if signal_data else 50.0
+                )
+                entry_price = (
+                    float(signal_data.get("entry_price", 0.5)) if signal_data else 0.5
+                )
+
                 decision_dict = {
                     "token_id": market_ticker,
                     "market_ticker": market_ticker,
@@ -105,10 +109,15 @@ class TickSimulator:
             elif decision == "SELL":
                 # Position exited during queue processing
                 pnl_usd = float(signal_data.get("pnl_usd", 0.0)) if signal_data else 0.0
-                exit_price = float(signal_data.get("exit_price", 0.5)) if signal_data else 0.5
-                size_usd = float(signal_data.get("size_usd", 50.0)) if signal_data else 50.0
-                
+                exit_price = (
+                    float(signal_data.get("exit_price", 0.5)) if signal_data else 0.5
+                )
+                size_usd = (
+                    float(signal_data.get("size_usd", 50.0)) if signal_data else 50.0
+                )
+
                 import uuid
+
                 trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     token_id=market_ticker,
@@ -124,16 +133,20 @@ class TickSimulator:
                 self.trades.append(trade)
                 self.balance += pnl_usd
                 self.equity_curve.append(self.balance)
-                
+
                 logger.info(
                     f"TickSimulator: Filled mock exit on {market_ticker} | price={exit_price:.4f} "
                     f"pnl=${pnl_usd:.4f} balance=${self.balance:.2f}"
                 )
 
         # Patch both possible import sites for strategies
-        patcher_scalper = patch("backend.strategies.hft_scalper.record_decision", mock_record_decision)
-        patcher_maker = patch("backend.strategies.market_maker.record_decision", mock_record_decision)
-        
+        patcher_scalper = patch(
+            "backend.strategies.hft_scalper.record_decision", mock_record_decision
+        )
+        patcher_maker = patch(
+            "backend.strategies.market_maker.record_decision", mock_record_decision
+        )
+
         patcher_scalper.start()
         patcher_maker.start()
 
@@ -173,10 +186,13 @@ class TickSimulator:
                         if t["token_id"] == pos.ticker:
                             last_price = float(t["price"])
                             break
-                    self.strategy._close_position(pos, last_price, "SIM_END_FORCE_CLOSE")
+                    self.strategy._close_position(
+                        pos, last_price, "SIM_END_FORCE_CLOSE"
+                    )
                     pnl = pos.pnl_usd if hasattr(pos, "pnl_usd") else 0.0
-                    
+
                     import uuid
+
                     trade = SimulatedTrade(
                         trade_id=str(uuid.uuid4()),
                         token_id=pos.market_id,
@@ -202,7 +218,9 @@ class TickSimulator:
 
         return self._generate_report()
 
-    def _match_order(self, decision: Dict[str, Any], market_price: float, ts: float) -> None:
+    def _match_order(
+        self, decision: Dict[str, Any], market_price: float, ts: float
+    ) -> None:
         """Simulate high-fidelity exchange matching, execution delay, and slippage fills."""
         token_id = decision.get("token_id") or decision.get("market_ticker")
         ticker = decision.get("market_ticker", token_id)
@@ -213,10 +231,13 @@ class TickSimulator:
         # 1. Apply simulated execution latency slippage
         # In HFT, executing Buy on "up" (YES) means we buy at slightly worse price (slippage)
         slippage = market_price * self.slippage_pct
-        execution_price = market_price + slippage if direction == "up" else market_price - slippage
+        execution_price = (
+            market_price + slippage if direction == "up" else market_price - slippage
+        )
         execution_price = max(0.01, min(0.99, execution_price))
 
         import uuid
+
         trade = SimulatedTrade(
             trade_id=str(uuid.uuid4()),
             token_id=token_id,
@@ -231,7 +252,7 @@ class TickSimulator:
 
         # For simulated matching in the engine, we record it
         self.trades.append(trade)
-        
+
         # Deduct cost from balance
         self.balance -= slippage  # deduct execution slippage cost
         self.equity_curve.append(self.balance)
@@ -244,7 +265,7 @@ class TickSimulator:
     def _generate_report(self) -> Dict[str, Any]:
         """Aggregate trade histories and output high-fidelity performance metrics."""
         total_trades = len(self.trades)
-        
+
         # Calculate win/loss and stats from strategy's closed history if available,
         # otherwise default to mock trades metrics
         closed_stats = {}
@@ -252,7 +273,11 @@ class TickSimulator:
             closed_stats = self.strategy.get_stats()
 
         total_pnl = self.balance - self.initial_balance
-        pnl_pct = (total_pnl / self.initial_balance) * 100.0 if self.initial_balance > 0 else 0.0
+        pnl_pct = (
+            (total_pnl / self.initial_balance) * 100.0
+            if self.initial_balance > 0
+            else 0.0
+        )
 
         win_rate = closed_stats.get("win_rate", 0.5)
         total_wins = closed_stats.get("wins", 0)
@@ -262,12 +287,13 @@ class TickSimulator:
         sharpe = 0.0
         if len(self.trades) >= 5:
             import math
+
             pnls = []
             if hasattr(self.strategy, "_closed_positions"):
                 pnls = [p.pnl_usd for p in self.strategy._closed_positions]
             if not pnls:
                 pnls = [t.pnl for t in self.trades]
-            
+
             avg = sum(pnls) / len(pnls)
             variance = sum((x - avg) ** 2 for x in pnls) / len(pnls)
             std_dev = math.sqrt(variance)
@@ -284,6 +310,7 @@ class TickSimulator:
             "losses": total_losses,
             "win_rate": win_rate,
             "sharpe_ratio": sharpe,
-            "avg_slippage_usd": sum(t.slippage for t in self.trades) / max(total_trades, 1),
+            "avg_slippage_usd": sum(t.slippage for t in self.trades)
+            / max(total_trades, 1),
             "equity_curve": self.equity_curve,
         }

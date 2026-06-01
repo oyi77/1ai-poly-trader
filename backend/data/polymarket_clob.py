@@ -32,15 +32,11 @@ from py_clob_client_v2 import (
 
 from backend.core.circuit_breaker import CircuitBreaker
 from backend.core.circuit_breaker_pybreaker import polymarket_breaker
-from backend.config import settings
+from backend.config import settings, _cfg
 from backend.data.shared_client import get_shared_client
 
 from loguru import logger
 from backend.monitoring.hft_metrics import record_maker_fill_rate
-
-
-def _cfg(key: str, default=None):
-    return getattr(settings, key, default) if hasattr(settings, key) else default
 
 
 def ensure_token_id(token_id: str) -> str:

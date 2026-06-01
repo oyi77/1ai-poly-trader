@@ -188,14 +188,12 @@ def _count_paper_trades(strategy_name: str, db: Session) -> int:
 
     return (
         db.execute(
-            text(
-                """
+            text("""
         SELECT COUNT(*) FROM trades
         WHERE strategy = :s AND trading_mode = 'paper'
           AND result IN ('win', 'loss')
           AND condition_id IS NOT NULL
-    """
-            ),
+    """),
             {"s": strategy_name},
         ).scalar()
         or 0
@@ -327,25 +325,19 @@ def check_risk_and_disable(db) -> list[str]:
     today = datetime.now(timezone.utc).date()
 
     # 1. Per-strategy daily loss check
-    strats = db.execute(
-        text(
-            """
+    strats = db.execute(text("""
         SELECT strategy_name FROM strategy_config
         WHERE enabled = true AND mode = 'live'
-    """
-        )
-    ).fetchall()
+    """)).fetchall()
 
     for (sname,) in strats:
         daily_loss = (
             db.execute(
-                text(
-                    """
+                text("""
             SELECT COALESCE(SUM(pnl), 0) FROM trades
             WHERE strategy = :s AND trading_mode = 'live'
               AND DATE(timestamp) = :today
-        """
-                ),
+        """),
                 {"s": sname, "today": today},
             ).scalar()
             or 0
@@ -362,22 +354,13 @@ def check_risk_and_disable(db) -> list[str]:
             disabled.append(
                 f"{sname}: daily loss ${abs(daily_loss):.2f} > ${MAX_DAILY_LOSS_PER_STRATEGY}"
             )
-            logger.warning(
-                f"[RISK] Rehab {sname}: daily loss ${abs(daily_loss):.2f}"
-            )
+            logger.warning(f"[RISK] Rehab {sname}: daily loss ${abs(daily_loss):.2f}")
 
     # 2. Total drawdown check
-    total_pnl = (
-        db.execute(
-            text(
-                """
+    total_pnl = db.execute(text("""
         SELECT COALESCE(SUM(pnl), 0) FROM trades
         WHERE trading_mode = 'live' AND settled = true
-    """
-            )
-        ).scalar()
-        or 0
-    )
+    """)).scalar() or 0
 
     # Use live_initial_bankroll from BotState as the session-start reference.
     # This is the capital the user began live trading with.
@@ -396,10 +379,14 @@ def check_risk_and_disable(db) -> list[str]:
         from backend.models.database import StrategyConfig
         from backend.core.strategy_health import disable_for_rehab
 
-        live_strats = db.query(StrategyConfig).filter(
-            StrategyConfig.mode == "live",
-            StrategyConfig.enabled.is_(True),
-        ).all()
+        live_strats = (
+            db.query(StrategyConfig)
+            .filter(
+                StrategyConfig.mode == "live",
+                StrategyConfig.enabled.is_(True),
+            )
+            .all()
+        )
         for cfg in live_strats:
             disable_for_rehab(cfg)
         if live_strats:

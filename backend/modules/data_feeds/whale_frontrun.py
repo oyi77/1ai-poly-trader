@@ -21,13 +21,9 @@ from backend.strategies.base import (
     MarketEvent,
     StrategyContext,
 )
-from backend.config import settings
+from backend.config import settings, _cfg
 
 from loguru import logger
-
-
-def _cfg(name, default):
-    return getattr(settings, name, default)
 
 
 @dataclass
@@ -59,7 +55,9 @@ class WhalePnLTracker:
             import httpx
             from datetime import datetime, timezone, timedelta
 
-            thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
+            thirty_days_ago = (
+                datetime.now(timezone.utc) - timedelta(days=30)
+            ).timestamp()
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.get(url)
@@ -79,7 +77,9 @@ class WhalePnLTracker:
                     continue
             return total_pnl
         except Exception as e:
-            logger.debug(f"WhalePnLTracker: failed to calculate realized PnL for {wallet}: {e}")
+            logger.debug(
+                f"WhalePnLTracker: failed to calculate realized PnL for {wallet}: {e}"
+            )
             return 0.0
 
 
@@ -165,17 +165,27 @@ class WhaleFrontrun(BaseStrategy):
         size = float(data.get("size", 0) or 0)
         min_whale_size = self.default_params.get("min_size", 10000.0)
 
-        wallet = data.get("wallet") or data.get("user") or data.get("maker") or data.get("taker") or ""
+        wallet = (
+            data.get("wallet")
+            or data.get("user")
+            or data.get("maker")
+            or data.get("taker")
+            or ""
+        )
         min_whale_notional = self.default_params.get("min_whale_notional", 10000.0)
 
         if size < min_whale_notional:
-            logger.debug(f"WhaleFrontrun: size ${size:.0f} < threshold ${min_whale_notional:.0f}")
+            logger.debug(
+                f"WhaleFrontrun: size ${size:.0f} < threshold ${min_whale_notional:.0f}"
+            )
             return None
 
         if wallet:
             realized_pnl = await WhalePnLTracker.get_30d_realized_pnl(wallet)
             if realized_pnl < 0:
-                logger.info(f"[whale_frontrun] rejecting whale {wallet[:10]}...: 30d PnL is negative (${realized_pnl:,.2f})")
+                logger.info(
+                    f"[whale_frontrun] rejecting whale {wallet[:10]}...: 30d PnL is negative (${realized_pnl:,.2f})"
+                )
                 return None
 
         if size < min_whale_size:
@@ -316,13 +326,19 @@ class WhaleFrontrun(BaseStrategy):
                 # Dynamic whale checks
                 min_whale_notional = params.get("min_whale_notional", 10000.0)
                 if activity.size < min_whale_notional:
-                    logger.debug(f"WhaleFrontrun: activity size ${activity.size:.0f} < threshold ${min_whale_notional:.0f}")
+                    logger.debug(
+                        f"WhaleFrontrun: activity size ${activity.size:.0f} < threshold ${min_whale_notional:.0f}"
+                    )
                     continue
 
                 if activity.wallet:
-                    realized_pnl = await WhalePnLTracker.get_30d_realized_pnl(activity.wallet)
+                    realized_pnl = await WhalePnLTracker.get_30d_realized_pnl(
+                        activity.wallet
+                    )
                     if realized_pnl < 0:
-                        logger.info(f"[whale_frontrun] rejecting whale {activity.wallet[:10]}...: 30d PnL is negative (${realized_pnl:,.2f})")
+                        logger.info(
+                            f"[whale_frontrun] rejecting whale {activity.wallet[:10]}...: 30d PnL is negative (${realized_pnl:,.2f})"
+                        )
                         continue
 
                 result = self.detect_and_frontrun(activity)

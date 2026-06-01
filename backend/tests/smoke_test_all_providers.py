@@ -21,7 +21,9 @@ import time
 from dataclasses import dataclass
 
 # Ensure project root is on the path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -41,15 +43,31 @@ class ProviderResult:
 
 # (class_name, module_file_path_relative_to_project, display_name)
 PROVIDERS = [
-    ("PolymarketProvider", "backend/markets/providers/polymarket_provider.py", "Polymarket"),
+    (
+        "PolymarketProvider",
+        "backend/markets/providers/polymarket_provider.py",
+        "Polymarket",
+    ),
     ("KalshiProvider", "backend/markets/providers/kalshi_provider.py", "Kalshi"),
     ("SXBetProvider", "backend/markets/providers/sxbet_provider.py", "SX.bet"),
-    ("HyperliquidProvider", "backend/markets/providers/hyperliquid_provider.py", "Hyperliquid"),
+    (
+        "HyperliquidProvider",
+        "backend/markets/providers/hyperliquid_provider.py",
+        "Hyperliquid",
+    ),
     ("OstiumProvider", "backend/markets/providers/ostium_provider.py", "Ostium"),
     ("AsterProvider", "backend/markets/providers/aster_provider.py", "Aster"),
     ("LighterProvider", "backend/markets/providers/lighter_provider.py", "Lighter"),
-    ("BookmakerXYZProvider", "backend/markets/providers/bookmaker_xyz_provider.py", "BookmakerXYZ"),
-    ("PredictFunProvider", "backend/markets/providers/predict_fun_provider.py", "PredictFun"),
+    (
+        "BookmakerXYZProvider",
+        "backend/markets/providers/bookmaker_xyz_provider.py",
+        "BookmakerXYZ",
+    ),
+    (
+        "PredictFunProvider",
+        "backend/markets/providers/predict_fun_provider.py",
+        "PredictFun",
+    ),
     ("MyriadProvider", "backend/markets/providers/myriad_provider.py", "Myriad"),
     ("PaperProvider", "backend/markets/providers/paper_provider.py", "Paper"),
 ]
@@ -88,7 +106,9 @@ def _pre_import_deps():
 _pre_import_deps()
 
 
-async def test_provider(class_name: str, filepath: str, display_name: str) -> ProviderResult:
+async def test_provider(
+    class_name: str, filepath: str, display_name: str
+) -> ProviderResult:
     """Test a single provider by importing, instantiating, and calling search_markets()."""
     result = ProviderResult(name=class_name, display_name=display_name)
     start = time.monotonic()
@@ -125,8 +145,10 @@ async def test_provider(class_name: str, filepath: str, display_name: str) -> Pr
 
     # Step 3: Call search_markets() -- check if the provider overrides it
     import inspect
+
     search_method = getattr(provider, "search_markets", None)
     from backend.markets.base_provider import BaseMarketProvider
+
     has_own_search = (
         search_method is not None
         and search_method is not BaseMarketProvider.search_markets
@@ -176,9 +198,8 @@ async def test_provider(class_name: str, filepath: str, display_name: str) -> Pr
                 result.error = f"{type(e).__name__}: {str(e)[:200]}"
 
     # Step 4: If no search_markets or it returned 0, try get_balance()
-    should_try_balance = (
-        not tried_search
-        or (result.status == "PASS" and result.markets_found == 0)
+    should_try_balance = not tried_search or (
+        result.status == "PASS" and result.markets_found == 0
     )
     if should_try_balance:
         try:
@@ -188,11 +209,15 @@ async def test_provider(class_name: str, filepath: str, display_name: str) -> Pr
                 if not tried_search:
                     result.error = "no search_markets override; get_balance OK"
                 else:
-                    result.error = "search_markets returned 0 results but get_balance OK"
+                    result.error = (
+                        "search_markets returned 0 results but get_balance OK"
+                    )
             else:
                 result.status = "PASS"
                 if not tried_search:
-                    result.error = "no search_markets override; get_balance returned None"
+                    result.error = (
+                        "no search_markets override; get_balance returned None"
+                    )
         except asyncio.TimeoutError:
             if result.status != "PASS":
                 pass  # keep the more informative error from search_markets
@@ -207,12 +232,18 @@ async def test_provider(class_name: str, filepath: str, display_name: str) -> Pr
                 if "401" in err_str or "unauthorized" in err_str or "403" in err_str:
                     result.status = "BLOCKED"
                     result.error = f"get_balance auth error: {e}"
-                elif "not set" in err_str or "missing" in err_str or "required" in err_str:
+                elif (
+                    "not set" in err_str
+                    or "missing" in err_str
+                    or "required" in err_str
+                ):
                     result.status = "SKIPPED"
                     result.error = f"Missing config: {e}"
                 else:
                     result.status = "FAIL"
-                    result.error = f"get_balance failed: {type(e).__name__}: {str(e)[:200]}"
+                    result.error = (
+                        f"get_balance failed: {type(e).__name__}: {str(e)[:200]}"
+                    )
 
     # Teardown
     try:
@@ -236,7 +267,11 @@ async def main():
         results.append(r)
 
         status_tag = f"[{r.status}]"
-        detail = f"{r.markets_found} markets" if r.status == "PASS" and r.markets_found > 0 else r.error or "OK"
+        detail = (
+            f"{r.markets_found} markets"
+            if r.status == "PASS" and r.markets_found > 0
+            else r.error or "OK"
+        )
         timing = f"{r.duration_s:.1f}s"
         print(f"  {status_tag:<12} {r.display_name:<20} {detail:<50} {timing}")
         sys.stdout.flush()

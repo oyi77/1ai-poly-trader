@@ -17,7 +17,9 @@ import traceback
 from unittest.mock import MagicMock, AsyncMock
 
 # Ensure project root is on the path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -32,18 +34,38 @@ STRATEGIES = [
     ("BtcMomentumStrategy", "backend.strategies.btc_momentum", "BtcMomentum"),
     ("CexPmLeadLagStrategy", "backend.strategies.cex_pm_leadlag", "CexPmLeadLag"),
     ("CryptoOracleStrategy", "backend.strategies.crypto_oracle", "CryptoOracle"),
-    ("GeneralMarketScanner", "backend.strategies.general_market_scanner", "GenMarketScanner"),
+    (
+        "GeneralMarketScanner",
+        "backend.strategies.general_market_scanner",
+        "GenMarketScanner",
+    ),
     ("HFTScalperStrategy", "backend.strategies.hft_scalper", "HFTScalper"),
-    ("HyperliquidStrategy", "backend.strategies.hyperliquid_strategy", "HyperliquidStrat"),
-    ("LineMovementDetectorStrategy", "backend.strategies.line_movement_detector", "LineMovement"),
+    (
+        "HyperliquidStrategy",
+        "backend.strategies.hyperliquid_strategy",
+        "HyperliquidStrat",
+    ),
+    (
+        "LineMovementDetectorStrategy",
+        "backend.strategies.line_movement_detector",
+        "LineMovement",
+    ),
     ("LongshotBiasStrategy", "backend.strategies.longshot_bias", "LongshotBias"),
     ("MarketMakerStrategy", "backend.strategies.market_maker", "MarketMaker"),
     ("NegRiskStrategy", "backend.strategies.negrisk_strategy", "NegRisk"),
     ("ProbabilityArb", "backend.strategies.probability_arb", "ProbabilityArb"),
-    ("RealtimeScannerStrategy", "backend.strategies.realtime_scanner", "RealtimeScanner"),
+    (
+        "RealtimeScannerStrategy",
+        "backend.strategies.realtime_scanner",
+        "RealtimeScanner",
+    ),
     ("UnifiedPMArb", "backend.strategies.unified_pm_arb", "UnifiedPMArb"),
     ("UniversalScanner", "backend.strategies.universal_scanner", "UniversalScanner"),
-    ("CrossMarketArbEnhanced", "backend.strategies.cross_market_arb_enhanced", "CrossMarketArb"),
+    (
+        "CrossMarketArbEnhanced",
+        "backend.strategies.cross_market_arb_enhanced",
+        "CrossMarketArb",
+    ),
 ]
 
 # Strategies that are utility classes, not BaseStrategy subclasses
@@ -125,6 +147,7 @@ async def test_strategy(class_name: str, module_path: str, display_name: str) ->
     # Step 1: Import
     try:
         import importlib
+
         mod = importlib.import_module(module_path)
         cls = getattr(mod, class_name)
     except (ImportError, AttributeError) as e:
@@ -152,6 +175,7 @@ async def test_strategy(class_name: str, module_path: str, display_name: str) ->
         try:
             # Apply market_filter if available
             import inspect as _inspect
+
             mf = strategy.market_filter
             if _inspect.iscoroutinefunction(mf):
                 filtered = await mf(sample_markets)
@@ -162,7 +186,7 @@ async def test_strategy(class_name: str, module_path: str, display_name: str) ->
             awaitable = strategy.run_cycle(ctx)
             if asyncio.iscoroutine(awaitable) or asyncio.isfuture(awaitable):
                 cycle_result = await asyncio.wait_for(awaitable, timeout=30.0)
-            elif hasattr(awaitable, '__await__'):
+            elif hasattr(awaitable, "__await__"):
                 # awaitable protocol (async generator, etc.)
                 cycle_result = await asyncio.wait_for(awaitable, timeout=30.0)
             else:
@@ -171,6 +195,7 @@ async def test_strategy(class_name: str, module_path: str, display_name: str) ->
 
             # Verify result type
             from backend.strategies.base import CycleResult
+
             if isinstance(cycle_result, CycleResult):
                 result["status"] = "PASS"
                 result["error"] = (
@@ -184,7 +209,9 @@ async def test_strategy(class_name: str, module_path: str, display_name: str) ->
                 # Some strategies return lists directly (e.g. UnifiedPMArb)
                 result["status"] = "PASS"
                 count = len(cycle_result) if isinstance(cycle_result, list) else 1
-                result["error"] = f"Returned {type(cycle_result).__name__}({count}) instead of CycleResult"
+                result["error"] = (
+                    f"Returned {type(cycle_result).__name__}({count}) instead of CycleResult"
+                )
             else:
                 result["status"] = "PASS"
                 result["error"] = f"Returned {type(cycle_result).__name__}"

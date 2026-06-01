@@ -19,11 +19,16 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from backend.db.utils import get_db_session
-from backend.models.database import StrategyConfig, StrategyProposal as DBProposal, Trade
+from backend.models.database import (
+    StrategyConfig,
+    StrategyProposal as DBProposal,
+    Trade,
+)
 from backend.ai.trade_analyzer import TradeAnalyzer
 from backend.ai.claude import ClaudeAnalyzer
 from backend.config import settings
 from sqlalchemy.sql import func
+
 
 @dataclass
 class StrategyProposal:

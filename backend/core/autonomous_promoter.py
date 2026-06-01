@@ -876,6 +876,7 @@ class AutonomousPromoter:
         config = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
         if config:
             from backend.core.strategy_health import disable_for_rehab
+
             disable_for_rehab(config)
             db.commit()
             logger.info(

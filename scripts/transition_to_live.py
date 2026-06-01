@@ -28,11 +28,11 @@ def calculate_sharpe_ratio(returns: list[float]) -> float:
         return 0.0
     avg_return = sum(returns) / len(returns)
     variance = sum((r - avg_return) ** 2 for r in returns) / (len(returns) - 1)
-    std_dev = variance ** 0.5
+    std_dev = variance**0.5
     if std_dev == 0:
         return 0.0
     # Annualize (assuming 252 trading days)
-    return (avg_return / std_dev) * (252 ** 0.5)
+    return (avg_return / std_dev) * (252**0.5)
 
 
 def main():
@@ -76,6 +76,7 @@ def main():
 
         # Get initial bankroll for return calculation
         from backend.models.database import BotState
+
         state = db.query(BotState).filter_by(mode="paper").first()
         initial_bankroll = state.paper_bankroll if state else 1000.0
 
@@ -92,7 +93,7 @@ def main():
                 strategy_stats[strategy]["wins"] += 1
             elif trade.result == "loss":
                 strategy_stats[strategy]["losses"] += 1
-            strategy_stats[strategy]["pnl"] += (trade.pnl or 0)
+            strategy_stats[strategy]["pnl"] += trade.pnl or 0
 
         # Print report
         print(f"\nPeriod: Last 7 days")
@@ -105,7 +106,9 @@ def main():
         for strategy, stats in strategy_stats.items():
             strat_total = stats["wins"] + stats["losses"]
             strat_wr = stats["wins"] / strat_total if strat_total > 0 else 0
-            print(f"  {strategy}: {strat_total} trades, {strat_wr:.1%} WR, ${stats['pnl']:.2f} P&L")
+            print(
+                f"  {strategy}: {strat_total} trades, {strat_wr:.1%} WR, ${stats['pnl']:.2f} P&L"
+            )
 
         # Decision
         print("\n" + "=" * 60)

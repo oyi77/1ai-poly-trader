@@ -77,8 +77,6 @@ async def test_strategies_call_auto_sell_twice(monkeypatch):
         bankroll=1000.0,
     )
 
-
-
     # Test CryptoOracleStrategy
     calls.clear()
     crypto_strat = CryptoOracleStrategy()

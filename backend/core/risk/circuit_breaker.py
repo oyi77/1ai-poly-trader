@@ -112,6 +112,7 @@ class CircuitBreaker:
                 )
                 if config and config.enabled:
                     from backend.core.strategy_health import disable_for_rehab
+
                     disable_for_rehab(config)
                     session.commit()
                     logger.warning(

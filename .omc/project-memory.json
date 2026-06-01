@@ -276,33 +276,159 @@
   },
   "hotPaths": [
     {
-      "path": "backend/strategies/longshot_bias.py",
-      "accessCount": 13,
-      "lastAccessed": 1780222748456,
+      "path": "backend/strategies/crypto_oracle.py",
+      "accessCount": 51,
+      "lastAccessed": 1780267694907,
       "type": "file"
     },
     {
       "path": "backend",
-      "accessCount": 8,
-      "lastAccessed": 1780215874958,
+      "accessCount": 47,
+      "lastAccessed": 1780277237690,
       "type": "directory"
     },
     {
       "path": "backend/strategies/cex_pm_leadlag.py",
-      "accessCount": 8,
-      "lastAccessed": 1780218775346,
+      "accessCount": 43,
+      "lastAccessed": 1780278470499,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/strategy_executor.py",
+      "accessCount": 39,
+      "lastAccessed": 1780272431145,
+      "type": "directory"
+    },
+    {
+      "path": "backend/data/crypto.py",
+      "accessCount": 36,
+      "lastAccessed": 1780261592054,
+      "type": "file"
+    },
+    {
+      "path": "backend/config.py",
+      "accessCount": 28,
+      "lastAccessed": 1780273653958,
+      "type": "directory"
+    },
+    {
+      "path": "",
+      "accessCount": 27,
+      "lastAccessed": 1780258896253,
+      "type": "directory"
+    },
+    {
+      "path": "backend/core/scheduling/scheduler.py",
+      "accessCount": 26,
+      "lastAccessed": 1780277312409,
+      "type": "directory"
+    },
+    {
+      "path": "backend/strategies",
+      "accessCount": 25,
+      "lastAccessed": 1780277210039,
+      "type": "directory"
+    },
+    {
+      "path": "backend/strategies/line_movement_detector.py",
+      "accessCount": 24,
+      "lastAccessed": 1780265909382,
+      "type": "directory"
+    },
+    {
+      "path": "backend/data/btc_markets.py",
+      "accessCount": 23,
+      "lastAccessed": 1780268233926,
+      "type": "directory"
+    },
+    {
+      "path": "backend/core/auto_sell.py",
+      "accessCount": 22,
+      "lastAccessed": 1780258145750,
       "type": "file"
     },
     {
       "path": "backend/core/settlement/settlement_helpers.py",
-      "accessCount": 6,
-      "lastAccessed": 1780222903758,
+      "accessCount": 22,
+      "lastAccessed": 1780263457705,
+      "type": "file"
+    },
+    {
+      "path": "backend/strategies/longshot_bias.py",
+      "accessCount": 22,
+      "lastAccessed": 1780277537856,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/risk/risk_manager.py",
+      "accessCount": 16,
+      "lastAccessed": 1780271972328,
+      "type": "file"
+    },
+    {
+      "path": "backend/core",
+      "accessCount": 15,
+      "lastAccessed": 1780258079028,
+      "type": "directory"
+    },
+    {
+      "path": "backend/core/settlement/settlement.py",
+      "accessCount": 14,
+      "lastAccessed": 1780256018168,
+      "type": "directory"
+    },
+    {
+      "path": "backend/core/market_scanner.py",
+      "accessCount": 12,
+      "lastAccessed": 1780254366586,
+      "type": "file"
+    },
+    {
+      "path": "backend/strategies/market_maker.py",
+      "accessCount": 12,
+      "lastAccessed": 1780258276663,
+      "type": "directory"
+    },
+    {
+      "path": "backend/strategies/copy_trader_strategy.py",
+      "accessCount": 12,
+      "lastAccessed": 1780258952759,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/scheduling/scheduling_strategies.py",
+      "accessCount": 10,
+      "lastAccessed": 1780263623582,
+      "type": "directory"
+    },
+    {
+      "path": "backend/core/position_monitor.py",
+      "accessCount": 9,
+      "lastAccessed": 1780239450773,
       "type": "file"
     },
     {
       "path": "backend/core/orchestrator.py",
-      "accessCount": 5,
-      "lastAccessed": 1780216007358,
+      "accessCount": 8,
+      "lastAccessed": 1780256388392,
+      "type": "file"
+    },
+    {
+      "path": "backend/ai/debate_engine.py",
+      "accessCount": 8,
+      "lastAccessed": 1780258062356,
+      "type": "file"
+    },
+    {
+      "path": "backend/strategies/negrisk_strategy.py",
+      "accessCount": 8,
+      "lastAccessed": 1780258934544,
+      "type": "directory"
+    },
+    {
+      "path": "backend/strategies/base.py",
+      "accessCount": 6,
+      "lastAccessed": 1780261591551,
       "type": "file"
     },
     {
@@ -312,28 +438,46 @@
       "type": "file"
     },
     {
-      "path": "backend/data/crypto.py",
+      "path": "backend/ai/debate_router.py",
       "accessCount": 5,
-      "lastAccessed": 1780221339526,
+      "lastAccessed": 1780240549202,
       "type": "file"
     },
     {
-      "path": "backend/core/scheduling/scheduling_strategies.py",
-      "accessCount": 5,
-      "lastAccessed": 1780226938724,
+      "path": "backend/ai",
+      "accessCount": 4,
+      "lastAccessed": 1780240549132,
       "type": "directory"
     },
     {
-      "path": "backend/strategies/market_maker.py",
+      "path": ".env",
       "accessCount": 4,
-      "lastAccessed": 1780213016171,
+      "lastAccessed": 1780241216256,
       "type": "directory"
     },
     {
-      "path": "",
+      "path": "backend/ai/groq.py",
       "accessCount": 4,
-      "lastAccessed": 1780219875046,
-      "type": "directory"
+      "lastAccessed": 1780256629891,
+      "type": "file"
+    },
+    {
+      "path": "backend/ai/custom.py",
+      "accessCount": 4,
+      "lastAccessed": 1780256637689,
+      "type": "file"
+    },
+    {
+      "path": "backend/ai/llm_router.py",
+      "accessCount": 4,
+      "lastAccessed": 1780258109073,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/risk/circuit_breaker.py",
+      "accessCount": 4,
+      "lastAccessed": 1780269086117,
+      "type": "file"
     },
     {
       "path": "backend/application/strategy/shadow_runner.py",
@@ -342,15 +486,21 @@
       "type": "directory"
     },
     {
-      "path": "backend/config.py",
+      "path": "backend/core/risk_manager.py",
       "accessCount": 3,
-      "lastAccessed": 1780218573393,
+      "lastAccessed": 1780241281042,
       "type": "directory"
     },
     {
-      "path": "backend/strategies/crypto_oracle.py",
+      "path": "backend/models/database.py",
       "accessCount": 3,
-      "lastAccessed": 1780219966361,
+      "lastAccessed": 1780254175111,
+      "type": "file"
+    },
+    {
+      "path": "backend/monitoring/backends/datadog.py",
+      "accessCount": 3,
+      "lastAccessed": 1780256440200,
       "type": "file"
     },
     {
@@ -360,27 +510,15 @@
       "type": "file"
     },
     {
-      "path": "backend/core/settlement/settlement.py",
+      "path": "backend/core/circuit_breaker.py",
       "accessCount": 2,
-      "lastAccessed": 1780226558870,
-      "type": "directory"
-    },
-    {
-      "path": "backend/core",
-      "accessCount": 1,
-      "lastAccessed": 1780212081710,
-      "type": "directory"
-    },
-    {
-      "path": "backend/core/scheduling/scheduler.py",
-      "accessCount": 1,
-      "lastAccessed": 1780212081759,
+      "lastAccessed": 1780243129135,
       "type": "directory"
     },
     {
       "path": "backend/core/event_bus.py",
-      "accessCount": 1,
-      "lastAccessed": 1780212081810,
+      "accessCount": 2,
+      "lastAccessed": 1780256018597,
       "type": "directory"
     },
     {
@@ -390,28 +528,52 @@
       "type": "file"
     },
     {
-      "path": "backend/models/database.py",
+      "path": "backend/ai/base.py",
       "accessCount": 1,
-      "lastAccessed": 1780214778289,
+      "lastAccessed": 1780239076269,
       "type": "file"
     },
     {
-      "path": "backend/monitoring/backends/datadog.py",
+      "path": "backend/core/market_making_analyzer.py",
       "accessCount": 1,
-      "lastAccessed": 1780215833143,
+      "lastAccessed": 1780239103533,
       "type": "file"
     },
     {
-      "path": "backend/strategies/base.py",
+      "path": "backend/tests/test_crypto_oracle_integration.py",
       "accessCount": 1,
-      "lastAccessed": 1780218526497,
+      "lastAccessed": 1780239142644,
       "type": "file"
     },
     {
-      "path": "backend/ai",
+      "path": "backend/tests/test_market_maker.py",
       "accessCount": 1,
-      "lastAccessed": 1780219875084,
+      "lastAccessed": 1780239143241,
+      "type": "file"
+    },
+    {
+      "path": "backend/fee_config.py",
+      "accessCount": 1,
+      "lastAccessed": 1780240555359,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/paper_slippage.py",
+      "accessCount": 1,
+      "lastAccessed": 1780240599336,
+      "type": "file"
+    },
+    {
+      "path": "backend/core/settlement",
+      "accessCount": 1,
+      "lastAccessed": 1780241607538,
       "type": "directory"
+    },
+    {
+      "path": "backend/core/circuit_breaker_pybreaker.py",
+      "accessCount": 1,
+      "lastAccessed": 1780243177256,
+      "type": "file"
     }
   ],
   "userDirectives": []

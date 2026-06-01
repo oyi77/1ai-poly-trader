@@ -115,7 +115,10 @@ async def test_testnet():
         print("TEST 4: Builder Program authentication...")
         try:
             if clob._clob_client and builder_key:
-                can_builder = bool(clob._clob_client.builder_config and clob._clob_client.builder_config.builder_address)
+                can_builder = bool(
+                    clob._clob_client.builder_config
+                    and clob._clob_client.builder_config.builder_address
+                )
                 print(f"  ✓ Builder auth capable: {can_builder}")
             else:
                 print("  ✗ Builder credentials not configured")

@@ -361,7 +361,6 @@ class TradeAnalyzer:
         if not factors:
             return []
 
-
         factor_counts = Counter(factors)
 
         # Return factors that appear more than once, sorted by frequency

@@ -50,7 +50,9 @@ class MarketProviderRegistry(
 
         missing = check_env_vars(manifest)
         if missing:
-            raise PluginEnvVarMissing(f"Market provider '{name}' requires env vars: {missing}")
+            raise PluginEnvVarMissing(
+                f"Market provider '{name}' requires env vars: {missing}"
+            )
 
         try:
             # Inject paper_mode based on TRADING_MODE env var

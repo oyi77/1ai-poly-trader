@@ -106,7 +106,9 @@ _breakers: Dict[str, CircuitBreaker] = {}
 def _get_breaker(exchange: str) -> CircuitBreaker:
     if exchange not in _breakers:
         _breakers[exchange] = CircuitBreaker(
-            f"pmxt_{exchange}", failure_threshold=settings.CB_FAILURE_THRESHOLD, recovery_timeout=settings.CB_RECOVERY_TIMEOUT
+            f"pmxt_{exchange}",
+            failure_threshold=settings.CB_FAILURE_THRESHOLD,
+            recovery_timeout=settings.CB_RECOVERY_TIMEOUT,
         )
     return _breakers[exchange]
 

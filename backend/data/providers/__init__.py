@@ -5,6 +5,7 @@ from backend.data.providers.azuro import (
     PredictFunProvider,
     BookmakerXyzProvider,
 )
+
 # LimitlessProvider disabled — smart wallet not deployed (2026-05-30)
 # from backend.data.providers.limitless import LimitlessProvider
 from backend.data.providers.sxbet import SXBetProvider

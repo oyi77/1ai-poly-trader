@@ -12,6 +12,7 @@ from loguru import logger
 @dataclass
 class VenueBalance:
     """Balance snapshot for a single venue."""
+
     venue: str
     cash_balance: float = 0.0
     positions_value: float = 0.0
@@ -24,6 +25,7 @@ class VenueBalance:
 @dataclass
 class AggregatedBalance:
     """Aggregated balance across all venues."""
+
     venues: Dict[str, VenueBalance] = field(default_factory=dict)
     total_equity: float = 0.0
     total_cash: float = 0.0
@@ -73,16 +75,20 @@ class BalanceAggregator:
         """Aster WS balance feed."""
         try:
             from backend.clients.aster_client import AsterClient
+
             client = AsterClient()
             while self._running:
                 try:
                     bal = await client.watch_balance()
-                    self._update("aster", VenueBalance(
-                        venue="aster",
-                        cash_balance=float(bal.get("USDC", {}).get("free", 0)),
-                        total_equity=float(bal.get("USDC", {}).get("total", 0)),
-                        source="ws",
-                    ))
+                    self._update(
+                        "aster",
+                        VenueBalance(
+                            venue="aster",
+                            cash_balance=float(bal.get("USDC", {}).get("free", 0)),
+                            total_equity=float(bal.get("USDC", {}).get("total", 0)),
+                            source="ws",
+                        ),
+                    )
                 except Exception as e:
                     logger.warning(f"Aster WS balance error: {e}")
                     await asyncio.sleep(5)
@@ -94,6 +100,7 @@ class BalanceAggregator:
         """Lighter balance feed — REST polling fallback."""
         try:
             from backend.clients.lighter_client import LighterClient
+
             client = LighterClient()
             ws_connected = False
 
@@ -102,12 +109,15 @@ class BalanceAggregator:
                 while self._running:
                     try:
                         bal = await client.get_balance()
-                        self._update("lighter", VenueBalance(
-                            venue="lighter",
-                            cash_balance=float(bal.get("usdc", 0)),
-                            total_equity=float(bal.get("total", 0)),
-                            source="poll",
-                        ))
+                        self._update(
+                            "lighter",
+                            VenueBalance(
+                                venue="lighter",
+                                cash_balance=float(bal.get("usdc", 0)),
+                                total_equity=float(bal.get("total", 0)),
+                                source="poll",
+                            ),
+                        )
                     except Exception as e:
                         if "couldn't get nonce" not in str(e):
                             logger.warning(f"Lighter REST balance error: {e}")
@@ -119,11 +129,14 @@ class BalanceAggregator:
         """Hyperliquid balance feed — SDK WS subscription with REST fallback."""
         try:
             from backend.clients.hyperliquid_client import HyperliquidClient
+
             client = HyperliquidClient()
             # Try SDK WS for real-time balance updates
             ws_connected = False
             try:
-                if hasattr(client, 'subscribe_user_events') and callable(client.subscribe_user_events):
+                if hasattr(client, "subscribe_user_events") and callable(
+                    client.subscribe_user_events
+                ):
                     ws_connected = True
                     async for event in client.subscribe_user_events():
                         if not self._running:
@@ -131,13 +144,17 @@ class BalanceAggregator:
                         if event.get("type") in ("userFills", "balanceUpdate"):
                             state = await client.get_balance()
                             margin = state.get("marginSummary", {})
-                            self._update("hyperliquid", VenueBalance(
-                                venue="hyperliquid",
-                                cash_balance=float(margin.get("totalRawUsd", 0)),
-                                total_equity=float(margin.get("accountValue", 0)),
-                                unrealized_pnl=float(margin.get("totalNtlPos", 0)) - float(margin.get("accountValue", 0)),
-                                source="ws",
-                            ))
+                            self._update(
+                                "hyperliquid",
+                                VenueBalance(
+                                    venue="hyperliquid",
+                                    cash_balance=float(margin.get("totalRawUsd", 0)),
+                                    total_equity=float(margin.get("accountValue", 0)),
+                                    unrealized_pnl=float(margin.get("totalNtlPos", 0))
+                                    - float(margin.get("accountValue", 0)),
+                                    source="ws",
+                                ),
+                            )
             except Exception as e:
                 logger.debug(f"Hyperliquid WS not available, using REST: {e}")
                 ws_connected = False
@@ -148,13 +165,17 @@ class BalanceAggregator:
                     try:
                         state = await client.get_balance()
                         margin = state.get("marginSummary", {})
-                        self._update("hyperliquid", VenueBalance(
-                            venue="hyperliquid",
-                            cash_balance=float(margin.get("totalRawUsd", 0)),
-                            total_equity=float(margin.get("accountValue", 0)),
-                            unrealized_pnl=float(margin.get("totalNtlPos", 0)) - float(margin.get("accountValue", 0)),
-                            source="poll",
-                        ))
+                        self._update(
+                            "hyperliquid",
+                            VenueBalance(
+                                venue="hyperliquid",
+                                cash_balance=float(margin.get("totalRawUsd", 0)),
+                                total_equity=float(margin.get("accountValue", 0)),
+                                unrealized_pnl=float(margin.get("totalNtlPos", 0))
+                                - float(margin.get("accountValue", 0)),
+                                source="poll",
+                            ),
+                        )
                     except Exception as e:
                         logger.warning(f"Hyperliquid REST balance error: {e}")
                     await asyncio.sleep(10)
@@ -167,14 +188,19 @@ class BalanceAggregator:
             try:
                 # Polymarket
                 try:
-                    from backend.core.wallet.bankroll_reconciliation import fetch_pm_total_equity
+                    from backend.core.wallet.bankroll_reconciliation import (
+                        fetch_pm_total_equity,
+                    )
+
                     equity = await fetch_pm_total_equity()
                     cash_balance = 0.0
                     # Fetch CLOB-internal PUSD balance
                     try:
                         from backend.config import settings as _cfg
+
                         if _cfg.POLYMARKET_PRIVATE_KEY:
                             from backend.data.polymarket_clob import clob_from_settings
+
                             async with clob_from_settings(mode="live") as clob:
                                 pusd = await clob.get_pusd_balance()
                                 if pusd > 0:
@@ -182,88 +208,115 @@ class BalanceAggregator:
                     except Exception as pusd_err:
                         logger.debug(f"PUSD balance fetch error: {pusd_err}")
                     if equity is not None:
-                        self._update("polymarket", VenueBalance(
-                            venue="polymarket",
-                            cash_balance=cash_balance,
-                            total_equity=float(equity),
-                            source="poll",
-                        ))
+                        self._update(
+                            "polymarket",
+                            VenueBalance(
+                                venue="polymarket",
+                                cash_balance=cash_balance,
+                                total_equity=float(equity),
+                                source="poll",
+                            ),
+                        )
                 except Exception as e:
                     logger.debug(f"Polymarket poll error: {e}")
 
                 # Kalshi
                 try:
                     from backend.markets.providers.kalshi_provider import KalshiProvider
+
                     provider = KalshiProvider()
                     bal = await provider.get_balance()
                     if bal:
-                        self._update("kalshi", VenueBalance(
-                            venue="kalshi",
-                            cash_balance=float(bal.get("cash", 0)),
-                            total_equity=float(bal.get("equity", 0)),
-                            source="poll",
-                        ))
+                        self._update(
+                            "kalshi",
+                            VenueBalance(
+                                venue="kalshi",
+                                cash_balance=float(bal.get("cash", 0)),
+                                total_equity=float(bal.get("equity", 0)),
+                                source="poll",
+                            ),
+                        )
                 except Exception as e:
                     logger.debug(f"Kalshi poll error: {e}")
 
                 # Ostium
                 try:
                     from backend.clients.ostium_client import OstiumClient
+
                     client = OstiumClient()
                     bal = await client.get_balance()
                     if bal:
-                        self._update("ostium", VenueBalance(
-                            venue="ostium",
-                            cash_balance=float(bal.get("usdc", 0)),
-                            total_equity=float(bal.get("total", 0)),
-                            source="poll",
-                        ))
+                        self._update(
+                            "ostium",
+                            VenueBalance(
+                                venue="ostium",
+                                cash_balance=float(bal.get("usdc", 0)),
+                                total_equity=float(bal.get("total", 0)),
+                                source="poll",
+                            ),
+                        )
                 except Exception as e:
                     logger.debug(f"Ostium poll error: {e}")
 
                 # Myriad
                 try:
                     from backend.clients.myriad_client import MyriadClient
+
                     client = MyriadClient()
                     bal = await client.get_balance()
                     if bal:
-                        self._update("myriad", VenueBalance(
-                            venue="myriad",
-                            cash_balance=float(bal),
-                            total_equity=float(bal),
-                            source="poll",
-                        ))
+                        self._update(
+                            "myriad",
+                            VenueBalance(
+                                venue="myriad",
+                                cash_balance=float(bal),
+                                total_equity=float(bal),
+                                source="poll",
+                            ),
+                        )
                 except Exception as e:
                     logger.debug(f"Myriad poll error: {e}")
 
                 # SXBet
                 try:
                     from backend.clients.sxbet_client import SXBetClient
+
                     client = SXBetClient()
                     bal = await client.get_balance()
                     if bal:
                         val = float(bal.get("balance", bal.get("value", 0)))
                         if val > 1e6:
                             val = val / 1e6  # Wei to USDC
-                        self._update("sxbet", VenueBalance(
-                            venue="sxbet",
-                            cash_balance=val,
-                            total_equity=val,
-                            source="poll",
-                        ))
+                        self._update(
+                            "sxbet",
+                            VenueBalance(
+                                venue="sxbet",
+                                cash_balance=val,
+                                total_equity=val,
+                                source="poll",
+                            ),
+                        )
                 except Exception as e:
                     logger.debug(f"SXBet poll error: {e}")
                 try:
                     from backend.clients.azuro_client import AzuroClient
+
                     client = AzuroClient()
                     bal = await client.get_balance()
                     if bal:
-                        self._update("azuro", VenueBalance(
-                            venue="azuro",
-                            cash_balance=float(bal.get("balance", bal.get("value", 0))),
-                            total_equity=float(bal.get("balance", bal.get("value", 0))),
-                            source="poll",
-                        ))
+                        self._update(
+                            "azuro",
+                            VenueBalance(
+                                venue="azuro",
+                                cash_balance=float(
+                                    bal.get("balance", bal.get("value", 0))
+                                ),
+                                total_equity=float(
+                                    bal.get("balance", bal.get("value", 0))
+                                ),
+                                source="poll",
+                            ),
+                        )
                 except Exception as e:
                     logger.debug(f"Azuro poll error: {e}")
 

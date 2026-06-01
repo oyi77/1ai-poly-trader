@@ -385,9 +385,10 @@ class TestDBSessionShadowRunner:
         )
         # Set timestamp to 2 days ago to ensure sufficient days
         from sqlalchemy import text
+
         runner._get_db().execute(
             text("UPDATE shadow_trade SET created_at = :ts WHERE market_id = :mid"),
-            {"ts": two_days_ago, "mid": "BTC-UP-3001"}
+            {"ts": two_days_ago, "mid": "BTC-UP-3001"},
         )
         runner._get_db().commit()
         runner.settle(
@@ -406,7 +407,7 @@ class TestDBSessionShadowRunner:
         )
         runner._get_db().execute(
             text("UPDATE shadow_trade SET created_at = :ts WHERE market_id = :mid"),
-            {"ts": two_days_ago, "mid": "BTC-UP-3002"}
+            {"ts": two_days_ago, "mid": "BTC-UP-3002"},
         )
         runner._get_db().commit()
         runner.settle(
@@ -420,7 +421,10 @@ class TestDBSessionShadowRunner:
         assert eligibility["accuracy"] == 0.0  # No accurate trades
         assert not eligibility["eligible"]
         # Accuracy check comes before days_active check since both trades exist (just inaccurate)
-        assert "Accuracy below 60%" in eligibility["reason"] or "Need 12+ settled" in eligibility["reason"]
+        assert (
+            "Accuracy below 60%" in eligibility["reason"]
+            or "Need 12+ settled" in eligibility["reason"]
+        )
 
     def test_promotion_eligibility_no_trades(self):
         """Test promotion eligibility with no trades."""
@@ -460,9 +464,9 @@ class TestDBSessionShadowRunner:
             predicted_outcome=0.65,
         )
         # Manually set timestamp to 2 days ago to simulate older trades
-        runner._get_db().query(ShadowTrade).filter_by(
-            market_id="BTC-UP-4001"
-        ).update({"created_at": two_days_ago})
+        runner._get_db().query(ShadowTrade).filter_by(market_id="BTC-UP-4001").update(
+            {"created_at": two_days_ago}
+        )
         runner._get_db().commit()
         runner.settle(
             "BTC-UP-4001", settlement_value=1.0, actual_outcome=0.63
@@ -478,9 +482,9 @@ class TestDBSessionShadowRunner:
             genome_id="test_genome_300",
             predicted_outcome=0.60,
         )
-        runner._get_db().query(ShadowTrade).filter_by(
-            market_id="BTC-UP-4002"
-        ).update({"created_at": two_days_ago})
+        runner._get_db().query(ShadowTrade).filter_by(market_id="BTC-UP-4002").update(
+            {"created_at": two_days_ago}
+        )
         runner._get_db().commit()
         runner.settle(
             "BTC-UP-4002", settlement_value=1.0, actual_outcome=0.58

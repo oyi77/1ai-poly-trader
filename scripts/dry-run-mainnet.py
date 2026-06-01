@@ -96,7 +96,10 @@ async def test_clob_connectivity(clob: PolymarketCLOB):
 
         # 1d: Builder auth check
         try:
-            can_builder = bool(clob._clob_client.builder_config and clob._clob_client.builder_config.builder_address)
+            can_builder = bool(
+                clob._clob_client.builder_config
+                and clob._clob_client.builder_config.builder_address
+            )
             _result("Builder auth capable", can_builder, f"Builder auth: {can_builder}")
         except Exception as e:
             _result("Builder auth capable", False, str(e))
@@ -415,7 +418,7 @@ async def test_strategy_executor_dry_run():
                 clob_client=clob_client,
                 risk_manager=risk_manager,
                 strategy_configs={},
-            )
+            ),
         )
 
         decision = {
@@ -431,7 +434,9 @@ async def test_strategy_executor_dry_run():
             "market_type": "btc",
         }
 
-        result = await execute_decision(decision, strategy_name="dry_run_test", mode="paper", db=db)
+        result = await execute_decision(
+            decision, strategy_name="dry_run_test", mode="paper", db=db
+        )
 
         if result:
             _result(

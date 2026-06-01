@@ -175,9 +175,7 @@ async def fetch_markets(
                 break
             # Extract cursor from last item for next page
             last_item = page[-1] if page else None
-            cursor = (
-                last_item.get("cursor") if isinstance(last_item, dict) else None
-            )
+            cursor = last_item.get("cursor") if isinstance(last_item, dict) else None
             if not cursor:
                 break
         return all_markets[:limit]
@@ -259,9 +257,7 @@ async def fetch_resolved_markets(
             if len(page) < page_size:
                 break
             last_item = page[-1] if page else None
-            cursor = (
-                last_item.get("cursor") if isinstance(last_item, dict) else None
-            )
+            cursor = last_item.get("cursor") if isinstance(last_item, dict) else None
             if not cursor:
                 break
 

@@ -18,6 +18,7 @@ from backend.markets.order_types import (
 def provider():
     with patch.dict(os.environ, {"SXBET_API_URL": "https://api.sxbet.io"}, clear=False):
         from backend.markets.providers.sxbet_provider import SXBetProvider
+
         return SXBetProvider(paper_mode=True)
 
 
@@ -34,8 +35,10 @@ def test_manifest(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_mode(provider):
     order = NormalizedOrder(
-        market_id="hash123", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("10"),
+        market_id="hash123",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("10"),
         price=Decimal("2.5"),
     )
     result = await provider.place_order(order)
@@ -48,8 +51,10 @@ async def test_place_order_paper_mode(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_no_price(provider):
     order = NormalizedOrder(
-        market_id="hash123", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("10"),
+        market_id="hash123",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("10"),
     )
     result = await provider.place_order(order)
     assert result.status == OrderStatus.FILLED
@@ -78,14 +83,21 @@ async def test_get_positions_returns_empty(provider):
 
 @pytest.mark.asyncio
 async def test_place_order_live_no_key():
-    with patch.dict(os.environ, {"SXBET_API_URL": "https://api.sxbet.io", "SXBET_PRIVATE_KEY": ""}, clear=False):
+    with patch.dict(
+        os.environ,
+        {"SXBET_API_URL": "https://api.sxbet.io", "SXBET_PRIVATE_KEY": ""},
+        clear=False,
+    ):
         from backend.markets.providers.sxbet_provider import SXBetProvider
+
         prov = SXBetProvider(paper_mode=False)
     mock_client = AsyncMock()
     prov._client = mock_client
     order = NormalizedOrder(
-        market_id="hash1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("1"),
+        market_id="hash1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("1"),
         price=Decimal("2.0"),
     )
     with patch.dict(os.environ, {"SXBET_PRIVATE_KEY": ""}, clear=False):
@@ -98,13 +110,18 @@ async def test_place_order_live_no_key():
 async def test_place_order_live_success():
     with patch.dict(os.environ, {"SXBET_API_URL": "https://api.sxbet.io"}, clear=False):
         from backend.markets.providers.sxbet_provider import SXBetProvider
+
         prov = SXBetProvider(paper_mode=False)
     mock_client = AsyncMock()
-    mock_client.place_maker_order = AsyncMock(return_value={"orderId": "sx_ord_1", "fee": "0.05"})
+    mock_client.place_maker_order = AsyncMock(
+        return_value={"orderId": "sx_ord_1", "fee": "0.05"}
+    )
     prov._client = mock_client
     order = NormalizedOrder(
-        market_id="hash1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("5"),
+        market_id="hash1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("5"),
         price=Decimal("2.0"),
     )
     with patch.dict(os.environ, {"SXBET_PRIVATE_KEY": "0xabc123"}, clear=False):
@@ -118,13 +135,16 @@ async def test_place_order_live_success():
 async def test_place_order_live_exception():
     with patch.dict(os.environ, {"SXBET_API_URL": "https://api.sxbet.io"}, clear=False):
         from backend.markets.providers.sxbet_provider import SXBetProvider
+
         prov = SXBetProvider(paper_mode=False)
     mock_client = AsyncMock()
     mock_client.place_maker_order = AsyncMock(side_effect=Exception("network error"))
     prov._client = mock_client
     order = NormalizedOrder(
-        market_id="hash1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("5"),
+        market_id="hash1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("5"),
         price=Decimal("2.0"),
     )
     with patch.dict(os.environ, {"SXBET_PRIVATE_KEY": "0xabc"}, clear=False):
@@ -135,10 +155,12 @@ async def test_place_order_live_exception():
 @pytest.mark.asyncio
 async def test_get_markets(provider):
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value=[
-        {"marketHash": "hash1", "title": "Team A vs Team B"},
-        {"marketHash": "hash2", "teamOneName": "X", "teamTwoName": "Y"},
-    ])
+    mock_client.get_markets = AsyncMock(
+        return_value=[
+            {"marketHash": "hash1", "title": "Team A vs Team B"},
+            {"marketHash": "hash2", "teamOneName": "X", "teamTwoName": "Y"},
+        ]
+    )
     provider._client = mock_client
     markets = await provider.get_markets()
     assert len(markets) == 2
@@ -151,9 +173,9 @@ async def test_get_markets(provider):
 @pytest.mark.asyncio
 async def test_get_markets_handles_dict_response(provider):
     mock_client = AsyncMock()
-    mock_client.get_markets = AsyncMock(return_value={
-        "data": {"markets": [{"marketHash": "h1", "title": "Game 1"}]}
-    })
+    mock_client.get_markets = AsyncMock(
+        return_value={"data": {"markets": [{"marketHash": "h1", "title": "Game 1"}]}}
+    )
     provider._client = mock_client
     markets = await provider.get_markets()
     assert len(markets) == 1
@@ -170,8 +192,10 @@ async def test_health_check(provider):
 
 def test_rejected_helper(provider):
     order = NormalizedOrder(
-        market_id="h1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("5"),
+        market_id="h1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("5"),
         client_order_id="co1",
     )
     result = provider._rejected(order, "test error")

@@ -395,6 +395,7 @@ async def get_modifications():
     """Retrieve codebase modification history from ChangeTracker."""
     try:
         from backend.agi.modification_engine import ChangeTracker
+
         tracker = ChangeTracker()
         history = tracker.get_recent(limit=10)
     except Exception as e:
@@ -433,7 +434,7 @@ async def get_modifications():
                 "tests_failed": 0,
                 "created_at": time.time() - 3600,
                 "merged_at": time.time() - 3500,
-            }
+            },
         ]
 
     # Convert to frontend expectations
@@ -459,19 +460,25 @@ async def get_modifications():
         else:
             ui_status = "pending"
 
-        agent = "GPT-4o" if "config" in change.get("title", "").lower() else "Claude-3.5-Sonnet"
+        agent = (
+            "GPT-4o"
+            if "config" in change.get("title", "").lower()
+            else "Claude-3.5-Sonnet"
+        )
 
         files = change.get("files_modified", [])
         primary_file = files[0] if files else "backend/strategies/strategy.py"
 
-        result.append({
-            "id": change.get("change_id"),
-            "file": primary_file,
-            "time": time_str,
-            "agent": agent,
-            "status": ui_status,
-            "diff": change.get("diff_summary", "")
-        })
+        result.append(
+            {
+                "id": change.get("change_id"),
+                "file": primary_file,
+                "time": time_str,
+                "agent": agent,
+                "status": ui_status,
+                "diff": change.get("diff_summary", ""),
+            }
+        )
 
     return result
 
@@ -506,18 +513,24 @@ async def get_debate_topology(db: Session = Depends(get_db)):
                 "consensus_probability": 0.625,
                 "confidence": 0.85,
                 "reasoning": "Technical breakout aligns with institutional inflows, though weekend volume is lower.",
-                "consensus_reached": True
+                "consensus_reached": True,
             },
             "bull_arguments": [
-                {"message": "ETF inflows reached record high today. Technical breakout at $72,500 resistance."}
+                {
+                    "message": "ETF inflows reached record high today. Technical breakout at $72,500 resistance."
+                }
             ],
             "bear_arguments": [
-                {"message": "Funding rates are elevated. Potential liquidation squeeze on weekend retail long positions."}
-            ]
+                {
+                    "message": "Funding rates are elevated. Potential liquidation squeeze on weekend retail long positions."
+                }
+            ],
         }
 
     judge = debate_transcript.get("judge", {})
-    consensus = judge.get("consensus_probability", debate_transcript.get("market_price", 0.5))
+    consensus = judge.get(
+        "consensus_probability", debate_transcript.get("market_price", 0.5)
+    )
     confidence = judge.get("confidence", 0.5)
 
     return {
@@ -530,17 +543,21 @@ async def get_debate_topology(db: Session = Depends(get_db)):
             "Composer": {
                 "stance": "Judge",
                 "consensus": "98.5%",
-                "args": judge.get("reasoning", "Consensus synthesis.")
+                "args": judge.get("reasoning", "Consensus synthesis."),
             },
             "Risk": {
                 "stance": "Bear",
-                "args": debate_transcript.get("bear_arguments", [{}])[0].get("message", "High funding rates suggest leverage caution.")
+                "args": debate_transcript.get("bear_arguments", [{}])[0].get(
+                    "message", "High funding rates suggest leverage caution."
+                ),
             },
             "Execution": {
                 "stance": "Bull",
-                "args": debate_transcript.get("bull_arguments", [{}])[0].get("message", "Strong spot inflows support local breakout.")
-            }
-        }
+                "args": debate_transcript.get("bull_arguments", [{}])[0].get(
+                    "message", "Strong spot inflows support local breakout."
+                ),
+            },
+        },
     }
 
 
@@ -554,7 +571,7 @@ async def get_performance_attribution(db: Session = Depends(get_db)):
         db.query(
             Trade.strategy,
             func.sum(Trade.pnl).label("profit"),
-            func.count(Trade.id).label("trades")
+            func.count(Trade.id).label("trades"),
         )
         .filter(Trade.settled.is_(True))
         .group_by(Trade.strategy)
@@ -564,17 +581,19 @@ async def get_performance_attribution(db: Session = Depends(get_db)):
     strategies = []
     for r in strategy_results:
         if r.strategy:
-            strategies.append({
-                "name": r.strategy.replace("_", " ").title(),
-                "profit": round(float(r.profit or 0.0), 2),
-                "trades": int(r.trades or 0)
-            })
+            strategies.append(
+                {
+                    "name": r.strategy.replace("_", " ").title(),
+                    "profit": round(float(r.profit or 0.0), 2),
+                    "trades": int(r.trades or 0),
+                }
+            )
 
     if len(strategies) < 2:
         strategies = [
-            { "name": "Arbitrage", "profit": 6000, "trades": 450 },
-            { "name": "Momentum", "profit": 2100, "trades": 30 },
-            { "name": "Mean Reversion", "profit": 800, "trades": 25 },
+            {"name": "Arbitrage", "profit": 6000, "trades": 450},
+            {"name": "Momentum", "profit": 2100, "trades": 30},
+            {"name": "Mean Reversion", "profit": 800, "trades": 25},
         ]
 
     provider_map = {
@@ -582,19 +601,16 @@ async def get_performance_attribution(db: Session = Depends(get_db)):
         "Momentum": "Claude-3.5",
         "Mean Reversion": "GPT-4o",
     }
-    
+
     provider_data = {}
     for strat in strategies:
         prov = provider_map.get(strat["name"], "GPT-4o")
         if prov not in provider_data:
-            provider_data[prov] = { "name": prov, "profit": 0.0, "trades": 0 }
+            provider_data[prov] = {"name": prov, "profit": 0.0, "trades": 0}
         provider_data[prov]["profit"] += strat["profit"]
         provider_data[prov]["trades"] += strat["trades"]
 
-    return {
-        "providers": list(provider_data.values()),
-        "strategies": strategies
-    }
+    return {"providers": list(provider_data.values()), "strategies": strategies}
 
 
 @router.get("/sandbox-logs")
@@ -611,30 +627,50 @@ async def get_sandbox_logs(db: Session = Depends(get_db)):
             c_time = change.get("created_at") or time.time()
             time_str = datetime.fromtimestamp(c_time, timezone.utc).strftime("%H:%M:%S")
             c_title = change.get("title", "Optimization run")
-            
-            logs.append({
-                "time": time_str,
-                "level": "INFO",
-                "msg": f"[CodeGenerator] Synthesizing improvement for: {c_title}"
-            })
-            
+
+            logs.append(
+                {
+                    "time": time_str,
+                    "level": "INFO",
+                    "msg": f"[CodeGenerator] Synthesizing improvement for: {c_title}",
+                }
+            )
+
             passed = change.get("status") == "merged"
             val_log = change.get("validation_log", [])
             for line in val_log:
-                logs.append({
-                    "time": time_str,
-                    "level": "SUCCESS" if passed else "WARN",
-                    "msg": f"[Sandbox] {line}"
-                })
+                logs.append(
+                    {
+                        "time": time_str,
+                        "level": "SUCCESS" if passed else "WARN",
+                        "msg": f"[Sandbox] {line}",
+                    }
+                )
     except Exception as e:
         logger.warning(f"Error building sandbox logs from ChangeTracker: {e}")
 
     if not logs:
         logs = [
-            { "time": "15:42:01", "level": "INFO", "msg": "[CodeGenerator] Generating backend/strategies/arb_strategy.py via groq..." },
-            { "time": "15:42:05", "level": "DEBUG", "msg": "Validating AST tree for generated code..." },
-            { "time": "15:42:06", "level": "SUCCESS", "msg": "AST Validation passed. Pushing to Sandbox context." },
-            { "time": "15:42:10", "level": "WARN", "msg": "[Sandbox] Trade execution simulated. PnL: +$1.20 (Slippage high)" }
+            {
+                "time": "15:42:01",
+                "level": "INFO",
+                "msg": "[CodeGenerator] Generating backend/strategies/arb_strategy.py via groq...",
+            },
+            {
+                "time": "15:42:05",
+                "level": "DEBUG",
+                "msg": "Validating AST tree for generated code...",
+            },
+            {
+                "time": "15:42:06",
+                "level": "SUCCESS",
+                "msg": "AST Validation passed. Pushing to Sandbox context.",
+            },
+            {
+                "time": "15:42:10",
+                "level": "WARN",
+                "msg": "[Sandbox] Trade execution simulated. PnL: +$1.20 (Slippage high)",
+            },
         ]
 
     prompt_records = (
@@ -647,13 +683,17 @@ async def get_sandbox_logs(db: Session = Depends(get_db)):
 
     prompts = []
     for r in prompt_records:
-        prompts.append({
-            "id": r.id,
-            "agent": r.agent_name or "LLMRouter",
-            "prompt": str(r.input_data)[:200] + "..." if r.input_data else "",
-            "response": str(r.output_data)[:200] + "..." if r.output_data else "",
-            "time": r.timestamp.strftime("%Y-%m-%d %H:%M:%S") if r.timestamp else ""
-        })
+        prompts.append(
+            {
+                "id": r.id,
+                "agent": r.agent_name or "LLMRouter",
+                "prompt": str(r.input_data)[:200] + "..." if r.input_data else "",
+                "response": str(r.output_data)[:200] + "..." if r.output_data else "",
+                "time": (
+                    r.timestamp.strftime("%Y-%m-%d %H:%M:%S") if r.timestamp else ""
+                ),
+            }
+        )
 
     if not prompts:
         prompts = [
@@ -662,7 +702,7 @@ async def get_sandbox_logs(db: Session = Depends(get_db)):
                 "agent": "RiskAgent",
                 "prompt": "Evaluate position size scaling under current regimes...",
                 "response": "Confidence 85%. Adjust max position fraction to 0.30.",
-                "time": "2026-05-26 15:42:01"
+                "time": "2026-05-26 15:42:01",
             }
         ]
 
@@ -672,7 +712,6 @@ async def get_sandbox_logs(db: Session = Depends(get_db)):
         "sandbox_status": {
             "active": True,
             "message": "Sandbox Environment Active",
-            "details": "Subprocess isolation enabled. No dangerous code detected in last 24h."
-        }
+            "details": "Subprocess isolation enabled. No dangerous code detected in last 24h.",
+        },
     }
-

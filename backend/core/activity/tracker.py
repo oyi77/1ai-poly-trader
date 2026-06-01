@@ -13,12 +13,12 @@ class ActivityTracker:
     """Central dispatcher for all platform activity events."""
 
     def __init__(self):
-        self._sources: dict[str, 'BaseActivitySource'] = {}
+        self._sources: dict[str, "BaseActivitySource"] = {}
         self._handlers: list[Callable] = []
         self._events: list[ActivityEvent] = []
         self._max_events = 1000
 
-    def register_source(self, name: str, source: 'BaseActivitySource'):
+    def register_source(self, name: str, source: "BaseActivitySource"):
         """Register a platform activity source."""
         self._sources[name] = source
         source.on_activity(self._on_event)
@@ -52,7 +52,7 @@ class ActivityTracker:
         """Internal — called by any source."""
         self._events.append(event)
         if len(self._events) > self._max_events:
-            self._events = self._events[-self._max_events:]
+            self._events = self._events[-self._max_events :]
 
         for handler in self._handlers:
             try:
@@ -63,13 +63,17 @@ class ActivityTracker:
             except Exception as e:
                 logger.error(f"[ActivityTracker] Handler error: {e}")
 
-        logger.debug(f"[ActivityTracker] {event.source}.{event.event_type}: {event.amount} {event.token}")
+        logger.debug(
+            f"[ActivityTracker] {event.source}.{event.event_type}: {event.amount} {event.token}"
+        )
 
     def get_recent_events(self, limit: int = 100) -> list[ActivityEvent]:
         """Get recent events for API."""
         return self._events[-limit:]
 
-    def get_events_by_type(self, event_type: str, limit: int = 50) -> list[ActivityEvent]:
+    def get_events_by_type(
+        self, event_type: str, limit: int = 50
+    ) -> list[ActivityEvent]:
         return [e for e in self._events if e.event_type == event_type][-limit:]
 
     def get_events_by_source(self, source: str, limit: int = 50) -> list[ActivityEvent]:

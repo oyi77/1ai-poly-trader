@@ -15,10 +15,10 @@ import pytest
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_db():
@@ -77,6 +77,7 @@ def _run_async(coro):
 # Helper: run a BaseStrategy through run() which wraps run_cycle with error handling
 # ---------------------------------------------------------------------------
 
+
 def _run_strategy(strategy, ctx):
     """Run strategy.run(ctx) and return the CycleResult."""
     return _run_async(strategy.run(ctx))
@@ -86,9 +87,11 @@ def _run_strategy(strategy, ctx):
 # 1. AGIMetaStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestAGIMetaStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.agi_meta_strategy import AGIMetaStrategy
+
         strategy = AGIMetaStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -100,9 +103,11 @@ class TestAGIMetaStrategy:
 # 2. BondScannerStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestBondScannerStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.bond_scanner import BondScannerStrategy
+
         strategy = BondScannerStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -113,9 +118,11 @@ class TestBondScannerStrategy:
 # 3. BtcMomentumStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestBtcMomentumStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.btc_momentum import BtcMomentumStrategy
+
         strategy = BtcMomentumStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -126,9 +133,11 @@ class TestBtcMomentumStrategy:
 # 4. CexPmLeadLagStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestCexPmLeadLagStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.cex_pm_leadlag import CexPmLeadLagStrategy
+
         strategy = CexPmLeadLagStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -139,18 +148,25 @@ class TestCexPmLeadLagStrategy:
 # 5. CrossMarketArbEnhanced (NOT a BaseStrategy -- plain class)
 # ---------------------------------------------------------------------------
 
+
 class TestCrossMarketArbEnhanced:
     def test_instantiate(self):
         from backend.strategies.cross_market_arb_enhanced import CrossMarketArbEnhanced
+
         strategy = CrossMarketArbEnhanced()
         # Not a BaseStrategy subclass; just verify it instantiates
         assert strategy is not None
 
     def test_has_scan_method(self):
         from backend.strategies.cross_market_arb_enhanced import CrossMarketArbEnhanced
+
         strategy = CrossMarketArbEnhanced()
         # Verify it has some callable interface (scan/detect methods)
-        methods = [m for m in dir(strategy) if not m.startswith("_") and callable(getattr(strategy, m))]
+        methods = [
+            m
+            for m in dir(strategy)
+            if not m.startswith("_") and callable(getattr(strategy, m))
+        ]
         assert len(methods) > 0, "CrossMarketArbEnhanced should expose callable methods"
 
 
@@ -158,9 +174,11 @@ class TestCrossMarketArbEnhanced:
 # 6. CryptoOracleStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestCryptoOracleStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.crypto_oracle import CryptoOracleStrategy
+
         strategy = CryptoOracleStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -171,9 +189,11 @@ class TestCryptoOracleStrategy:
 # 7. GeneralMarketScanner
 # ---------------------------------------------------------------------------
 
+
 class TestGeneralMarketScanner:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.general_market_scanner import GeneralMarketScanner
+
         strategy = GeneralMarketScanner()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -184,9 +204,11 @@ class TestGeneralMarketScanner:
 # 8. HFTScalperStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestHFTScalperStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.hft_scalper import HFTScalperStrategy
+
         strategy = HFTScalperStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -197,9 +219,11 @@ class TestHFTScalperStrategy:
 # 9. HyperliquidStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestHyperliquidStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.hyperliquid_strategy import HyperliquidStrategy
+
         strategy = HyperliquidStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -210,9 +234,13 @@ class TestHyperliquidStrategy:
 # 10. LineMovementDetectorStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestLineMovementDetectorStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
-        from backend.strategies.line_movement_detector import LineMovementDetectorStrategy
+        from backend.strategies.line_movement_detector import (
+            LineMovementDetectorStrategy,
+        )
+
         strategy = LineMovementDetectorStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -223,9 +251,11 @@ class TestLineMovementDetectorStrategy:
 # 11. LongshotBiasStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestLongshotBiasStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.longshot_bias import LongshotBiasStrategy
+
         strategy = LongshotBiasStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -236,9 +266,11 @@ class TestLongshotBiasStrategy:
 # 12. MarketMakerStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestMarketMakerStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.market_maker import MarketMakerStrategy
+
         strategy = MarketMakerStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -249,9 +281,11 @@ class TestMarketMakerStrategy:
 # 13. NegRiskStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestNegRiskStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.negrisk_strategy import NegRiskStrategy
+
         strategy = NegRiskStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -262,9 +296,11 @@ class TestNegRiskStrategy:
 # 14. ProbabilityArb
 # ---------------------------------------------------------------------------
 
+
 class TestProbabilityArb:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.probability_arb import ProbabilityArb
+
         strategy = ProbabilityArb()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -275,9 +311,11 @@ class TestProbabilityArb:
 # 15. RealtimeScannerStrategy
 # ---------------------------------------------------------------------------
 
+
 class TestRealtimeScannerStrategy:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.realtime_scanner import RealtimeScannerStrategy
+
         strategy = RealtimeScannerStrategy()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -288,9 +326,11 @@ class TestRealtimeScannerStrategy:
 # 16. UnifiedPMArb
 # ---------------------------------------------------------------------------
 
+
 class TestUnifiedPMArb:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.unified_pm_arb import UnifiedPMArb
+
         strategy = UnifiedPMArb()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)
@@ -301,9 +341,11 @@ class TestUnifiedPMArb:
 # 17. UniversalScanner
 # ---------------------------------------------------------------------------
 
+
 class TestUniversalScanner:
     def test_instantiate_and_run(self, strategy_ctx):
         from backend.strategies.universal_scanner import UniversalScanner
+
         strategy = UniversalScanner()
         assert isinstance(strategy, BaseStrategy)
         result = _run_strategy(strategy, strategy_ctx)

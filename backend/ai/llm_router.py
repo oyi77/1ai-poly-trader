@@ -416,12 +416,23 @@ class LLMRouter:
         return scored[0][1] if scored else self.default_provider
 
     async def simple_complete(
-        self, prompt: str, system: Optional[str] = None, max_tokens: int = 1000,
-        temperature: float = 0.7, **kwargs
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs,
     ) -> str:
         """Simple completion using default provider. For code_refactorer compatibility."""
-        return await self.complete(prompt, role="default", system=system,
-                                   max_tokens=max_tokens, temperature=temperature, **kwargs)
+        return await self.complete(
+            prompt,
+            role="default",
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            **kwargs,
+        )
+
 
 # Singleton
 llm_router = LLMRouter()

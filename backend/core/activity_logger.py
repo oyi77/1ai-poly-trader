@@ -40,11 +40,7 @@ def _write_activity(db: Session, activity: ActivityLog) -> int:
 def _delete_old_activities(db: Session, cutoff: datetime) -> int:
     """Delete ActivityLog rows older than cutoff + commit. Retried on transient DB errors."""
     try:
-        deleted = (
-            db.query(ActivityLog)
-            .filter(ActivityLog.timestamp < cutoff)
-            .delete()
-        )
+        deleted = db.query(ActivityLog).filter(ActivityLog.timestamp < cutoff).delete()
         db.commit()
         return deleted
     except (OperationalError, PendingRollbackError):
@@ -221,9 +217,7 @@ class ActivityLogger:
             return deleted
         except (OperationalError, PendingRollbackError):
             db.rollback()
-            logger.warning(
-                "ActivityLogger: cleanup failed after retries"
-            )
+            logger.warning("ActivityLogger: cleanup failed after retries")
             return 0
         except Exception as e:
             logger.error(

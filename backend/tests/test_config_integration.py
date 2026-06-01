@@ -85,7 +85,6 @@ class TestSettingsPriority:
             assert settings.TRADING_MODE == "paper"
 
 
-
 class TestExtendedSettings:
     def test_extended_defaults(self):
         settings = ExtendedSettings()

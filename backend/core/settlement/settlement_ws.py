@@ -8,8 +8,6 @@ When Polymarket resolves a market, we receive the event via WebSocket and can
 settle trades immediately instead of waiting for the next settlement cycle.
 """
 
-
-
 import asyncio
 from typing import Optional, Set
 

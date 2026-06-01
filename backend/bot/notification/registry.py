@@ -9,7 +9,9 @@ from backend.core.plugin_registry import PluginRegistry
 logger = logging.getLogger(__name__)
 
 
-class NotificationRegistry(PluginRegistry[NotificationManifest, BaseNotificationProvider]):
+class NotificationRegistry(
+    PluginRegistry[NotificationManifest, BaseNotificationProvider]
+):
     """Singleton registry for notification providers (Telegram, Discord, Slack, Webhook).
 
     Inherits register(), get(), set_enabled(), auto_discover(), run_health_checks()
@@ -33,6 +35,7 @@ class NotificationRegistry(PluginRegistry[NotificationManifest, BaseNotification
     @classmethod
     def reset(cls) -> None:
         import threading
+
         with threading.Lock():
             if cls._instance is not None:
                 cls._instance._plugins.clear()

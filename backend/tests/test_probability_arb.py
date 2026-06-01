@@ -17,7 +17,6 @@ from backend.strategies.probability_arb import (
 )
 from backend.strategies.base import CycleResult, StrategyContext
 
-
 # ---------------------------------------------------------------------------
 # detect_arb (standalone function, uses settings directly)
 # ---------------------------------------------------------------------------
@@ -108,7 +107,9 @@ class TestProbabilityArbClass:
         pa = ProbabilityArb()
         ctx = _make_ctx()
 
-        with patch("backend.data.gamma.fetch_markets", new_callable=AsyncMock, return_value=[]):
+        with patch(
+            "backend.data.gamma.fetch_markets", new_callable=AsyncMock, return_value=[]
+        ):
             result = await pa.run_cycle(ctx)
 
         assert isinstance(result, CycleResult)
@@ -135,7 +136,11 @@ class TestProbabilityArbClass:
             },
         ]
 
-        with patch("backend.data.gamma.fetch_markets", new_callable=AsyncMock, return_value=markets):
+        with patch(
+            "backend.data.gamma.fetch_markets",
+            new_callable=AsyncMock,
+            return_value=markets,
+        ):
             # execute_arb has a NameError on market_id -- this test documents the bug
             # In paper mode (clob=None), _place_order_with_retry returns None immediately
             result = await pa.run_cycle(ctx)
@@ -198,7 +203,9 @@ class TestExecuteArbBug:
             confidence=1.0,
         )
         mock_clob = MagicMock()
-        mock_clob.place_limit_order = AsyncMock(return_value=MagicMock(order_id="ord_123"))
+        mock_clob.place_limit_order = AsyncMock(
+            return_value=MagicMock(order_id="ord_123")
+        )
 
         with pytest.raises(NameError, match="market_id"):
             await execute_arb(opp, "yes_tok", "no_tok", clob=mock_clob)
@@ -214,8 +221,12 @@ class TestPlaceOrderWithRetry:
     async def test_returns_none_when_clob_is_none(self):
         """Paper mode: no CLOB, returns None."""
         result = await _place_order_with_retry(
-            token_id="tok", side="BUY", price=0.50, size=10.0,
-            clob=None, idempotency_key="key-1",
+            token_id="tok",
+            side="BUY",
+            price=0.50,
+            size=10.0,
+            clob=None,
+            idempotency_key="key-1",
         )
         assert result is None
 
@@ -227,8 +238,12 @@ class TestPlaceOrderWithRetry:
         )
 
         result = await _place_order_with_retry(
-            token_id="tok", side="BUY", price=0.50, size=10.0,
-            clob=mock_clob, idempotency_key="key-1",
+            token_id="tok",
+            side="BUY",
+            price=0.50,
+            size=10.0,
+            clob=mock_clob,
+            idempotency_key="key-1",
         )
         assert result == "ord_abc"
 
@@ -247,8 +262,12 @@ class TestPlaceOrderWithRetry:
 
         with pytest.raises(Exception, match="API error"):
             await _place_order_with_retry(
-                token_id="tok", side="BUY", price=0.50, size=10.0,
-                clob=mock_clob, idempotency_key="key-1",
+                token_id="tok",
+                side="BUY",
+                price=0.50,
+                size=10.0,
+                clob=mock_clob,
+                idempotency_key="key-1",
             )
         # Should have tried 1 + 3 retries = 4 times
         assert call_count == 4

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class ActivityHandler:
     """Processes activity events → updates bankroll, positions, DB."""
 
-    def __init__(self, tracker: 'ActivityTracker', db_session_factory):
+    def __init__(self, tracker: "ActivityTracker", db_session_factory):
         self._tracker = tracker
         self._db = db_session_factory
         self._tracker.on_event(self.handle_event)
@@ -64,7 +64,9 @@ class ActivityHandler:
                 db.add(record)
                 db.commit()
         except Exception as e:
-            logger.opt(exception=True).warning(f"[ActivityHandler] Failed to persist event {event.id}: {e}")
+            logger.opt(exception=True).warning(
+                f"[ActivityHandler] Failed to persist event {event.id}: {e}"
+            )
 
     async def _handle_transfer(self, event: ActivityEvent):
         """Record deposit/withdrawal → update bankroll + live_initial_bankroll."""
@@ -85,14 +87,22 @@ class ActivityHandler:
                 old_bankroll = state.bankroll or 0.0
 
                 if event.event_type == "deposit":
-                    state.live_initial_bankroll = (state.live_initial_bankroll or 0.0) + event.amount
+                    state.live_initial_bankroll = (
+                        state.live_initial_bankroll or 0.0
+                    ) + event.amount
                     state.bankroll = old_bankroll + event.amount
                 elif event.event_type == "withdrawal":
-                    state.live_initial_bankroll = max(0.0, (state.live_initial_bankroll or 0.0) - event.amount)
+                    state.live_initial_bankroll = max(
+                        0.0, (state.live_initial_bankroll or 0.0) - event.amount
+                    )
                     state.bankroll = max(0.0, old_bankroll - event.amount)
 
-                state.total_deposits = (state.total_deposits or 0.0) + (event.amount if event.event_type == "deposit" else 0.0)
-                state.total_withdrawals = (state.total_withdrawals or 0.0) + (event.amount if event.event_type == "withdrawal" else 0.0)
+                state.total_deposits = (state.total_deposits or 0.0) + (
+                    event.amount if event.event_type == "deposit" else 0.0
+                )
+                state.total_withdrawals = (state.total_withdrawals or 0.0) + (
+                    event.amount if event.event_type == "withdrawal" else 0.0
+                )
 
                 tx_event = TransactionEvent(
                     type=event.event_type,
@@ -114,7 +124,9 @@ class ActivityHandler:
                     f"live_initial: {state.live_initial_bankroll:.2f}"
                 )
         except Exception as e:
-            logger.opt(exception=True).warning(f"[ActivityHandler] Failed to update bankroll: {e}")
+            logger.opt(exception=True).warning(
+                f"[ActivityHandler] Failed to update bankroll: {e}"
+            )
 
     async def _handle_trade_open(self, event: ActivityEvent):
         logger.info(
@@ -126,17 +138,24 @@ class ActivityHandler:
             from backend.models.database import Trade
 
             with get_db_session() as db:
-                market_ticker = event.raw_data.get("market_ticker") if isinstance(event.raw_data, dict) else None
+                market_ticker = (
+                    event.raw_data.get("market_ticker")
+                    if isinstance(event.raw_data, dict)
+                    else None
+                )
                 if not market_ticker:
                     return
                 from backend.core.trade_forensics import classify_trade_role
+
                 role, maker_size, taker_size = await classify_trade_role(
                     platform=event.platform or event.source or "polymarket",
                     mode="live",
                     clob_order_id=event.order_id,
                     price=event.price or 0.0,
                     size=event.amount,
-                    direction="up" if (event.side or "").lower() in ("buy", "up") else "down",
+                    direction=(
+                        "up" if (event.side or "").lower() in ("buy", "up") else "down"
+                    ),
                     decision=event.raw_data if isinstance(event.raw_data, dict) else {},
                     db_session=db,
                 )
@@ -157,9 +176,13 @@ class ActivityHandler:
                 )
                 db.add(trade)
                 db.commit()
-                logger.info(f"[ActivityHandler] Trade created: id={trade.id}, {trade.direction} {trade.size}")
+                logger.info(
+                    f"[ActivityHandler] Trade created: id={trade.id}, {trade.direction} {trade.size}"
+                )
         except Exception as e:
-            logger.opt(exception=True).warning(f"[ActivityHandler] Failed to create trade: {e}")
+            logger.opt(exception=True).warning(
+                f"[ActivityHandler] Failed to create trade: {e}"
+            )
 
     async def _handle_trade_close(self, event: ActivityEvent):
         logger.info(
@@ -171,11 +194,16 @@ class ActivityHandler:
 
             with get_db_session() as db:
                 # Find open trade by clob_order_id or most recent open trade for this source
-                trade = db.query(Trade).filter(
-                    Trade.clob_order_id == event.order_id,
-                    Trade.status == "open",
-                    Trade.trading_mode == "live",
-                ).order_by(Trade.created_at.desc()).first()
+                trade = (
+                    db.query(Trade)
+                    .filter(
+                        Trade.clob_order_id == event.order_id,
+                        Trade.status == "open",
+                        Trade.trading_mode == "live",
+                    )
+                    .order_by(Trade.created_at.desc())
+                    .first()
+                )
 
                 if trade:
                     trade.status = "settled"
@@ -184,11 +212,17 @@ class ActivityHandler:
                     trade.pnl = event.pnl
                     trade.result = "win" if (event.pnl or 0) > 0 else "loss"
                     db.commit()
-                    logger.info(f"[ActivityHandler] Trade {trade.id} closed: PnL={event.pnl}")
+                    logger.info(
+                        f"[ActivityHandler] Trade {trade.id} closed: PnL={event.pnl}"
+                    )
                 else:
-                    logger.warning(f"[ActivityHandler] No open trade found for order_id={event.order_id}")
+                    logger.warning(
+                        f"[ActivityHandler] No open trade found for order_id={event.order_id}"
+                    )
         except Exception as e:
-            logger.opt(exception=True).warning(f"[ActivityHandler] Failed to close trade: {e}")
+            logger.opt(exception=True).warning(
+                f"[ActivityHandler] Failed to close trade: {e}"
+            )
 
     def get_pending_events(self, limit: int = 50) -> list[ActivityEvent]:
         return self._tracker.get_recent_events(limit)

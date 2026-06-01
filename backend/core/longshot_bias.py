@@ -135,6 +135,7 @@ class LongshotBiasDetector:
           bias < 1.0 -> longshots are overpriced.
         """
         from backend.models.database import Trade
+
         cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
 
         query = db.query(Trade).filter(
@@ -151,7 +152,9 @@ class LongshotBiasDetector:
         if not trades:
             return None
 
-        longshot_win_rate = sum(1.0 for t in trades if t.result.lower() == "win") / len(trades)
+        longshot_win_rate = sum(1.0 for t in trades if t.result.lower() == "win") / len(
+            trades
+        )
         longshot_expected = sum(t.entry_price for t in trades) / len(trades)
 
         bias = longshot_win_rate / longshot_expected if longshot_expected > 0 else 1.0
@@ -163,4 +166,3 @@ class LongshotBiasDetector:
             "expected_win_rate": round(longshot_expected, 4),
             "actual_win_rate": round(longshot_win_rate, 4),
         }
-

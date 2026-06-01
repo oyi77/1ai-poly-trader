@@ -11,7 +11,9 @@ import uuid
 class ActivityEvent:
     """Single activity event from any source."""
 
-    source: str  # 'aster' | 'hyperliquid' | 'lighter' | 'polymarket' | 'polygon' | 'kalshi'
+    source: (
+        str  # 'aster' | 'hyperliquid' | 'lighter' | 'polymarket' | 'polygon' | 'kalshi'
+    )
     event_type: str  # 'deposit' | 'withdrawal' | 'trade_open' | 'trade_closed' | 'buy' | 'sell' | 'redeem' | 'transfer'
     wallet_address: str
     platform: str  # venue name
@@ -53,6 +55,7 @@ class ActivityEvent:
 @dataclass
 class ActivitySummary:
     """Aggregated activity stats."""
+
     total_deposits: float = 0.0
     total_withdrawals: float = 0.0
     total_trades_opened: int = 0

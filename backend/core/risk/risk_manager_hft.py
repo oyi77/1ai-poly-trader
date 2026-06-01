@@ -5,16 +5,10 @@ HFT Risk Manager — aggressive 25% Kelly sizing with fail-open circuit breaker.
 This module will be removed in a future release.
 """
 
-
-
 from typing import Optional
 
 from backend.strategies.types_hft import HFTSignal, HFTStrategyConfig
-from backend.config import settings
-
-
-def _cfg(key: str, default=None):
-    return getattr(settings, key, default) if hasattr(settings, key) else default
+from backend.config import settings, _cfg
 
 
 POSITION_SIZE_PCT = _cfg("HFT_POSITION_SIZE_PCT", 0.25)

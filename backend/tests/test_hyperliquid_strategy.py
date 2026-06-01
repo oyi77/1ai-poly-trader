@@ -40,7 +40,9 @@ def _make_ctx(providers=None, params=None, mode="paper"):
 
 
 def _make_hl_market(market_id="hl_1", status="active", yes=0.50, no=0.50):
-    return _FakeHlMarket(market_id=status and market_id, status=status, outcome_prices=[yes, no])
+    return _FakeHlMarket(
+        market_id=status and market_id, status=status, outcome_prices=[yes, no]
+    )
 
 
 def _make_mock_client(markets=None):
@@ -82,9 +84,33 @@ class TestMarketFilter:
     async def test_filters_hyperliquid_only(self):
         s = HyperliquidStrategy()
         markets = [
-            MarketInfo(ticker="hl", slug="hl", category="crypto", end_date=None, volume=5000, liquidity=2000, metadata={"platform": "hyperliquid"}),
-            MarketInfo(ticker="pm", slug="pm", category="crypto", end_date=None, volume=5000, liquidity=2000, metadata={"platform": "polymarket"}),
-            MarketInfo(ticker="hl2", slug="hl2", category="crypto", end_date=None, volume=5000, liquidity=2000, metadata={"platform": "hyperliquid"}),
+            MarketInfo(
+                ticker="hl",
+                slug="hl",
+                category="crypto",
+                end_date=None,
+                volume=5000,
+                liquidity=2000,
+                metadata={"platform": "hyperliquid"},
+            ),
+            MarketInfo(
+                ticker="pm",
+                slug="pm",
+                category="crypto",
+                end_date=None,
+                volume=5000,
+                liquidity=2000,
+                metadata={"platform": "polymarket"},
+            ),
+            MarketInfo(
+                ticker="hl2",
+                slug="hl2",
+                category="crypto",
+                end_date=None,
+                volume=5000,
+                liquidity=2000,
+                metadata={"platform": "hyperliquid"},
+            ),
         ]
         filtered = await s.market_filter(markets)
         assert len(filtered) == 2
@@ -100,7 +126,15 @@ class TestMarketFilter:
     async def test_no_platform_metadata_excluded(self):
         s = HyperliquidStrategy()
         markets = [
-            MarketInfo(ticker="x", slug="x", category="crypto", end_date=None, volume=5000, liquidity=2000, metadata={}),
+            MarketInfo(
+                ticker="x",
+                slug="x",
+                category="crypto",
+                end_date=None,
+                volume=5000,
+                liquidity=2000,
+                metadata={},
+            ),
         ]
         filtered = await s.market_filter(markets)
         assert len(filtered) == 0
@@ -122,7 +156,10 @@ class TestRunCycleNoProvider:
         assert isinstance(result, CycleResult)
         assert result.decisions_recorded == 0
         assert len(result.errors) > 0
-        assert "provider" in result.errors[0].lower() or "not configured" in result.errors[0].lower()
+        assert (
+            "provider" in result.errors[0].lower()
+            or "not configured" in result.errors[0].lower()
+        )
 
 
 # ---------------------------------------------------------------------------

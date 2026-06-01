@@ -95,10 +95,15 @@ def _flush_heartbeats() -> bool:
 
     try:
         from backend.models.database import SessionLocal
+
         with SessionLocal() as db:
             # Postgres: use atomic jsonb_set to avoid read-modify-write deadlocks
             bind = getattr(db, "bind", None)
-            is_pg = "postgresql" in str(getattr(bind, "url", "")) if bind else settings.is_postgres
+            is_pg = (
+                "postgresql" in str(getattr(bind, "url", ""))
+                if bind
+                else settings.is_postgres
+            )
             if is_pg:
                 db.execute(text("SET LOCAL lock_timeout = '2s'"))
                 db.execute(text("SET LOCAL statement_timeout = '5s'"))
@@ -117,7 +122,7 @@ def _flush_heartbeats() -> bool:
                     "SET misc_data = COALESCE(misc_data::jsonb, '{}'::jsonb) || CAST(:heartbeat_patch AS jsonb) "
                     "WHERE mode = :mode"
                 )
-                
+
                 hb_patch = {
                     f"{HEARTBEAT_PREFIX}{strategy_name}": ts
                     for strategy_name, ts in snapshot_hb.items()
@@ -138,7 +143,9 @@ def _flush_heartbeats() -> bool:
             else:
                 # SQLite ORM fallback
                 states = db.query(BotState).all()
-                logger.info(f"heartbeat flush: found {len(states)} BotState rows in DB: {[s.mode for s in states]}")
+                logger.info(
+                    f"heartbeat flush: found {len(states)} BotState rows in DB: {[s.mode for s in states]}"
+                )
                 for state in states:
                     data = {}
                     if state.misc_data:
@@ -153,10 +160,10 @@ def _flush_heartbeats() -> bool:
                                 f"heartbeat: failed to parse misc_data JSON for mode {state.mode}"
                             )
                             data = {}
-                    
+
                     for strategy_name, ts in snapshot_hb.items():
                         data[f"{HEARTBEAT_PREFIX}{strategy_name}"] = ts
-                    
+
                     for key, stats in snapshot_stats.items():
                         m, strategy_name = key.split(":", 1)
                         if m == state.mode:
@@ -400,13 +407,20 @@ async def wallet_sync_job() -> None:
                     # For live mode, also fetch PM portfolio value (includes positions)
                     if sync_mode == "live":
                         try:
-                            from backend.core.wallet.bankroll_reconciliation import fetch_pm_total_equity
+                            from backend.core.wallet.bankroll_reconciliation import (
+                                fetch_pm_total_equity,
+                            )
+
                             portfolio = await fetch_pm_total_equity()
                             if portfolio is not None and portfolio > 0:
                                 usdc_balance = float(portfolio)
-                                logger.info(f"wallet_sync: live PM portfolio = ${usdc_balance:.2f}")
+                                logger.info(
+                                    f"wallet_sync: live PM portfolio = ${usdc_balance:.2f}"
+                                )
                         except Exception as e:
-                            logger.debug(f"wallet_sync: PM portfolio fetch failed: {e}, using CLOB cash")
+                            logger.debug(
+                                f"wallet_sync: PM portfolio fetch failed: {e}, using CLOB cash"
+                            )
                     _sync_balance_to_db(usdc_balance, sync_mode)
                     logger.info(
                         f"wallet_sync: {sync_mode} balance = ${usdc_balance:.2f}"

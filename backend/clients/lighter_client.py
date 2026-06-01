@@ -2,7 +2,14 @@
 
 import os
 
-from lighter import AccountApi, ApiClient, Configuration, SignerClient, TransactionApi, WsClient
+from lighter import (
+    AccountApi,
+    ApiClient,
+    Configuration,
+    SignerClient,
+    TransactionApi,
+    WsClient,
+)
 from loguru import logger
 
 _LIGHTER_HOST = "https://mainnet.zklighter.elliot.ai/api/v1"
@@ -18,7 +25,11 @@ class LighterClient:
         api_key_index: int = None,
         skip_signer: bool = False,
     ):
-        self._private_key = private_key or os.getenv("LIGHTER_PRIVATE_KEY") or os.getenv("WALLET_PRIVATE_KEY", "")
+        self._private_key = (
+            private_key
+            or os.getenv("LIGHTER_PRIVATE_KEY")
+            or os.getenv("WALLET_PRIVATE_KEY", "")
+        )
         self._account_index = int(
             account_index or os.getenv("LIGHTER_ACCOUNT_INDEX") or "0"
         )

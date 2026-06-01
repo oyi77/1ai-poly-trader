@@ -12,6 +12,7 @@ from backend.data.crypto import CryptoMicrostructure
 
 def _make_mock_market(slug: str, up_token: str, down_token: str) -> CryptoMarket:
     from datetime import timedelta
+
     now = datetime.now(timezone.utc)
     return CryptoMarket(
         slug=slug,
@@ -50,7 +51,7 @@ async def test_cex_pm_leadlag_run_cycle(
         price=60000.0,
         volatility=0.01,
         rsi=50.0,
-        momentum_1m=0.02, # high momentum to trigger raw_prob and edge
+        momentum_1m=0.02,  # high momentum to trigger raw_prob and edge
         momentum_5m=0.05,
         source="binance",
     )
@@ -68,7 +69,7 @@ async def test_cex_pm_leadlag_run_cycle(
         price=150.0,
         volatility=0.005,
         rsi=50.0,
-        momentum_1m=0.0001, # < 0.001 min_momentum
+        momentum_1m=0.0001,  # < 0.001 min_momentum
         momentum_5m=0.001,
         source="binance",
     )
@@ -135,17 +136,22 @@ async def test_cex_pm_leadlag_run_cycle(
 
     # Verify auto-sell was checked
     mock_auto_sell.assert_called_once_with(
-        "cex_pm_leadlag", clob_client=ctx.clob,
-        profit_target_pct=0.08, stop_loss_pct=0.20, max_hold_seconds=240,
+        "cex_pm_leadlag",
+        clob_client=ctx.clob,
+        profit_target_pct=0.08,
+        stop_loss_pct=0.20,
+        max_hold_seconds=240,
     )
 
     # Verify microstructure and markets were fetched for all three assets
     assert mock_microstructure.call_count == 3
-    assert mock_fetch_markets.call_count == 2 # btc and eth fetched (sol skipped before fetching markets due to low momentum)
+    assert (
+        mock_fetch_markets.call_count == 2
+    )  # btc and eth fetched (sol skipped before fetching markets due to low momentum)
 
     # Check decisions and trades
-    assert result.decisions_recorded == 2 # 1 for btc, 1 for eth
-    assert result.trades_attempted == 1   # only btc is BUY
+    assert result.decisions_recorded == 2  # 1 for btc, 1 for eth
+    assert result.trades_attempted == 1  # only btc is BUY
     assert len(result.decisions) == 1
     assert result.decisions[0]["market_ticker"] == "btc-updown-5m-1"
     assert result.decisions[0]["decision"] == "BUY"
@@ -169,9 +175,12 @@ async def test_confidence_filter_rejects_low_edge(
 ):
     """Verify that trades with confidence < min_confidence are rejected."""
     btc_micro = CryptoMicrostructure(
-        price=60000.0, volatility=0.01, rsi=50.0,
+        price=60000.0,
+        volatility=0.01,
+        rsi=50.0,
         momentum_1m=0.008,  # low momentum -> low raw_divergence
-        momentum_5m=0.01, source="binance",
+        momentum_5m=0.01,
+        source="binance",
     )
     mock_microstructure.return_value = btc_micro
     mock_fetch_markets.return_value = [
@@ -187,8 +196,12 @@ async def test_confidence_filter_rejects_low_edge(
 
     strategy = CexPmLeadLagStrategy()
     ctx = StrategyContext(
-        db=MagicMock(), clob=MagicMock(), settings=MagicMock(),
-        logger=MagicMock(), bankroll=100.0, mode="paper",
+        db=MagicMock(),
+        clob=MagicMock(),
+        settings=MagicMock(),
+        logger=MagicMock(),
+        bankroll=100.0,
+        mode="paper",
         params={"debate_enabled": False, "min_edge": 0.05, "min_confidence": 0.9},
     )
     result = await strategy.run_cycle(ctx)

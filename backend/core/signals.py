@@ -374,7 +374,9 @@ def _persist_signals(signals: list, mode: str = "paper"):
     try:
         with get_db_session() as db:
             # Compute time window and ticker set for single range query
-            truncated_times = [s.timestamp.replace(second=0, microsecond=0) for s in to_save]
+            truncated_times = [
+                s.timestamp.replace(second=0, microsecond=0) for s in to_save
+            ]
             min_ts = min(truncated_times)
             tickers = list({s.market.market_id for s in to_save})
 
@@ -382,11 +384,15 @@ def _persist_signals(signals: list, mode: str = "paper"):
             # Chunk IN clause if >500 tickers
             existing_set: set[tuple[str, datetime]] = set()
             for i in range(0, len(tickers), 500):
-                chunk = tickers[i:i + 500]
-                rows = db.query(Signal.market_ticker, Signal.timestamp).filter(
-                    Signal.timestamp >= min_ts,
-                    Signal.market_ticker.in_(chunk),
-                ).all()
+                chunk = tickers[i : i + 500]
+                rows = (
+                    db.query(Signal.market_ticker, Signal.timestamp)
+                    .filter(
+                        Signal.timestamp >= min_ts,
+                        Signal.market_ticker.in_(chunk),
+                    )
+                    .all()
+                )
                 existing_set.update(
                     (row[0], row[1].replace(second=0, microsecond=0)) for row in rows
                 )
@@ -395,7 +401,10 @@ def _persist_signals(signals: list, mode: str = "paper"):
             new_signals = []
             signal_map: dict[str, TradingSignal] = {}
             for signal in to_save:
-                key = (signal.market.market_id, signal.timestamp.replace(second=0, microsecond=0))
+                key = (
+                    signal.market.market_id,
+                    signal.timestamp.replace(second=0, microsecond=0),
+                )
                 if key in existing_set:
                     continue
                 db_signal = Signal(
@@ -425,6 +434,7 @@ def _persist_signals(signals: list, mode: str = "paper"):
                 for db_signal in new_signals:
                     try:
                         from backend.core.event_bus import _broadcast_event
+
                         original_signal = signal_map.get(db_signal.market_ticker)
                         market_title = (
                             f"BTC {original_signal.market.window_start.strftime('%H:%M')} - {original_signal.market.window_end.strftime('%H:%M')} UTC"
@@ -446,16 +456,21 @@ def _persist_signals(signals: list, mode: str = "paper"):
                                 "timestamp": db_signal.timestamp.isoformat(),
                                 "category": "trading",
                                 "btc_price": (
-                                    original_signal.btc_price if original_signal else None
+                                    original_signal.btc_price
+                                    if original_signal
+                                    else None
                                 ),
                                 "window_end": (
                                     original_signal.market.window_end.isoformat()
-                                    if original_signal and original_signal.market.window_end
+                                    if original_signal
+                                    and original_signal.market.window_end
                                     else None
                                 ),
                                 "actionable": abs(db_signal.edge) >= 0.02,
                                 "event_slug": (
-                                    original_signal.market.slug if original_signal else None
+                                    original_signal.market.slug
+                                    if original_signal
+                                    else None
                                 ),
                             },
                         )

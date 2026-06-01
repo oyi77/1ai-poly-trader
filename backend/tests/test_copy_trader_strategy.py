@@ -17,7 +17,6 @@ from backend.strategies.copy_trader_strategy import (
     _compute_copy_score,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -166,7 +165,10 @@ class TestTradeDetector:
     async def test_detect_returns_buys(self):
         detector = TradeDetector("https://data-api.polymarket.com")
         wallet = _make_wallet()
-        events = [_make_activity_event(side="BUY"), _make_activity_event(side="SELL", tx_hash="tx_002")]
+        events = [
+            _make_activity_event(side="BUY"),
+            _make_activity_event(side="SELL", tx_hash="tx_002"),
+        ]
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -210,16 +212,24 @@ class TestPositionCopier:
     def test_should_copy_first_time(self):
         copier = PositionCopier(max_copy_pct=0.05)
         signal = CopySignal(
-            wallet="0xabc", condition_id="cond1", outcome="YES", side="BUY",
-            price=0.65, size=50,
+            wallet="0xabc",
+            condition_id="cond1",
+            outcome="YES",
+            side="BUY",
+            price=0.65,
+            size=50,
         )
         assert copier.should_copy(signal) is True
 
     def test_should_not_copy_duplicate(self):
         copier = PositionCopier(max_copy_pct=0.05)
         signal = CopySignal(
-            wallet="0xabc", condition_id="cond1", outcome="YES", side="BUY",
-            price=0.65, size=50,
+            wallet="0xabc",
+            condition_id="cond1",
+            outcome="YES",
+            side="BUY",
+            price=0.65,
+            size=50,
         )
         copier.should_copy(signal)  # first time
         assert copier.should_copy(signal) is False  # duplicate
@@ -227,8 +237,12 @@ class TestPositionCopier:
     def test_compute_size_caps_at_max_pct(self):
         copier = PositionCopier(max_copy_pct=0.05)
         signal = CopySignal(
-            wallet="0xabc", condition_id="cond1", outcome="YES", side="BUY",
-            price=0.65, size=50,
+            wallet="0xabc",
+            condition_id="cond1",
+            outcome="YES",
+            side="BUY",
+            price=0.65,
+            size=50,
         )
         size = copier.compute_size(signal, bankroll=100.0)
         assert size == 5.0  # 5% of 100
@@ -236,8 +250,12 @@ class TestPositionCopier:
     def test_compute_size_returns_zero_below_minimum(self):
         copier = PositionCopier(max_copy_pct=0.05)
         signal = CopySignal(
-            wallet="0xabc", condition_id="cond1", outcome="YES", side="BUY",
-            price=0.65, size=50,
+            wallet="0xabc",
+            condition_id="cond1",
+            outcome="YES",
+            side="BUY",
+            price=0.65,
+            size=50,
         )
         size = copier.compute_size(signal, bankroll=10.0)  # 5% = $0.50 < $1 min
         assert size == 0.0
@@ -245,8 +263,12 @@ class TestPositionCopier:
     def test_compute_size_zero_bankroll(self):
         copier = PositionCopier()
         signal = CopySignal(
-            wallet="0xabc", condition_id="cond1", outcome="YES", side="BUY",
-            price=0.65, size=50,
+            wallet="0xabc",
+            condition_id="cond1",
+            outcome="YES",
+            side="BUY",
+            price=0.65,
+            size=50,
         )
         assert copier.compute_size(signal, bankroll=0) == 0.0
 
@@ -326,7 +348,10 @@ class TestCopyTraderStrategy:
                 WalletSelector, "select", new_callable=AsyncMock, return_value=[wallet]
             ),
             patch.object(
-                TradeDetector, "detect", new_callable=AsyncMock, return_value=[signal, signal]
+                TradeDetector,
+                "detect",
+                new_callable=AsyncMock,
+                return_value=[signal, signal],
             ),
         ):
             result = await strategy.run_cycle(ctx)

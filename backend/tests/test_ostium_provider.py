@@ -18,8 +18,11 @@ from backend.markets.order_types import (
 @pytest.fixture
 def provider():
     with patch.dict(os.environ, {"WALLET_PRIVATE_KEY": "0x" + "aa" * 32}, clear=False):
-        with patch("backend.clients.ostium_client.OstiumClient.__init__", return_value=None):
+        with patch(
+            "backend.clients.ostium_client.OstiumClient.__init__", return_value=None
+        ):
             from backend.markets.providers.ostium_provider import OstiumProvider
+
             p = OstiumProvider(paper_mode=True)
             p._client = MagicMock()
             return p
@@ -38,8 +41,10 @@ def test_manifest(provider):
 @pytest.mark.asyncio
 async def test_place_order_paper_mode(provider):
     order = NormalizedOrder(
-        market_id="1", side=OrderSide.BUY,
-        order_type=OrderType.LIMIT, size=Decimal("100"),
+        market_id="1",
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        size=Decimal("100"),
         price=Decimal("3500"),
     )
     result = await provider.place_order(order)
@@ -52,11 +57,15 @@ async def test_place_order_paper_mode(provider):
 async def test_place_order_live_success(provider):
     provider._paper_mode = False
     mock_client = AsyncMock()
-    mock_client.place_order = AsyncMock(return_value={"order_id": "ost_123", "status": "open"})
+    mock_client.place_order = AsyncMock(
+        return_value={"order_id": "ost_123", "status": "open"}
+    )
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="1", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("100"),
+        market_id="1",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("100"),
         metadata={"leverage": 5},
     )
     result = await provider.place_order(order)
@@ -71,8 +80,10 @@ async def test_place_order_live_exception(provider):
     mock_client.place_order = AsyncMock(side_effect=Exception("on-chain fail"))
     provider._client = mock_client
     order = NormalizedOrder(
-        market_id="1", side=OrderSide.BUY,
-        order_type=OrderType.MARKET, size=Decimal("100"),
+        market_id="1",
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        size=Decimal("100"),
     )
     result = await provider.place_order(order)
     assert result.status == OrderStatus.REJECTED
@@ -111,11 +122,27 @@ async def test_get_balance(provider):
 @pytest.mark.asyncio
 async def test_get_positions(provider):
     mock_client = AsyncMock()
-    mock_client.get_positions = AsyncMock(return_value=[
-        {"pairId": 1, "collateral": "500", "direction": True, "entryPrice": "3500", "currentPrice": "3600", "pnl": "50"},
-        {"pairId": 2, "collateral": "300", "isLong": False, "open_price": "100000", "currentPrice": "99000", "pnl": "-10"},
-        {"pairId": 3, "collateral": "0", "direction": True},
-    ])
+    mock_client.get_positions = AsyncMock(
+        return_value=[
+            {
+                "pairId": 1,
+                "collateral": "500",
+                "direction": True,
+                "entryPrice": "3500",
+                "currentPrice": "3600",
+                "pnl": "50",
+            },
+            {
+                "pairId": 2,
+                "collateral": "300",
+                "isLong": False,
+                "open_price": "100000",
+                "currentPrice": "99000",
+                "pnl": "-10",
+            },
+            {"pairId": 3, "collateral": "0", "direction": True},
+        ]
+    )
     provider._client = mock_client
     positions = await provider.get_positions()
     assert len(positions) == 2  # zero-size filtered

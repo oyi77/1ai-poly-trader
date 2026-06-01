@@ -8,8 +8,6 @@ Assesses the likelihood of market resolution disputes based on category,
 resolution criteria clarity, volume at stake, and time pressure.
 """
 
-
-
 from dataclasses import dataclass
 from enum import Enum
 

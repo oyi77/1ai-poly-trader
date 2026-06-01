@@ -50,7 +50,10 @@ class PolymarketProvider(BaseMarketProvider):
                 VenueCapability.STREAMING_FILLS,
             ],
             supported_currencies=["USDC"],
-            required_env_vars=["POLYMARKET_BUILDER_API_KEY", "POLYMARKET_BUILDER_SECRET"],
+            required_env_vars=[
+                "POLYMARKET_BUILDER_API_KEY",
+                "POLYMARKET_BUILDER_SECRET",
+            ],
             supports_paper_mode=True,
             is_live_venue=True,
             min_order_size_usd=1.0,
@@ -97,6 +100,7 @@ class PolymarketProvider(BaseMarketProvider):
                 )
         except Exception as exc:
             import sys, traceback
+
             traceback.print_exc(file=sys.stderr)
             return self._rejected(order, str(exc))
 
@@ -220,10 +224,13 @@ class PolymarketProvider(BaseMarketProvider):
             if isinstance(yes_price_raw, str):
                 try:
                     import json
+
                     if yes_price_raw.startswith("["):
                         yes_price_raw = json.loads(yes_price_raw)[0]
                     else:
-                        yes_price_raw = yes_price_raw.strip('[]" \t').split(",")[0].strip('"')
+                        yes_price_raw = (
+                            yes_price_raw.strip('[]" \t').split(",")[0].strip('"')
+                        )
                 except Exception:
                     yes_price_raw = "0.5"
             yes_price = Decimal(str(yes_price_raw or "0.5").strip(' "'))

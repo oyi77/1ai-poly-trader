@@ -18,8 +18,6 @@ Function: redeemPositions(collateralToken, parentCollectionId, conditionId, inde
 For standard binary markets: indexSets = [1, 2], parentCollectionId = bytes32(0)
 """
 
-
-
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -34,7 +32,11 @@ from loguru import logger
 
 POLYGON_RPC = settings.POLYGON_RPC_URL
 RELAYER_URL = _main_settings.POLYMARKET_RELAYER_URL
-from backend.constants import CONDITIONAL_TOKENS_ADDRESS as _CTF, USDC_E_ADDRESS as _USDC
+from backend.constants import (
+    CONDITIONAL_TOKENS_ADDRESS as _CTF,
+    USDC_E_ADDRESS as _USDC,
+)
+
 CTF_ADDRESS = Web3.to_checksum_address(_CTF)
 USDC_POLYGON = Web3.to_checksum_address(_USDC)
 NEG_RISK_ADAPTER = Web3.to_checksum_address(
@@ -226,7 +228,12 @@ def _redeem_via_relayer(
         )
 
         transactions = [
-            Transaction(to=target_contract, operation=OperationType.Call, data=calldata, value="0"),
+            Transaction(
+                to=target_contract,
+                operation=OperationType.Call,
+                data=calldata,
+                value="0",
+            ),
         ]
 
         response = client.execute(

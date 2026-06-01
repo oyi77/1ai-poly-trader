@@ -97,7 +97,12 @@ class MyriadProvider(BaseMarketProvider):
 
     async def get_balance(self) -> NormalizedBalance:
         bal = await self._client.get_balance()
-        return NormalizedBalance(venue="myriad", available_cash=bal, total_equity=bal, reserved_margin=Decimal("0"))
+        return NormalizedBalance(
+            venue="myriad",
+            available_cash=bal,
+            total_equity=bal,
+            reserved_margin=Decimal("0"),
+        )
 
     async def get_positions(self, market_id=None) -> list:
         positions = await self._client.get_positions()

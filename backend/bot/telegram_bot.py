@@ -41,6 +41,7 @@ except ImportError:
 
 from backend.config import settings
 
+
 class PolyEdgeBot:
     """
     Telegram bot for PolyEdge.
