@@ -718,6 +718,7 @@ class CryptoOracleStrategy(BaseStrategy):
         if open_count >= max_open:
             logger.debug(f"[crypto_oracle] {open_count} open >= max {max_open}, skip")
             return result
+        decisions_this_cycle = 0  # track in-cycle to prevent accumulation
 
         # Check open positions for auto-sell exits at cycle start
         try:
@@ -1006,6 +1007,11 @@ class CryptoOracleStrategy(BaseStrategy):
                                 self.default_params["edge_scale_threshold"],
                             ),
                         )
+                    # In-cycle max_open check to prevent accumulation
+                    if open_count + decisions_this_cycle >= max_open:
+                        logger.debug(f"[crypto_oracle] in-cycle limit ({open_count}+{decisions_this_cycle}), skip")
+                        break
+                    decisions_this_cycle += 1
                     result.decisions.append(
                         {
                             "decision": "BUY",
@@ -1252,6 +1258,11 @@ class CryptoOracleStrategy(BaseStrategy):
                                     self.default_params["edge_scale_threshold"],
                                 ),
                             )
+                        # In-cycle max_open check to prevent accumulation
+                        if open_count + decisions_this_cycle >= max_open:
+                            logger.debug(f"[crypto_oracle] in-cycle limit ({open_count}+{decisions_this_cycle}), skip")
+                            break
+                        decisions_this_cycle += 1
                         result.decisions.append(
                             {
                                 "decision": "BUY",
