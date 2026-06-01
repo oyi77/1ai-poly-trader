@@ -8,3 +8,4 @@ from backend.strategies.market_maker import MarketMakerStrategy  # noqa: F401
 from backend.strategies.negrisk_strategy import NegRiskStrategy  # noqa: F401
 from backend.strategies.probability_arb import ProbabilityArb  # noqa: F401
 from backend.strategies.resolution_sniper import ResolutionSniperStrategy  # noqa: F401
+from backend.strategies.news_frontrun import NewsFrontrunStrategy  # noqa: F401
