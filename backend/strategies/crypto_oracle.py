@@ -339,7 +339,7 @@ class CryptoOracleStrategy(BaseStrategy):
         "min_position_usd": settings.CRYPTO_ORACLE_MIN_POSITION_USD,
         "oracle_implied_base": settings.CRYPTO_ORACLE_ORACLE_IMPLIED_BASE,
         "oracle_implied_scale": settings.CRYPTO_ORACLE_ORACLE_IMPLIED_SCALE,
-        "debate_enabled": True,
+        "debate_enabled": False,
         "debate_min_confidence": 0.55,
         "max_open_positions": 3,
         "max_per_asset": 1,

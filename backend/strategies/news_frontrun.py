@@ -344,9 +344,11 @@ class NewsFrontrunStrategy(BaseStrategy):
         if signal.direction == "bullish":
             token_id = market.up_token_id
             entry_price = market.up_price
+            direction = "up"
         else:
             token_id = market.down_token_id
             entry_price = market.down_price
+            direction = "down"
 
         if not token_id or entry_price <= 0:
             logger.debug(f"[news_frontrun] no valid token/price for {market.slug}")
@@ -362,7 +364,7 @@ class NewsFrontrunStrategy(BaseStrategy):
             "decision": "BUY",
             "market_ticker": market.slug,
             "token_id": token_id,
-            "direction": signal.direction,
+            "direction": direction,
             "entry_price": round(entry_price, 6),
             "size": size,
             "suggested_size": size,
