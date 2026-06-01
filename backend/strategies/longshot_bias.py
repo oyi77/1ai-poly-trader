@@ -34,13 +34,14 @@ class LongshotBiasStrategy(BaseStrategy):
     category = "edge_discovery"
 
     default_params: dict = {
-        "max_price": 0.30,
-        "min_ev": 0.05,
-        "min_edge": 0.10,          # need 10%+ edge (model vs market) to trade
-        "min_model_prob": 0.65,    # model must say >65% likely to win
-        "max_entry_price": 0.40,   # don't buy NO above 40c (longshots must be cheap)
-        "max_position_usd": 20.0,
-        "kelly_fraction": 0.25,
+        "max_price": 0.25,
+        "min_ev": 0.10,
+        "min_edge": 0.15,  # need 15%+ edge (model vs market) to trade
+        "min_model_prob": 0.75,  # model must say >75% likely to win
+        "max_entry_price": 0.30,  # don't buy NO above 30c (longshots must be cheap)
+        "min_volume": 1000,  # only liquid markets (they resolve faster)
+        "max_position_usd": 10.0,
+        "kelly_fraction": 0.15,
     }
 
     async def market_filter(self, markets: list[MarketInfo]) -> list[MarketInfo]:
@@ -61,6 +62,7 @@ class LongshotBiasStrategy(BaseStrategy):
         max_entry_price = float(params.get("max_entry_price", 0.40))
         max_position = float(params.get("max_position_usd", 20.0))
         kelly_frac = float(params.get("kelly_fraction", 0.25))
+        min_volume = float(params.get("min_volume", 1000))
 
         decisions_recorded = 0
         trades_attempted = 0
@@ -71,6 +73,7 @@ class LongshotBiasStrategy(BaseStrategy):
         try:
             # Fetch markets directly from Gamma API
             from backend.data.gamma import fetch_markets
+
             raw_markets = await fetch_markets(limit=200)
 
             # Parse outcomePrices to extract yes/no prices
@@ -91,26 +94,33 @@ class LongshotBiasStrategy(BaseStrategy):
                     clob_ids = m.get("clobTokenIds", [])
                     if isinstance(clob_ids, str):
                         clob_ids = json.loads(clob_ids)
-                    parsed_markets.append({
-                        "slug": m.get("slug", ""),
-                        "question": m.get("question", ""),
-                        "yes_price": yes_price,
-                        "no_price": no_price,
-                        "clob_ids": clob_ids,
-                    })
+                    volume = float(m.get("volume", 0) or 0)
+                    parsed_markets.append(
+                        {
+                            "slug": m.get("slug", ""),
+                            "question": m.get("question", ""),
+                            "yes_price": yes_price,
+                            "no_price": no_price,
+                            "clob_ids": clob_ids,
+                            "volume": volume,
+                        }
+                    )
                 except Exception:
                     continue
 
-            candidates = [m for m in parsed_markets if 0 < m["yes_price"] < max_price]
+            candidates = [m for m in parsed_markets if 0 < m["yes_price"] < max_price and m["volume"] >= min_volume]
 
             # Get dynamic longshot bias
             bias_ratio = 0.59  # fallback: YES trades win rate
             try:
                 from backend.core.longshot_bias import LongshotBiasDetector
+
                 detector = LongshotBiasDetector()
                 if ctx.db is not None:
                     bias_stats = detector.compute_longshot_bias_from_trades(
-                        db=ctx.db, price_threshold=max_price, window_days=60,
+                        db=ctx.db,
+                        price_threshold=max_price,
+                        window_days=60,
                         strategy_name=self.name,
                     )
                     if bias_stats is not None:
@@ -130,7 +140,9 @@ class LongshotBiasStrategy(BaseStrategy):
 
                     # --- HARD GUARD: max entry price (longshots must be cheap) ---
                     if no_price > max_entry_price:
-                        ctx.logger.info(f"[longshot_bias] GUARD blocked: {slug} no_price={no_price:.3f} > max={max_entry_price:.3f}")
+                        ctx.logger.info(
+                            f"[longshot_bias] GUARD blocked: {slug} no_price={no_price:.3f} > max={max_entry_price:.3f}"
+                        )
                         continue
 
                     # --- HARD GUARD: minimum model probability ---
@@ -149,7 +161,9 @@ class LongshotBiasStrategy(BaseStrategy):
                     ev = max(0.0, ev - 2 * PLATFORM_FEE_PCT * no_price)
                     if ev < min_ev:
                         if slug == candidates[0]["slug"]:  # debug first market
-                            ctx.logger.info(f"[longshot_bias] SKIP ev: {slug} yes={yes_price:.3f} no={no_price:.3f} ev={ev:.4f} < min_ev={min_ev}")
+                            ctx.logger.info(
+                                f"[longshot_bias] SKIP ev: {slug} yes={yes_price:.3f} no={no_price:.3f} ev={ev:.4f} < min_ev={min_ev}"
+                            )
                         continue
 
                     true_win_prob = min(0.95, 1.0 - yes_price * bias_ratio)
@@ -170,7 +184,9 @@ class LongshotBiasStrategy(BaseStrategy):
 
                     clob_ids = market["clob_ids"]
                     if len(clob_ids) < 2:
-                        ctx.logger.warning("[longshot_bias] Skipping {} — no clobTokenIds", slug)
+                        ctx.logger.warning(
+                            "[longshot_bias] Skipping {} — no clobTokenIds", slug
+                        )
                         continue
                     no_token_id = clob_ids[1]
 
@@ -189,11 +205,18 @@ class LongshotBiasStrategy(BaseStrategy):
                     decisions.append(decision)
 
                     if ctx.mode != "paper":
-                        ctx.logger.info(f"[longshot_bias] LIVE path: ctx.mode={ctx.mode} slug={slug}")
+                        ctx.logger.info(
+                            f"[longshot_bias] LIVE path: ctx.mode={ctx.mode} slug={slug}"
+                        )
 
                         provider = ctx.get_market_provider("polymarket")
                         if provider and hasattr(provider, "place_order"):
-                            from backend.markets.order_types import NormalizedOrder, OrderSide, OrderType
+                            from backend.markets.order_types import (
+                                NormalizedOrder,
+                                OrderSide,
+                                OrderType,
+                            )
+
                             norm_order = NormalizedOrder(
                                 market_id=slug,
                                 side=OrderSide.BUY,
@@ -205,22 +228,33 @@ class LongshotBiasStrategy(BaseStrategy):
                             result = await provider.place_order(norm_order)
                             if result:
                                 reason = (result.raw or {}).get("error", "")
-                                ctx.logger.info(f"[longshot_bias] LIVE order: {result.status} reason={reason}")
+                                ctx.logger.info(
+                                    f"[longshot_bias] LIVE order: {result.status} reason={reason}"
+                                )
                                 if result.status.name == "FILLED":
                                     trades_placed += 1
                             else:
-                                ctx.logger.warning(f"[longshot_bias] LIVE order None for {slug}")
+                                ctx.logger.warning(
+                                    f"[longshot_bias] LIVE order None for {slug}"
+                                )
                     else:
                         trades_placed += 1
 
                     ctx.logger.info(
                         "[longshot_bias] {} NO @ {:.2f}c | edge: {:.1%} | EV: {:.1%} | Kelly: {:.1%} | ${:.2f}",
-                        slug, no_price * 100, edge, ev, kelly, position_size,
+                        slug,
+                        no_price * 100,
+                        edge,
+                        ev,
+                        kelly,
+                        position_size,
                     )
 
                 except Exception as exc:
                     errors.append(str(exc))
-                    ctx.logger.error("[longshot_bias] Error on {}: {}", market.get("slug", "?"), exc)
+                    ctx.logger.error(
+                        "[longshot_bias] Error on {}: {}", market.get("slug", "?"), exc
+                    )
 
         except Exception as exc:
             errors.append(str(exc))

@@ -250,8 +250,8 @@ class ResolutionSniperStrategy(BaseStrategy):
             if slug in existing_tickers:
                 continue
 
-            # Only crypto 5-min binaries (slug contains "up-or-down")
-            if "up-or-down" not in slug.lower():
+            # Only crypto 5-min binaries (slug contains "updown")
+            if "updown" not in slug.lower():
                 continue
 
             # Volume filter
@@ -359,6 +359,10 @@ class ResolutionSniperStrategy(BaseStrategy):
             size = min(size, max_position_size)
 
             entry_price = market_price
+
+            # Strike price not available from slug-based market data
+            strike = 0.0
+            dist_pct = 0.0
 
             decision = {
                 "market_ticker": slug,
