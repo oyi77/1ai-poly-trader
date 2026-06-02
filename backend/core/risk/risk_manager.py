@@ -1327,7 +1327,7 @@ class RiskManager:
             day_start = now - timedelta(hours=24)
             pnl = (
                 db.query(
-                    func.coalesce(func.sum(func.coalesce(Trade.pnl, -Trade.size)), 0.0)
+                    func.coalesce(func.sum(func.coalesce(Trade.pnl, 0.0)), 0.0)
                 )
                 .filter(
                     Trade.strategy == strategy_name,
