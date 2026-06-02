@@ -227,10 +227,7 @@ class CircuitBreaker:
 
             current_state = self._state
             logger.warning(
-                "CircuitBreaker '%s' failure recorded: count=%d, state=%s",
-                self.name,
-                self.failure_count,
-                current_state,
+                f"CircuitBreaker '{self.name}' failure recorded: count={self.failure_count}, state={current_state}"
             )
             if current_state == State.HALF_OPEN:
                 self._transition(State.OPEN)
