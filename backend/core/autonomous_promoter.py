@@ -792,6 +792,17 @@ class AutonomousPromoter:
             schedule_strategy,
         )  # Lazy to avoid circular import
 
+        # LIVE_STRATEGY_ALLOWLIST gate — only promote strategies that are explicitly
+        # allowed. If list is empty, no live promotions are permitted.
+        from backend.config import settings
+        allowed = settings.LIVE_STRATEGY_ALLOWLIST
+        if allowed and strategy_name not in allowed:
+            logger.warning(
+                f"[AutonomousPromoter] {strategy_name} NOT in LIVE_STRATEGY_ALLOWLIST, "
+                f"skipping live promotion (allowed: {allowed})"
+            )
+            return
+
         config = db.query(StrategyConfig).filter_by(strategy_name=strategy_name).first()
         if config:
             config.enabled = True
@@ -829,6 +840,14 @@ class AutonomousPromoter:
                 f"[AutonomousPromoter] Enabled existing StrategyConfig '{strategy_name}' (interval={interval}s)"
             )
         else:
+            # LIVE_STRATEGY_ALLOWLIST gate — also for new strategy creation
+            if allowed and strategy_name not in allowed:
+                logger.warning(
+                    f"[AutonomousPromoter] {strategy_name} NOT in LIVE_STRATEGY_ALLOWLIST, "
+                    f"skipping new strategy creation (allowed: {allowed})"
+                )
+                return
+
             # Infer interval from strategy registry
             from backend.strategies.registry import STRATEGY_REGISTRY
 

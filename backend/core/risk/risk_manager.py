@@ -918,7 +918,7 @@ class RiskManager:
                     )
                     .filter(
                         Trade.settled.is_(True),
-                        Trade.settlement_time >= today_start,
+                        Trade.timestamp >= today_start,
                         Trade.trading_mode == effective_mode,
                         _not_backfill_settlement_source(),
                     )

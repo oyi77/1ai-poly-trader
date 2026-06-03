@@ -56,18 +56,18 @@ class BondScannerStrategy(BaseStrategy):
                 profit_target_pct=float(
                     params.get(
                         "auto_sell_profit_target_pct",
-                        params.get("profit_target_pct", 0.04),
+                        params.get("profit_target_pct", 0.025),
                     )
                 ),
                 stop_loss_pct=float(
                     params.get(
-                        "auto_sell_stop_loss_pct", params.get("stop_loss_pct", 0.05)
+                        "auto_sell_stop_loss_pct", params.get("stop_loss_pct", 0.03)
                     )
                 ),
                 max_hold_seconds=int(
                     params.get(
                         "auto_sell_max_hold_seconds",
-                        params.get("max_hold_seconds", 300),
+                        params.get("max_hold_seconds", 120),
                     )
                 ),
             )
@@ -378,18 +378,18 @@ class BondScannerStrategy(BaseStrategy):
                 profit_target_pct=float(
                     params.get(
                         "auto_sell_profit_target_pct",
-                        params.get("profit_target_pct", 0.04),
+                        params.get("profit_target_pct", 0.025),
                     )
                 ),
                 stop_loss_pct=float(
                     params.get(
-                        "auto_sell_stop_loss_pct", params.get("stop_loss_pct", 0.05)
+                        "auto_sell_stop_loss_pct", params.get("stop_loss_pct", 0.03)
                     )
                 ),
                 max_hold_seconds=int(
                     params.get(
                         "auto_sell_max_hold_seconds",
-                        params.get("max_hold_seconds", 300),
+                        params.get("max_hold_seconds", 120),
                     )
                 ),
             )

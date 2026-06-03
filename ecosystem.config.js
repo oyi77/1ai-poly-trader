@@ -46,6 +46,7 @@ module.exports = {
       script: '/home/openclaw/projects/1ai-poly-trader/frontend/node_modules/.bin/vite',
       args: '--host',
       cwd: '/home/openclaw/projects/1ai-poly-trader/frontend',
+      interpreter: '/home/linuxbrew/.linuxbrew/opt/node@22/bin/node',
       autorestart: true,
       max_restarts: 10,
       restart_delay: 3000,
