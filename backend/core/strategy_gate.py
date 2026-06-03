@@ -357,16 +357,44 @@ def check_risk_and_disable(db) -> list[str]:
             )
             logger.warning(f"[RISK] Rehab {sname}: daily loss ${abs(daily_loss):.2f}")
 
-    # 2. Total drawdown check
-    total_pnl = db.execute(text("""
-        SELECT COALESCE(SUM(pnl), 0) FROM trades
-        WHERE trading_mode = 'live' AND settled = true
-    """)).scalar() or 0
+    # 2. Total drawdown check — use only trades after the session's initial bankroll was set.
+    #    All-time cumulative PnL from pre-fix/re-settled trades causes false positives.
+    #    Instead check drawdown from the last bankroll reset point.
+    from backend.models.database import BotState
+    bot_state = db.query(BotState).filter_by(mode="live").first()
+    if bot_state and bot_state.live_initial_bankroll is not None:
+        # Use the bankroll set date as the starting point for drawdown calc
+        # If bankroll was recently rebased, only count post-rebase trades
+        rebase_time = None
+        if bot_state.misc_data:
+            try:
+                import json
+                misc = json.loads(bot_state.misc_data) if isinstance(bot_state.misc_data, str) else bot_state.misc_data
+                rebase_str = misc.get("bankroll_rebased_at")
+                if rebase_str:
+                    rebase_time = datetime.fromisoformat(rebase_str)
+            except Exception:
+                logger.debug("Could not parse bankroll_rebased_at from misc_data")
+
+        if rebase_time:
+            total_pnl = db.execute(text("""
+                SELECT COALESCE(SUM(pnl), 0) FROM trades
+                WHERE trading_mode = 'live' AND settled = true
+                  AND timestamp >= :since
+            """), {"since": rebase_time}).scalar() or 0
+        else:
+            total_pnl = db.execute(text("""
+                SELECT COALESCE(SUM(pnl), 0) FROM trades
+                WHERE trading_mode = 'live' AND settled = true
+            """)).scalar() or 0
+    else:
+        total_pnl = db.execute(text("""
+            SELECT COALESCE(SUM(pnl), 0) FROM trades
+            WHERE trading_mode = 'live' AND settled = true
+        """)).scalar() or 0
 
     # Use live_initial_bankroll from BotState as the session-start reference.
     # This is the capital the user began live trading with.
-    from backend.models.database import BotState
-
     bot_state = db.query(BotState).filter_by(mode="live").first()
     if bot_state and bot_state.live_initial_bankroll is not None:
         initial = bot_state.live_initial_bankroll
