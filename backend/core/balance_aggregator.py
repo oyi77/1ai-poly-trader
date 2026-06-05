@@ -264,7 +264,7 @@ class BalanceAggregator:
                     from backend.markets.providers.kalshi_provider import KalshiProvider
 
                     provider = KalshiProvider()
-                    bal = await provider.get_balance()
+                    bal = await asyncio.wait_for(provider.get_balance(), timeout=15)
                     if bal:
                         cash = float(getattr(bal, "available_cash", 0) or 0)
                         equity = float(getattr(bal, "total_equity", 0) or 0)
@@ -285,7 +285,7 @@ class BalanceAggregator:
                     from backend.markets.providers.ostium_provider import OstiumProvider
 
                     provider = OstiumProvider()
-                    bal = await provider.get_balance()
+                    bal = await asyncio.wait_for(provider.get_balance(), timeout=15)
                     if bal:
                         cash = float(getattr(bal, "available_cash", 0) or 0)
                         equity = float(getattr(bal, "total_equity", 0) or 0)
@@ -306,7 +306,7 @@ class BalanceAggregator:
                     from backend.markets.providers.myriad_provider import MyriadProvider
 
                     provider = MyriadProvider()
-                    bal = await provider.get_balance()
+                    bal = await asyncio.wait_for(provider.get_balance(), timeout=15)
                     if bal:
                         cash = float(getattr(bal, "available_cash", 0) or 0)
                         equity = float(getattr(bal, "total_equity", 0) or 0)
@@ -327,7 +327,7 @@ class BalanceAggregator:
                     from backend.markets.providers.sxbet_provider import SXBetProvider
 
                     provider = SXBetProvider()
-                    bal = await provider.get_balance()
+                    bal = await asyncio.wait_for(provider.get_balance(), timeout=15)
                     if bal:
                         cash = float(getattr(bal, "available_cash", 0) or 0)
                         equity = float(getattr(bal, "total_equity", 0) or 0)
@@ -346,7 +346,7 @@ class BalanceAggregator:
                     from backend.clients.azuro_client import AzuroClient
 
                     client = AzuroClient()
-                    bal = await client.get_balance()
+                    bal = await asyncio.wait_for(client.get_balance(), timeout=15)
                     if bal:
                         val = float(bal.get("balance", 0))
                         self._update(
