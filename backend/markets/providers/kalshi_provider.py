@@ -149,17 +149,21 @@ class KalshiProvider(BaseMarketProvider):
     async def get_balance(self) -> NormalizedBalance:
         if not self._paper_mode:
             raw = await self._client.get_balance()
-            available = Decimal(
-                str(
-                    raw.get("available", raw.get("balance", raw.get("cash_balance", 0)))
-                )
-            )
-            locked = Decimal(str(raw.get("locked", raw.get("exposure", 0))))
+            # Kalshi API returns balance in cents, use balance_dollars for USD
+            balance_dollars = raw.get("balance_dollars")
+            if balance_dollars is not None:
+                available = Decimal(str(balance_dollars))
+            else:
+                # Fallback: convert from cents
+                balance_cents = raw.get("balance", raw.get("cash_balance", 0))
+                available = Decimal(str(balance_cents)) / Decimal("100")
+            
+            locked = Decimal(str(raw.get("locked", raw.get("exposure", 0)))) / Decimal("100")
             return NormalizedBalance(
                 venue="kalshi",
                 available_cash=available,
                 total_equity=available + locked,
-                reserved_margin=locked,
+                reserved_margin=Decimal("0"),
                 raw=raw,
             )
         return NormalizedBalance(
