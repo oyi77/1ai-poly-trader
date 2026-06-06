@@ -2,6 +2,7 @@
 Tests for probability_arb strategy: detect_arb, ProbabilityArb class, execute_arb bugs.
 """
 
+import asyncio
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 

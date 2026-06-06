@@ -1,5 +1,6 @@
 """Minimal tests for backend.utils.redaction."""
 
+import pytest
 from backend.utils.redaction import redact_sensitive
 
 

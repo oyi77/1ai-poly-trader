@@ -66,6 +66,7 @@ class ArbOpportunityScanner:
     async def _scan_polymarket(self) -> List[Dict[str, Any]]:
         """Fetch Polymarket markets via gamma API with pagination."""
         try:
+            import httpx
 
             all_markets = []
             offset = 0
@@ -113,6 +114,7 @@ class ArbOpportunityScanner:
     async def _scan_sxbet(self) -> List[Dict[str, Any]]:
         """SXBet: fetch markets + batch orderbook for real prices."""
         try:
+            import httpx
             from backend.clients.sxbet_client import SXBetClient
 
             client = SXBetClient()
@@ -122,6 +124,7 @@ class ArbOpportunityScanner:
             )
 
             # Batch fetch orders via /orders?marketHashes=X,Y,Z
+            import httpx as _httpx
             from collections import defaultdict as _defaultdict
 
             hashes = [m.get("marketHash", "") for m in markets if m.get("marketHash")]

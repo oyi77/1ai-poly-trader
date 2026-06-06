@@ -1,6 +1,7 @@
 """Sandbox registry — rejects nodes that require DB or live data access."""
 
 import logging
+from typing import Optional
 
 from backend.core.plugin_registry import PluginRegistry
 from backend.agi.base_node import NodeManifest, BaseAGINode

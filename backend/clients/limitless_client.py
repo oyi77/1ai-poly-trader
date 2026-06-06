@@ -116,9 +116,7 @@ class LimitlessClient:
         token_id: str, secret: str, method: str, path: str, body: str = ""
     ) -> dict:
         """Generate HMAC-SHA256 signed headers for Limitless API."""
-        import hmac
-        import hashlib
-        import base64
+        import hmac, hashlib, base64
         from datetime import datetime, timezone
 
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -170,6 +168,7 @@ class LimitlessClient:
         self, market_id: str, side: str, size: float, price: float, private_key: str
     ) -> dict:
         """Place order using SDK for EIP-712 signing + HMAC auth for submission."""
+        import httpx as httpx_mod
 
         tid = os.getenv("LIMITLESS_API_KEY", "")
         secret = os.getenv("LIMITLESS_API_SECRET", "")
@@ -190,7 +189,7 @@ class LimitlessClient:
                 }
 
             # Get market data
-            resp = await self._hmac_request("GET", "/markets/active?limit=200")
+            resp = await self._hmac_request("GET", f"/markets/active?limit=200")
             if resp.status_code != 200:
                 return {"error": f"Market fetch failed: {resp.status_code}"}
             markets = resp.json().get("data", [])

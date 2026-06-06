@@ -4,6 +4,7 @@ Position Sizer — Kelly Criterion and dynamic position sizing.
 Quarter-Kelly for conservative sizing.
 """
 
+from typing import Optional
 from backend.config import settings
 
 # Hard limits

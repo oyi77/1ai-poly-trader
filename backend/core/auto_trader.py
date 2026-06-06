@@ -4,6 +4,7 @@ low-confidence signals to a manual approval queue."""
 import asyncio
 
 from dataclasses import dataclass
+from loguru import logger
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 

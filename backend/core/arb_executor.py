@@ -10,6 +10,8 @@ an `execution_status`/`executed_at` column in the current schema.
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime, timezone
 
 from loguru import logger
 

@@ -3,6 +3,7 @@
 import asyncio
 import importlib
 import logging
+import os
 import pkgutil
 
 from backend.core.registry_utils import check_env_vars

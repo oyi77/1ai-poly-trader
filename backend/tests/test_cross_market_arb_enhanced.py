@@ -3,6 +3,7 @@
 import pytest
 from backend.strategies.cross_market_arb_enhanced import (
     CrossMarketArbEnhanced,
+    ArbOpportunityEnhanced,
     ScanResult,
     _questions_match,
     _normalize_number,

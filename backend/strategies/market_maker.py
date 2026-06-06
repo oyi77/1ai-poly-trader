@@ -13,19 +13,22 @@ import math
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Optional, Set
+from typing import Optional, Set, List, Dict, Any
 
 from backend.strategies.base import (
     BaseStrategy,
     StrategyContext,
     CycleResult,
+    MarketInfo,
 )
 from backend.core.event_bus import MarketEvent
 from backend.core.decisions import record_decision
 from backend.core.market_making_analyzer import (
     MarketMakingAnalyzer,
+    LiquidityMetrics,
 )
 from backend.config import settings
+from backend.data.shared_client import get_shared_client
 from loguru import logger
 
 # ---------------------------------------------------------------------------

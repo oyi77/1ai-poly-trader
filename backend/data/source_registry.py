@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import List, Optional
 
 from backend.core.plugin_errors import PluginEnvVarMissing, PluginNotFound

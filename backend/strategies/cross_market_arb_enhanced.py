@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
+from backend.core.strategy_gate import StrategyGate
 
 
 @dataclass

@@ -20,6 +20,7 @@ from backend.strategies.base import (
     MarketInfo,
     StrategyContext,
 )
+from backend.data.shared_client import get_shared_client
 from backend.data.crypto import compute_crypto_microstructure
 from backend.config import settings
 

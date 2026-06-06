@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from loguru import logger
 
 from backend.strategies.edge_models.base import EdgeCalculator, EdgeResult
 

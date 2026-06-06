@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from unittest.mock import MagicMock, AsyncMock
 
 # Ensure project root is on the path
@@ -73,7 +74,7 @@ UTILITY_CLASSES = {"CrossMarketArbEnhanced"}
 
 def make_mock_ctx():
     """Create a mock StrategyContext with sample market data."""
-    from backend.strategies.base import StrategyContext
+    from backend.strategies.base import StrategyContext, MarketInfo
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.all.return_value = []
@@ -168,7 +169,7 @@ async def test_strategy(class_name: str, module_path: str, display_name: str) ->
     if class_name in UTILITY_CLASSES:
         # Utility class: verify instantiation only
         result["status"] = "PASS"
-        result["error"] = "Utility class instantiated OK (no run_cycle)"
+        result["error"] = f"Utility class instantiated OK (no run_cycle)"
     else:
         ctx, sample_markets = make_mock_ctx()
         try:

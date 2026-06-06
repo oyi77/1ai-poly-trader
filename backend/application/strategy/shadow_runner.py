@@ -8,6 +8,7 @@ The in-memory ShadowRunner from backend.core.shadow_mode remains available for
 backward compatibility and is marked as deprecated.
 """
 
+from datetime import datetime, timezone
 import json
 from typing import Optional
 
@@ -199,7 +200,7 @@ class DBSessionShadowRunner:
                     if predicted is not None and actual_outcome is not None:
                         meta["accuracy_score"] = abs(predicted - actual_outcome)
                     trade.metadata_json = json.dumps(meta)
-                except Exception:
+                except Exception as e:
                     logger.exception(
                         f"Failed to update metadata_json during settle for {trade.market_id}"
                     )

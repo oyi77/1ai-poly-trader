@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 
 from backend.core.activity.tracker import ActivityTracker
+from backend.core.activity.models import ActivityEvent
 
 router = APIRouter(prefix="/api/v1/activity", tags=["activity"])
 

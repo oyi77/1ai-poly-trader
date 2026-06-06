@@ -6,6 +6,7 @@ from eth_account import Account
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
+from loguru import logger
 
 
 class HyperliquidClient:
