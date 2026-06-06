@@ -1,6 +1,6 @@
 """Tests for backend/data/clob_event_indexer.py."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 
 # Try importing HexBytes, fallback to mock/bytes if not installed in env.

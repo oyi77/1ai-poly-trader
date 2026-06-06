@@ -13,7 +13,7 @@ Pipeline:
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -21,7 +21,6 @@ from loguru import logger
 from backend.strategies.base import (
     BaseStrategy,
     CycleResult,
-    MarketInfo,
     StrategyContext,
 )
 from backend.data.shared_client import get_shared_client
@@ -498,7 +497,7 @@ class CopyTraderStrategy(BaseStrategy):
                             reason=f"Copy from {signal.wallet[:10]} @ {signal.price:.3f}",
                         )
                     except Exception:
-                        logger.warning(f"copy_trader: failed to log decision for wallet copy")
+                        logger.warning("copy_trader: failed to log decision for wallet copy")
 
                     # Execute trade
                     if ctx.mode != "paper":

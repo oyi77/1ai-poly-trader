@@ -2,7 +2,6 @@
 Tests for probability_arb strategy: detect_arb, ProbabilityArb class, execute_arb bugs.
 """
 
-import asyncio
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -173,7 +172,7 @@ class TestExecuteArbBug:
 
         The function signature takes (opportunity, yes_token_id, no_token_id, clob)
         but the body uses `market_id` which is not a parameter.
-        This should raise a NameError when called.
+        The bug was fixed, so now it succeeds.
         """
         opp = ArbOpportunity(
             market_id="test-market",
@@ -186,8 +185,8 @@ class TestExecuteArbBug:
             confidence=1.0,
         )
 
-        with pytest.raises(NameError, match="market_id"):
-            await execute_arb(opp, "yes_tok", "no_tok", clob=None)
+        result = await execute_arb(opp, "yes_tok", "no_tok", clob=None)
+        assert result is not None
 
     @pytest.mark.asyncio
     async def test_execute_arb_with_clob_also_raises(self):
@@ -207,8 +206,8 @@ class TestExecuteArbBug:
             return_value=MagicMock(order_id="ord_123")
         )
 
-        with pytest.raises(NameError, match="market_id"):
-            await execute_arb(opp, "yes_tok", "no_tok", clob=mock_clob)
+        result = await execute_arb(opp, "yes_tok", "no_tok", clob=mock_clob)
+        assert result.get("success") is True
 
 
 # ---------------------------------------------------------------------------

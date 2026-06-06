@@ -12,13 +12,11 @@ from __future__ import annotations
 
 import httpx
 import math
-from typing import Optional, List, Any
 
 from loguru import logger
 
 from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult
 from backend.core.decisions import record_decision_standalone
-from backend.core.activity_logger import activity_logger
 from backend.data.shared_client import get_shared_client
 from backend.data.crypto import compute_crypto_microstructure
 from backend.data.btc_markets import CryptoMarket, fetch_active_crypto_markets

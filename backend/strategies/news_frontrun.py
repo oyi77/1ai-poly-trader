@@ -15,11 +15,9 @@ import hashlib
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 from backend.strategies.base import BaseStrategy, CycleResult, StrategyContext
 from backend.data.shared_client import get_shared_client
-from backend.data.crypto import compute_crypto_microstructure
 from backend.data.btc_markets import fetch_active_crypto_markets
 from backend.config import settings
 
@@ -407,7 +405,6 @@ class NewsFrontrunStrategy(BaseStrategy):
 
         # Record decision log
         try:
-            from backend.models.database import DecisionLog
             from backend.core.decisions import record_decision_standalone
 
             record_decision_standalone(
