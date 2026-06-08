@@ -1,4 +1,5 @@
 from __future__ import annotations
+from loguru import logger
 
 import os
 from datetime import datetime, timezone

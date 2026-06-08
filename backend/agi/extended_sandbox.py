@@ -11,6 +11,7 @@ without first passing through here.
 """
 
 from __future__ import annotations
+from loguru import logger
 
 import os
 import subprocess
