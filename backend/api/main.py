@@ -58,6 +58,9 @@ from backend.api.alerts import router as alerts_router
 from backend.api.provider_credentials import router as provider_credentials_router
 from backend.api.evals import router as evals_router
 
+# Hackathon (BNB HACK: AI Trading Agent Edition)
+from backend.api.hackathon import router as hackathon_router
+
 # Plugin system API routers
 from backend.api.v1.ai_providers import router as ai_providers_router
 from backend.api.v1.data_sources import router as data_sources_router
@@ -177,6 +180,9 @@ app.include_router(sync_router, prefix="/api/v1")
 
 from backend.api.websockets_routes import router as websockets_router  # noqa: E402
 from backend.api.events.sse_router import router as sse_events_router  # noqa: E402
+
+# Hackathon
+app.include_router(hackathon_router, prefix="/api/v1")
 
 app.include_router(sse_events_router, prefix="/api/v1")
 app.include_router(websockets_router)
