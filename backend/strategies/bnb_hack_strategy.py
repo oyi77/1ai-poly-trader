@@ -58,48 +58,38 @@ class BnbHackStrategy(BaseStrategy):
         self._bot: Optional[BnbHackBot] = None
         self._feed: Optional[BinanceFeed] = None
         self._metrics = MetricsCollector()
-        self._paper_mode = not settings.BNB_HACK_COMPETITION_START  # Fallback to paper if no config
 
     async def market_filter(self, markets: List[Dict]) -> List[Dict]:
-        """Filter markets — we don't use market provider, we trade BSC directly."""
-        return []  # BNB HACK doesn't participate in market-based filtering
+        """BNB HACK trades BSC spot, not prediction markets."""
+        return []
 
     async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
-        """
-        Execute one strategy cycle: evaluate signal, manage position, execute trade.
-        Called by PolyEdge scheduler (default: daily, can be more frequent).
-        """
+        """Execute one signal evaluation cycle and return the decision."""
         try:
             now = datetime.now(timezone.utc)
-            
-            # Check competition window
-            start = datetime.fromisoformat(
-                settings.BNB_HACK_COMPETITION_START.replace("Z", "+00:00"))
-            end = datetime.fromisoformat(
-                settings.BNB_HACK_COMPETITION_END.replace("Z", "+00:00"))
-            
-            if not (start <= now <= end):
-                return CycleResult(
-                    timestamp=now,
-                    signal="idle",
-                    decision={},
-                    confidence=0.0,
-                    reason=f"Outside competition window ({start} to {end})",
-                    error=None,
-                )
+            is_paper = getattr(ctx, "mode", "paper") == "paper"
 
-            # Initialize bot on first cycle
+            if not is_paper:
+                start = datetime.fromisoformat(
+                    settings.BNB_HACK_COMPETITION_START.replace("Z", "+00:00"))
+                end = datetime.fromisoformat(
+                    settings.BNB_HACK_COMPETITION_END.replace("Z", "+00:00"))
+                if not (start <= now <= end):
+                    return CycleResult(
+                        decisions_recorded=0,
+                        trades_attempted=0,
+                        trades_placed=0,
+                    )
+
             if not self._bot:
                 self._feed = BinanceFeed()
-                config = TWAKConfig(
-                    access_id=settings.TWAK_ACCESS_ID,
-                    hmac_secret=settings.TWAK_HMAC_SECRET,
-                    wallet_password=settings.TWAK_WALLET_PASSWORD,
-                    default_chain="bsc",
-                )
-                exchange = (
-                    PaperEngine() if self._paper_mode 
-                    else LiveTWAKExchange(TWAKClient(config))
+                exchange = PaperEngine() if is_paper else LiveTWAKExchange(
+                    TWAKClient(TWAKConfig(
+                        access_id=settings.TWAK_ACCESS_ID,
+                        hmac_secret=settings.TWAK_HMAC_SECRET,
+                        wallet_password=settings.TWAK_WALLET_PASSWORD,
+                        default_chain="bsc",
+                    ))
                 )
                 self._bot = BnbHackBot(
                     self._feed,
@@ -109,36 +99,24 @@ class BnbHackStrategy(BaseStrategy):
                     alerter=BnbHackAlerter(),
                 )
 
-            # Run one tick
-            tick_result = await self._bot.tick()
             signal = await self._bot.signals.evaluate()
-            
-            # Build cycle result
-            decision = {
-                "action": signal["action"],
-                "token": "BNB",
-                "confidence": signal["confidence"],
-                "reason": signal["reason"],
-            }
-            
-            return CycleResult(
-                timestamp=now,
-                signal=signal["action"],
-                decision=decision,
-                confidence=signal["confidence"],
-                reason=tick_result,
-                error=None,
+            tick_result = await self._bot.tick()
+
+            result = CycleResult(
+                decisions_recorded=1 if signal["action"] != "hold" else 0,
+                trades_attempted=1 if signal["action"] != "hold" else 0,
+                trades_placed=1 if "buy" in tick_result or "sell" in tick_result else 0,
             )
+            result.decisions.append(signal)
+            return result
 
         except Exception as e:
             logger.error("BNB HACK cycle error: {}", e)
             return CycleResult(
-                timestamp=datetime.now(timezone.utc),
-                signal="error",
-                decision={},
-                confidence=0.0,
-                reason=str(e),
-                error=str(e),
+                decisions_recorded=0,
+                trades_attempted=0,
+                trades_placed=0,
+                errors=[str(e)],
             )
 
     async def on_market_event(self, event: Dict) -> Optional[Dict]:
