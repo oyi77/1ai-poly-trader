@@ -129,12 +129,6 @@ class CrossMarketArbEnhanced:
                 correlation_opps = self.detect_same_game_correlation(markets)
                 all_opps.extend(correlation_opps)
 
-        # 5. Cross-timeframe statistical arb (same asset, different timeframe)
-        for platform, markets in all_markets.items():
-            if len(markets) >= 2:
-                timeframe_opps = self.detect_cross_timeframe_arb(markets)
-                all_opps.extend(timeframe_opps)
-
         # Filter by execution risk
         all_opps = [o for o in all_opps if o.execution_risk <= self.max_execution_risk]
         all_opps.sort(key=lambda o: o.net_profit, reverse=True)
@@ -184,6 +178,25 @@ class CrossMarketArbEnhanced:
         market_id = str(market.get("event_id", ""))
         clob_token_ids = market.get("clobTokenIds") or []
         token_id = str(clob_token_ids[0]) if clob_token_ids else None
+        no_token_id = str(clob_token_ids[1]) if len(clob_token_ids) > 1 else None
+        legs = [
+            {
+                "direction": "YES",
+                "token_id": token_id or "",
+                "price": yes_price,
+                "size": 1.0,
+                "market_ticker": f"{market_id}:YES",
+                "platform": platform,
+            },
+            {
+                "direction": "NO",
+                "token_id": no_token_id or "",
+                "price": no_price,
+                "size": 1.0,
+                "market_ticker": f"{market_id}:NO",
+                "platform": platform,
+            },
+        ]
         return ArbOpportunityEnhanced(
             event_id=market_id,
             kind="yes_no_sum",
@@ -202,7 +215,7 @@ class CrossMarketArbEnhanced:
             confidence=min(1.0, net_pct / 0.05),
             token_id=token_id,
             platform=platform,
-            details={"yes_no_sum": total, "platform": platform},
+            details={"yes_no_sum": total, "platform": platform, "legs": legs},
         )
 
     def detect_complementary(
