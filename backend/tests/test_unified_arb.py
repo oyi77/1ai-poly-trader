@@ -41,6 +41,24 @@ def _make_opp(
         details={
             "token_id_a": market_a,
             "token_id_b": market_b,
+            "legs": [
+                {
+                    "direction": "YES",
+                    "token_id": market_a,
+                    "price": price_a,
+                    "size": 1.0,
+                    "market_ticker": "evt1:YES",
+                    "platform": platform_a,
+                },
+                {
+                    "direction": "NO",
+                    "token_id": market_b,
+                    "price": price_b,
+                    "size": 1.0,
+                    "market_ticker": "evt1:NO",
+                    "platform": platform_b,
+                },
+            ],
         },
     )
 
@@ -257,6 +275,7 @@ class TestRunCycle:
         assert result.decisions[0]["market_type"] == "arb"
         assert result.decisions[0]["platform_a"] == "polymarket"
         assert result.decisions[0]["platform_b"] == "kalshi"
+        assert [leg["direction"] for leg in result.decisions[0]["legs"]] == ["YES", "NO"]
 
     @pytest.mark.asyncio
     async def test_cycle_respects_max_opportunities(self):

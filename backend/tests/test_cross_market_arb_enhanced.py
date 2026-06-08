@@ -62,6 +62,34 @@ class TestYesNoSum:
         assert opp.kind == "yes_no_sum"
         assert opp.net_profit > 0
 
+    def test_yes_no_sum_opportunity_contains_executable_hedge_legs(self, detector):
+        market = _make_market(
+            yes_price=0.42,
+            no_price=0.48,
+            event_id="condition-1",
+            clob_token_ids=["yes-token", "no-token"],
+        )
+        opp = detector.detect_yes_no_sum(market)
+        assert opp is not None
+        assert opp.details["legs"] == [
+            {
+                "direction": "YES",
+                "token_id": "yes-token",
+                "price": 0.42,
+                "size": 1.0,
+                "market_ticker": "condition-1:YES",
+                "platform": "polymarket",
+            },
+            {
+                "direction": "NO",
+                "token_id": "no-token",
+                "price": 0.48,
+                "size": 1.0,
+                "market_ticker": "condition-1:NO",
+                "platform": "polymarket",
+            },
+        ]
+
     def test_no_arb_when_sum_near_one(self, detector):
         """YES + NO = 1.0 should not detect arb."""
         market = _make_market(yes_price=0.50, no_price=0.50)
@@ -363,6 +391,28 @@ class TestScanAllProviders:
         result = detector.scan_all_providers(all_markets)
         cross_opps = [o for o in result.opportunities if "cross_platform" in o.kind]
         assert len(cross_opps) >= 1
+
+    def test_scan_excludes_cross_timeframe_statistical_arbs(self, detector):
+        all_markets = {
+            "polymarket": [
+                _make_market(
+                    question="Will BTC be above 100k in 5 min?",
+                    yes_price=0.80,
+                    no_price=0.20,
+                    event_id="evt5m",
+                    platform="polymarket",
+                ),
+                _make_market(
+                    question="Will BTC be above 100k in 15 min?",
+                    yes_price=0.05,
+                    no_price=0.95,
+                    event_id="evt15m",
+                    platform="polymarket",
+                ),
+            ]
+        }
+        result = detector.scan_all_providers(all_markets)
+        assert [o.kind for o in result.opportunities] == []
 
     def test_scan_respects_execution_risk_filter(self, detector):
         """Opportunities above max_execution_risk are filtered out."""

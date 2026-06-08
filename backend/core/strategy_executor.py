@@ -750,6 +750,7 @@ async def _execute_decision_live_clob(
     entry_price = float(decision.get("entry_price", 0.5))
     token_id = decision.get("token_id")
     platform = decision.get("platform", "polymarket")
+    order_side = str(decision.get("side") or decision.get("decision") or "BUY").upper()
 
     from backend.db.utils import get_db_session
     from contextlib import nullcontext
@@ -856,7 +857,7 @@ async def _execute_decision_live_clob(
                                 result = await _maker_first_execute(
                                     clob,
                                     token_id=token_id,
-                                    side="BUY",
+                                    side=order_side,
                                     price=entry_price,
                                     size=adjusted_size,
                                     strategy_name=strategy_name,
@@ -867,7 +868,7 @@ async def _execute_decision_live_clob(
                             else:
                                 result = await clob.place_limit_order(
                                     token_id=token_id,
-                                    side="BUY",
+                                    side=order_side,
                                     price=entry_price,
                                     size=adjusted_size,
                                 )
@@ -1234,6 +1235,8 @@ def _preflight_checks(
     """
     market_ticker = decision.get("market_ticker", "")
     direction = decision.get("direction", "")
+    order_side = str(decision.get("side") or decision.get("decision") or "BUY").upper()
+    force_unwind = bool(decision.get("force_unwind"))
     size = float(decision.get("size", 0.0))
     confidence = float(decision.get("confidence", 0.0))
     market_end_date_str = decision.get("market_end_date")
@@ -1403,7 +1406,7 @@ def _preflight_checks(
         bankroll = 0.0
 
     # 5b. Live mode minimum balance check (CLOB requires $5 minimum)
-    if mode == "live" and bankroll < 5.0:
+    if mode == "live" and bankroll < 5.0 and order_side == "BUY" and not force_unwind:
         logger.warning(
             f"[{strategy_name}] Live trade rejected: bankroll ${bankroll:.2f} below CLOB $5 minimum"
         )
@@ -1446,19 +1449,28 @@ def _preflight_checks(
         },
     )
 
-    risk = context.risk_manager.validate_trade(
-        size=size,
-        current_exposure=current_exposure,
-        bankroll=bankroll,
-        confidence=confidence,
-        market_ticker=market_ticker,
-        db=db,
-        mode=mode,
-        strategy_name=strategy_name,
-        direction=direction if direction else None,
-        market_price=entry_price,
-        signal_win_rate=model_probability,
-    )
+    if force_unwind:
+        from types import SimpleNamespace as _SimpleNamespace
+
+        risk = _SimpleNamespace(
+            allowed=True,
+            adjusted_size=size,
+            reason="Force unwind bypasses entry risk gate",
+        )
+    else:
+        risk = context.risk_manager.validate_trade(
+            size=size,
+            current_exposure=current_exposure,
+            bankroll=bankroll,
+            confidence=confidence,
+            market_ticker=market_ticker,
+            db=db,
+            mode=mode,
+            strategy_name=strategy_name,
+            direction=direction if direction else None,
+            market_price=entry_price,
+            signal_win_rate=model_probability,
+        )
     if not risk.allowed:
         logger.info(f"[{strategy_name}] Risk rejected {market_ticker}: {risk.reason}")
         attempt_recorder.record_rejected(
@@ -1552,7 +1564,7 @@ def _preflight_checks(
     )
     if mode:
         _dup_query = _dup_query.filter(Trade.trading_mode == mode)
-    _recent_dup = _dup_query.first()
+    _recent_dup = None if force_unwind else _dup_query.first()
     if _recent_dup is not None:
         logger.warning(
             f"[{strategy_name}] Duplicate blocked: already traded {market_ticker} "
@@ -1578,7 +1590,7 @@ def _preflight_checks(
         )
         .first()
     )
-    if _existing_open is not None:
+    if _existing_open is not None and not force_unwind:
         logger.warning(
             f"[{strategy_name}] Position cap blocked: already have open position "
             f"on {market_ticker} (trade #{_existing_open.id})"
@@ -1689,6 +1701,9 @@ def _record_trade(
         role=role,
         maker_size=maker_size,
         taker_size=taker_size,
+        arb_bundle_id=decision.get("arb_bundle_id"),
+        arb_leg_index=decision.get("arb_leg_index"),
+        arb_leg_count=decision.get("arb_leg_count"),
     )
 
     db.add(trade)

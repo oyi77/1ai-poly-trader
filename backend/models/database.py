@@ -282,6 +282,11 @@ class Trade(Base):
     )  # pending, win, loss, expired, push, closed
     pnl = Column(Float, nullable=True)
 
+    # Arb bundle tracking for multi-leg arbitrage positions
+    arb_bundle_id = Column(String, nullable=True, index=True)
+    arb_leg_index = Column(Integer, nullable=True)
+    arb_leg_count = Column(Integer, nullable=True)
+
     journal_notes = Column(Text, nullable=True)
     journal_tags = Column(JSON, nullable=True)  # list of tag strings
 
