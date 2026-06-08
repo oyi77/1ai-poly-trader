@@ -182,7 +182,7 @@ from backend.api.websockets_routes import router as websockets_router  # noqa: E
 from backend.api.events.sse_router import router as sse_events_router  # noqa: E402
 
 # Hackathon
-app.include_router(hackathon_router, prefix="/api/v1")
+app.include_router(hackathon_router)
 
 app.include_router(sse_events_router, prefix="/api/v1")
 app.include_router(websockets_router)
