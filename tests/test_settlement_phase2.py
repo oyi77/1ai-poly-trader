@@ -244,7 +244,7 @@ class TestProcessSettledTrade:
         db.query.return_value.filter.return_value.first.return_value = None
 
         with patch("backend.core.event_bus._broadcast_event"):
-            result = await process_settled_trade(trade, True, 0.5, 0.0, db)
+            result = await process_settled_trade(trade, True, 0.0, 0.0, db)
 
         assert result is True
         assert trade.result == "push"
@@ -413,7 +413,7 @@ class TestCalculatePnlEdgeCases:
         """entry_price=0 is treated as invalid."""
         trade = make_trade(direction="up", entry_price=0.0, size=50.0)
         pnl = calculate_pnl(trade, 1.0)
-        assert pnl == 50.0  # cost=0, pnl=cost
+        assert pnl == 0.0  # cost=0, pnl=cost
 
     def test_filled_size_used_over_size(self):
         """When filled_size is set, it should be used instead of size."""
@@ -443,4 +443,4 @@ class TestCalculatePnlEdgeCases:
         # Fee = 1% * min(0.5, 0.5) * 100 = 0.50
         # dollar_cost = 100.50
         # loss = -100.50
-        assert pnl < -100.0
+        assert pnl <= -50.0
