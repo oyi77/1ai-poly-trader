@@ -714,6 +714,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error(f"[LIFESPAN] Failed to start strategies/scheduler: {e}", exc_info=True)
 
+    # --- Start Real-Time Event-Driven Strategies ---
+    try:
+        from backend.bot.realtime_manager import start_realtime_strategies
+        from backend.strategies.base import StrategyContext
+
+        # Create a minimal context for real-time strategies
+        # They don't need full StrategyContext since they're event-driven
+        class MinimalContext:
+            def __init__(self):
+                self.mode = "paper"
+                self.bankroll = 100.0
+
+        ctx = MinimalContext()
+        await start_realtime_strategies(ctx)
+        logger.info("[LIFESPAN] Real-time strategies started (copy_trader, whale_tracker)")
+    except Exception as e:
+        logger.warning(f"[LIFESPAN] Real-time strategies failed to start: {e}")
+
     yield
 
     # --- Shutdown ---
@@ -815,6 +833,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info(f"   ✓ TaskManager shut down ({task_count} tasks cancelled)")
         except Exception as e:
             logger.warning(f"   ⚠ Error shutting down TaskManager: {e}")
+
+        logger.info("7.5. Stopping real-time strategies...")
+        try:
+            from backend.bot.realtime_manager import stop_realtime_strategies
+
+            await stop_realtime_strategies()
+            logger.info("   ✓ Real-time strategies stopped")
+        except Exception as e:
+            logger.warning(f"   ⚠ Error stopping real-time strategies: {e}")
 
         logger.info("8. Stopping scheduler...")
         try:

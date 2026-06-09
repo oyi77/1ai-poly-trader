@@ -1570,6 +1570,7 @@ class ConfigRegistry:
     BNB_HACK_COOLDOWN_MINUTES: int = 120
     BNB_HACK_MAX_CONSECUTIVE_LOSSES: int = 3
     BNB_HACK_CHECK_INTERVAL_SECONDS: int = 3600
+    ALCHEMY_API_KEY: str = ""
 
     # --------------------------------------------------------------------------
     # MISSING FIELDS - Added for completeness

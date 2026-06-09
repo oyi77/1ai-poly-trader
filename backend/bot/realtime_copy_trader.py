@@ -1,0 +1,205 @@
+"""
+Real-Time Copy Trader — Event-driven copy trading using Polymarket WebSocket.
+
+Subscribes to Polymarket WebSocket for real-time trade events.
+When a large trade is detected from a profitable trader, immediately
+mirrors the position.
+
+Architecture:
+1. WebSocket subscribes to market trades
+2. On trade event → check if trader is on leaderboard
+3. If profitable trader → execute copy trade immediately
+4. No polling, no delay — near real-time execution
+
+Data sources:
+- Polymarket WebSocket (real-time trades)
+- Polymarket leaderboard API (trader performance)
+- Polymarket CLOB (order execution)
+"""
+
+import asyncio
+import json
+from datetime import datetime, timezone, timedelta
+from typing import Dict, List, Optional, Set, Any
+
+from backend.config import settings
+from backend.data.polymarket_websocket import (
+    PolymarketWebSocket,
+    WebSocketConfig,
+    ChannelType,
+    EventType,
+    TradeEvent,
+)
+from backend.data.shared_client import get_shared_client
+from backend.strategies.base import BaseStrategy, StrategyContext, CycleResult, MarketInfo
+
+from loguru import logger
+
+
+class RealTimeCopyTrader(BaseStrategy):
+    name = "copy_trader"
+    description = "Real-time copy trading via Polymarket WebSocket"
+    category = "momentum"
+
+    default_params = {
+        "min_trader_pnl": 10000,  # Only copy traders with >$10k PnL
+        "min_trader_volume": 100000,  # Only copy traders with >$100k volume
+        "max_traders_to_copy": 5,  # Copy top 5 traders
+        "min_trade_size_usd": 1000,  # Only copy trades >$1k
+        "position_size_pct": 0.05,  # 5% of bankroll per copy
+        "cooldown_seconds": 60,  # Don't copy same trader within 60s
+        "max_concurrent_positions": 5,
+    }
+
+    def __init__(self):
+        super().__init__()
+        self._ws: Optional[PolymarketWebSocket] = None
+        self._leaderboard_cache: Dict[str, Dict] = {}  # wallet -> trader info
+        self._last_leaderboard_update: Optional[datetime] = None
+        self._copied_wallets: Dict[str, datetime] = {}  # wallet -> last copy time
+        self._running = False
+
+    async def market_filter(self, markets: List[MarketInfo]) -> List[MarketInfo]:
+        """Pass-through: copy trader doesn't filter markets."""
+        return markets
+
+    async def run_cycle(self, ctx: StrategyContext) -> CycleResult:
+        """Not used — this is event-driven, not scheduler-based."""
+        return CycleResult(decisions_recorded=0, trades_attempted=0, trades_placed=0)
+
+    async def start_realtime(self, ctx: StrategyContext):
+        """Start real-time WebSocket connection for copy trading."""
+        self._running = True
+
+        # Update leaderboard cache
+        await self._update_leaderboard()
+
+        # Connect to Polymarket WebSocket
+        config = WebSocketConfig(
+            channel=ChannelType.MARKET,
+            asset_ids=[],  # Subscribe to all markets
+        )
+
+        self._ws = PolymarketWebSocket(config)
+
+        # Register trade event handler
+        self._ws.on_trade(self._on_trade)
+
+        logger.info(f"[{self.name}] Starting real-time copy trader")
+        logger.info(f"[{self.name}] Tracking {len(self._leaderboard_cache)} profitable traders")
+
+        # Start WebSocket connection
+        await self._ws.connect()
+
+    async def stop_realtime(self):
+        """Stop real-time connection."""
+        self._running = False
+        if self._ws:
+            await self._ws.disconnect()
+
+    async def _on_trade(self, event: TradeEvent):
+        """Handle real-time trade events from WebSocket."""
+        try:
+            # Extract trader wallet from event (this depends on Polymarket WS format)
+            # For now, we'll check against our leaderboard cache
+            trader_wallet = self._extract_trader_wallet(event)
+
+            if not trader_wallet:
+                return
+
+            # Check if this trader is on our leaderboard
+            trader_info = self._leaderboard_cache.get(trader_wallet)
+            if not trader_info:
+                return
+
+            # Check cooldown
+            if trader_wallet in self._copied_wallets:
+                last_copy = self._copied_wallets[trader_wallet]
+                cooldown = self.default_params["cooldown_seconds"]
+                if (datetime.now(timezone.utc) - last_copy).total_seconds() < cooldown:
+                    return
+
+            # Check trade size
+            trade_size = float(event.size) * float(event.price)
+            if trade_size < self.default_params["min_trade_size_usd"]:
+                return
+
+            # Execute copy trade
+            logger.info(
+                f"[{self.name}] Copying trade from {trader_info['name']} "
+                f"(PnL: ${trader_info['pnl']:.0f}, Vol: ${trader_info['volume']:.0f})"
+            )
+
+            await self._execute_copy(event, trader_info)
+
+            # Update cooldown
+            self._copied_wallets[trader_wallet] = datetime.now(timezone.utc)
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Trade event handler error: {e}")
+
+    def _extract_trader_wallet(self, event: TradeEvent) -> Optional[str]:
+        """Extract trader wallet from trade event.
+
+        Note: This depends on Polymarket WebSocket event format.
+        The actual implementation needs to match their API.
+        """
+        # TODO: Implement based on actual Polymarket WS event structure
+        # For now, return None to skip
+        return None
+
+    async def _execute_copy(self, event: TradeEvent, trader_info: Dict):
+        """Execute a copy trade via Polymarket CLOB."""
+        try:
+            # This would integrate with the existing Polymarket CLOB client
+            # For now, log the decision
+            logger.info(
+                f"[{self.name}] Would copy: {event.side} {event.size} @ {event.price} "
+                f"on {event.asset_id} from {trader_info['name']}"
+            )
+
+            # TODO: Integrate with Polymarket CLOB for actual execution
+            # ctx.clob.place_order(...)
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Copy execution failed: {e}")
+
+    async def _update_leaderboard(self):
+        """Update leaderboard cache from Polymarket API."""
+        try:
+            client = get_shared_client()
+            resp = await client.get(
+                "https://data-api.polymarket.com/v1/leaderboard",
+                params={
+                    "timePeriod": "MONTH",
+                    "limit": 50,
+                    "orderBy": "PNL",
+                },
+            )
+
+            if resp.status_code == 200:
+                traders = resp.json()
+                self._leaderboard_cache.clear()
+
+                for trader in traders:
+                    wallet = trader.get("proxyWallet")
+                    pnl = trader.get("pnl", 0)
+                    vol = trader.get("vol", 0)
+
+                    if (pnl >= self.default_params["min_trader_pnl"] and
+                        vol >= self.default_params["min_trader_volume"]):
+
+                        self._leaderboard_cache[wallet] = {
+                            "wallet": wallet,
+                            "name": trader.get("userName", "?"),
+                            "pnl": pnl,
+                            "volume": vol,
+                        }
+
+                self._last_leaderboard_update = datetime.now(timezone.utc)
+                logger.info(
+                    f"[{self.name}] Updated leaderboard: {len(self._leaderboard_cache)} profitable traders"
+                )
+
+        except Exception as e:
+            logger.warning(f"[{self.name}] Leaderboard update failed: {e}")
