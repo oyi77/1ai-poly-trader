@@ -11,6 +11,7 @@ pydantic-settings==2.7.1  # was 2.1.0, updated for compatibility
 # Data fetching
 httpx>=0.26.0,<0.28.0
 feedparser>=6.0.0
+alembic>=1.13.0  # DB migrations — required by deploy and dev workflows
 aiohttp==3.11.11  # was 3.9.1, updated for security fixes
 
 # Polymarket integration
@@ -23,9 +24,9 @@ py-builder-relayer-client>=0.0.1
 cryptography>=42.0.0
 
 # Weather data (using Open-Meteo API)
-numpy==1.26.4  # was 1.26.3, updated patch
+numpy==2.4.6  # py3.14-compatible (1.26.x has no cp314 wheels)
 nest_asyncio==1.6.0  # required for sync balance fetch in async orchestrator
-pandas==2.2.3  # was 2.1.4, updated minor for security
+pandas==3.0.3  # py3.14-compatible (2.2.x has no cp314 wheels)
 scipy==1.14.1  # was 1.12.0, updated minor for security
 
 # Scheduling
