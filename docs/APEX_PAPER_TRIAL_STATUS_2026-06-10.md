@@ -1073,3 +1073,79 @@ backfill of the ~$14,051 already-recorded-as-$0 losses (`unified_arb`
 $14,009.18 + `bond_scanner` $42.30) is a deferred follow-up — see ADR-016
 Alternative 3. Live verification requires waiting for the next paper trade
 to hit the 5-day `force_closed_unresolved` path (not immediately observable).
+
+## Update — 2026-06-13: Bug N — APEX (and other strategies) double-bet on
+## markets stuck in the `settled=True, pnl IS NULL` limbo window
+
+### Root cause
+
+`_cleanup_stale_trades_job`'s `stale_paper` branch (scheduler.py:899-922)
+marks any paper trade unsettled for >12h as `settled=True, pnl=None,
+result="pending"` and immediately attempts `resolve_paper_trades(db)`. When
+Gamma hasn't resolved the market yet (common — most markets take days), the
+trade stays in this `settled=True, pnl IS NULL` limbo for up to 5 days,
+until Bug M's `stuck_paper` branch force-closes it.
+
+Every "is this position still open" guard in the codebase checked only
+`Trade.settled.is_(False)`, so during this limbo window the position looked
+"closed" to:
+
+- `apex_strategy.py::_get_existing_positions` — which was *also* completely
+  unwired (never called from `run_cycle`), so even fully-open positions
+  weren't being checked.
+- `strategy_executor.py`'s cross-strategy "Duplicate execution block"
+  (~line 1308) — `Trade.settled.is_(False)` filter let a second strategy
+  open a position in the same market while the first strategy's position
+  was still financially live.
+
+Net effect, confirmed via `GROUP BY market_ticker HAVING count(*) > 1` on
+apex's paper trades: 11 markets had duplicate apex trades (43 total trades
+across ~22 unique markets), one of which
+(`wti-closes-above-87-on-june-11-2026`) is a legitimate already-resolved
+re-entry — the other ~9-10 are apex silently doubling its exposure (and
+breaking its Kelly sizing assumptions) on markets it already held, directly
+violating the `backend/core/AGENTS.md` "Stale positions block orders"
+invariant.
+
+### Fix
+
+`backend/strategies/apex_strategy.py`:
+- `_get_existing_positions` now filters
+  `Trade.strategy == self.name, Trade.trading_mode == ctx.mode,
+  or_(Trade.settled.is_(False), Trade.pnl.is_(None))` — treating ADR-016
+  limbo trades as still-open.
+- Wired into `run_cycle` Phase 4: signals whose `market_id` is already held
+  are skipped before `_signal_to_decision`, so apex no longer generates a
+  second BUY decision for a market it's already in.
+
+`backend/core/strategy_executor.py`: the cross-strategy duplicate-execution
+filter (~line 1311) changed from `Trade.settled.is_(False)` to
+`or_(Trade.settled.is_(False), Trade.pnl.is_(None))` (added `or_` to the
+sqlalchemy import), so the existing `BLOCKED_DUPLICATE_OPEN_POSITION` guard
+now also covers the limbo window for every strategy, not just apex.
+
+### Verification
+
+New tests in `backend/tests/test_apex_strategy.py`:
+`test_get_existing_positions_includes_unresolved_settled` (asserts a
+`settled=True, pnl=None` trade counts as held, a fully-resolved
+`settled=True, pnl=5.0` trade does not, and other strategies'/other modes'
+trades are excluded) and `test_run_cycle_skips_existing_positions` (a full
+`run_cycle` with mocked scanners/pipeline confirms a signal for an
+already-held market is dropped while a signal for a new market proceeds).
+
+New tests in `backend/tests/test_strategy_executor.py`
+(`TestDuplicateExecutionBlock`, 2 tests): a `settled=True, pnl=None` trade by
+another strategy now blocks (`BLOCKED_DUPLICATE_OPEN_POSITION`); a fully
+resolved (`settled=True, pnl=5.0`) trade by another strategy does not block.
+
+`pytest backend/tests/test_strategy_executor.py backend/tests/test_apex_strategy.py
+backend/tests/test_settlement.py`: 56 passed, 3 skipped.
+
+### Status
+
+Bug N: fixed, tested. No historical backfill needed — the ~9-10 existing
+duplicate positions will resolve normally (each leg settles independently
+against its own entry price); this fix only prevents *new* duplicates going
+forward. Live verification requires observing that apex's next cycle does
+not re-enter any of its currently-held (including limbo) markets.

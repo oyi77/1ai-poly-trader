@@ -48,6 +48,13 @@ Kernel coordination of strategy execution, scheduling, settlement reconciliation
 ### Settlement is Sacred
 - **Never block**: Non-critical hooks (analytics, learning) MUST NOT abort settlement transaction
 - **Stale positions block orders**: If settlement fails, new orders can't execute
+  — `_cleanup_stale_trades_job`'s `stale_paper` branch marks unresolved
+  >12h-old paper trades `settled=True, pnl=NULL, result="pending"` while
+  awaiting Gamma resolution (up to 5d, see ADR-016). Any "is this position
+  open" guard MUST treat `settled=True AND pnl IS NULL` as still-open
+  (`or_(Trade.settled.is_(False), Trade.pnl.is_(None))`), not just
+  `settled=False` — see `strategy_executor.py`'s cross-strategy duplicate
+  guard and `apex_strategy.py::_get_existing_positions`.
 - **Unresolved outcomes**: Use `closed_unresolved` state if market lags but position provably gone
 - **`force_closed_unresolved` (>5d stuck paper trades)**: `pnl` must equal
   `-cost_basis` via `calculate_pnl(trade, total_loss_settlement_value(trade.direction))`

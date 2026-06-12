@@ -116,8 +116,11 @@ class APEXStrategy(BaseStrategy):
             return result
 
         # Phase 4: Convert signals to decisions
+        existing_positions = set(self._get_existing_positions(ctx))
         for signal in signals:
             try:
+                if signal.market_id in existing_positions:
+                    continue
                 decision = self._signal_to_decision(signal, ctx)
                 if decision:
                     result.decisions.append(decision)
@@ -174,11 +177,24 @@ class APEXStrategy(BaseStrategy):
         return float(_cfg("INITIAL_BANKROLL", 20.0))
 
     def _get_existing_positions(self, ctx: StrategyContext) -> List[str]:
+        """Market tickers where APEX already holds an open position.
+
+        Includes trades marked settled=True with pnl=None: these are
+        force-marked stale by the cleanup job pending Gamma resolution
+        (up to 5 days, see ADR-016) and are still financially open —
+        treating them as "free" lets APEX double its exposure to the
+        same edge in the same market.
+        """
         try:
             from backend.models.database import Trade
+            from sqlalchemy import or_
             trades = (
                 ctx.db.query(Trade)
-                .filter(Trade.settled.is_(False), Trade.trading_mode == ctx.mode)
+                .filter(
+                    Trade.strategy == self.name,
+                    Trade.trading_mode == ctx.mode,
+                    or_(Trade.settled.is_(False), Trade.pnl.is_(None)),
+                )
                 .all()
             )
             return [t.market_ticker for t in trades if t.market_ticker]

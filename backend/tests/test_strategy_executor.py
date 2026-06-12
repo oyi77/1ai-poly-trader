@@ -186,6 +186,124 @@ class TestPaperTradeCreatesRecord:
             check_db.close()
 
 
+class TestDuplicateExecutionBlock:
+    @pytest.mark.asyncio
+    async def test_blocks_when_other_strategy_has_unresolved_settled_trade(self):
+        """A settled=True/pnl=NULL trade (ADR-016 limbo, stale-marked by the
+        cleanup job pending Gamma resolution) is still a financially open
+        position and must block other strategies from trading the same market."""
+        from backend.models.database import Trade, TradeAttempt
+        from backend.core.mode_context import register_context, ModeExecutionContext
+        from backend.core.risk_manager import RiskManager
+
+        _reload_executor()
+        db = _TestSession()
+        _seed_state(db)
+        db.add(Trade(
+            market_ticker="dup-market-001", strategy="other_strategy",
+            trading_mode="paper", settled=True, pnl=None,
+            direction="yes", entry_price=0.5, size=10.0,
+        ))
+        db.commit()
+        db.close()
+
+        mock_clob = AsyncMock()
+        register_context(
+            "paper",
+            ModeExecutionContext(
+                mode="paper",
+                clob_client=mock_clob,
+                risk_manager=RiskManager(),
+                strategy_configs={},
+            ),
+        )
+
+        with (
+            patch("backend.core.strategy_executor.settings") as mock_settings,
+            patch("backend.db.utils.SessionLocal", _TestSession),
+            patch("backend.core.strategy_executor._broadcast_event"),
+        ):
+            mock_settings.TRADING_MODE = "paper"
+
+            _reload_executor()
+            from backend.core.strategy_executor import execute_decision
+
+            result = await execute_decision(
+                _make_decision(market_ticker="dup-market-001"), "test_strategy", "paper"
+            )
+
+        assert result is None
+
+        check_db = _TestSession()
+        try:
+            attempt = (
+                check_db.query(TradeAttempt)
+                .filter(TradeAttempt.market_ticker == "dup-market-001")
+                .first()
+            )
+            assert attempt is not None
+            assert attempt.reason_code == "BLOCKED_DUPLICATE_OPEN_POSITION"
+        finally:
+            check_db.close()
+
+    @pytest.mark.asyncio
+    async def test_allows_when_other_strategy_trade_fully_resolved(self):
+        """A fully-resolved trade (settled=True, pnl set) by another strategy
+        is no longer an open position and must not block new trades."""
+        from backend.models.database import Trade
+        from backend.core.mode_context import register_context, ModeExecutionContext
+        from backend.core.risk_manager import RiskManager
+
+        _reload_executor()
+        db = _TestSession()
+        _seed_state(db)
+        db.add(Trade(
+            market_ticker="dup-market-002", strategy="other_strategy",
+            trading_mode="paper", settled=True, pnl=5.0, result="win",
+            direction="yes", entry_price=0.5, size=10.0,
+        ))
+        db.commit()
+        db.close()
+
+        mock_clob = AsyncMock()
+        register_context(
+            "paper",
+            ModeExecutionContext(
+                mode="paper",
+                clob_client=mock_clob,
+                risk_manager=RiskManager(),
+                strategy_configs={},
+            ),
+        )
+
+        with (
+            patch("backend.core.strategy_executor.settings") as mock_settings,
+            patch("backend.db.utils.SessionLocal", _TestSession),
+            patch("backend.core.strategy_executor._broadcast_event"),
+        ):
+            mock_settings.TRADING_MODE = "paper"
+
+            _reload_executor()
+            from backend.core.strategy_executor import execute_decision
+
+            result = await execute_decision(
+                _make_decision(market_ticker="dup-market-002"), "test_strategy", "paper"
+            )
+
+        assert result is not None
+
+        check_db = _TestSession()
+        try:
+            trade = (
+                check_db.query(Trade)
+                .filter(Trade.market_ticker == "dup-market-002", Trade.strategy == "test_strategy")
+                .first()
+            )
+            assert trade is not None
+        finally:
+            check_db.close()
+
+
 class TestRiskRejection:
     @pytest.mark.asyncio
     async def test_risk_rejection_returns_none(self):

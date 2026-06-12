@@ -29,7 +29,7 @@ from backend.core.validation import (
 from backend.core.external_rate_limiter import TokenBucketRateLimiter
 from backend.core.trade_attempts import TradeAttemptRecorder
 from backend.core.paper_slippage import get_simulator
-from sqlalchemy import case, func, and_, update
+from sqlalchemy import case, func, and_, or_, update
 from sqlalchemy.exc import OperationalError
 from backend.core.retry import retry
 
@@ -1306,9 +1306,12 @@ def _preflight_checks(
         return None
 
     # 2. Duplicate execution block (other strategies)
+    # Trades with settled=True and pnl IS NULL are stale-marked by the
+    # cleanup job pending Gamma resolution (up to 5 days, see ADR-016) and
+    # are still financially open positions.
     event_slug = decision.get("slug") or decision.get("event_slug")
     filters = [
-        Trade.settled.is_(False),
+        or_(Trade.settled.is_(False), Trade.pnl.is_(None)),
         Trade.trading_mode == mode,
     ]
     if event_slug:
