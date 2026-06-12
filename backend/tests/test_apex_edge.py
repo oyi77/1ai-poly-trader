@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from backend.core.edge.edge_model import Edge, EdgeType, ExitReason, ExitSignal
 from backend.core.edge.edge_types import (
-    EdgeSignal as TypesEdgeSignal,
     MarketSnapshot,
     ProbabilityEstimate,
     clamp,
@@ -18,6 +16,7 @@ from backend.core.edge.edge_types import (
 from backend.core.edge.probability_models import BrownianBridgeModel, NearResolutionModel
 from backend.core.edge.exit_manager import ExitManager
 from backend.db.utils import utcnow
+from backend.models.database import Trade
 
 
 # ─── Helpers ────────────────────────────────────────────────────────
@@ -206,12 +205,11 @@ class TestExitManager:
         )
 
     def _mock_trade(self, **kw):
-        t = MagicMock()
+        t = MagicMock(spec=Trade)
         t.id = 1
         t.market_ticker = "TEST-MARKET"
         t.entry_price = 0.50
         t.direction = "yes"
-        t.edge = 5.0
         t.edge_at_entry = 5.0
         t.timestamp = utcnow() - timedelta(hours=0.1)
         t.token_id = "0x1"

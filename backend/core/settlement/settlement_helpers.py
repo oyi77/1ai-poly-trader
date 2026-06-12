@@ -1662,17 +1662,15 @@ async def resolve_paper_trades(db) -> List[Trade]:
         except Exception as e:
             logger.error(f"Failed to record paper outcomes: {e}")
 
-        # Update bot_state inline to avoid circular import
+        # Update bot_state counters for settled paper trades
         try:
-            for trade in settled:
-                if trade.pnl is None:
-                    continue
-                state = (
-                    db.query(type("BotState", (object,), {}))
-                    .filter_by(mode="paper")
-                    .first()
-                )
-                if state and hasattr(state, "paper_pnl"):
+            from backend.models.database import BotState
+
+            state = db.query(BotState).filter_by(mode="paper").first()
+            if state:
+                for trade in settled:
+                    if trade.pnl is None:
+                        continue
                     state.paper_pnl = (state.paper_pnl or 0) + trade.pnl
                     state.paper_trades = (state.paper_trades or 0) + 1
                     if trade.result == "win":

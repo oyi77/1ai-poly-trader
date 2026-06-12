@@ -1,7 +1,7 @@
 """Tests for settlement P&L calculation and trade processing logic."""
 
 import pytest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch, AsyncMock
 from types import SimpleNamespace
 from contextlib import asynccontextmanager
@@ -695,3 +695,57 @@ async def test_reconcile_positions_does_not_skip_paper(db):
         trades_to_close = await reconcile_positions(db)
 
     assert len(trades_to_close) >= 1
+
+
+# ---------------------------------------------------------------------------
+# resolve_paper_trades — Gamma-outcome resolution updates BotState counters
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resolve_paper_trades_updates_botstate_counters(db):
+    """A paper trade resolved via Gamma outcome prices should update
+    BotState.paper_pnl/paper_trades/paper_wins (regression for the
+    placeholder `type("BotState", (object,), {})` query that always failed).
+    """
+    from backend.core.settlement.settlement_helpers import resolve_paper_trades
+
+    state = _state_for_mode(db, "paper")
+    state.paper_pnl = 0.0
+    state.paper_trades = 0
+    state.paper_wins = 0
+    db.flush()
+
+    trade = _make_trade(
+        db, direction="yes", entry_price=0.40, size=10.0,
+        market_ticker="WILL-X-HAPPEN",
+    )
+    trade.settled = True
+    trade.pnl = None
+    trade.result = "pending"
+    trade.timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
+    db.flush()
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json = MagicMock(
+        return_value=[{"outcomePrices": ["1.0", "0.0"], "conditionId": "0xabc"}]
+    )
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    with patch(
+        "backend.core.settlement.settlement_helpers.get_shared_client",
+        return_value=mock_client,
+    ):
+        settled = await resolve_paper_trades(db)
+
+    assert len(settled) == 1
+    db.refresh(trade)
+    assert trade.result == "win"
+    assert trade.pnl is not None
+
+    db.refresh(state)
+    assert state.paper_trades == 1
+    assert state.paper_wins == 1
+    assert state.paper_pnl == pytest.approx(trade.pnl)

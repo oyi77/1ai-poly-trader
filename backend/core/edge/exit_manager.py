@@ -136,7 +136,7 @@ class ExitManager:
                 reason=ExitReason.PROFIT_TARGET,
                 exit_price=current_price,
                 urgency=0.6,
-                edge_at_entry=float(trade.edge or 0),
+                edge_at_entry=float(trade.edge_at_entry or 0),
                 current_edge=0,
                 metadata={"pnl_pct": round(pnl_pct, 4), "entry_price": entry_price, "current_price": current_price},
             )
@@ -149,7 +149,7 @@ class ExitManager:
                 reason=ExitReason.STOP_LOSS,
                 exit_price=current_price,
                 urgency=0.9,  # urgent — cut losses
-                edge_at_entry=float(trade.edge or 0),
+                edge_at_entry=float(trade.edge_at_entry or 0),
                 current_edge=0,
                 metadata={"pnl_pct": round(pnl_pct, 4), "entry_price": entry_price, "current_price": current_price},
             )
@@ -171,7 +171,7 @@ class ExitManager:
                     reason=ExitReason.TIME_DECAY,
                     exit_price=current_price,
                     urgency=0.5,
-                    edge_at_entry=float(trade.edge or 0),
+                    edge_at_entry=float(trade.edge_at_entry or 0),
                     current_edge=0,
                     metadata={
                         "hold_seconds": int(hold_seconds),
@@ -180,7 +180,7 @@ class ExitManager:
                 )
 
         # 4. Edge decay — check if original edge is still valid
-        original_edge = float(trade.edge or 0)
+        original_edge = float(trade.edge_at_entry or 0)
         if original_edge > 0 and opened_at:
             # Estimate remaining edge using exponential decay
             edge_half_life = 1800  # 30 min default

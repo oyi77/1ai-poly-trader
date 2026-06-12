@@ -745,6 +745,7 @@ async def settle_pending_trades(db: Session) -> List[Trade]:
                 )
         except Exception as e:
             logger.warning(f"Paper trade settlement failed: {e}")
+            db.rollback()
 
         # Auto-topup paper bankroll if depleted
         try:

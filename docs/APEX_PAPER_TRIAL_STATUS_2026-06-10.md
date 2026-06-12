@@ -374,7 +374,152 @@ paper mode are `apex` (0 trades, two scanner bugs just fixed this session)
 and `longshot_bias` (net **+$717.46 over 618 trades**, i.e. historically
 profitable). The strategies that actually drained the $1000 → $0 are already
 gated off. Resetting `paper_bankroll`/`bankroll` (mode='paper') to a fresh
-value is therefore lower-risk than it looked on 2026-06-11, but it is still
-a financial-state change to `BotState` and the user has not yet been asked
-how they'd like to proceed (reset value, and whether to re-enable any
-disabled strategies first).
+value is therefore lower-risk than it looked on 2026-06-11.
+
+### Resolution — 2026-06-12: paper bankroll reset to $1000
+
+User chose to reset now. Applied directly to `BotState(mode='paper')` via a
+single atomic `UPDATE`:
+
+```sql
+UPDATE bot_state
+SET bankroll = 1000.00,
+    paper_bankroll = 1000.00,
+    paper_initial_bankroll = 4919.19
+WHERE mode = 'paper';
+```
+
+`paper_pnl`/`total_pnl` (`-$3919.19`, the historical ledger total from 5360
+`Trade` rows / `unified_arb`+`cross_platform_arb`+other now-disabled
+strategies) were left **unchanged** — that history is preserved, not erased,
+per the append-only `Trade` ledger rule.
+
+`paper_initial_bankroll` was raised from `$1000` to `$4919.19` (i.e.
+`$1000 - realized_pnl`, where `realized_pnl = -$3919.19` from
+`SUM(Trade.pnl) WHERE settled AND trading_mode='paper'`, with `$0` open
+exposure) so that `backend/scripts/reconcile_bot_state.py` — which derives
+`paper_bankroll = paper_initial_bankroll + realized_pnl - open_exposure` —
+recomputes the same `$1000` rather than re-clamping to `$0` on its next run.
+This is effectively framed as "the paper account received a $3919.19
+top-up to offset its historical losses, and now has $1000 in hand."
+
+Verified: `SELECT bankroll, paper_bankroll, paper_initial_bankroll, paper_pnl,
+total_pnl FROM bot_state WHERE mode='paper'` →
+`1000.00 | 1000.00 | 4919.19 | -3919.19 | -3919.19` (consistent:
+`paper_initial_bankroll + paper_pnl == paper_bankroll`).
+
+Next: restart `polyedge-orchestrator` to pick up the Bug A
+(`order_book_stale.py`) and Bug C (`_get_bankroll()`) fixes together with
+the new `$1000` bankroll, then verify `[apex:pipeline]` produces signals
+that pass `_preflight_checks` (no more `bankroll=$0.00` concentration
+rejections).
+
+## Update — 2026-06-12: Bug D investigated (not a bug), Bug E and Bug F fixed
+
+### Bug D (not a bug) — "unsettled trade exists" rejections
+
+After the bankroll reset, `[apex] Risk rejected <ticker>: unsettled trade
+exists for <ticker>` started appearing for several markets every cycle.
+Hypothesized this was orphaned positions from disabled strategies blocking
+APEX via `apex_strategy._get_existing_positions()` lacking a strategy
+filter.
+
+A direct DB query disproved this: every blocked market's unsettled `Trade`
+row is `strategy='apex'`'s **own** open position (IDs 25755, 25758-25761,
+25764, $50 each, opened 2026-06-12 01:27-03:27). `risk_manager._has_unsettled_trade()`
+(lines 1012-1043) is working exactly as designed — it prevents APEX from
+doubling up on a market+direction it already holds. No code change.
+
+This does mean APEX is effectively side-locked out of ~15 markets until
+those positions exit, which made Bug E (below) critical: without working
+exits, those positions can never close.
+
+### Bug E (fixed) — `exit_manager` AttributeError on every open position
+
+`backend/core/edge/exit_manager.py::check_position()` referenced
+`trade.edge` at 4 call sites (PROFIT_TARGET, STOP_LOSS, TIME_DECAY,
+EDGE_DECAY exit-signal construction). `Trade` has no `edge` column — only
+`edge_at_entry`. Every call raised `AttributeError: 'Trade' object has no
+attribute 'edge'`, which `check_all_positions()` caught per-trade, logged as
+`[apex:exit] Error evaluating trade {id}: {e}`, and `continue`d — silently
+skipping exit evaluation for **every open position, every cycle, for every
+strategy**, since this code is shared (not APEX-specific).
+
+Net effect: profit-target, stop-loss, time-decay, and edge-decay exits never
+fired for any strategy. Combined with Bug D's side-lock, positions could only
+ever be closed by manual intervention or eventual market settlement.
+
+Fix: `trade.edge` → `trade.edge_at_entry` at all 4 sites.
+
+Test fix: `test_apex_edge.py::TestExitManager._mock_trade` used an
+unrestricted `MagicMock()` with **both** `t.edge = 5.0` and
+`t.edge_at_entry = 5.0` set, so the bug was invisible to tests (MagicMock
+auto-creates any attribute). Changed to `MagicMock(spec=Trade)` with only
+`t.edge_at_entry` set — `spec=Trade` restricts attribute access to real
+`Trade` columns, so a reintroduced `trade.edge` reference would now raise
+`AttributeError` in tests too.
+
+Verified: 30/30 tests pass in `test_apex_edge.py`; ruff clean. Live, after
+restarting `polyedge-orchestrator` (pid 534342), `'Trade' object has no
+attribute 'edge'` no longer appears across multiple cycles processing 15
+open positions (previously ~10 occurrences/cycle).
+
+### Bug F (fixed) — settlement session-poisoning + dead BotState update
+
+Two related bugs in the paper-settlement path, both in
+`backend/core/settlement/`:
+
+**F1 — session poisoning on `OperationalError`.** Postgres is configured
+with `idle_in_transaction_session_timeout=30000` (30s). `resolve_paper_trades()`
+makes per-ticker HTTP calls to the Gamma API between DB statements on the
+same session/transaction; if a cycle takes >30s, Postgres kills the
+connection server-side, and the next statement raises
+`psycopg2.OperationalError: server closed the connection unexpectedly`.
+`settlement.py`'s `except Exception as e: logger.warning(...)` around
+`resolve_paper_trades(db)` caught this but did **not** call `db.rollback()`,
+leaving the session in an invalid-transaction state. The very next block
+(paper bankroll auto-topup, `db.query(BotState)...` on the same session)
+then immediately failed with `Can't reconnect until invalid transaction is
+rolled back. Please rollback() fully before proceeding` — every settlement
+cycle, recurring continuously from ~05:26 to 07:17+.
+
+Fix: added `db.rollback()` to the except block (mirrors the existing
+pattern at line 735 in the same file). This is a session-recovery addition,
+not a relaxation/bypass of any risk or settlement check, so it does not
+require a new ADR despite `settlement.py` being ADR-gated.
+
+**F2 — dead BotState update in `resolve_paper_trades()`.** The block that
+updates `BotState.paper_pnl/paper_trades/paper_wins` after a paper trade
+resolves via Gamma outcome prices queried
+`db.query(type("BotState", (object,), {}))` — a throwaway non-ORM class,
+not the real `BotState` model. This always raised inside the `try`, was
+caught and logged as `Failed to update paper bot_state`, and silently no-op'd.
+Net effect: these counters never updated when paper trades settled via Gamma
+outcomes (only via the CLOB-fill path). `settlement_helpers.py` is not in
+CLAUDE.md's ADR-gated list (only `settlement.py` is), and this is a
+correctness fix to dead code, not a change to settlement logic.
+
+Fix: replaced with a real `from backend.models.database import BotState;
+state = db.query(BotState).filter_by(mode="paper").first()`, queried once
+before the loop (was previously attempted once per trade).
+
+Added regression test `test_resolve_paper_trades_updates_botstate_counters`
+in `test_settlement.py`, which mocks the Gamma response and asserts
+`BotState(mode='paper').paper_pnl/paper_trades/paper_wins` update correctly
+after `resolve_paper_trades()`. 25/25 tests pass in `test_settlement.py`.
+
+**Live verification (F1):** at 07:50:54, a real
+`server closed the connection unexpectedly` fired inside
+`resolve_paper_trades()` (the very first query, before any trades were
+processed). With the fix, the settlement job logged
+`Job "settlement_job ..." executed successfully` immediately after — the
+previously-constant cascading `Paper bankroll top-up failed: Can't
+reconnect...` did **not** appear. F2 could not be live-verified in this same
+cycle (the connection died before reaching any settled trades), but is
+covered by the new unit test.
+
+### Status
+
+Bug D: not a bug (confirmed intentional). Bug E: fixed and verified live.
+Bug F: fixed, F1 verified live, F2 verified by unit test. All changes
+committed together with the existing bankroll-reset work from this trial.
