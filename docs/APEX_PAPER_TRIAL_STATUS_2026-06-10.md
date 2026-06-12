@@ -1007,3 +1007,69 @@ working end-to-end in paper mode: candidate selection → risk-gate pass →
 paper execution → duplicate-entry guard on subsequent cycles. PnL/win-rate
 validation requires these positions to settle (multi-day/week horizon for
 most of these markets) — not yet measurable.
+
+## Update — 2026-06-13: Bug M — `force_closed_unresolved` paper trades
+## record `pnl=0.0` despite `result="loss"`, hiding ~$14k of real losses
+
+### Root cause
+
+Investigating `unified_arb` (paper, DISABLED): all 2,830 settled trades have
+`result='loss'`, `settlement_source='force_closed_unresolved'`, and
+**`pnl=0.0` for every single row** (`sum(pnl)=0.00`). These are YES
+positions at avg `entry_price≈0.4950`, `size=10` shares — total cost basis
+**$14,009.18** — that should be recorded as a loss of roughly that amount,
+not $0.
+
+`backend/core/scheduling/scheduler.py::_cleanup_stale_trades_job`
+force-settles paper trades stuck at `settled=True, pnl=NULL` for >5 days
+(Gamma never resolved them — these `KXMVESPORTSMULTIGAMEEXTENDED-*` tickers
+look like malformed/foreign market identifiers Gamma can't match). Since
+commit `e0bd9e1aa` (2026-06-03, "force-settle paper trades >5d old with
+PnL=0 (neutral)"), this block hardcodes `t.pnl = 0.0` while also setting
+`t.result = "loss"` — a self-contradiction: a "loss" with zero PnL impact.
+
+Same bug also affects `bond_scanner` (paper, ACTIVE, the strategy whose
+"+$18,711 / 39.6% WR" is the headline profitability number in
+`backend/strategies/AGENTS.md`): 66 of its settled trades hit this path with
+`pnl=0.0`, representing ~$42.30 of unrecorded loss.
+
+### Fix
+
+`backend/core/settlement/settlement_helpers.py`: added
+`total_loss_settlement_value(direction)` — returns the `settlement_value`
+that makes `calculate_pnl()` return `-cost_basis` for a given direction
+(`0.0` for yes/up/buy, `1.0` for no/down/sell — the value that makes *that*
+side of the bet worthless, not the value that happens to equal 0).
+
+`backend/core/scheduling/scheduler.py::_cleanup_stale_trades_job`: replaced
+`t.pnl = 0.0` with
+`t.pnl = calculate_pnl(t, total_loss_settlement_value(t.direction))`, so
+`force_closed_unresolved` trades now record a real negative PnL consistent
+with `result="loss"`. Documented in
+`docs/architecture/adr-016-force-closed-unresolved-pnl.md` per the
+ADR-gating rule for settlement logic.
+
+Historical backfill of the existing 2,830 (`unified_arb`) + 66
+(`bond_scanner`) zero-pnl rows is deferred (ADR-016, Alternative 3) — this
+fix stops the bleeding for newly force-closed trades but does not retroactively
+correct the ~$14,051 already missing from historical paper PnL totals.
+
+### Verification
+
+- New tests in `backend/tests/test_settlement.py`
+  (`TestForceClosedUnresolvedPnl`, 4 tests): `total_loss_settlement_value`
+  returns 0.0 for yes/up/buy and 1.0 for no/down/sell; a YES position at
+  entry 0.4944/size 10 force-closed as loss now yields `pnl≈-4.94` (not 0);
+  a NO position at entry 0.0658/size 5 yields `pnl≈-0.33` (not 0).
+- `pytest backend/tests/test_settlement.py backend/tests/test_integration_settlement_fills.py`:
+  43 passed. `pytest backend/tests/test_scheduler_agi_jobs.py
+  backend/tests/test_scheduler_queue_mode.py
+  backend/tests/test_auto_redeem_scheduler.py`: 21 passed.
+
+### Status
+
+Bug M: fixed (forward-going), tested, documented (ADR-016). Historical
+backfill of the ~$14,051 already-recorded-as-$0 losses (`unified_arb`
+$14,009.18 + `bond_scanner` $42.30) is a deferred follow-up — see ADR-016
+Alternative 3. Live verification requires waiting for the next paper trade
+to hit the 5-day `force_closed_unresolved` path (not immediately observable).

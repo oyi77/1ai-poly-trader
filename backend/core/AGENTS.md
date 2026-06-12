@@ -49,6 +49,9 @@ Kernel coordination of strategy execution, scheduling, settlement reconciliation
 - **Never block**: Non-critical hooks (analytics, learning) MUST NOT abort settlement transaction
 - **Stale positions block orders**: If settlement fails, new orders can't execute
 - **Unresolved outcomes**: Use `closed_unresolved` state if market lags but position provably gone
+- **`force_closed_unresolved` (>5d stuck paper trades)**: `pnl` must equal
+  `-cost_basis` via `calculate_pnl(trade, total_loss_settlement_value(trade.direction))`
+  — never hardcode `pnl=0.0` for a `result="loss"` trade (ADR-016)
 - **Two-phase protocol**: Prepare validates, commit persists (no partial failures)
 
 ### Error Handling

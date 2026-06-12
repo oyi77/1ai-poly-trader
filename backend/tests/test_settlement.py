@@ -14,6 +14,7 @@ from backend.models.database import Base, Trade, BotState, SettlementEvent
 from backend.core.settlement.settlement_helpers import (
     calculate_pnl,
     process_settled_trade,
+    total_loss_settlement_value,
 )
 from backend.config import settings
 
@@ -283,6 +284,53 @@ class TestPnlLoss:
         # fee = 0.003 * min(0.55, 0.45) * (20 * 0.55) = 0.003 * 0.45 * 11 = 0.01485
         # cost = 11 + 0.01485 = 11.01485, loss = -11.01485
         assert pnl == pytest.approx(-11.01, abs=0.01)
+
+
+class TestForceClosedUnresolvedPnl:
+    """force_closed_unresolved trades must record pnl consistent with
+    result="loss". scheduler.py previously hardcoded pnl=0.0 for these
+    trades, which combined with result="loss" made real losses invisible in
+    PnL totals while still counting against win rate (2830 unified_arb
+    trades, ~$14k hidden loss). See
+    docs/architecture/adr-016-force-closed-unresolved-pnl.md.
+    """
+
+    def test_yes_direction_loss_settlement_value_is_zero(self):
+        assert total_loss_settlement_value("yes") == 0.0
+        assert total_loss_settlement_value("YES") == 0.0
+        assert total_loss_settlement_value("up") == 0.0
+        assert total_loss_settlement_value(None) == 0.0
+
+    def test_no_direction_loss_settlement_value_is_one(self):
+        assert total_loss_settlement_value("no") == 1.0
+        assert total_loss_settlement_value("NO") == 1.0
+        assert total_loss_settlement_value("down") == 1.0
+
+    def test_yes_position_force_closed_as_loss_is_negative(self):
+        """unified_arb-style trade: YES @ 0.4944, size=10 -> pnl ~ -4.94, not 0."""
+        trade = MagicMock(spec=Trade)
+        trade.direction = "YES"
+        trade.entry_price = 0.4944
+        trade.size = 10.0
+
+        sv = total_loss_settlement_value(trade.direction)
+        pnl = calculate_pnl(trade, sv)
+
+        assert pnl < 0.0
+        assert pnl == pytest.approx(-4.944, abs=0.1)
+
+    def test_no_position_force_closed_as_loss_is_negative(self):
+        """bond_scanner-style trade: NO @ 0.0658, size=5 -> pnl ~ -0.33, not 0."""
+        trade = MagicMock(spec=Trade)
+        trade.direction = "no"
+        trade.entry_price = 0.0658
+        trade.size = 5.0
+
+        sv = total_loss_settlement_value(trade.direction)
+        pnl = calculate_pnl(trade, sv)
+
+        assert pnl < 0.0
+        assert pnl == pytest.approx(-0.329, abs=0.1)
 
 
 class TestPnlPush:

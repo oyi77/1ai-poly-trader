@@ -957,16 +957,28 @@ async def _cleanup_stale_trades_job():
                 .all()
             )
             if stuck_paper:
+                from backend.core.settlement.settlement_helpers import (
+                    calculate_pnl,
+                    total_loss_settlement_value,
+                )
+
                 for t in stuck_paper:
-                    t.pnl = 0.0
+                    loss_settlement_value = total_loss_settlement_value(t.direction)
+                    try:
+                        t.pnl = calculate_pnl(t, loss_settlement_value)
+                    except Exception:
+                        t.pnl = round(
+                            -(float(t.entry_price or 0.0) * float(t.size or 0.0)), 2
+                        )
                     t.result = "loss"
-                    t.settlement_value = 0.0
+                    t.settlement_value = loss_settlement_value
                     t.settlement_time = datetime.now(timezone.utc)
                     t.settlement_source = "force_closed_unresolved"
                 db.commit()
                 logger.info(
                     f"[stale_trade_cleanup] Force-settled {len(stuck_paper)} "
-                    f"stuck paper trades as loss (>5 days, market never resolved)"
+                    f"stuck paper trades as loss (>5 days, market never resolved), "
+                    f"total pnl=${sum(t.pnl or 0.0 for t in stuck_paper):+.2f}"
                 )
     except Exception as e:
         logger.warning(f"[stale_trade_cleanup] Failed: {e}")

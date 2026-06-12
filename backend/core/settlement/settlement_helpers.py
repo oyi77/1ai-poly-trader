@@ -747,6 +747,19 @@ async def fetch_resolution_for_trade(trade: Trade) -> Tuple[bool, Optional[float
     return False, None
 
 
+def total_loss_settlement_value(direction: Optional[str]) -> float:
+    """settlement_value that makes a position with this direction worthless.
+
+    Used when force-closing a trade as result="loss" without a real market
+    resolution: the chosen value must make calculate_pnl() return
+    -cost_basis (a real loss) rather than a win payout, for either side of
+    the bet. yes/up/buy positions are worthless when settlement_value=0.0;
+    no/down/sell positions are worthless when settlement_value=1.0.
+    """
+    normalized = (direction or "yes").strip().lower()
+    return 1.0 if normalized in ("no", "down", "sell") else 0.0
+
+
 def calculate_pnl(trade: Trade, settlement_value: float) -> float:
     """
     Calculate P&L for a trade given the settlement value.
