@@ -976,7 +976,8 @@ async def update_bot_state_with_settlements(
                 )
     except Exception as e:
         logger.error(f"Failed to update bot state: {e}")
-        db.rollback()
+        if db.in_transaction():
+            db.rollback()
 
 
 async def reconcile_bot_state(db: Session) -> None:
@@ -994,5 +995,5 @@ async def reconcile_bot_state(db: Session) -> None:
         logger.debug("Bot state reconciliation complete")
 
     except Exception as e:
-        logger.error(f"Bot state reconciliation failed: {e}")
-        db.rollback()
+        if db.in_transaction():
+            db.rollback()

@@ -134,7 +134,9 @@ class DBSessionShadowRunner:
             return trade
         except Exception as e:
             logger.error(f"Failed to record shadow signal: {e}")
-            db.rollback()
+            # Guard: after a failed commit() the transaction is already non-active in SA 2.x
+            if db.in_transaction():
+                db.rollback()
             raise
         finally:
             self._close_db()
@@ -402,7 +404,9 @@ class DBSessionShadowRunner:
             db.commit()
         except Exception:
             logger.exception("Transaction failed, rolling back")
-            db.rollback()
+            # Guard: after a failed commit() the transaction is already non-active in SA 2.x
+            if db.in_transaction():
+                db.rollback()
             raise
         finally:
             self._close_db()

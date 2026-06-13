@@ -48,9 +48,9 @@ class TradeValidator:
 
     @staticmethod
     def validate_price(price: float, field_name: str = "price") -> None:
-        if not (0.01 <= price <= 0.99):
+        if not (0.001 <= price <= 0.999):
             raise ValidationError(
-                f"{field_name} must be in range [0.01, 0.99], got {price}",
+                f"{field_name} must be in range [0.001, 0.999], got {price}",
                 field=field_name,
                 value=price,
             )
