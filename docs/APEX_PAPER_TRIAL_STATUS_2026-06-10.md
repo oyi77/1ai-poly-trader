@@ -1513,3 +1513,116 @@ transaction-history endpoint touching this table would crash.
 Bug Q CLOSED. Canonical Alembic workflow (`cd backend && alembic upgrade
 head`) works again; root `alembic/` can no longer silently corrupt
 `alembic_version`; `transaction_events` is fully ORM-readable.
+
+## Update — 2026-06-13: Bug R — `_row_to_profile` drops preset-specific
+fields; risk-tier selection has no effect on longshot bias / loss floors /
+scheduler interval
+
+### Root cause
+
+`RiskProfileRow` (the `risk_profiles` DB table) has no columns for
+`longshot_no_bias_weight`, `daily_loss_floor_pct`, `weekly_loss_floor_pct`,
+or `orchestrator_interval_seconds`. `_row_to_profile()` — the function
+`get_profile()`, `list_profiles()`, and `update_profile()` all funnel
+through whenever a `RiskProfileRow` exists (i.e. after `seed_presets()` has
+run, which is the normal case) — built `RiskProfile(...)` without passing
+these 4 fields at all, so they silently fell back to the dataclass's generic
+defaults (`longshot_no_bias_weight=0.10`, `daily_loss_floor_pct=-0.10`,
+`weekly_loss_floor_pct=-0.20`, `orchestrator_interval_seconds=300`)
+regardless of which tier (`safe` ... `crazy`) was actually selected.
+`apply_profile()` then copies these into `settings.LONGSHOT_NO_BIAS_WEIGHT`
+/ `DAILY_LOSS_FLOOR_PCT` / `WEEKLY_LOSS_FLOOR_PCT` /
+`ORCHESTRATOR_STRATEGY_INTERVAL_SECONDS` — e.g. selecting `"crazy"`
+(longshot bias 0.20, loss floors -0.80/-0.95, 30s polling) actually ran with
+`"normal"`'s generic values (0.10/-0.10/-0.20/300s) once the DB-backed
+profile existed.
+
+### Fix
+
+`_row_to_profile()` (`backend/core/risk/risk_profiles.py`) now looks up
+`PRESETS.get(row.name)` and copies the 4 fields from the matching preset,
+falling back to the previous generic defaults only when `row.name` isn't a
+known preset (i.e. a user-created custom profile).
+
+### Verification
+
+- New test `test_row_to_profile_preserves_preset_specific_fields` in
+  `backend/tests/test_risk_profiles.py`: after `seed_presets(db=db)`,
+  `get_profile("extreme", db=db)` and `get_profile("crazy", db=db)` now
+  match `PRESETS["extreme"]` / `PRESETS["crazy"]` for all 4 fields (before
+  the fix, both returned the generic 0.10/-0.10/-0.20/300 regardless of
+  tier).
+- `pytest backend/tests/test_risk_profiles.py`: 20/20 pass.
+
+### Status
+
+Bug R CLOSED.
+
+## Update — 2026-06-13: Bug S — `check_risk_and_disable` raises
+`ZeroDivisionError` on every heartbeat when `live_initial_bankroll == 0.0`
+
+### Root cause
+
+`bot_state.live_initial_bankroll is not None` treats `0.0` — a valid float a
+fresh `BotState` row can have before the first deposit is recorded — as
+"set", so `initial = 0.0`. The next line,
+`drawdown_pct = abs(min(0, total_pnl)) / initial * 100`, then raises
+`ZeroDivisionError`. `check_risk_and_disable` is the "Risk Layer —
+Auto-Disable" check that CLAUDE.md says runs on every heartbeat; a crash
+here means the total-drawdown auto-disable circuit silently never runs.
+
+### Fix
+
+`backend/core/strategy_gate.py::check_risk_and_disable` now guards both the
+`live_initial_bankroll` and `paper_initial_bankroll` branches with `> 0` in
+addition to `is not None`, falling through to the existing `initial = 100.0`
+default when both are zero or unset.
+
+### Verification
+
+- New test `test_zero_initial_bankroll_does_not_raise_zero_division` in
+  `backend/tests/test_strategy_gate.py`: `live_initial_bankroll=0.0` and
+  `paper_initial_bankroll=0.0` no longer raise `ZeroDivisionError`.
+- `pytest backend/tests/test_strategy_gate.py`: 18/18 pass.
+
+### Status
+
+Bug S CLOSED. `strategy_gate.py` is not in the ADR-gated list
+(`risk_manager.py`/`circuit_breaker.py`/`settlement.py`), so no new ADR is
+required.
+
+## Update — 2026-06-13: Bug T — `PUT /api/v1/strategies/{name}` always
+(un)schedules the "paper" job, ignoring the strategy's `trading_mode`
+
+### Root cause
+
+`update_strategy()` (`backend/api/system.py`) called
+`schedule_strategy(name, interval)` / `unschedule_strategy(name)` without
+`mode=...`; both default to `mode="paper"`. `scheduler.py` job IDs are
+`f"{mode}_{strategy_name}_{interval_seconds}"`, so for any strategy
+configured with `trading_mode="live"` or `"testnet"`, toggling it via this
+endpoint scheduled/unscheduled `paper_{name}_{interval}` instead of its real
+`live_{name}_{interval}` (or `testnet_...`) job. Disabling a live strategy
+through this endpoint therefore did not stop it from running — a
+strategy-governance/safety gap.
+
+### Fix
+
+`update_strategy()` now passes `mode=cfg.trading_mode or "paper"` to both
+`schedule_strategy` and `unschedule_strategy`.
+
+### Verification
+
+- New test `test_update_strategy_schedules_with_trading_mode` in
+  `backend/tests/test_api_strategies.py`: `PUT .../strategies/{name}` with
+  `trading_mode="live"` now calls `schedule_strategy(name, 30, mode="live")`
+  on enable and `unschedule_strategy(name, mode="live")` on disable.
+- `pytest backend/tests/test_api_strategies.py`: 9/9 pass.
+
+### Status
+
+Bug T CLOSED. Pre-existing, separate gap noted but not fixed here:
+`unschedule_strategy`'s default `interval_seconds=60` is not passed
+`cfg.interval_seconds`, so if a strategy's interval was changed from 60
+after scheduling, unschedule still won't match its job_id — out of scope
+for this fix.

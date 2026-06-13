@@ -453,6 +453,12 @@ def apply_profile(
 
 
 def _row_to_profile(row: RiskProfileRow) -> RiskProfile:
+    preset = PRESETS.get(row.name)
+    preset_interval = preset.orchestrator_interval_seconds if preset else 300
+    preset_longshot = preset.longshot_no_bias_weight if preset else 0.10
+    preset_daily_loss_floor = preset.daily_loss_floor_pct if preset else -0.10
+    preset_weekly_loss_floor = preset.weekly_loss_floor_pct if preset else -0.20
+
     return RiskProfile(
         name=row.name,
         display_name=row.display_name,
@@ -469,6 +475,10 @@ def _row_to_profile(row: RiskProfileRow) -> RiskProfile:
         auto_approve_min_confidence=row.auto_approve_min_confidence,
         max_concentration_pct=getattr(row, "max_concentration_pct", 0.3),
         max_correlated_exposure_pct=getattr(row, "max_correlated_exposure_pct", 0.8),
+        longshot_no_bias_weight=preset_longshot,
+        daily_loss_floor_pct=preset_daily_loss_floor,
+        weekly_loss_floor_pct=preset_weekly_loss_floor,
+        orchestrator_interval_seconds=preset_interval,
         is_preset=row.is_preset,
     )
 

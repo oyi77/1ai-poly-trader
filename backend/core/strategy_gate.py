@@ -396,9 +396,9 @@ def check_risk_and_disable(db) -> list[str]:
     # Use live_initial_bankroll from BotState as the session-start reference.
     # This is the capital the user began live trading with.
     bot_state = db.query(BotState).filter_by(mode="live").first()
-    if bot_state and bot_state.live_initial_bankroll is not None:
+    if bot_state and bot_state.live_initial_bankroll is not None and bot_state.live_initial_bankroll > 0:
         initial = bot_state.live_initial_bankroll
-    elif bot_state and bot_state.paper_initial_bankroll is not None:
+    elif bot_state and bot_state.paper_initial_bankroll is not None and bot_state.paper_initial_bankroll > 0:
         initial = bot_state.paper_initial_bankroll
     else:
         initial = 100.0

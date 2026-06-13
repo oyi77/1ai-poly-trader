@@ -137,3 +137,21 @@ class TestCheckRiskAndDisable:
         db.query.return_value.filter_by.return_value.first.return_value = bot_state_mock
         result = check_risk_and_disable(db)
         assert isinstance(result, list)
+
+    def test_zero_initial_bankroll_does_not_raise_zero_division(self):
+        """live_initial_bankroll == 0.0 is a valid (non-None) float that a
+        fresh BotState row can have before the first deposit is recorded.
+        Without a `> 0` guard, `initial = 0` and
+        `drawdown_pct = ... / initial * 100` raises ZeroDivisionError on
+        every heartbeat's risk check.
+        """
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = []
+        db.execute.return_value.scalar.return_value = 0.0
+        bot_state_mock = MagicMock()
+        bot_state_mock.live_initial_bankroll = 0.0
+        bot_state_mock.paper_initial_bankroll = 0.0
+        bot_state_mock.misc_data = None
+        db.query.return_value.filter_by.return_value.first.return_value = bot_state_mock
+        result = check_risk_and_disable(db)
+        assert isinstance(result, list)

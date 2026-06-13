@@ -1,5 +1,7 @@
 """Tests for /api/v1/strategies CRUD endpoints (admin-protected)."""
 
+from unittest.mock import patch
+
 from backend.config import settings
 
 _TEST_ADMIN_KEY = "test-admin-key"
@@ -84,3 +86,34 @@ class TestStrategyUpdate:
                 headers=_admin_headers(),
             )
             assert resp.status_code == 200
+
+    def test_update_strategy_schedules_with_trading_mode(self, client):
+        """schedule_strategy/unschedule_strategy must be called with the
+        strategy's trading_mode (e.g. "live"), not always the "paper"
+        default — job_id is f"{mode}_{name}_{interval}", so toggling a
+        live strategy off must unschedule its live job, not a paper one.
+        """
+        list_resp = client.get("/api/v1/strategies")
+        strategies = list_resp.json()
+        assert strategies, "no registered strategies to test against"
+        name = strategies[0]["name"]
+
+        with (
+            patch("backend.core.scheduler.schedule_strategy") as mock_schedule,
+            patch("backend.core.scheduler.unschedule_strategy") as mock_unschedule,
+        ):
+            resp = client.put(
+                f"/api/v1/strategies/{name}",
+                json={"enabled": True, "interval_seconds": 30, "trading_mode": "live"},
+                headers=_admin_headers(),
+            )
+            assert resp.status_code == 200
+            mock_schedule.assert_called_once_with(name, 30, mode="live")
+
+            resp2 = client.put(
+                f"/api/v1/strategies/{name}",
+                json={"enabled": False},
+                headers=_admin_headers(),
+            )
+            assert resp2.status_code == 200
+            mock_unschedule.assert_called_once_with(name, mode="live")

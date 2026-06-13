@@ -1995,9 +1995,9 @@ async def update_strategy(
         from backend.core.scheduler import schedule_strategy, unschedule_strategy
 
         if cfg.enabled:
-            schedule_strategy(name, cfg.interval_seconds or 60)
+            schedule_strategy(name, cfg.interval_seconds or 60, mode=cfg.trading_mode or "paper")
         else:
-            unschedule_strategy(name)
+            unschedule_strategy(name, mode=cfg.trading_mode or "paper")
 
     return {
         "name": name,

@@ -192,6 +192,34 @@ class TestDBBackedProfiles:
         assert updated.max_trade_size == 5.0
         assert updated.max_concentration_pct == 0.25
 
+    def test_row_to_profile_preserves_preset_specific_fields(self, db):
+        """RiskProfileRow does not persist longshot_no_bias_weight,
+        daily_loss_floor_pct, weekly_loss_floor_pct, or
+        orchestrator_interval_seconds. _row_to_profile must derive these
+        from PRESETS[row.name] rather than the generic RiskProfile dataclass
+        defaults (0.10 / -0.10 / -0.20 / 300), otherwise every DB-backed
+        profile silently collapses to those defaults regardless of tier.
+        """
+        seed_presets(db=db)
+
+        extreme = get_profile("extreme", db=db)
+        assert extreme.longshot_no_bias_weight == PRESETS["extreme"].longshot_no_bias_weight
+        assert extreme.daily_loss_floor_pct == PRESETS["extreme"].daily_loss_floor_pct
+        assert extreme.weekly_loss_floor_pct == PRESETS["extreme"].weekly_loss_floor_pct
+        assert (
+            extreme.orchestrator_interval_seconds
+            == PRESETS["extreme"].orchestrator_interval_seconds
+        )
+
+        crazy = get_profile("crazy", db=db)
+        assert crazy.longshot_no_bias_weight == PRESETS["crazy"].longshot_no_bias_weight
+        assert crazy.daily_loss_floor_pct == PRESETS["crazy"].daily_loss_floor_pct
+        assert crazy.weekly_loss_floor_pct == PRESETS["crazy"].weekly_loss_floor_pct
+        assert (
+            crazy.orchestrator_interval_seconds
+            == PRESETS["crazy"].orchestrator_interval_seconds
+        )
+
     def test_delete_custom_profile(self, db):
         seed_presets(db=db)
         custom = RiskProfile(
