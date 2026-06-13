@@ -234,6 +234,17 @@ class RiskManager:
         signal_win_rate: Optional[float] = None,
     ) -> RiskDecision:
         effective_mode = mode or self.s.TRADING_MODE
+        original_available_cash = bankroll
+        if effective_mode == "live" and db is not None:
+            try:
+                from backend.models.database import PlatformBalance
+                balances = db.query(PlatformBalance).filter_by(mode="live").all()
+                total_equity = sum(float(b.total_equity or 0.0) for b in balances)
+                if total_equity > 0:
+                    bankroll = total_equity
+                    logger.debug(f"[risk_manager] Live mode: using total live equity as bankroll base: ${bankroll:.2f}")
+            except Exception as e:
+                logger.warning(f"[risk_manager] Failed to fetch total live equity for bankroll base: {e}")
 
         if db is not None and market_price is not None and signal_win_rate is not None:
             try:
@@ -524,7 +535,7 @@ class RiskManager:
                 getattr(self.s, "MAX_STRATEGY_DRAWDOWN_PCT", 0.15) or 0.15
             )
             strat_allocation = self._get_strategy_allocation(
-                strategy_name, bankroll, db
+                strategy_name, bankroll, db, effective_mode
             )
             strat_dd = self._check_strategy_drawdown(strategy_name, db, effective_mode)
             if strat_dd is None:
@@ -686,7 +697,7 @@ class RiskManager:
         effective_cap = None
         if strategy_name and db is not None:
             strategy_allocation = self._get_strategy_allocation(
-                strategy_name, bankroll, db
+                strategy_name, bankroll, db, effective_mode
             )
             # Check remaining budget (total allocation minus open exposure)
             remaining_cap = self._strategy_allocation_cap(
@@ -730,6 +741,8 @@ class RiskManager:
                     pre_vol_size,
                     adjusted,
                 )
+        if effective_mode == "live":
+            adjusted = min(adjusted, original_available_cash)
 
         min_order_usdc = (
             self.s.PAPER_MIN_ORDER_USDC
@@ -746,18 +759,18 @@ class RiskManager:
                     adjusted,
                 )
             elif (
-                bankroll <= getattr(self.s, "MAX_TRADE_SIZE", float("inf"))
-                and bankroll > 0
-                and min_order_usdc <= bankroll * 0.5
+                original_available_cash <= getattr(self.s, "MAX_TRADE_SIZE", float("inf"))
+                and original_available_cash > 0
+                and min_order_usdc <= original_available_cash * 0.5
             ):
                 adjusted = min_order_usdc
                 logger.info(
                     "[risk_manager] Bumped %s trade to CLOB minimum despite cap: "
-                    "$%.2f -> $%.2f (bankroll=%.2f)",
+                    "$%.2f -> $%.2f (original_available_cash=%.2f)",
                     effective_mode,
                     min_order_usdc - (adjusted - min_order_usdc),
                     adjusted,
-                    bankroll,
+                    original_available_cash,
                 )
             else:
                 record_signal(
@@ -774,7 +787,6 @@ class RiskManager:
                 )
 
         return RiskDecision(True, "ok", adjusted)
-
     def _get_or_update_calibration_and_bias(self, db) -> tuple[dict, Optional[dict]]:
         """Return cached calibration and longshot bias, updating if stale (> 5 minutes)."""
         import time
@@ -1048,16 +1060,15 @@ class RiskManager:
             if owns_db:
                 db.close()
 
-    def _count_enabled_strategies(self, db) -> Optional[int]:
+    def _count_enabled_strategies(self, db, mode: Optional[str] = None) -> Optional[int]:
         """Count the number of enabled strategies in StrategyConfig."""
         try:
             from backend.models.database import StrategyConfig
 
-            enabled_count = (
-                db.query(StrategyConfig)
-                .filter(StrategyConfig.enabled.is_(True))
-                .count()
-            )
+            query = db.query(StrategyConfig).filter(StrategyConfig.enabled.is_(True))
+            if mode:
+                query = query.filter(StrategyConfig.mode == mode)
+            enabled_count = query.count()
             return int(enabled_count)
         except Exception as e:
             logger.opt(exception=True).error(
@@ -1068,7 +1079,7 @@ class RiskManager:
             return None
 
     def _get_strategy_allocation(
-        self, strategy_name: str, bankroll: float, db
+        self, strategy_name: str, bankroll: float, db, mode: Optional[str] = None
     ) -> float:
         """Get strategy allocation using AGI allocation if available, otherwise equal-weight fallback."""
         # Check if AGI bankroll allocation is enabled
@@ -1091,7 +1102,7 @@ class RiskManager:
                 )
 
         # Fallback: equal-weight allocation
-        enabled_count = self._count_enabled_strategies(db)
+        enabled_count = self._count_enabled_strategies(db, mode)
         max_pos_frac = float(getattr(self.s, "MAX_POSITION_FRACTION", 0.25) or 0.25)
         if enabled_count is None or enabled_count == 0:
             # DB error or no enabled strategies - use MAX_POSITION_FRACTION as safe fallback

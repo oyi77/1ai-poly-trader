@@ -163,12 +163,10 @@ class AutoSellManager:
         ticker = getattr(trade, "market_ticker", "") or ""
         token_id = getattr(trade, "token_id", None)
 
-        # PnL calculation depends on direction
+        # PnL calculation: both entry and current_price represent the price of the
+        # specific token we bought (YES or NO), so the PnL is always (current - entry) / entry.
         # Deduct round-trip fee (1% taker on buy + 1% taker on sell)
-        if direction == "yes":
-            gross_pnl_pct = (current_price - entry) / entry
-        else:  # "no"
-            gross_pnl_pct = (entry - current_price) / entry
+        gross_pnl_pct = (current_price - entry) / entry
         pnl_pct = gross_pnl_pct - ROUND_TRIP_FEE
 
         # Time elapsed since entry
@@ -227,10 +225,42 @@ class AutoSellManager:
         # Place sell order if CLOB client provided
         if clob_client is not None and token_id:
             try:
+                # Query actual token balance from CLOB to avoid "not enough balance" rejections
+                try:
+                    from py_clob_client_v2 import BalanceAllowanceParams, AssetType
+                    params = BalanceAllowanceParams(
+                        asset_type=AssetType.CONDITIONAL,
+                        token_id=str(token_id)
+                    )
+                    res = clob_client._clob_client.get_balance_allowance(params)
+                    actual_balance = float(res.get("balance", 0)) / 1e6
+                except Exception as bal_err:
+                    logger.debug(f"[auto_sell] Failed to fetch actual token balance: {bal_err}")
+                    actual_balance = float(getattr(trade, "size", 0) or 0)
+
+                sell_size = min(float(getattr(trade, "size", 0) or 0), actual_balance)
+                if sell_size <= 0:
+                    logger.warning(f"[auto_sell] Actual token balance is 0 for trade_id={trade_id}; marking as settled")
+                    trade.settled = True
+                    trade.result = "expired"
+                    trade.pnl = 0.0
+                    result.triggered = False
+                    return None
+
+                if sell_size * current_price < 1.0:
+                    logger.warning(
+                        f"[auto_sell] Sell size value ${sell_size * current_price:.2f} is below $1 minimum for trade_id={trade_id}; marking as settled"
+                    )
+                    trade.settled = True
+                    trade.result = "expired"
+                    trade.pnl = 0.0
+                    result.triggered = False
+                    return None
+
                 order_id = await self._place_sell(
                     clob_client=clob_client,
                     token_id=str(token_id),
-                    size=float(getattr(trade, "size", 0) or 0),
+                    size=sell_size,
                     price=current_price,
                 )
                 result.order_id = order_id
@@ -246,7 +276,6 @@ class AutoSellManager:
                     trade_id,
                     exc,
                 )
-
         return result
 
     async def scan_and_sell_all(
@@ -268,7 +297,10 @@ class AutoSellManager:
         results: List[AutoSellResult] = []
         for trade in trades:
             ticker = getattr(trade, "market_ticker", "") or ""
-            price = prices.get(ticker)
+            token_id = getattr(trade, "token_id", None)
+            price = prices.get(str(token_id)) if token_id else None
+            if price is None:
+                price = prices.get(ticker)
             if price is None:
                 continue
 

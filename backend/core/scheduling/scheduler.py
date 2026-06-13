@@ -530,7 +530,7 @@ def auto_disable_losing_strategies():
     min_trades_lifetime = getattr(settings, "AGI_AUTO_DISABLE_MIN_TRADES_LIFETIME", 50)
     try:
         now = datetime.now(timezone.utc)
-        since_24h = now - timedelta(hours=24)
+        since_24h = (now - timedelta(hours=24)).replace(tzinfo=None)
         with get_db_session() as db:
             # Batch fetch enabled configs and active modes
             enabled_configs = (
@@ -869,31 +869,28 @@ async def _cleanup_stale_trades_job():
     try:
         with get_db_session() as db:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=12)
+            from sqlalchemy import or_
             stale_live = (
                 db.query(Trade)
                 .filter(
                     Trade.settled.is_(False),
                     Trade.trading_mode == "live",
                     Trade.timestamp < cutoff,
+                    or_(Trade.filled_size == 0.0, Trade.filled_size.is_(None)),
                 )
                 .all()
             )
             if stale_live:
                 for t in stale_live:
                     t.settled = True
-                    try:
-                        from backend.core.settlement.settlement_helpers import calculate_pnl
-
-                        t.pnl = calculate_pnl(t, 0.0)
-                    except Exception:
-                        min_loss = -(float(getattr(t, "entry_price", 0.0) or 0.0) * float(getattr(t, "size", 0.0) or 0.0))
-                        t.pnl = round(min_loss, 2)
+                    t.result = "expired"
+                    t.pnl = 0.0
                     t.settlement_value = 0.0
                     t.settlement_time = datetime.now(timezone.utc)
                     t.settlement_source = "stale_live_force_close"
                 db.commit()
                 logger.info(
-                    f"[stale_trade_cleanup] Auto-settled {len(stale_live)} stale LIVE trades (>12h)"
+                    f"[stale_trade_cleanup] Expired {len(stale_live)} unfilled stale LIVE trades (>12h)"
                 )
 
             # Paper trades: mark settled=True with pnl=None to let

@@ -129,28 +129,28 @@ async def test_time_exit_triggers_sell():
 
 @pytest.mark.asyncio
 async def test_no_direction_profit():
-    """NO position: entry=0.50, current=0.49 means NO side gained (price dropped = YES lost = NO won)."""
+    """NO position: entry=0.50, current=0.52 means NO side gained (NO price rose from 0.50 to 0.52)."""
     manager = AutoSellManager(
         profit_target_pct=0.008, stop_loss_pct=0.008, max_hold_seconds=300
     )
     trade = _make_trade(entry_price=0.50, direction="no")
-    # For NO: pnl = (entry - current) / entry = (0.50 - 0.48) / 0.50 = 0.04 = 4%
+    # For NO: pnl = (current - entry) / entry = (0.52 - 0.50) / 0.50 = 0.04 = 4%
     # 4% gross - 2% fee = 2% net > 0.8% profit target
-    result = await manager.check_and_sell(trade, current_price=0.48)
+    result = await manager.check_and_sell(trade, current_price=0.52)
     assert result is not None
     assert result.trigger_reason == "TAKE_PROFIT"
 
 
 @pytest.mark.asyncio
 async def test_no_direction_stop_loss():
-    """NO position: entry=0.50, current=0.51 means NO side lost (price rose = YES won = NO lost)."""
+    """NO position: entry=0.50, current=0.485 means NO side lost (NO price fell from 0.50 to 0.485)."""
     manager = AutoSellManager(
         profit_target_pct=0.008, stop_loss_pct=0.008, max_hold_seconds=300
     )
     trade = _make_trade(entry_price=0.50, direction="no")
-    # For NO: pnl = (0.50 - 0.515) / 0.50 = -0.03 = -3%
+    # For NO: pnl = (current - entry) / entry = (0.485 - 0.50) / 0.50 = -0.03 = -3%
     # -3% gross - 2% fee = -5% net < -0.8% stop loss
-    result = await manager.check_and_sell(trade, current_price=0.515)
+    result = await manager.check_and_sell(trade, current_price=0.485)
     assert result is not None
     assert result.trigger_reason == "STOP_LOSS"
 
@@ -183,6 +183,9 @@ async def test_sell_order_placed_with_clob_client():
     trade = _make_trade(entry_price=0.50, direction="yes", token_id="tok_abc")
 
     clob = AsyncMock()
+    mock_clob_client = MagicMock()
+    mock_clob_client.get_balance_allowance.return_value = {"balance": 20_000_000}
+    clob._clob_client = mock_clob_client
     mock_order_result = MagicMock()
     mock_order_result.order_id = "order-42"
     clob.place_limit_order.return_value = mock_order_result
