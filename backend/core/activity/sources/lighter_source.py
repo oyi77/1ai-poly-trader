@@ -24,7 +24,10 @@ class LighterActivitySource(BaseActivitySource):
                 self._ws.subscribe("account", {"address": self.wallet_address})
             except Exception:
                 logger.debug("[lighter] WS subscribe unavailable")
-            self.create_subtask(self._ws_loop())
+            # Pull-based WS loop only when the underlying object supports it.
+            # LighterProvider is callback-driven (watch_account) and has no recv().
+            if hasattr(self._ws, "recv"):
+                self.create_subtask(self._ws_loop())
             # Balance polling — throttled
             self.create_subtask(self.throttled_loop(self._balance_cycle))
 
@@ -67,10 +70,11 @@ class LighterActivitySource(BaseActivitySource):
 
     async def _balance_cycle(self):
         """Single iteration of balance polling for deposit/withdrawal detection."""
-        bal = await self._ws.get_balance(self.wallet_address)
+        nb = await self._ws.get_balance()
+        bal = float(nb.total_equity) if nb else 0.0
         if self._lighter_last_balance is not None:
             result = self.detect_balance_delta(
-                float(bal), float(self._lighter_last_balance)
+                bal, float(self._lighter_last_balance)
             )
             if result:
                 event_type, amount = result
