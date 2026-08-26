@@ -91,6 +91,7 @@ async def run_once(db_path: str) -> dict[str, float]:
             initial_bankroll=1000.0,
             min_edge_threshold=0.10,
             min_model_probability=0.65,
+            calibration_shrinkage=5.0,
         )
         result = await BacktestEngine(cfg).run(db)
         return {

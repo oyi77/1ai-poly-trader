@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -39,6 +40,11 @@ class BacktestConfig:
     # Skip signals below these floors before sizing. 0.0 = legacy behavior.
     min_edge_threshold: float = 0.0
     min_model_probability: float = 0.0
+    # Walk-forward bucket calibration (iteration 5): blend raw model
+    # probability with realized win-rate of PRIOR settled trades in the same
+    # entry-price bucket (Laplace shrinkage, strictly past-only). 0 disables.
+    calibration_shrinkage: float = 0.0
+    calibration_bucket: float = 0.1
 
 
 @dataclass
@@ -131,6 +137,7 @@ class BacktestEngine:
         daily_pnl: dict[date, float] = {}
         total_exposure = 0.0
         peak_bankroll = self.config.initial_bankroll
+        bucket_stats: dict[float, list[int]] = {}  # price bucket -> [wins, total]
 
         for sig in signals:
             if sig.edge is None or sig.edge <= 0:
@@ -166,6 +173,15 @@ class BacktestEngine:
                 if win_prob is None:
                     # edge ≡ model_prob − market_price ⇒ exact reconstruction
                     win_prob = entry_price + (sig.edge or 0.0)
+                if self.config.calibration_shrinkage > 0:
+                    bucket = round(
+                        math.floor(entry_price / self.config.calibration_bucket)
+                        * self.config.calibration_bucket,
+                        4,
+                    )
+                    wins, total = bucket_stats.get(bucket, (0, 0))
+                    k = self.config.calibration_shrinkage
+                    win_prob = (win_prob * k + wins) / (k + total)
                 f_star = kelly_fraction(
                     win_prob=win_prob,
                     price=entry_price,
@@ -243,6 +259,16 @@ class BacktestEngine:
                 peak_bankroll = max(peak_bankroll, bankroll)
                 total_exposure = max(0.0, total_exposure - size)
                 daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
+                # Walk-forward calibration update (past-only by construction)
+                if self.config.calibration_shrinkage > 0:
+                    bucket = round(
+                        math.floor(entry_price / self.config.calibration_bucket)
+                        * self.config.calibration_bucket,
+                        4,
+                    )
+                    st = bucket_stats.setdefault(bucket, [0, 0])
+                    st[0] += 1 if pnl > 0 else 0
+                    st[1] += 1
             else:
                 total_exposure += size
 
