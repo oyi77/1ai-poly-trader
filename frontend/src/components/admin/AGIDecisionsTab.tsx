@@ -52,7 +52,7 @@ export function AGIDecisionsTab() {
                 {log.decisions.map((entry: DecisionEntry, i: number) => (
                   <tr key={i} className="border-b border-neutral-800/40 hover:bg-neutral-800/20 transition-colors">
                     <td className="px-2 py-1.5 text-neutral-600 whitespace-nowrap tabular-nums">
-                      {new Date(entry.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                      {entry.timestamp ? new Date(entry.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}
                     </td>
                     <td className="px-2 py-1.5 text-neutral-400 whitespace-nowrap">{entry.agent_name ?? '—'}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
@@ -60,7 +60,7 @@ export function AGIDecisionsTab() {
                         {entry.decision_type}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-neutral-500 max-w-xs truncate" title={entry.reasoning}>
+                    <td className="px-2 py-1.5 text-neutral-500 max-w-xs truncate" title={entry.reasoning ?? ''}>
                       {entry.reasoning ?? '—'}
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-neutral-500">

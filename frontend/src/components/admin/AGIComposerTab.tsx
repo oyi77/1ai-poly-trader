@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { agiAPI } from '../../api/agi'
+import { agiAPI, type StrategyBlock } from '../../api/agi'
 
 const BLOCK_CATALOG = {
   signal_source: ['whale_tracker_signal', 'btc_momentum_signal', 'weather_signal', 'oracle_signal'],
@@ -8,14 +8,6 @@ const BLOCK_CATALOG = {
   position_sizer: ['kelly_sizer', 'fixed_01', 'fixed_005', 'half_kelly'],
   risk_rule: ['max_1pct', 'max_2pct', 'daily_loss_5pct', 'max_drawdown_10pct'],
   exit_rule: ['take_profit_10pct', 'take_profit_20pct', 'stop_loss_5pct', 'trailing_stop_3pct'],
-}
-
-interface StrategyBlock {
-  signal_source: string
-  filter: string
-  position_sizer: string
-  risk_rule: string
-  exit_rule: string
 }
 
 export function AGIComposerTab() {

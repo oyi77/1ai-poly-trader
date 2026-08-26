@@ -1,4 +1,3 @@
-import type { DashboardData, Signal, Trade, BotStats, BtcPrice, BtcWindow, WeatherForecast, WeatherSignal, Setting, TradeAttemptSummary, TradeAttemptsResponse, KanbanBoard, KanbanCard, JournalEntry, JournalStats, EvalReportsResponse, EvalReportDetail } from '../types'
 import { getCsrfToken, getLegacyApiKey } from '../utils/auth'
 import axios from 'axios'
 

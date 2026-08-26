@@ -1,6 +1,78 @@
-export type { RegimeStatus, GoalStatus, DecisionEntry, ComposedStrategy, ExperimentResult, AGIStatus } from './client'
 import { api, adminApi } from './client'
 
+// ── AGI API contract types (shapes mirror backend/api/agi_routes.py) ──
+
+export interface RegimeEntry {
+  regime: string
+  confidence: number
+  timestamp: string
+}
+
+export interface RegimeStatus {
+  regime: string
+  confidence?: number
+  history?: RegimeEntry[]
+}
+
+export interface GoalPerformance {
+  metric: string
+  value: number
+  target: number
+}
+
+export interface GoalStatus {
+  goal: string
+  reason?: string
+  set_at?: string
+  performance?: GoalPerformance | null
+}
+
+export interface DecisionEntry {
+  timestamp: string | null
+  agent_name: string | null
+  decision_type: string
+  confidence: number | null
+  input_data: Record<string, unknown> | null
+  output_data: Record<string, unknown> | null
+  reasoning: string | null
+}
+
+export interface DecisionsPage {
+  page: number
+  page_size: number
+  total: number
+  decisions: DecisionEntry[]
+}
+
+export interface StrategyBlock {
+  signal_source: string
+  filter: string
+  position_sizer: string
+  risk_rule: string
+  exit_rule: string
+}
+
+export interface ComposedStrategy {
+  id: string
+  name: string
+  status: string
+  blocks: StrategyBlock[]
+  shadow_pnl: number | null
+  shadow_trades: number | null
+  shadow_win_rate: number | null
+  created_at: string | null
+}
+
+/** Result of POST /agi/run-cycle (orchestrator CycleResult.to_dict()). */
+export interface ExperimentResult {
+  actions_taken: number
+  errors?: string[]
+  decisions_recorded?: number
+  trades_attempted?: number
+  trades_placed?: number
+  markets_scanned?: number
+  cycle_duration_ms?: number
+}
 export interface AGIStatus {
   regime: string
   goal: string
@@ -175,4 +247,61 @@ export async function fetchAGIGraphs(): Promise<AGIGraphsResponse> {
 export async function fetchAGIRunResult(): Promise<AGIRunResultsResponse> {
   const { data } = await api.get<AGIRunResultsResponse>('/agi/graphs/runs')
   return data
+}
+
+
+// ── Aggregated AGI API surface ────────────────────────────────────────────
+
+export const agiAPI = {
+  getStatus: fetchAGIStatus,
+
+  getRegime: async (): Promise<RegimeStatus> => {
+    const { data } = await api.get<RegimeStatus>('/agi/regime')
+    return data
+  },
+
+  getGoal: async (): Promise<GoalStatus> => {
+    const { data } = await api.get<GoalStatus>('/agi/goal')
+    return data
+  },
+
+  getDecisions: async (page = 1, pageSize = 10): Promise<DecisionsPage> => {
+    const { data } = await api.get<DecisionsPage>('/agi/decisions', {
+      params: { page, page_size: pageSize },
+    })
+    return data
+  },
+
+  getComposedStrategies: async (): Promise<ComposedStrategy[]> => {
+    const { data } = await api.get<{ strategies: ComposedStrategy[] }>(
+      '/agi/strategies/composed',
+    )
+    return data.strategies
+  },
+
+  composeStrategy: async (
+    name: string,
+    blocks: StrategyBlock[],
+  ): Promise<{ id: string | number; name: string; status: string }> => {
+    const { data } = await api.post('/agi/strategies/compose', { name, blocks })
+    return data
+  },
+
+  runCycle: async (): Promise<ExperimentResult> => {
+    const { data } = await api.post<ExperimentResult>('/agi/run-cycle')
+    return data
+  },
+
+  emergencyStop: async (): Promise<{ status: string }> => {
+    const { data } = await adminApi.post('/agi/emergency-stop')
+    return data
+  },
+
+  overrideGoal: async (
+    goal: string,
+    reason: string,
+  ): Promise<{ status: string; goal: string }> => {
+    const { data } = await adminApi.post('/agi/goal/override', { goal, reason })
+    return data
+  },
 }

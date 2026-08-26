@@ -1,4 +1,4 @@
-import { api, adminApi } from './client'
+import { adminApi } from './client'
 
 export async function fetchBotState(): Promise<{
   trading_mode: string
