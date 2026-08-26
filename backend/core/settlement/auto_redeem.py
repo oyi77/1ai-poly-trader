@@ -20,6 +20,7 @@ For standard binary markets: indexSets = [1, 2], parentCollectionId = bytes32(0)
 
 from dataclasses import dataclass, field
 from typing import Optional
+import re
 
 import httpx
 from web3 import Web3
@@ -65,7 +66,6 @@ CTF_ABI = [
             {"internalType": "address", "name": "owner", "type": "address"},
             {"internalType": "uint256", "name": "id", "type": "uint256"},
         ],
-        "name": "balanceOf",
         "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function",
@@ -106,9 +106,20 @@ class BatchRedeemResult:
 
 
 # ---------------------------------------------------------------------------
-# Wallet type detection
+# Hex conditionId validator
 # ---------------------------------------------------------------------------
 
+def _is_valid_hex_condition_id(value: str) -> bool:
+    """Return True if value is a valid 0x-prefixed 32-byte (64 hex char) conditionId."""
+    if not isinstance(value, str):
+        return False
+    v = value.strip().lower()
+    return bool(re.fullmatch(r"0x[0-9a-f]{64}", v))
+
+
+# ---------------------------------------------------------------------------
+# Wallet type detection
+# ---------------------------------------------------------------------------
 
 def _is_proxy_wallet(address: str) -> bool:
     """Check if address is a smart contract (proxy) on Polygon."""
@@ -120,7 +131,6 @@ def _is_proxy_wallet(address: str) -> bool:
 # ---------------------------------------------------------------------------
 # Encode redeemPositions calldata
 # ---------------------------------------------------------------------------
-
 
 def _encode_redeem_call(
     condition_id_hex: str,
@@ -135,8 +145,8 @@ def _encode_redeem_call(
 
     Returns (target_contract_address, encoded_calldata).
     """
-    if not condition_id_hex.startswith("0x"):
-        condition_id_hex = "0x" + condition_id_hex
+    if not _is_valid_hex_condition_id(condition_id_hex):
+        raise ValueError(f"Invalid conditionId: {condition_id_hex[:40]}... (must be 0x + 64 hex chars)")
 
     w3 = Web3()
 
@@ -180,7 +190,6 @@ def _encode_redeem_call(
 # ---------------------------------------------------------------------------
 # Redeem via Relayer (proxy wallets)
 # ---------------------------------------------------------------------------
-
 
 def _redeem_via_relayer(
     condition_id_hex: str,
@@ -281,15 +290,14 @@ def _redeem_via_relayer(
 # Redeem directly on-chain (EOA wallets)
 # ---------------------------------------------------------------------------
 
-
 def _redeem_direct(
     condition_id_hex: str,
     private_key: str,
     wallet_address: Optional[str] = None,
     neg_risk: bool = False,
 ) -> RedeemResult:
-    if not condition_id_hex.startswith("0x"):
-        condition_id_hex = "0x" + condition_id_hex
+    if not _is_valid_hex_condition_id(condition_id_hex):
+        raise ValueError(f"Invalid conditionId: {condition_id_hex[:40]}... (must be 0x + 64 hex chars)")
 
     try:
         w3 = Web3(Web3.HTTPProvider(POLYGON_RPC))
@@ -402,7 +410,6 @@ def _redeem_direct(
 # Public API
 # ---------------------------------------------------------------------------
 
-
 def get_redeemable_positions(wallet: str) -> list[dict]:
     """Fetch redeemable positions from Polymarket Data API.
 
@@ -472,10 +479,13 @@ def get_db_resolved_positions() -> list[dict]:
             )
 
             for trade in winning_trades:
-                condition_id = getattr(trade, "condition_id", None) or getattr(
-                    trade, "market_ticker", None
-                )
-                if not condition_id:
+                # Only use the trade's condition_id if it's a valid hex conditionId.
+                # Do NOT fall back to market_ticker (which is a slug, not a conditionId).
+                condition_id = getattr(trade, "condition_id", None)
+                if not _is_valid_hex_condition_id(condition_id):
+                    logger.debug(
+                        f"Skipping trade {trade.id}: invalid condition_id={condition_id!r}"
+                    )
                     continue
                 # Skip if already has a settlement_source indicating redemption
                 source = getattr(trade, "settlement_source", "") or ""
@@ -519,6 +529,13 @@ def redeem_position(
     Auto-detects wallet type (proxy vs EOA) and routes to the appropriate
     redemption method.
     """
+    if not _is_valid_hex_condition_id(condition_id_hex):
+        return RedeemResult(
+            success=False,
+            condition_id=condition_id_hex,
+            error=f"Invalid conditionId format: {condition_id_hex[:40]}... (expected 0x + 64 hex chars)",
+        )
+
     # Determine if we should use the relayer
     use_relayer = bool(builder_api_key and builder_secret and builder_passphrase)
 
@@ -601,8 +618,10 @@ def redeem_all_redeemable(
         initial_value = pos.get("initialValue", 0)
         neg_risk = bool(pos.get("negativeRisk", False))
 
-        if not condition_id:
-            result.errors.append(f"Skipping '{title}': no conditionId")
+        if not _is_valid_hex_condition_id(condition_id):
+            result.errors.append(
+                f"Skipping '{title}': invalid conditionId={condition_id!r} (not 0x+64 hex)"
+            )
             continue
 
         result.total_attempted += 1

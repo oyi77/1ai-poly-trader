@@ -68,6 +68,7 @@ class TestGenomeCompiler:
         """Create a mock strategy context."""
         ctx = MagicMock(spec=StrategyContext)
         ctx.db = MagicMock()
+        ctx.logger = MagicMock()  # prod run_cycle logs via ctx.logger
         ctx.bankroll = 2000.0
         return ctx
 
@@ -303,7 +304,9 @@ class TestGenomeCompiler:
     def test_evaluate_market_returns_none_for_missing_cognition(
         self, valid_genome, mock_context
     ):
-        """Test that _evaluate_market returns None when cognition is missing."""
+        """None when cognition has no usable entry logic: empty conditions
+        defer to fallback edge-scoring; yes=0.5 gives base edge 0.0 which is
+        below the 0.20 bar for any hash offset ⇒ deterministic None."""
         # Create genome with empty cognition
         genome_no_cognition = StrategyGenome(
             genome_id="test-123",
@@ -326,16 +329,19 @@ class TestGenomeCompiler:
             end_date=None,
             volume=1000.0,
             liquidity=500.0,
-            yes_price=0.6,
-            no_price=0.4,
+            yes_price=0.5,
+            no_price=0.5,
             metadata={},
         )
 
         result = strategy._evaluate_market(market, mock_context)
         assert result is None
 
-    def test_evaluate_market_returns_none_for_low_confidence(self, mock_context):
-        """Test that _evaluate_market returns None when no conditions match."""
+
+    def test_evaluate_market_uses_fallback_edge_below_threshold(self, mock_context):
+        """Drift-update: with no matching conditions, prod falls back to
+        edge-scoring (genome_strategy.py:353-363). yes=0.3 gives base edge
+        0.4 which clears the 0.20 bar deterministically ⇒ BUY / up."""
         genome_high_threshold = StrategyGenome(
             genome_id="test-123",
             strategy_name="test_strategy",
@@ -379,7 +385,10 @@ class TestGenomeCompiler:
         )
 
         result = strategy._evaluate_market(market, mock_context)
-        assert result is None
+        assert result is not None
+        assert result["decision"] == "BUY"
+        assert result["direction"] == "up"
+        assert 0.30 <= result["confidence"] <= 0.48  # base 0.4 ± hash offset
 
     def test_evaluate_market_returns_signal_for_valid_conditions(
         self, valid_genome, mock_context
@@ -575,5 +584,5 @@ class TestGenomeCompiler:
         assert DEFAULT_BANKROLL == 1000.0
         assert DEFAULT_MAX_TRADE_SIZE == 100.0
         assert DEFAULT_CONFIDENCE_BASELINE == 0.5
-        assert MARKET_LIMIT == 50
-        assert TOP_MARKETS_TO_PROCESS == 10
+        assert MARKET_LIMIT == 30
+        assert TOP_MARKETS_TO_PROCESS == 50

@@ -46,7 +46,7 @@ def test_slow_request_times_out(app_with_timeout, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_database_timeout():
-    from backend.models.database import execute_with_timeout
+    from backend.models.recovery import execute_with_timeout
     import time
 
     def slow_query():

@@ -152,6 +152,39 @@ class TestStats:
         assert isinstance(data["total_trades"], int)
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_external_feeds(monkeypatch):
+    """Dashboard/health must never depend on live Polymarket latency.
+
+    Stub every external feed at the app layer so these tests stay fast and
+    deterministic regardless of upstream API health (2026-08-26: live CLOB
+    reads degraded to 5-8s, blowing the dashboard's 6s budget).
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    monkeypatch.setattr(
+        "backend.api.system.fetch_pm_profile_pnl",
+        AsyncMock(return_value=0.0),
+    )
+    monkeypatch.setattr(
+        "backend.api.system.fetch_pm_profile_trade_stats",
+        AsyncMock(return_value=None),
+    )
+    clob_ctx = MagicMock()
+    clob_ctx.__aenter__ = AsyncMock(
+        return_value=MagicMock(get_pusd_balance=AsyncMock(return_value=0.0))
+    )
+    clob_ctx.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        "backend.data.polymarket_clob.clob_from_settings",
+        lambda mode="live": clob_ctx,
+    )
+    monkeypatch.setattr(
+        "backend.api.dashboard.compute_btc_microstructure",
+        AsyncMock(return_value=None),
+    )
+
+
 class TestDashboard:
     def test_dashboard_returns_200(self, client):
         resp = client.get("/api/v1/dashboard")

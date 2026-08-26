@@ -116,7 +116,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     _t0 = _time.time()
     logger.info("Initializing database...")
-    from backend.models.database import init_db, register_corruption_alert_handler
+    from backend.models.database import init_db
+    from backend.models.recovery import register_corruption_alert_handler
     from backend.core.event_bus import publish_event
 
     register_corruption_alert_handler(publish_event)

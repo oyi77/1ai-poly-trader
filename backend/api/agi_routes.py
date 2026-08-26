@@ -64,7 +64,9 @@ async def get_decisions(
         "decisions": [
             {
                 "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                "agent_name": r.agent_name,
                 "decision_type": r.decision_type,
+                "confidence": r.confidence,
                 "input_data": r.input_data,
                 "output_data": r.output_data,
                 "reasoning": r.reasoning,

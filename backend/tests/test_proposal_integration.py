@@ -109,7 +109,7 @@ async def test_proposal_changes_max_position_limit(db_session, strategy_config):
             "backend.core.strategy_executor._get_rate_limiter",
             return_value=mock_limiter,
         ),
-        patch("backend.core.strategy_executor.get_context") as mock_context,
+        patch("backend.core.mode_context.get_context") as mock_context,
     ):
         mock_ctx = Mock()
         mock_ctx.risk_manager.validate_trade.return_value = Mock(

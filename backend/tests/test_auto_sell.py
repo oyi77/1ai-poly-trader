@@ -35,6 +35,7 @@ def _make_trade(
     trade.token_id = token_id
     trade.settled = settled
     trade.timestamp = timestamp or datetime.now(timezone.utc) - timedelta(seconds=10)
+    trade.market_end_date = None  # prod PRE_EXPIRY reads this field
     return trade
 
 
@@ -47,7 +48,9 @@ def test_get_auto_sell_config_defaults():
     cfg = _get_auto_sell_config()
     assert cfg["profit_target_pct"] == 0.06
     assert cfg["stop_loss_pct"] == 0.04
-    assert cfg["max_hold_seconds"] == 600
+    # Env-driven: .env sets AUTO_SELL_MAX_HOLD_SECONDS=1800 (code default 300).
+    from backend.config import settings as _s
+    assert cfg["max_hold_seconds"] == _s.AUTO_SELL_MAX_HOLD_SECONDS
 
 
 # ---------------------------------------------------------------------------
@@ -315,4 +318,5 @@ async def test_check_strategy_positions_for_auto_sell_kwargs(monkeypatch):
     await check_strategy_positions_for_auto_sell("test_strat")
     assert call_params["profit_target"] == 0.06
     assert call_params["stop_loss"] == 0.04
-    assert call_params["max_hold"] == 600
+    from backend.config import settings as _s2
+    assert call_params["max_hold"] == _s2.AUTO_SELL_MAX_HOLD_SECONDS

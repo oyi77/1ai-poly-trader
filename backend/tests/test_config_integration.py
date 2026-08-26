@@ -153,7 +153,6 @@ class TestDatabaseSettings:
 class TestFeatureFlags:
     def test_default_feature_flags(self):
         settings = Settings()
-        assert settings.WHALE_LISTENER_ENABLED is False
         assert settings.NEWS_FEED_ENABLED is False
         assert settings.ARBITRAGE_DETECTOR_ENABLED is False
 
@@ -161,12 +160,10 @@ class TestFeatureFlags:
         with patch.dict(
             os.environ,
             {
-                "WHALE_LISTENER_ENABLED": "true",
                 "ARBITRAGE_DETECTOR_ENABLED": "true",
             },
         ):
             settings = Settings()
-            assert settings.WHALE_LISTENER_ENABLED is True
             assert settings.ARBITRAGE_DETECTOR_ENABLED is True
             assert settings.NEWS_FEED_ENABLED is False
 

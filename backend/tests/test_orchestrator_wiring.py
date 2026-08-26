@@ -4,7 +4,6 @@ from backend.config import settings
 
 
 def test_orchestrator_imports_with_all_flags_off(monkeypatch):
-    monkeypatch.setattr(settings, "WHALE_LISTENER_ENABLED", False)
     monkeypatch.setattr(settings, "NEWS_FEED_ENABLED", False)
     monkeypatch.setattr(settings, "AUTO_TRADER_ENABLED", False)
     monkeypatch.setattr(settings, "ARBITRAGE_DETECTOR_ENABLED", False)
@@ -16,7 +15,6 @@ def test_orchestrator_imports_with_all_flags_off(monkeypatch):
 
 
 def test_init_phase2_with_arbitrage_flag(monkeypatch):
-    monkeypatch.setattr(settings, "WHALE_LISTENER_ENABLED", False)
     monkeypatch.setattr(settings, "NEWS_FEED_ENABLED", False)
     monkeypatch.setattr(settings, "AUTO_TRADER_ENABLED", False)
     monkeypatch.setattr(settings, "ARBITRAGE_DETECTOR_ENABLED", True)
@@ -27,7 +25,6 @@ def test_init_phase2_with_arbitrage_flag(monkeypatch):
 
 
 def test_init_phase2_with_news_feed_flag(monkeypatch):
-    monkeypatch.setattr(settings, "WHALE_LISTENER_ENABLED", False)
     monkeypatch.setattr(settings, "NEWS_FEED_ENABLED", True)
     monkeypatch.setattr(settings, "AUTO_TRADER_ENABLED", False)
     monkeypatch.setattr(settings, "ARBITRAGE_DETECTOR_ENABLED", False)

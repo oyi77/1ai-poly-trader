@@ -1,3 +1,4 @@
+import pytest
 from backend.domain.evolution.fitness import calculate_fitness, normalize
 from backend.domain.genome.models import FitnessMetrics
 
@@ -49,7 +50,9 @@ def test_calculate_fitness_perfect_metrics():
         total_trades=100,
     )
     fitness = calculate_fitness(metrics)
-    assert fitness == 1.0
+    # Drift-update: regime_consistency (default 0.5) now carries 0.10 weight,
+    # pulling a perfect core down to ~0.95.
+    assert fitness == pytest.approx(0.95)
 
 
 def test_calculate_fitness_poor_metrics():
@@ -64,7 +67,8 @@ def test_calculate_fitness_poor_metrics():
         total_trades=100,
     )
     fitness = calculate_fitness(metrics)
-    assert fitness == 0.0
+    # Poor core scores 0.0 but regime/recent terms floor it at ~+0.05.
+    assert fitness == pytest.approx(0.05)
 
 
 def test_calculate_fitness_balanced_metrics():

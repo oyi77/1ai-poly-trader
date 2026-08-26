@@ -6,7 +6,7 @@ run fast and deterministically.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -43,13 +43,46 @@ def _mock_btc_price():
     price.volume_24h = 40_000_000_000.0
     from datetime import datetime
 
-    price.last_updated = datetime.now(timezone.utc)
+    price.last_updated = datetime.now(UTC)
     return price
 
 
 # ---------------------------------------------------------------------------
 # /api/v1/stats
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_external_feeds(monkeypatch):
+    """Dashboard/health must never depend on live Polymarket latency.
+
+    Stub every external feed at the app layer so these tests stay fast and
+    deterministic regardless of upstream API health (2026-08-26: live CLOB
+    reads degraded to 5-8s, blowing the dashboard's 6s budget).
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    monkeypatch.setattr(
+        "backend.api.system.fetch_pm_profile_pnl",
+        AsyncMock(return_value=0.0),
+    )
+    monkeypatch.setattr(
+        "backend.api.system.fetch_pm_profile_trade_stats",
+        AsyncMock(return_value=None),
+    )
+    clob_ctx = MagicMock()
+    clob_ctx.__aenter__ = AsyncMock(
+        return_value=MagicMock(get_pusd_balance=AsyncMock(return_value=0.0))
+    )
+    clob_ctx.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        "backend.data.polymarket_clob.clob_from_settings",
+        lambda mode="live": clob_ctx,
+    )
+    monkeypatch.setattr(
+        "backend.api.dashboard.compute_btc_microstructure",
+        AsyncMock(return_value=None),
+    )
 
 
 class TestStatsEndpoint:
@@ -384,7 +417,7 @@ class TestDashboardEndpoint:
     def test_dashboard_exposes_top_winning_trades_outside_recent_slice(
         self, client, db
     ):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         winning_trade = Trade(
             market_ticker="LIVE-WINNER-OLD",
             platform="polymarket",
@@ -425,7 +458,7 @@ class TestDashboardEndpoint:
         assert data["top_winning_trades"][0]["pnl"] == 25.0
 
     def test_dashboard_live_equity_curve_ends_at_reconciled_state(self, client, db):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         live_state = db.query(BotState).filter_by(mode="live").first()
         db.info["allow_live_financial_update"] = True
         live_state.bankroll = 170.0

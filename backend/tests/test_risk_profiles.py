@@ -97,8 +97,8 @@ class TestGetProfile:
         db.commit()
 
         with (
-            patch("backend.core.risk_profiles.logger.warning") as warning_mock,
-            patch("backend.core.risk_profiles.logger.exception") as exception_mock,
+            patch("backend.core.risk.risk_profiles.logger.warning") as warning_mock,
+            patch("backend.core.risk.risk_profiles.logger.exception") as exception_mock,
         ):
             profile = get_profile("safe", db=db)
 
@@ -256,8 +256,8 @@ class TestDBBackedProfiles:
         db.commit()
 
         with (
-            patch("backend.core.risk_profiles.logger.warning") as warning_mock,
-            patch("backend.core.risk_profiles.logger.exception") as exception_mock,
+            patch("backend.core.risk.risk_profiles.logger.warning") as warning_mock,
+            patch("backend.core.risk.risk_profiles.logger.exception") as exception_mock,
         ):
             all_profiles = list_profiles(db=db)
 

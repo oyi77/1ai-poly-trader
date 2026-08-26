@@ -99,8 +99,8 @@ class TestStrategyUpdate:
         name = strategies[0]["name"]
 
         with (
-            patch("backend.core.scheduler.schedule_strategy") as mock_schedule,
-            patch("backend.core.scheduler.unschedule_strategy") as mock_unschedule,
+            patch("backend.core.scheduling.scheduler.schedule_strategy") as mock_schedule,
+            patch("backend.core.scheduling.scheduler.unschedule_strategy") as mock_unschedule,
         ):
             resp = client.put(
                 f"/api/v1/strategies/{name}",

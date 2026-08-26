@@ -21,7 +21,7 @@ class TestThreadingLockConsistency:
         assert isinstance(_botstate_threading_lock, type(threading.Lock()))
 
     def test_lock_retry_config(self):
-        from backend.core.strategy_executor import (
+        from backend.core.strategy_executor.helpers import (
             _MAX_LOCK_RETRY_ATTEMPTS,
             _LOCK_RETRY_BASE_DELAY_SECONDS,
         )
