@@ -1,0 +1,34 @@
+# pip-audit receipt — 2026-08-26 (V1)
+
+## Scoped audit (requirements.txt) — final state
+Command: `pip-audit -r requirements.txt`
+Result: **14 findings in 3 packages, ALL explicitly waived below**; every
+actionable HIGH/CRITICAL was fixed by pin bumps in requirements.txt
+(aiohttp 3.11.11→3.14.3 [34 findings], starlette floor 0.49.1, orjson
+3.10.14→3.11.6 [2], python-dotenv 1.0.1→1.2.2 [1], urllib3 → 2.7.0 at runtime).
+Post-bump backend smoke on the upgraded env: **107/107 passed**
+ATTESTED RUNTIME (importlib.metadata verified): fastapi 0.138.0,
+aiohttp 3.14.3, orjson 3.11.6, urllib3 2.7.0 — exact match with the
+requirements.txt pins; urllib3 2.7.0 installed --no-deps to override
+lighter-sdk's <2.1.0 metadata cap per the waiver below.
+
+## Waiver table
+| Package | Findings | Waiver reason |
+|---|---|---|
+| starlette 0.52.1 | 8 (PYSEC-2026-161/248/249/2280/2281) | Fixes require starlette >=1.0.1; the fastapi ecosystem caps starlette <1.0.0 (fastapi>=0.118 resolves 0.52.1). Tracked upstream — revisit on next fastapi major. |
+| pytest 8.4.2 | 1 (PYSEC-2026-1845) | Dev-only tool; fix is pytest 9 major. Deferred to avoid suite-wide plugin (pytest-asyncio/httpx) breakage mid-remediation. |
+| urllib3 (resolves 2.0.7 on fresh install) | 5 (PYSEC-2026-141 et al) | lighter-sdk 1.0.9 declares urllib3<2.1.0, capping any clean resolve. The LIVE environment runs urllib3 2.7.0 (findings cleared at runtime); fresh-install exposure is upstream-blocked. lighter-sdk pinned ==1.0.9 as resolution-too-deep guard. |
+
+## Environment-wide audit (context only)
+Full `pip-audit` over the machine site-packages reported 234 findings in 50
+packages — out of repo scope; superseded by the scoped section above.
+
+## Resolution notes
+- fastapi bumped 0.115.6 → >=0.118,<1.0 (resolves 0.138.0) to permit the
+  starlette 0.49+ security floor.
+- psycopg2-binary 2.9.9 → 2.9.10 (cp313 wheel availability).
+- DEX SDK block pinned to currently-deployed versions (lighter-sdk==1.0.9,
+  hyperliquid-python-sdk==0.23.0, ostium-python-sdk==3.2.1, ccxt==4.5.53,
+  py-clob-client-v2==1.0.0) as a resolution-too-deep guard.
+- Full-file `pip install` still trips pip's resolver-depth limit on this
+  60+ package file; dry-run resolution via pip-audit verified installable.
