@@ -1,15 +1,18 @@
 """Backtesting engine — simulate strategy execution against historical market data."""
 
+from __future__ import annotations
+
+import math
 import statistics
 from dataclasses import dataclass
-from datetime import datetime, date
-from typing import Optional, Any
-
-from sqlalchemy.orm import Session
-
-from backend.models.database import Trade, Signal, SessionLocal
+from datetime import date, datetime
+from typing import Any
 
 from loguru import logger
+from sqlalchemy.orm import Session
+
+from backend.core.learning.calibration import kelly_fraction
+from backend.models.database import SessionLocal, Signal, Trade
 
 
 @dataclass
@@ -23,7 +26,31 @@ class BacktestConfig:
     max_position_fraction: float = 0.10
     max_total_exposure: float = 0.60
     daily_loss_limit: float = 15.0
-    slippage: float = 0.01  # Spread cost per trade in dollars
+    slippage: float = 0.01  # Spread cost per trade in dollars (flat mode)
+    # Cost-model fidelity: binary-market spread scales with price level —
+    # a flat $0.01 is 2% at entry 0.50 but 20% at entry 0.05. "bps" mode
+    # charges slippage_bps × entry_price, the realistic convention.
+    slippage_mode: str = "flat"  # "flat" | "bps"
+    slippage_bps: float = 100.0  # bps of entry price when slippage_mode="bps"
+    # --- Sizing doctrine (autoresearch iteration 1) ---
+    # "binary_kelly": f* = ((p*(1/price)-q)/(1/price)) via
+    #   learning.calibration.kelly_fraction — the mathematically correct
+    #   Kelly stake for binary markets. "edge_proportional": legacy
+    #   bankroll*kelly*edge heuristic.
+    sizing_mode: str = "binary_kelly"
+    kelly_cap: float = 0.25  # max fraction of bankroll per trade
+    drawdown_throttle: bool = True  # scale size down as drawdown deepens
+    drawdown_throttle_floor: float = 0.25  # min size multiplier under throttle
+    # --- Entry quality gates (iteration 2) ---
+    # Skip signals below these floors before sizing. 0.0 = legacy behavior.
+    min_edge_threshold: float = 0.0
+    min_model_probability: float = 0.0
+    # Walk-forward bucket calibration (iteration 5): blend raw model
+    # probability with realized win-rate of PRIOR settled trades in the same
+    # entry-price bucket (Laplace shrinkage, strictly past-only). 0 disables.
+    calibration_shrinkage: float = 0.0
+    calibration_bucket: float = 0.1
+    calibration_key: str = "price"  # "price" | "edge" — what defines the bucket
 
 
 @dataclass
@@ -34,8 +61,8 @@ class BacktestTrade:
     entry_price: float
     size: float
     edge: float
-    settlement_value: Optional[float] = None
-    pnl: Optional[float] = None
+    settlement_value: float | None = None
+    pnl: float | None = None
     settled: bool = False
 
 
@@ -115,9 +142,20 @@ class BacktestEngine:
         # Track daily loss per calendar date
         daily_pnl: dict[date, float] = {}
         total_exposure = 0.0
+        peak_bankroll = self.config.initial_bankroll
+        bucket_stats: dict[float, list[int]] = {}  # price bucket -> [wins, total]
 
         for sig in signals:
             if sig.edge is None or sig.edge <= 0:
+                continue
+            if sig.edge < self.config.min_edge_threshold:
+                continue
+            sig_mp = getattr(sig, "model_probability", None)
+            if (
+                self.config.min_model_probability > 0
+                and sig_mp is not None
+                and sig_mp < self.config.min_model_probability
+            ):
                 continue
 
             trade_date = sig.timestamp.date()
@@ -131,12 +169,41 @@ class BacktestEngine:
                 continue
 
             # Position sizing
-            kelly_size = bankroll * self.config.kelly_fraction * sig.edge
+            entry_price = (
+                sig.market_price
+                if getattr(sig, "market_price", None) is not None
+                else 0.5
+            )
+            if self.config.sizing_mode == "binary_kelly":
+                win_prob = getattr(sig, "model_probability", None)
+                if win_prob is None:
+                    # edge ≡ model_prob − market_price ⇒ exact reconstruction
+                    win_prob = entry_price + (sig.edge or 0.0)
+                if self.config.calibration_shrinkage > 0:
+                    bucket = round(
+                        math.floor(entry_price / self.config.calibration_bucket)
+                        * self.config.calibration_bucket,
+                        4,
+                    )
+                    wins, total = bucket_stats.get(bucket, (0, 0))
+                    k = self.config.calibration_shrinkage
+                    win_prob = (win_prob * k + wins) / (k + total)
+                f_star = kelly_fraction(
+                    win_prob=win_prob,
+                    price=entry_price,
+                    cap=self.config.kelly_cap,
+                )
+                kelly_size = bankroll * f_star
+            else:
+                kelly_size = bankroll * self.config.kelly_fraction * sig.edge
             size = min(
                 kelly_size,
                 self.config.max_trade_size,
                 bankroll * self.config.max_position_fraction,
             )
+            if self.config.drawdown_throttle and peak_bankroll > 0:
+                dd = max(0.0, (peak_bankroll - bankroll) / peak_bankroll)
+                size *= max(self.config.drawdown_throttle_floor, 1.0 - 5.0 * dd)
             if size <= 0:
                 continue
 
@@ -144,18 +211,13 @@ class BacktestEngine:
             if (total_exposure + size) / bankroll > self.config.max_total_exposure:
                 continue
 
-            entry_price = (
-                sig.market_price
-                if getattr(sig, "market_price", None) is not None
-                else 0.5
-            )
             settlement_value = sig.settlement_value
 
             # Determine PnL from settlement
             # size = dollars spent, entry_price = price per share
             # WIN: shares = size/entry_price, payout = shares * $1, pnl = payout - size
             # LOSS: pnl = -size (lose entire investment)
-            pnl: Optional[float] = None
+            pnl: float | None = None
             settled = False
             if settlement_value is not None:
                 settled = True
@@ -183,7 +245,11 @@ class BacktestEngine:
 
             # Apply slippage cost (spread)
             if pnl is not None:
-                pnl = round(pnl - self.config.slippage, 4)
+                if self.config.slippage_mode == "bps":
+                    cost = self.config.slippage_bps / 10_000.0 * entry_price
+                else:
+                    cost = self.config.slippage
+                pnl = round(pnl - cost, 4)
 
             bt_trade = BacktestTrade(
                 timestamp=sig.timestamp,
@@ -200,8 +266,19 @@ class BacktestEngine:
 
             if pnl is not None:
                 bankroll += pnl
+                peak_bankroll = max(peak_bankroll, bankroll)
                 total_exposure = max(0.0, total_exposure - size)
                 daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
+                # Walk-forward calibration update (past-only by construction)
+                if self.config.calibration_shrinkage > 0:
+                    bucket = round(
+                        math.floor(entry_price / self.config.calibration_bucket)
+                        * self.config.calibration_bucket,
+                        4,
+                    )
+                    st = bucket_stats.setdefault(bucket, [0, 0])
+                    st[0] += 1 if pnl > 0 else 0
+                    st[1] += 1
             else:
                 total_exposure += size
 
@@ -273,7 +350,7 @@ class BacktestEngine:
                 entry_price = trade.entry_price or 0.5
                 settlement_value = trade.settlement_value
 
-                pnl: Optional[float] = None
+                pnl: float | None = None
                 if settlement_value is not None:
                     bt_dir = trade.direction
                     if bt_dir in ("up", "yes"):
@@ -423,7 +500,7 @@ class BacktestEngine:
 
     async def run_from_historical_markets(
         self,
-        strategy_fn: Optional[callable] = None,
+        strategy_fn: callable | None = None,
         db: Session = None,
     ) -> BacktestResult:
         """Backtest against historical resolved markets from Polymarket.
@@ -603,7 +680,7 @@ class BacktestEngine:
         self,
         strategy_name: str,
         param_overrides: dict[str, Any],
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> BacktestResult:
         """RL-style parameterized backtest: replay settled trades with arbitrary param overrides.
 
@@ -679,7 +756,7 @@ class BacktestEngine:
                 entry_price = trade.entry_price or 0.5
                 settlement_value = trade.settlement_value
 
-                pnl: Optional[float] = None
+                pnl: float | None = None
                 if settlement_value is not None:
                     bt_dir = trade.direction
                     if bt_dir in ("up", "yes"):
