@@ -35,6 +35,10 @@ class BacktestConfig:
     kelly_cap: float = 0.25  # max fraction of bankroll per trade
     drawdown_throttle: bool = True  # scale size down as drawdown deepens
     drawdown_throttle_floor: float = 0.25  # min size multiplier under throttle
+    # --- Entry quality gates (iteration 2) ---
+    # Skip signals below these floors before sizing. 0.0 = legacy behavior.
+    min_edge_threshold: float = 0.0
+    min_model_probability: float = 0.0
 
 
 @dataclass
@@ -130,6 +134,15 @@ class BacktestEngine:
 
         for sig in signals:
             if sig.edge is None or sig.edge <= 0:
+                continue
+            if sig.edge < self.config.min_edge_threshold:
+                continue
+            sig_mp = getattr(sig, "model_probability", None)
+            if (
+                self.config.min_model_probability > 0
+                and sig_mp is not None
+                and sig_mp < self.config.min_model_probability
+            ):
                 continue
 
             trade_date = sig.timestamp.date()
