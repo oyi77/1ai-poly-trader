@@ -221,6 +221,27 @@ def _record_trade(
     db.add(trade)
     db.flush()
 
+    # --- Audit trail (restored: lost in 4bb8b9f6 package split) ---
+    from backend.models.audit_logger import log_trade_created
+
+    log_trade_created(
+        db=db,
+        trade_id=trade.id,
+        trade_data={
+            "market_ticker": market_ticker,
+            "platform": platform,
+            "direction": direction,
+            "entry_price": fill_price,
+            "size": adjusted_size,
+            "trading_mode": mode,
+            "strategy": strategy_name,
+            "confidence": confidence,
+            "edge": edge,
+            "clob_order_id": clob_order_id,
+        },
+        user_id=f"strategy:{strategy_name}",
+    )
+
     # --- Signal record ---
     signal = Signal(
         market_ticker=market_ticker,

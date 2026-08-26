@@ -13,7 +13,7 @@ from backend.models.kg_models import ExperimentRecord
 from backend.core.experiment_runner import ExperimentRunner
 from backend.core.agi_types import ExperimentStatus
 from backend.core.event_bus import publish_event
-from backend.core.strategy_health import disable_for_rehab
+from backend.core.strategy_health import disable_for_rehab, StrategyHealthMonitor
 from backend.core.forensics_integration import generate_forensics_proposals
 from backend.core.safe_param_tuner import SafeParamTuner
 from backend.db.utils import utcnow, get_db_session
@@ -639,6 +639,8 @@ class WorkflowMixin:
         db.commit()
 
         try:
+            from backend.core.scheduling.scheduler import schedule_strategy
+
             schedule_strategy(strategy_name, interval, mode="live")
         except Exception as e:
             logger.warning(

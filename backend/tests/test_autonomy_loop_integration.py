@@ -49,11 +49,12 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
 
     promoter = AutonomousPromoter()
 
-    # Run 1: DRAFT → BACKTEST
+    # Run 1: DRAFT→BACKTEST→SHADOW in one pass (promotion cycle advances
+    # multiple phases per run_once by design).
     await promoter.run_once()
     with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
-        assert exp_v.status == ExperimentStatus.BACKTEST.value
+        assert exp_v.status == ExperimentStatus.SHADOW.value
 
     # Mark backtest as passed so BACKTEST → SHADOW gate opens
     with _db_mod.SessionLocal() as update_db:
@@ -108,18 +109,33 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
         exp_v.promoted_at = datetime.now(timezone.utc) - timedelta(days=8)
         verify_db.commit()
 
-    # Run 5: LIVE_TRIAL → LIVE_PROMOTED
-    with patch(
-        "backend.core.strategy_health.StrategyHealthMonitor.assess"
-    ) as mock_assess:
-        mock_assess.return_value = {
-            "status": "active",
-            "total_trades": 30,
-            "win_rate": 0.58,
-            "sharpe": 1.1,
-            "max_drawdown": 0.12,
-        }
-        await promoter.run_once()
+    # Run 5: LIVE_TRIAL → LIVE_PROMOTED (schedule_strategy asserted inline below)
+    with _db_mod.SessionLocal() as verify_db:
+        exp_v = verify_db.get(ExperimentRecord, exp_id)
+        assert exp_v.status == ExperimentStatus.LIVE_TRIAL.value
+        exp_v.promoted_at = datetime.now(timezone.utc) - timedelta(days=8)
+        verify_db.commit()
+
+    # Production imports schedule_strategy from the scheduling package
+    # (post-split path); assert against that module, not the legacy stub.
+    from unittest.mock import patch as _patch
+
+    with _patch(
+        "backend.core.scheduling.scheduler.schedule_strategy"
+    ) as mock_schedule:
+        with patch(
+            "backend.core.strategy_health.StrategyHealthMonitor.assess"
+        ) as mock_assess:
+            mock_assess.return_value = {
+                "status": "active",
+                "total_trades": 30,
+                "win_rate": 0.58,
+                "sharpe": 1.1,
+                "max_drawdown": 0.12,
+            }
+            await promoter.run_once()
+
+    mock_schedule.assert_called_once_with(strategy_name, 60, mode="live")
 
     with _db_mod.SessionLocal() as verify_db:
         exp_v = verify_db.get(ExperimentRecord, exp_id)
@@ -133,12 +149,6 @@ async def test_promoter_full_lifecycle_shadow_to_live_and_kill(db):
             .first()
         )
         assert strategy.enabled is True
-
-    from backend.core import scheduler as sched_mod
-
-    assert hasattr(sched_mod, "schedule_strategy")
-    assert sched_mod.schedule_strategy.call_count >= 1
-    sched_mod.schedule_strategy.assert_called_with(strategy_name, 60, mode="live")
 
     # Mock health to trigger kill
     with patch(

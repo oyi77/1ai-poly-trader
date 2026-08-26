@@ -74,7 +74,7 @@ async def test_trade_creation_logs_audit_event(test_db):
     assert len(audit_entries) == 1
     entry = audit_entries[0]
     assert entry.entity_type == "TRADE"
-    assert entry.entity_id == str(result["id"])
+    assert entry.entity_id == str(result["trade_id"])
     assert entry.new_value["market_ticker"] == "BTC-UP-5M"
     assert entry.new_value["size"] == 5.0
     assert entry.user_id == "strategy:test_strategy"
