@@ -167,6 +167,10 @@ app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(shared_data_router, prefix="/api/v1")
 app.include_router(learning_router, prefix="/api/v1")
 
+from backend.api.meteora import router as meteora_router  # noqa: E402
+
+app.include_router(meteora_router, prefix="/api/v1")
+
 # Plugin system API routes
 app.include_router(ai_providers_router, prefix="/api/v1")
 app.include_router(data_sources_router, prefix="/api/v1")

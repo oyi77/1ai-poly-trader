@@ -24,6 +24,8 @@ from backend.core.scheduling.scheduling_strategies import (
     position_monitor_job,
 )
 from backend.core.strategy_evolution_loop import strategy_evolution_loop
+from backend.data.meteora.paper import meteora_management_job
+from backend.data.meteora.service import meteora_retention_job, meteora_screening_job
 from backend.core.wallet_reconciler import wallet_reconciler_job
 from backend.models.database import ScheduledJob, Trade
 from loguru import logger
@@ -48,7 +50,11 @@ JOB_FUNCTION_REGISTRY = {
     "sell_signal_monitor_job": sell_signal_monitor_job,
     "strategy_evolution_loop": strategy_evolution_loop,
     "wallet_reconciler_job": wallet_reconciler_job,
+    "meteora_screening_job": meteora_screening_job,
+    "meteora_management_job": meteora_management_job,
+    "meteora_retention_job": meteora_retention_job,
 }
+
 
 def _serialize_trigger(trigger) -> dict:
     if isinstance(trigger, IntervalTrigger):

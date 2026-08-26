@@ -361,7 +361,50 @@ def start_scheduler():
         max_instances=1,
         misfire_grace_time=120,
     )
+
     logger.info("Scheduled drift alert job every 5 minutes")
+
+    # Meteora DLMM pool screening: refresh candidates every 30 minutes
+    from backend.data.meteora.service import meteora_screening_job
+
+    _persist_and_add_job(
+        scheduler,
+        meteora_screening_job,
+        IntervalTrigger(minutes=30, jitter=120),
+        id="meteora_screening",
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=300,
+    )
+    logger.info("Scheduled Meteora DLMM screening job every 30 minutes")
+
+    # Meteora paper position management: evaluate exits every 10 minutes
+    from backend.data.meteora.paper import meteora_management_job
+
+    _persist_and_add_job(
+        scheduler,
+        meteora_management_job,
+        IntervalTrigger(minutes=10, jitter=60),
+        id="meteora_management",
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=120,
+    )
+    logger.info("Scheduled Meteora DLMM management job every 10 minutes")
+
+    # Meteora data retention: prune old screening artifacts daily
+    from backend.data.meteora.service import meteora_retention_job
+
+    _persist_and_add_job(
+        scheduler,
+        meteora_retention_job,
+        IntervalTrigger(hours=24, jitter=600),
+        id="meteora_retention",
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    logger.info("Scheduled Meteora DLMM retention job every 24 hours")
 
     # Wallet sync disabled — contains blocking synchronous DB calls that freeze the event loop.
     # Re-enable after refactoring to use async DB (asyncpg/databases) or thread pool execution.

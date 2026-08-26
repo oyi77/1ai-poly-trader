@@ -1,9 +1,11 @@
 """Database models — re-exports from domain-specific modules. Backward-compatible."""
+
 from backend.models.engine import *  # noqa: F401,F403
 from backend.models.trade_db import *  # noqa: F401,F403
 from backend.models.botstate_db import *  # noqa: F401,F403
 from backend.models.strategy_db import *  # noqa: F401,F403
 from backend.models.signal_db import *  # noqa: F401,F403
+from backend.models.meteora_db import *  # noqa: F401,F403
 from backend.models.wallet_db import *  # noqa: F401,F403
 from backend.models.settlement_db import *  # noqa: F401,F403
 from backend.models.audit_db import *  # noqa: F401,F403
@@ -22,6 +24,7 @@ try:
     )
 except ImportError as exc:
     from loguru import logger
+
     logger.debug(
         "Deferred StrategyPerformanceSnapshot registration during database import: {}",
         exc,

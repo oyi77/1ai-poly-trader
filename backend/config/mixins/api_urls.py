@@ -24,9 +24,7 @@ class APIUrlsMixin:
     POLYMARKET_WS_CLOB_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     POLYMARKET_WS_USER_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
     POLYMARKET_WS_RTDS_URL: str = "wss://ws-live-data.polymarket.com"
-    POLYMARKET_WS_WHALE_URL: str = (
-        "wss://ws-subscriptions-clob.polymarket.com/ws/market"
-    )
+    POLYMARKET_WS_WHALE_URL: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     POLYMARKET_WS_ORDERBOOK_URL: str = "wss://ws.polymarket.com/orderbook"
 
     # Kalshi API
@@ -40,9 +38,7 @@ class APIUrlsMixin:
             "polymarket": {
                 "enabled": True,
                 "priority": 1,
-                "api_url": os.getenv(
-                    "POLYMARKET_API_URL", "https://clob.polymarket.com"
-                ),
+                "api_url": os.getenv("POLYMARKET_API_URL", "https://clob.polymarket.com"),
             },
             "kalshi": {
                 "enabled": False,
@@ -62,9 +58,7 @@ class APIUrlsMixin:
     PROVIDER_FALLBACK_ENABLED: bool = (
         os.getenv("PROVIDER_FALLBACK_ENABLED", "true").lower() == "true"
     )
-    PROVIDER_FALLBACK_ORDER: list[str] = field(
-        default_factory=lambda: ["polymarket", "kalshi"]
-    )
+    PROVIDER_FALLBACK_ORDER: list[str] = field(default_factory=lambda: ["polymarket", "kalshi"])
 
     # Crypto exchange APIs
     BINANCE_API_URL: str = "https://api.binance.com/api/v3"
@@ -110,9 +104,7 @@ class APIUrlsMixin:
     BRAIN_API_URL: str = "http://localhost:9099"
 
     # Goldsky GraphQL API (Polymarket historical order data)
-    GOLDSKY_API_URL: str = (
-        "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
-    )
+    GOLDSKY_API_URL: str = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn"
 
     # API_BASE_URL - FastAPI server URL (constructed from API_HOST and API_PORT)
     API_HOST: str = "localhost"
@@ -120,9 +112,7 @@ class APIUrlsMixin:
     API_BASE_URL: str = "http://localhost:8005"
 
     # RSS Feed URLs (comma-separated)
-    RSS_FEED_URLS: str = (
-        "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
-    )
+    RSS_FEED_URLS: str = "https://feeds.bbci.co.uk/news/rss.xml,https://feeds.reuters.com/reuters/businessNews,https://www.federalreserve.gov/feeds/press_all.xml,https://cointelegraph.com/rss,https://coindesk.com/arc/outboundfeeds/rss/"
     RSS_FEED_BBC_URL: str = "https://feeds.bbci.co.uk/news/rss.xml"
     RSS_FEED_COINDESK_URL: str = "https://coindesk.com/arc/outboundfeeds/rss/"
     RSS_FEED_REUTERS_URL: str = "https://feeds.reuters.com/reuters/businessNews"
@@ -153,6 +143,14 @@ class APIUrlsMixin:
     # HuggingFace datasets-server API
     HF_DATASETS_SERVER_URL: str = "https://datasets-server.huggingface.co/rows"
 
+    # Meteora DLMM APIs (pool discovery, OHLCV/volume/positions, Jupiter audits)
+    METEORA_DISCOVERY_API_URL: str = "https://pool-discovery-api.datapi.meteora.ag"
+    METEORA_DLMM_API_URL: str = "https://dlmm.datapi.meteora.ag"
+    JUPITER_DATAPI_URL: str = "https://datapi.jup.ag/v1"
+    RATE_LIMIT_METEORA: int = 25  # requests/sec ceiling under the 30 RPS API limit
+    METEORA_RETENTION_DAYS: int = 30  # pruning age for snapshots/candidates/decisions
+    METEORA_RPC_URL: str = ""  # Helius/other Solana RPC; required for live executor
+
     # --------------------------------------------------------------------------
     # RATE_LIMITS - Rate limit settings for API services
     # --------------------------------------------------------------------------
@@ -162,6 +160,10 @@ class APIUrlsMixin:
     RATE_LIMIT_BACKOFF_BASE: float = 2.0  # base multiplier for exponential backoff
     RATE_LIMIT_MAX_DELAY: float = 60.0  # maximum delay between retries
     # Circuit breaker thresholds (configurable per service)
-    CB_FAILURE_THRESHOLD: int = 20  # failures before opening circuit (increased from 5 to handle auto_sell burst)
-    CB_RECOVERY_TIMEOUT: float = 30.0  # seconds before attempting recovery (reduced from 60 for faster recovery)
+    CB_FAILURE_THRESHOLD: int = (
+        20  # failures before opening circuit (increased from 5 to handle auto_sell burst)
+    )
+    CB_RECOVERY_TIMEOUT: float = (
+        30.0  # seconds before attempting recovery (reduced from 60 for faster recovery)
+    )
     CB_HALF_OPEN_MAX: int = 3  # max concurrent probes in half-open state (increased from 1)
