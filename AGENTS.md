@@ -76,6 +76,7 @@ Key packages and their split structure:
 | Strategy promotion | `backend/core/` | `autonomous_promoter/criteria.py`, `autonomous_promoter/workflow.py`, `autonomous_promoter/review.py`, `autonomous_promoter/job.py` |
 | Knowledge graph | `backend/core/` | `knowledge_graph/entity.py`, `knowledge_graph/query.py`, `knowledge_graph/snapshot.py`, `knowledge_graph/graph_api.py`, `knowledge_graph/analysis.py` |
 | Polymarket CLOB | `backend/data/` | `polymarket_clob/models.py`, `polymarket_clob/helpers.py`, `polymarket_clob/client.py`, `polymarket_clob/factory.py` |
+| Meteora DLMM | `backend/data/meteora/`, `backend/models/`, `backend/api/` | `meteora/client.py`, `meteora/screening.py`, `meteora/backtest.py`, `meteora/paper.py`, `meteora/learning.py`, `meteora/executor.py`, `models/meteora_db.py`, `api/meteora.py` |
 | Risk | `backend/core/risk/` | `models.py`, `validators/allocation.py`, `validators/calibration.py`, `validators/concentration.py`, `validators/drawdown.py`, `validators/edge.py`, `validators/sidelock.py` |
 | Strategy executor | `backend/core/` | `strategy_executor/` (7 modules) |
 | System router | `backend/api/system/` | 3 sub-routers (agi, events, risk) |

@@ -1,0 +1,29 @@
+{
+  "base": "/api/v1",
+  "endpoints": {
+    "/api/v1/meteora/screen": {
+      "post": [
+        "200",
+        "422"
+      ]
+    },
+    "/api/v1/meteora/candidates": {
+      "get": [
+        "200",
+        "422"
+      ]
+    },
+    "/api/v1/meteora/candidates/{cycle_id}": {
+      "get": [
+        "200",
+        "422"
+      ]
+    },
+    "/api/v1/meteora/cycles/latest": {
+      "get": [
+        "200",
+        "422"
+      ]
+    }
+  }
+}

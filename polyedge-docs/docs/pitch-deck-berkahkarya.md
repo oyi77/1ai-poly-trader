@@ -327,7 +327,7 @@ Jombang, Jawa Timur, Indonesia
 
 📱 [WhatsApp](https://wa.me/6285732740006)
 ✈️ [Telegram Bot](https://t.me/berkahkarya_saas_bot)
-📧 [Email](/cdn-cgi/l/email-protection#e88a8d9a838982818b98839bc485988d)
+📧 [Email — see berkahkarya.org/contact](https://berkahkarya.org)
 🌐 [berkahkarya.org](https://berkahkarya.org)
 
 ---

@@ -24,7 +24,7 @@ cd frontend && npm install && npm run dev
 
 ## Features
 
-- **9 Active Strategies** — bond scanner, longshot bias, world cup specialist, negrisk arb, flash crash reversion, smart money copy, FLB exploiter, ultra-cheap NO, multi-outcome arb
+- **10 Registered Strategies** — apex, bond_scanner, longshot_bias, world_cup_specialist, negrisk_bundle_arb, flash_crash_reversion, smart_money_copy, flb_exploiter, ultra_cheap_no, multi_outcome_arb (live registry: `STRATEGY_REGISTRY`)
 - **AGI Autonomy** — Evolutionary strategy composition with DRAFT->SHADOW->PAPER->LIVE promotion pipeline
 - **Multi-Platform** — Plug-and-play integrations for **5+ Prediction Markets** (Polymarket, Kalshi, SX.bet, Limitless, Myriad, Azuro) and **4+ Perpetuals DEXes** (Hyperliquid, Ostium, Aster, Lighter) via an auto-discovering plugin-based provider registry.
 - **Risk Management** — Circuit breakers, Kelly sizing, position limits, portfolio concentration guards
@@ -33,7 +33,7 @@ cd frontend && npm install && npm run dev
 ## Architecture
 
 ```
-Frontend (React/TS) -> REST API (FastAPI) -> AGI Layer -> 9 Active Strategies -> Risk Manager
+Frontend (React/TS) -> REST API (FastAPI) -> AGI Layer -> 10 Registered Strategies -> Risk Manager
                                                |                              |
                                           Genome Registry              Order Executor
                                           Evolution Scheduler          Settlement Engine
