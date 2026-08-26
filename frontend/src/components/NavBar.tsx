@@ -38,6 +38,14 @@ export function NavBar({ title }: { title: string }) {
           MiroFish
         </Link>
         <Link
+          to="/meteora"
+          className={`text-[10px] uppercase tracking-wider transition-colors whitespace-nowrap ${
+            location.pathname === '/meteora' ? 'text-green-500' : 'text-neutral-500 hover:text-green-500'
+          }`}
+        >
+          Meteora
+        </Link>
+        <Link
           to="/evals"
           className={`text-[10px] uppercase tracking-wider transition-colors whitespace-nowrap ${
             location.pathname === '/evals' ? 'text-green-500' : 'text-neutral-500 hover:text-green-500'

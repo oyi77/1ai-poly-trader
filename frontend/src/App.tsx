@@ -17,6 +17,7 @@ const Backtest = React.lazy(() => import('./pages/Backtest').then(m => ({ defaul
 const Evals = React.lazy(() => import('./pages/Evals').then(m => ({ default: m.Evals })))
 const AgiOps = React.lazy(() => import('./pages/AgiOps'))
 const DecisionLog = React.lazy(() => import('./pages/DecisionLog'))
+const Meteora = React.lazy(() => import('./pages/Meteora').then(m => ({ default: m.Meteora })))
 const EdgeTracker = React.lazy(() => import('./pages/EdgeTracker'))
 const MarketIntel = React.lazy(() => import('./pages/MarketIntel'))
 const PendingApprovals = React.lazy(() => import('./pages/PendingApprovals'))
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="/backtest" element={<Backtest />} />
             <Route path="/evals" element={<Evals />} />
             <Route path="/agi-ops" element={<AgiOps />} />
+            <Route path="/meteora" element={<Meteora />} />
             {/* Standalone pages wired directly */}
             <Route path="/whale-tracker" element={<WhaleTracker />} />
             <Route path="/settlements" element={<Settlements />} />
