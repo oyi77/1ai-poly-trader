@@ -26,7 +26,12 @@ class BacktestConfig:
     max_position_fraction: float = 0.10
     max_total_exposure: float = 0.60
     daily_loss_limit: float = 15.0
-    slippage: float = 0.01  # Spread cost per trade in dollars
+    slippage: float = 0.01  # Spread cost per trade in dollars (flat mode)
+    # Cost-model fidelity: binary-market spread scales with price level —
+    # a flat $0.01 is 2% at entry 0.50 but 20% at entry 0.05. "bps" mode
+    # charges slippage_bps × entry_price, the realistic convention.
+    slippage_mode: str = "flat"  # "flat" | "bps"
+    slippage_bps: float = 100.0  # bps of entry price when slippage_mode="bps"
     # --- Sizing doctrine (autoresearch iteration 1) ---
     # "binary_kelly": f* = ((p*(1/price)-q)/(1/price)) via
     #   learning.calibration.kelly_fraction — the mathematically correct
@@ -239,7 +244,11 @@ class BacktestEngine:
 
             # Apply slippage cost (spread)
             if pnl is not None:
-                pnl = round(pnl - self.config.slippage, 4)
+                if self.config.slippage_mode == "bps":
+                    cost = self.config.slippage_bps / 10_000.0 * entry_price
+                else:
+                    cost = self.config.slippage
+                pnl = round(pnl - cost, 4)
 
             bt_trade = BacktestTrade(
                 timestamp=sig.timestamp,
