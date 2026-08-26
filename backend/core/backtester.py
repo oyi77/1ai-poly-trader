@@ -50,7 +50,15 @@ class BacktestConfig:
     # entry-price bucket (Laplace shrinkage, strictly past-only). 0 disables.
     calibration_shrinkage: float = 0.0
     calibration_bucket: float = 0.1
-    calibration_key: str = "price"  # "price" | "edge" — what defines the bucket
+    calibration_key: str = "price"  # "price" | "edge" | "price_dir" — bucket key
+    # Volatility-scaled Kelly (segment 2): scale f* by
+    # clip(target_vol / rolling_vol, floor, 1.0) where rolling_vol is the
+    # stdev of the last `vol_lookback` settled per-trade returns as a
+    # fraction of bankroll. Normalizes risk-taking to realized volatility.
+    vol_scaling: bool = False
+    vol_target: float = 0.02      # target per-trade return volatility
+    vol_lookback: int = 20
+    vol_scale_floor: float = 0.5
 
 
 @dataclass
@@ -144,6 +152,7 @@ class BacktestEngine:
         total_exposure = 0.0
         peak_bankroll = self.config.initial_bankroll
         bucket_stats: dict[float, list[int]] = {}  # price bucket -> [wins, total]
+        recent_returns: list[float] = []  # last N per-trade returns (pnl/bankroll)
 
         for sig in signals:
             if sig.edge is None or sig.edge <= 0:
@@ -185,7 +194,12 @@ class BacktestEngine:
                         * self.config.calibration_bucket,
                         4,
                     )
-                    wins, total = bucket_stats.get(bucket, (0, 0))
+                    bkey = (
+                        f"{bucket}:{sig.direction}"
+                        if self.config.calibration_key == "price_dir"
+                        else bucket
+                    )
+                    wins, total = bucket_stats.get(bkey, (0, 0))
                     k = self.config.calibration_shrinkage
                     win_prob = (win_prob * k + wins) / (k + total)
                 f_star = kelly_fraction(
@@ -193,6 +207,15 @@ class BacktestEngine:
                     price=entry_price,
                     cap=self.config.kelly_cap,
                 )
+                if self.config.vol_scaling and len(recent_returns) >= 3:
+                    mean_r = sum(recent_returns) / len(recent_returns)
+                    var = sum((r - mean_r) ** 2 for r in recent_returns) / len(recent_returns)
+                    realized = math.sqrt(var)
+                    if realized > 0:
+                        f_star *= max(
+                            self.config.vol_scale_floor,
+                            min(1.0, self.config.vol_target / realized),
+                        )
                 kelly_size = bankroll * f_star
             else:
                 kelly_size = bankroll * self.config.kelly_fraction * sig.edge
@@ -269,6 +292,10 @@ class BacktestEngine:
                 peak_bankroll = max(peak_bankroll, bankroll)
                 total_exposure = max(0.0, total_exposure - size)
                 daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
+                if self.config.vol_scaling:
+                    recent_returns.append(pnl / bankroll if bankroll > 0 else 0.0)
+                    if len(recent_returns) > self.config.vol_lookback:
+                        recent_returns.pop(0)
                 # Walk-forward calibration update (past-only by construction)
                 if self.config.calibration_shrinkage > 0:
                     bucket = round(
@@ -276,7 +303,12 @@ class BacktestEngine:
                         * self.config.calibration_bucket,
                         4,
                     )
-                    st = bucket_stats.setdefault(bucket, [0, 0])
+                    bkey = (
+                        f"{bucket}:{sig.direction}"
+                        if self.config.calibration_key == "price_dir"
+                        else bucket
+                    )
+                    st = bucket_stats.setdefault(bkey, [0, 0])
                     st[0] += 1 if pnl > 0 else 0
                     st[1] += 1
             else:
