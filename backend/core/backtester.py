@@ -1,15 +1,17 @@
 """Backtesting engine — simulate strategy execution against historical market data."""
 
+from __future__ import annotations
+
 import statistics
 from dataclasses import dataclass
-from datetime import datetime, date
-from typing import Optional, Any
-
-from sqlalchemy.orm import Session
-
-from backend.models.database import Trade, Signal, SessionLocal
+from datetime import date, datetime
+from typing import Any
 
 from loguru import logger
+from sqlalchemy.orm import Session
+
+from backend.core.learning.calibration import kelly_fraction
+from backend.models.database import SessionLocal, Signal, Trade
 
 
 @dataclass
@@ -24,6 +26,15 @@ class BacktestConfig:
     max_total_exposure: float = 0.60
     daily_loss_limit: float = 15.0
     slippage: float = 0.01  # Spread cost per trade in dollars
+    # --- Sizing doctrine (autoresearch iteration 1) ---
+    # "binary_kelly": f* = ((p*(1/price)-q)/(1/price)) via
+    #   learning.calibration.kelly_fraction — the mathematically correct
+    #   Kelly stake for binary markets. "edge_proportional": legacy
+    #   bankroll*kelly*edge heuristic.
+    sizing_mode: str = "binary_kelly"
+    kelly_cap: float = 0.25  # max fraction of bankroll per trade
+    drawdown_throttle: bool = True  # scale size down as drawdown deepens
+    drawdown_throttle_floor: float = 0.25  # min size multiplier under throttle
 
 
 @dataclass
@@ -34,8 +45,8 @@ class BacktestTrade:
     entry_price: float
     size: float
     edge: float
-    settlement_value: Optional[float] = None
-    pnl: Optional[float] = None
+    settlement_value: float | None = None
+    pnl: float | None = None
     settled: bool = False
 
 
@@ -115,6 +126,7 @@ class BacktestEngine:
         # Track daily loss per calendar date
         daily_pnl: dict[date, float] = {}
         total_exposure = 0.0
+        peak_bankroll = self.config.initial_bankroll
 
         for sig in signals:
             if sig.edge is None or sig.edge <= 0:
@@ -131,12 +143,32 @@ class BacktestEngine:
                 continue
 
             # Position sizing
-            kelly_size = bankroll * self.config.kelly_fraction * sig.edge
+            entry_price = (
+                sig.market_price
+                if getattr(sig, "market_price", None) is not None
+                else 0.5
+            )
+            if self.config.sizing_mode == "binary_kelly":
+                win_prob = getattr(sig, "model_probability", None)
+                if win_prob is None:
+                    # edge ≡ model_prob − market_price ⇒ exact reconstruction
+                    win_prob = entry_price + (sig.edge or 0.0)
+                f_star = kelly_fraction(
+                    win_prob=win_prob,
+                    price=entry_price,
+                    cap=self.config.kelly_cap,
+                )
+                kelly_size = bankroll * f_star
+            else:
+                kelly_size = bankroll * self.config.kelly_fraction * sig.edge
             size = min(
                 kelly_size,
                 self.config.max_trade_size,
                 bankroll * self.config.max_position_fraction,
             )
+            if self.config.drawdown_throttle and peak_bankroll > 0:
+                dd = max(0.0, (peak_bankroll - bankroll) / peak_bankroll)
+                size *= max(self.config.drawdown_throttle_floor, 1.0 - 5.0 * dd)
             if size <= 0:
                 continue
 
@@ -144,18 +176,13 @@ class BacktestEngine:
             if (total_exposure + size) / bankroll > self.config.max_total_exposure:
                 continue
 
-            entry_price = (
-                sig.market_price
-                if getattr(sig, "market_price", None) is not None
-                else 0.5
-            )
             settlement_value = sig.settlement_value
 
             # Determine PnL from settlement
             # size = dollars spent, entry_price = price per share
             # WIN: shares = size/entry_price, payout = shares * $1, pnl = payout - size
             # LOSS: pnl = -size (lose entire investment)
-            pnl: Optional[float] = None
+            pnl: float | None = None
             settled = False
             if settlement_value is not None:
                 settled = True
@@ -200,6 +227,7 @@ class BacktestEngine:
 
             if pnl is not None:
                 bankroll += pnl
+                peak_bankroll = max(peak_bankroll, bankroll)
                 total_exposure = max(0.0, total_exposure - size)
                 daily_pnl[trade_date] = daily_pnl.get(trade_date, 0.0) + pnl
             else:
@@ -273,7 +301,7 @@ class BacktestEngine:
                 entry_price = trade.entry_price or 0.5
                 settlement_value = trade.settlement_value
 
-                pnl: Optional[float] = None
+                pnl: float | None = None
                 if settlement_value is not None:
                     bt_dir = trade.direction
                     if bt_dir in ("up", "yes"):
@@ -423,7 +451,7 @@ class BacktestEngine:
 
     async def run_from_historical_markets(
         self,
-        strategy_fn: Optional[callable] = None,
+        strategy_fn: callable | None = None,
         db: Session = None,
     ) -> BacktestResult:
         """Backtest against historical resolved markets from Polymarket.
@@ -603,7 +631,7 @@ class BacktestEngine:
         self,
         strategy_name: str,
         param_overrides: dict[str, Any],
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> BacktestResult:
         """RL-style parameterized backtest: replay settled trades with arbitrary param overrides.
 
@@ -679,7 +707,7 @@ class BacktestEngine:
                 entry_price = trade.entry_price or 0.5
                 settlement_value = trade.settlement_value
 
-                pnl: Optional[float] = None
+                pnl: float | None = None
                 if settlement_value is not None:
                     bt_dir = trade.direction
                     if bt_dir in ("up", "yes"):
