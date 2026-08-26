@@ -50,6 +50,7 @@ class BacktestConfig:
     # entry-price bucket (Laplace shrinkage, strictly past-only). 0 disables.
     calibration_shrinkage: float = 0.0
     calibration_bucket: float = 0.1
+    calibration_key: str = "price"  # "price" | "edge" — what defines the bucket
 
 
 @dataclass

@@ -110,6 +110,36 @@ async def run_once(db_path: str) -> dict[str, float]:
         engine.dispose()
 
 
+async def run_window(db_path: str, start: datetime, end: datetime) -> float:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from backend.core.backtester import BacktestConfig, BacktestEngine
+
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    session_factory = sessionmaker(bind=engine)
+    db = session_factory()
+    try:
+        cfg = BacktestConfig(
+            strategy_name=STRATEGY,
+            start_date=start,
+            end_date=end,
+            initial_bankroll=1000.0,
+            min_edge_threshold=0.15,
+            min_model_probability=0.58,
+            calibration_shrinkage=1.0,
+            calibration_bucket=0.1,
+            calibration_key="price",
+            slippage_mode="bps",
+            slippage_bps=100.0,
+        )
+        result = await BacktestEngine(cfg).run(db)
+        return round(float(result.sharpe_ratio), 4)
+    finally:
+        db.close()
+        engine.dispose()
+
+
 def main() -> int:
     from loguru import logger
 
@@ -135,6 +165,20 @@ def main() -> int:
 
     for k in sorted(metrics_a):
         print(f"METRIC {k}={metrics_a[k]}")
+
+    # Walk-forward overfit guard: same config, train vs test windows.
+    with tempfile.TemporaryDirectory() as tmp:
+        w = os.path.join(tmp, "wf.db")
+        build_db(w)
+        mid = WINDOW_START + timedelta(days=int(WINDOW_DAYS * 0.6))
+        end = WINDOW_START + timedelta(days=WINDOW_DAYS)
+        wf_train = asyncio.run(run_window(w, WINDOW_START, mid))
+        wf_test = asyncio.run(run_window(w, mid, end))
+    print(f"METRIC bench_wf_train_sharpe={wf_train}")
+    print(f"METRIC bench_wf_test_sharpe={wf_test}")
+    if wf_test < wf_train * 0.5:
+        print("WF GUARD: out-of-sample sharpe collapsed (<50% of train) — config overfit")
+        return 3
     print(
         f"BENCH OK seed={SEED} signals={N_SIGNALS} strategy={STRATEGY} "
         f"deterministic=true"
