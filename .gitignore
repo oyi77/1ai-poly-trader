@@ -139,3 +139,8 @@ tradingdb
 tradingbot.db.corrupted
 amp
 *.wav
+
+# Runtime-mutated state — machine-local, continuous churn (2026-08-26)
+.production_guardian_alerts.json
+.sisyphus/agi/health_history.json
+backend/ai/models/baseline.pkl
