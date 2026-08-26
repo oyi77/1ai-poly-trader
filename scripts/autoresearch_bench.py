@@ -89,8 +89,8 @@ async def run_once(db_path: str) -> dict[str, float]:
             start_date=WINDOW_START,
             end_date=WINDOW_START + timedelta(days=WINDOW_DAYS),
             initial_bankroll=1000.0,
-            min_edge_threshold=0.10,
-            min_model_probability=0.65,
+            min_edge_threshold=0.15,
+            min_model_probability=0.58,
             calibration_shrinkage=1.0,
         )
         result = await BacktestEngine(cfg).run(db)
